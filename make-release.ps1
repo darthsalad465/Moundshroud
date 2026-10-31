@@ -21,7 +21,7 @@ function Zip($dest, $files) {                                      # entry by en
   try { foreach ($f in $files) { $rel = $f.FullName.Substring($stage.Length + 1).Replace('\', '/'); $en = $za.CreateEntry($rel, [IO.Compression.CompressionLevel]::Optimal); $en.LastWriteTime = $f.LastWriteTime; $es = $en.Open(); $in = [IO.File]::OpenRead($f.FullName); try { $in.CopyTo($es) } finally { $in.Dispose(); $es.Dispose() } } } finally { $za.Dispose(); $fs.Dispose() }
 }
 try {
-  foreach ($f in 'server.js', 'Listener.cs', 'open-moundshroud.ps1', 'ocr.ps1', 'pc-volume.ps1', 'snapshot.ps1', 'restore-snapshot.ps1', 'SNAPSHOTS.txt', 'README.md', 'LICENSE', 'START-HERE.txt', 'VERSION', 'setup.ps1', 'Setup-Moundshroud.bat') {
+  foreach ($f in 'server.js', 'Listener.cs', 'open-moundshroud.ps1', 'ocr.ps1', 'pc-volume.ps1', 'snapshot.ps1', 'restore-snapshot.ps1', 'apply-update.ps1', 'update.json', 'SNAPSHOTS.txt', 'README.md', 'LICENSE', 'START-HERE.txt', 'VERSION', 'setup.ps1', 'Setup-Moundshroud.bat') {
     $p = Join-Path $root $f; if (Test-Path $p) { Copy-Item $p (Join-Path $pkg $f) -Force } else { Write-Host "  (missing, skipped: $f)" -ForegroundColor Yellow }
   }
   foreach ($d in 'lib', 'py', 'web') { Copy-Item (Join-Path $root $d) (Join-Path $pkg $d) -Recurse -Force }
@@ -33,11 +33,15 @@ try {
   New-Item -ItemType Directory -Force (Join-Path $pkg 'nomad\library') | Out-Null
   Set-Content (Join-Path $pkg 'nomad\library\PUT-ZIM-FILES-HERE.txt') "Offline libraries (Kiwix .zim files) go in this folder. Use Prepare > Stock up inside Moundshroud to download them." -Encoding UTF8
   # privacy scan: nothing personal may be in the package
-  # the words to look for are your Windows user name plus any listed in dataprivate-words.txt (one per line; that file is never shared or committed)
-  $pw = Join-Path $root 'dataprivate-words.txt'; $extra = if (Test-Path $pw) { Get-Content $pw | ForEach-Object { $_.Trim() } | Where-Object { $_ -and -not $_.StartsWith('#') } } else { @() }
+  # the words to look for are your Windows user name plus any listed in data\private-words.txt (one per line; that file is never shared or committed)
+  $pw = Join-Path $root 'data\private-words.txt'; $extra = if (Test-Path $pw) { Get-Content $pw | ForEach-Object { $_.Trim() } | Where-Object { $_ -and -not $_.StartsWith('#') } } else { @() }
   $bad = @(); $names = @(@($env:USERNAME) + $extra) | Where-Object { $_ }
   Get-ChildItem $pkg -Recurse -File | Where-Object { $_.Extension -match '^\.(js|cs|ps1|bat|html|css|json|txt|md|py)$' -and $_.Length -lt 3MB } | ForEach-Object {
-    $t = [IO.File]::ReadAllText($_.FullName); foreach ($n in $names) { if ($t.IndexOf($n, [StringComparison]::OrdinalIgnoreCase) -ge 0) { $bad += "$($_.FullName.Substring($pkg.Length + 1))  contains '$n'" } } }
+    $t = [IO.File]::ReadAllText($_.FullName)
+    # the one allowed exception (your choice, Nov 2026): update.json names the public download repo, so the GitHub account name is in it.
+    # It is skipped only while it holds nothing but that address (and an itch.io page)
+    if ($_.FullName -eq (Join-Path $pkg 'update.json')) { try { $u = $t | ConvertFrom-Json; if (@($u.PSObject.Properties.Name | Where-Object { $_ -notin 'repo', 'itch' }).Count -eq 0 -and $u.repo -match '^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$') { return } } catch { } }
+    foreach ($n in $names) { if ($t.IndexOf($n, [StringComparison]::OrdinalIgnoreCase) -ge 0) { $bad += "$($_.FullName.Substring($pkg.Length + 1))  contains '$n'" } } }
   $bad | Select-Object -First 10 | ForEach-Object { Write-Host "  PRIVACY: $_" -ForegroundColor Yellow }
   if ($bad.Count) { throw "The package mentions personal details in $($bad.Count) file(s); fix those before shipping." }
   # split: part 2 = the bulky reference data
@@ -66,6 +70,10 @@ START-HERE.txt in the folder has the same steps. Needs Windows 10 or 11. If anyt
 $($sums -join "`n")
 "@
   Set-Content (Join-Path $out 'MESSAGE-FOR-DISCORD.txt') $msg -Encoding UTF8
+  # latest.json: what the in-app updater reads (published by publish-update.ps1). The notes are this version's lines from RELEASE-NOTES.txt
+  $notesFile = Join-Path $root 'RELEASE-NOTES.txt'; $notes = @(); if (Test-Path $notesFile) { $notes = @(Get-Content $notesFile -Encoding UTF8 | ForEach-Object { $_.Trim() } | Where-Object { $_ -and -not $_.StartsWith('#') }) }
+  $latest = [ordered]@{ version = $ver; date = (Get-Date -Format 'yyyy-MM-dd'); notes = $notes; files = @(@($z1, $z2) | ForEach-Object { [ordered]@{ name = (Split-Path $_ -Leaf); size = (Get-Item $_).Length; sha256 = (Get-FileHash $_ -Algorithm SHA256).Hash.ToLower() } }) }
+  [IO.File]::WriteAllText((Join-Path $out 'latest.json'), ($latest | ConvertTo-Json -Depth 5), (New-Object Text.UTF8Encoding($false)))
   if ($Verify) {
     # a folder name with spaces, an accented letter and an apostrophe: the kind of path that breaks Windows scripts
     $chk = Join-Path ([IO.Path]::GetTempPath()) ("moundshroud verify " + [char]0x00FC + "'s " + [guid]::NewGuid().ToString('N').Substring(0, 8)); New-Item -ItemType Directory $chk | Out-Null
