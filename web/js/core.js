@@ -1,0 +1,110 @@
+// Shared helpers and the tab system. Everything hangs off the global `A`.
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const ls = {
+  get(k, d) { try { const v = localStorage.getItem('oa_' + k); return v === null ? d : v; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('oa_' + k, v); } catch (e) {} }
+};
+const A = { caps: {}, tabs: {}, order: [], cur: 'home', ready: [], version: '1.1.0', built: '2026-10-27' };
+
+A.api = async (path, body) => {
+  const o = body === undefined ? {} : { method: 'POST', body: JSON.stringify(body) };
+  const r = await fetch(path, o); return r.json();
+};
+/* Notifications: a quiet stack in the bottom corner. A.toast(message) works exactly as it always has, and
+   A.notify(kind, message, ms) is for when the kind matters (info, ok, warn, err): it picks the colour, the
+   icon and how long to stay. Hovering holds one still, clicking dismisses it, and only the newest four are kept. */
+let nthost = null;
+const KIND = { info: 'i', ok: '✓', warn: '!', err: '✕' };
+const guessKind = m => {
+  const s = String(m == null ? '' : m).trim();
+  if (/^(could not|cannot|can’t|can't|failed|that is not|that file|sorry|unable|no |nothing )/i.test(s)) return 'err';
+  if (/^(copied|saved|added|removed|restored|imported|opened|cleared|done|deleted|created|updated|set |now |🏆|⭐|🎉|✅|🔋|🗑️)/i.test(s)) return 'ok';
+  return 'info';
+};
+A.notify = (kind, m, ms) => {
+  const k = KIND[kind] ? kind : 'info';
+  if (!nthost) { nthost = document.createElement('div'); nthost.id = 'nts'; nthost.setAttribute('aria-live', 'polite'); document.body.appendChild(nthost); }
+  const el = document.createElement('div');
+  el.className = 'nt nt-' + k;
+  el.innerHTML = '<span class="nti"></span><span class="ntm"></span><button class="ntx" type="button" aria-label="Dismiss">&times;</button><i class="ntp"></i>';
+  el.querySelector('.nti').textContent = KIND[k];
+  el.querySelector('.ntm').textContent = String(m == null ? '' : m);
+  const ttl = Math.max(1200, +ms || (k === 'err' ? 6500 : k === 'warn' ? 4400 : 2600));
+  el.style.setProperty('--ttl', ttl + 'ms');
+  const kill = () => { clearTimeout(el._t); el.classList.add('gone'); setTimeout(() => { el.remove(); if (nthost && !nthost.children.length) { nthost.remove(); nthost = null; } }, 240); };
+  el.querySelector('.ntx').onclick = e => { e.stopPropagation(); kill(); };
+  el.onclick = kill;
+  /* a long one is worth a second look: hovering stops it sliding away, and leaving gives you a moment more */
+  el.onmouseenter = () => { clearTimeout(el._t); el.classList.add('hold'); };
+  el.onmouseleave = () => { el.classList.remove('hold'); el._t = setTimeout(kill, 1600); };
+  nthost.appendChild(el);
+  while (nthost.children.length > 4) nthost.firstElementChild.remove();
+  el._t = setTimeout(kill, ttl);
+  return { close: kill, el };
+};
+A.toast = (m, ms) => A.notify(guessKind(m), m, ms);
+
+A.registerTab = (name, label, onShow, opts = {}) => { A.tabs[name] = { label, onShow, hidden: !!opts.hidden }; A.order.push(name); };
+A.showTab = name => {
+  if (!A.tabs[name]) return;
+  A.cur = name; try { A.closePop(); } catch (e) { }
+  for (const n of A.order) { const p = $('p-' + n); if (p) p.classList.toggle('on', n === name); }      // a missing page must not stop the others being hidden
+  try { A.navMark(); } catch (e) { }
+  const ab = document.querySelector('#nav button.on'); if (ab && ab.scrollIntoView) ab.scrollIntoView({ block: 'nearest', inline: 'center' });       // keep the active tab visible in a narrow window
+  /* one page failing to open must never take the rest of the app with it: it gets a "try again" card instead */
+  const fail = e => { try { A.problems && A.problems.push('page', 'Opening ' + name + ': ' + (e && e.message || e), (e && e.stack || '').split('\n')[1] || ''); } catch (x) { } const p = $('p-' + name); if (p && !p.textContent.trim()) { p.innerHTML = '<div class="pad" style="margin:auto;max-width:460px;text-align:center"><h3>This page hit a problem</h3><p class="mute small">The rest of Moundshroud still works. The details were saved for Settings › Problems.</p><button class="pri" onclick="A.showTab(\'' + name + '\')">Try again</button></div>'; } };
+  if (A.tabs[name].onShow) { try { const r = A.tabs[name].onShow(); if (r && r.catch) r.catch(fail); } catch (e) { fail(e); } }
+};
+/* alphabetical order for lists and contents (switch: Settings > Appearance > Alphabetical order); the key ignores emoji and symbols */
+A.az = (list, key) => { if (ls.get('alpha', '1') === '0') return list; const k = x => String(key ? key(x) : x).replace(/<[^>]*>/g, '').replace(/^[^\p{L}\p{N}]+/u, '').toLowerCase(); return list.slice().sort((a, b) => k(a).localeCompare(k(b), undefined, { numeric: true, sensitivity: 'base' })); };
+/* top bar: related tabs fold into three menus (switch off in Settings > Appearance > Grouped top bar) */
+/* the menus in the top bar (the ids are kept from the old names so saved settings still match) */
+A.NAVGROUPS = [{ id: 'know', icon: '🏢', label: 'Office', tabs: ['lib', 'files', 'notes', 'mail', 'docs', 'offed', 'calc', 'scan', 'meet', 'rem', 'clip'] }, { id: 'learn', icon: '🎒', label: 'Education', tabs: ['study', 'lang', 'writing', 'practice', 'teach', 'sky', 'lab'] }, { id: 'life', icon: '🏡', label: 'Personal', tabs: ['kitchen', 'garden', 'money', 'journal', 'albums'] }, { id: 'fun', icon: '🎉', label: 'Entertainment', tabs: ['play', 'music', 'photos'] }];
+A.NAVIC = { docs: '📄', offed: '📂', calc: '🧮', scan: '📷', meet: '🎙️', rem: '⏰', clip: '📋', writing: '✍️', practice: '🎤', teach: '🧑‍🎓', albums: '📚', journal: '📓', news: '📰', map: '🗺️', cyber: '🛡️', web: '🌐', chat: '💬', lib: '📚', files: '🗂️', notes: '📝', study: '🎓', tools: '🧰', music: '🎼', photos: '🖼️', mail: '✉️', lang: '🌍', studio: '🎨', home: '🏠', faith: '✝️', sky: '🔭', health: '🛟', play: '🎭', guide: '✨', cal: '📅', kitchen: '🍳', garden: '🌱', lab: '🔬', timeline: '🏛️', money: '💰' };
+A.navOn = () => ls.get('navgroups', '1') !== '0';
+A.groupOf = n => { if (!A.navOn()) return null; const g = A.NAVGROUPS.find(g => g.tabs.includes(n)); return g ? g.id : null; };
+A.navMark = () => {
+  document.querySelectorAll('#nav button').forEach(b => {
+    if (b.dataset.grp) { const g = A.NAVGROUPS.find(x => x.id === b.dataset.grp), on = A.groupOf(A.cur) === g.id; b.classList.toggle('on', on); b.innerHTML = g.icon + '&nbsp;' + g.label + (on ? ': ' + esc(A.tabs[A.cur].label) : '') + ' <span class="mute" style="font-size:10px">&#9662;</span>'; }
+    else b.classList.toggle('on', b.dataset.tab === A.cur);
+  });
+};
+A.buildNav = () => {
+  const tabBtn = n => '<button data-tab="' + n + '">' + (A.NAVIC[n] ? A.NAVIC[n] + '&nbsp;' : '') + esc(A.tabs[n].label) + '</button>', seen = {}, nav = $('nav');
+  nav.innerHTML = A.order.filter(n => !A.tabs[n].hidden).map(n => { const g = A.groupOf(n); if (!g) return tabBtn(n); if (seen[g]) return ''; seen[g] = 1; return '<button data-grp="' + g + '"></button>'; }).join('');
+  if (!nav._wired) {
+    nav._wired = true;
+    nav.addEventListener('wheel', e => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { nav.scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false });
+    nav.onclick = e => {
+      const b = e.target.closest('button'); if (!b) return; if (b.dataset.tab) return A.showTab(b.dataset.tab);
+      const g = A.NAVGROUPS.find(x => x.id === b.dataset.grp); if (!g) return;
+      const p = A.pop(b, '<div class="grp" style="margin-top:0">' + g.icon + ' ' + g.label + '</div>' + g.tabs.filter(t => A.tabs[t]).map(t => '<div class="hit row" data-t="' + t + '" style="cursor:pointer;gap:8px;padding:7px 8px;border-radius:8px' + (A.cur === t ? ';font-weight:700' : '') + '"><span style="width:22px;text-align:center">' + (A.NAVIC[t] || '') + '</span>' + esc(A.tabs[t].label) + '</div>').join(''), 'left');
+      p.style.minWidth = '190px'; p.onclick = ev => { const it = ev.target.closest('[data-t]'); if (it) { A.closePop(); A.showTab(it.dataset.t); } };
+    };
+  }
+  A.navMark();
+};
+
+/* dialog + popover */
+A.dlg = (html, wide) => { $('dlg').innerHTML = html; $('ov').classList.add('on'); $('dlg').style.width = wide ? 'min(760px,96vw)' : ''; };
+A.closeDlg = () => { $('ov').classList.remove('on'); $('dlg').innerHTML = ''; };
+$('ov').addEventListener('mousedown', e => { if (e.target.id === 'ov') A.closeDlg(); });
+A.pop = (anchor, html, align) => {
+  const p = $('pop'); p.innerHTML = html; p.style.display = 'block';
+  const r = anchor.getBoundingClientRect(); p.style.maxWidth = Math.min(380, innerWidth - 20) + 'px'; p.style.minWidth = '240px';
+  const w = p.offsetWidth, h = p.offsetHeight;
+  let x = align === 'left' ? r.left : r.right - w; x = Math.max(8, Math.min(innerWidth - w - 8, x));
+  let y = r.top - h - 6; if (y < 8) y = r.bottom + 6;
+  p.style.left = x + 'px'; p.style.top = y + 'px'; return p;
+};
+A.closePop = () => { $('pop').style.display = 'none'; };
+document.addEventListener('mousedown', e => { if (!e.target.closest('#pop') && !e.target.closest('[data-pop]')) A.closePop(); });
+
+A.fmtDate = ms => new Date(ms).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+A.fmtAgo = ms => { const s = (Date.now() - ms) / 1000; if (s < 60) return 'just now'; if (s < 3600) return Math.floor(s / 60) + ' min ago'; if (s < 86400) return Math.floor(s / 3600) + ' h ago'; return Math.floor(s / 86400) + ' d ago'; };
+A.debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+A.copy = async t => { try { await navigator.clipboard.writeText(t); A.toast('Copied'); } catch (e) { A.toast('Could not copy'); } };
+
+/* a tiny event bus so tabs can talk to each other */
+A.bus = {}; A.on = (e, f) => { (A.bus[e] = A.bus[e] || []).push(f); }; A.emit = (e, d) => (A.bus[e] || []).forEach(f => f(d));

@@ -1,0 +1,167 @@
+/* Motion and finish. The rules here are the last word on how Moundshroud moves and how it feels to touch:
+   page changes, loading feedback, keyboard focus, and the small details that make an app feel made rather than assembled.
+   Everything is driven by two switches: html[data-motion] (full / subtle / off, set in Settings > Appearance > Motion)
+   and body.lowpower. Nothing here changes layout at rest, so it can never break a page - only how it arrives. */
+
+:root {
+  /* one easing curve for arrivals (out-fast, in-slow) and one for anything that should feel springy */
+  --ease-out: cubic-bezier(.22,.8,.28,1);
+  --ease-spring: cubic-bezier(.34,1.32,.44,1);
+  --t-fast: 130ms; --t-mid: 220ms; --t-slow: 320ms;
+  /* layered elevation, mixed from the theme so it works on light and dark themes alike */
+  --elv1: 0 1px 2px color-mix(in srgb, var(--bg) 60%, transparent), 0 2px 6px color-mix(in srgb, var(--bg) 35%, transparent);
+  --elv2: 0 2px 4px color-mix(in srgb, var(--bg) 55%, transparent), 0 10px 24px color-mix(in srgb, var(--bg) 45%, transparent);
+  --elv3: 0 4px 10px color-mix(in srgb, var(--bg) 60%, transparent), 0 18px 48px color-mix(in srgb, var(--bg) 55%, transparent);
+  color-scheme: dark light;
+}
+
+/* ---------- page changes: a real cross-fade between tabs, done by the compositor ----------
+   The content area is named for the browser's own view-transition machinery, so leaving and arriving
+   content cross-fade together instead of one blinking out before the other appears. The header, tab bar
+   and toasts deliberately have no name, so they hold perfectly still while the content moves. */
+.content-swap { view-transition-name: content; }
+::view-transition-old(content) { animation: vtOut 150ms var(--ease-out) both; }
+::view-transition-new(content) { animation: vtIn 260ms var(--ease-out) both; }
+::view-transition-group(content) { animation-duration: 260ms; }
+@keyframes vtOut { from { opacity: 1; transform: none } to { opacity: 0; transform: translateY(-6px) scale(.995) } }
+@keyframes vtIn { from { opacity: 0; transform: translateY(10px) scale(.997) } to { opacity: 1; transform: none } }
+/* nothing else on the page is allowed a view transition - it would make the app bar wobble */
+::view-transition-old(root), ::view-transition-new(root) { animation: none; }
+
+/* ---------- the loading bar: only appears when a request is slow enough to matter ---------- */
+#loadbar { position: fixed; left: 0; right: 0; top: 0; height: 2px; z-index: 9999; pointer-events: none; opacity: 0; transform-origin: 0 50%; transform: scaleX(0); background: linear-gradient(90deg, var(--acc2), var(--acc) 45%, var(--acc2)); box-shadow: 0 0 12px color-mix(in srgb, var(--acc) 70%, transparent), 0 0 3px color-mix(in srgb, var(--acc2) 80%, transparent); transition: opacity 180ms linear, transform 220ms var(--ease-out); will-change: transform, opacity; }
+#loadbar.on { opacity: 1; }
+#loadbar.done { opacity: 0; transition: opacity 260ms ease-out, transform 180ms var(--ease-out); }
+
+/* ---------- the app bar and tab bar: crisper edges, calmer hover ---------- */
+header { box-shadow: 0 1px 0 color-mix(in srgb, var(--line) 70%, transparent), 0 8px 24px color-mix(in srgb, var(--bg) 30%, transparent); transition: box-shadow var(--t-mid) var(--ease-out); }
+/* once the page has scrolled, the bar sits visibly above the content instead of floating flat */
+body.scrolled header { box-shadow: 0 1px 0 var(--line), 0 12px 32px color-mix(in srgb, var(--bg) 62%, transparent); }
+nav button { position: relative; }
+@media (hover: hover) {
+  .card, .hit, .tile, .bk, .stat { will-change: auto; }
+  .card:hover, .hit:hover, .tile:hover, .bk:hover { transform: translateY(-2px); box-shadow: var(--elv2); }
+  .ib:hover, .pri:hover, button:hover { transition-duration: var(--t-fast); }
+}
+/* pressing anything gives immediate, physical feedback */
+.pri:active, .ib:active, .chip:active, button:active, .hit:active { transform: scale(.975); transition-duration: 60ms; }
+
+/* ---------- keyboard focus: always visible, never ugly ---------- */
+:focus-visible { outline: 2px solid color-mix(in srgb, var(--acc) 80%, transparent); outline-offset: 2px; border-radius: 8px; }
+input:focus-visible, textarea:focus-visible, select:focus-visible { outline-offset: 1px; }
+.ib:focus-visible, .pri:focus-visible, .chip:focus-visible, nav button:focus-visible { box-shadow: 0 0 0 4px color-mix(in srgb, var(--acc) 22%, transparent); }
+::selection { background: color-mix(in srgb, var(--acc) 38%, transparent); color: var(--text); }
+
+/* ---------- skeletons: a page that is still fetching should look like it is filling in, not empty ---------- */
+.skel { position: relative; overflow: hidden; background: color-mix(in srgb, var(--panel2) 85%, var(--line)); border-radius: 8px; min-height: 12px; }
+.skel + .skel { margin-top: 8px; }
+.skel::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--text) 9%, transparent), transparent); transform: translateX(-100%); animation: skelSweep 1.35s var(--ease-out) infinite; }
+@keyframes skelSweep { to { transform: translateX(100%) } }
+.skel.h1 { height: 18px; width: 42%; margin-bottom: 12px; }
+.skel.row { height: 46px; border-radius: 12px; }
+.skel.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+
+/* ---------- long lists: skip laying out what is far off screen (the biggest real speed-up on big pages) ---------- */
+.cvl > * { content-visibility: auto; contain-intrinsic-size: auto 92px; }
+.cvl.hits > * { contain-intrinsic-size: auto 74px; }
+
+/* ---------- numbers that count up (readiness score, totals) ---------- */
+.countup { font-variant-numeric: tabular-nums; }
+
+/* ---------- changing theme is a fade, not a jump: themes.js raises this class for a moment ---------- */
+html.theming, html.theming * { transition: background-color 260ms linear, color 260ms linear, border-color 260ms linear, fill 260ms linear !important; }
+
+/* ---------- back to the top of a long page ---------- */
+#totop { position: absolute; right: 16px; bottom: 16px; width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--line); background: color-mix(in srgb, var(--panel) 88%, transparent); backdrop-filter: blur(8px); color: var(--text); display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0; transform: translateY(8px); pointer-events: none; transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out); box-shadow: var(--elv2); z-index: 40; }
+#totop.on { opacity: 1; transform: none; pointer-events: auto; }
+#totop:hover { border-color: var(--acc); color: var(--acc); }
+
+/* ---------- switches and sliders feel made, not inherited ---------- */
+input[type=checkbox] { accent-color: var(--acc); transition: transform 120ms var(--ease-spring); }
+input[type=checkbox]:active { transform: scale(.9); }
+input[type=range] { accent-color: var(--acc); }
+input[type=range]::-webkit-slider-thumb { transition: box-shadow var(--t-fast), transform var(--t-fast); }
+input[type=range]:hover::-webkit-slider-thumb, input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 5px color-mix(in srgb, var(--acc) 20%, transparent); }
+
+/* ---------- notifications: a quiet stack at the bottom. The thin bar along the bottom edge shows how long the
+   message has left before it slides away, so nothing ever just vanishes on you. ---------- */
+#nts { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 5000; display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; max-width: min(560px, 92vw); }
+.nt { position: relative; display: flex; gap: 10px; align-items: center; pointer-events: auto; cursor: pointer; padding: 9px 12px 10px; border-radius: 14px; border: 1px solid var(--line); background: color-mix(in srgb, var(--panel) 88%, transparent); backdrop-filter: blur(14px) saturate(1.3); color: var(--text); box-shadow: var(--elv2); font-size: 13.5px; line-height: 1.35; overflow: hidden; max-width: 100%; animation: ntIn 260ms var(--ease-spring) both; }
+.nt.gone { animation: ntOut 200ms var(--ease-out) both; }
+@keyframes ntIn { from { opacity: 0; transform: translateY(14px) scale(.96) } to { opacity: 1; transform: none } }
+@keyframes ntOut { to { opacity: 0; transform: translateY(8px) scale(.97) } }
+.nti { flex: none; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; background: color-mix(in srgb, var(--acc) 30%, transparent); }
+.nt-ok .nti { background: color-mix(in srgb, var(--ok) 32%, transparent); }
+.nt-warn .nti { background: color-mix(in srgb, var(--warn) 34%, transparent); }
+.nt-err .nti { background: color-mix(in srgb, var(--bad) 34%, transparent); }
+.nt-warn { border-color: color-mix(in srgb, var(--warn) 42%, var(--line)); }
+.nt-err { border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); }
+.ntm { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ntx { flex: none; border: 0; background: none; color: var(--mute); font-size: 16px; line-height: 1; cursor: pointer; padding: 1px 3px; border-radius: 6px; }
+.ntx:hover { color: var(--text); background: color-mix(in srgb, var(--text) 14%, transparent); }
+.ntp { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; transform-origin: 0 50%; background: linear-gradient(90deg, var(--acc2), var(--acc)); opacity: .7; animation: ntBar var(--ttl, 2600ms) linear both; }
+@keyframes ntBar { from { transform: scaleX(1) } to { transform: scaleX(0) } }
+.nt.hold .ntp { animation-play-state: paused; }
+html[data-motion="off"] .ntp, body.lowpower .ntp { display: none; }
+
+/* ---------- the command palette (Ctrl+K): a real one, near the top of the window ---------- */
+#cmdx { position: fixed; inset: 0; z-index: 4000; background: color-mix(in srgb, var(--bg) 62%, transparent); backdrop-filter: blur(3px); display: flex; justify-content: center; align-items: flex-start; padding: 8vh 16px 16px; animation: cmdFade 160ms ease-out both; }
+#cmdx.out { animation: cmdFade 120ms ease-in both; }
+@keyframes cmdFade { from { opacity: 0 } to { opacity: 1 } }
+.cmdbox { width: min(760px, 100%); max-height: 74vh; display: flex; flex-direction: column; background: color-mix(in srgb, var(--panel) 96%, transparent); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--elv3); overflow: hidden; animation: cmdIn 220ms var(--ease-spring) both; }
+#cmdx.out .cmdbox { animation: cmdOut 120ms ease-in both; }
+@keyframes cmdIn { from { opacity: 0; transform: translateY(-12px) scale(.985) } to { opacity: 1; transform: none } }
+@keyframes cmdOut { to { opacity: 0; transform: translateY(-6px) scale(.99) } }
+.cmdhd { display: flex; align-items: center; gap: 12px; padding: 15px 18px; border-bottom: 1px solid var(--line); }
+.cmdhd .cmdic { font-size: 16px; opacity: .72; flex: none; }
+#cmdx #ksq { flex: 1; border: 0 !important; background: transparent !important; font-size: 16.5px; padding: 0 !important; color: var(--text); box-shadow: none !important; outline: none; }
+.cmdbd { flex: 1; min-height: 0; overflow: auto; padding: 4px 6px 10px; }
+#cmdx .grp { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--mute); padding: 11px 12px 5px; font-weight: 650; }
+#cmdx .hit { display: flex; align-items: center; gap: 10px; padding: 8px 11px; border-radius: 10px; cursor: pointer; position: relative; }
+#cmdx .hit .hic { width: 22px; flex: none; text-align: center; font-size: 15px; }
+#cmdx .hit .hbody { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+#cmdx .hit .hsub { font-size: 11.5px; color: var(--mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#cmdx .hit kbd { flex: none; }
+#cmdx .hit.hi { background: color-mix(in srgb, var(--acc) 20%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--acc) 42%, transparent); }
+#cmdx .hit.hi::before { content: ''; position: absolute; left: 2px; top: 7px; bottom: 7px; width: 3px; border-radius: 3px; background: var(--acc); }
+#cmdx mark { background: color-mix(in srgb, var(--acc) 45%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
+.cmdf { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; padding: 9px 16px; border-top: 1px solid var(--line); font-size: 11.5px; color: var(--mute); background: color-mix(in srgb, var(--panel2) 45%, transparent); }
+.cmdf span { display: flex; gap: 3px; align-items: center; }
+
+/* ---------- keys: used by the palette, the shortcuts sheet and Settings ---------- */
+kbd { display: inline-block; padding: 1px 5px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; background: color-mix(in srgb, var(--panel2) 70%, transparent); font-family: "Cascadia Mono", "Consolas", monospace; font-size: 11px; line-height: 1.5; color: var(--text); }
+.krow { display: flex; gap: 12px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent); }
+.krow .kk { flex: none; width: 100px; display: flex; gap: 3px; flex-wrap: wrap; justify-content: flex-end; }
+.krow .kl { flex: 1; font-size: 13px; }
+
+/* ---------- arriving pages: once the cross-fade has finished, the first few cards settle into place ---------- */
+@keyframes riseIn { from { opacity: 0; transform: translateY(9px) } to { opacity: 1; transform: none } }
+.rise { animation: riseIn 300ms var(--ease-out) both; }
+
+/* ---------- dialogs arrive with weight, popovers with speed ---------- */
+#pop { box-shadow: var(--elv3); animation: popIn 150ms var(--ease-out) both; }
+.dlg { box-shadow: var(--elv3); }
+@keyframes popIn { from { opacity: 0; transform: translateY(6px) scale(.98) } to { opacity: 1; transform: none } }
+
+/* ---------- subtle: shorter distances, quicker beats ---------- */
+html[data-motion="subtle"] { --t-fast: 100ms; --t-mid: 170ms; --t-slow: 240ms; }
+html[data-motion="subtle"] ::view-transition-new(content) { animation-duration: 190ms; }
+html[data-motion="subtle"] ::view-transition-old(content) { animation-duration: 110ms; }
+
+/* ---------- off: nothing moves, but state stays obvious (colour and opacity still change) ----------
+   The thinking spinner is left alone on purpose: it is the app telling you it is working. */
+html[data-motion="off"] *, body.lowpower * { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+html[data-motion="off"] #thinking-spinner *, body.lowpower #thinking-spinner * { animation-duration: 1.4s !important; animation-iteration-count: infinite !important; }
+html[data-motion="off"] ::view-transition-old(content), html[data-motion="off"] ::view-transition-new(content) { animation: none !important; }
+html[data-motion="off"] .skel::after { animation: none; opacity: 0; }
+body.lowpower ::view-transition-old(content), body.lowpower ::view-transition-new(content) { animation-duration: 160ms; }
+body.lowpower #loadbar { box-shadow: none; }
+
+/* the system setting wins on a first run, and Windows "show animations" being off is honoured */
+/* (Windows' "reduce motion" no longer shortens anything by itself: Settings > Appearance > Motion decides) */
+
+/* ---------- printing: none of this belongs on paper ---------- */
+@media print {
+  #loadbar, #totop { display: none !important; }
+  ::view-transition-old(content), ::view-transition-new(content) { animation: none !important; }
+}

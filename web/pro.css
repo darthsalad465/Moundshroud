@@ -1,0 +1,202 @@
+/* Moundshroud "pro" polish for the Modern look: smoother tabs, calmer surfaces, and a distinct personality for each area.
+   Every colour comes from the active theme's variables, so it works with all colour themes. The other interface styles (Jarvis, Glass,
+   Neo-Brutal, Editorial) keep their own look. Motion respects Low-power mode and the system "reduce motion" setting (see anim.css). */
+
+/* base copies of the theme colours, so an area can tint them without a variable referring to itself */
+html { --acc0: var(--acc); --acc20: var(--acc2); --panel0: var(--panel); --panel20: var(--panel2); --line0: var(--line); }
+
+html:not(.nopro):is(:not([data-style]), [data-style="modern"]) {
+  --r1: 9px; --r2: 13px; --r3: 20px; --ease: cubic-bezier(.22, .8, .24, 1); --d: .22s;
+  --hair: color-mix(in srgb, var(--line) 78%, transparent);
+  --sh1: 0 1px 2px rgba(0, 0, 0, .16), 0 1px 1px rgba(0, 0, 0, .1);
+  --sh2: 0 10px 28px -8px rgba(0, 0, 0, .38), 0 2px 6px rgba(0, 0, 0, .16);
+  --glow: color-mix(in srgb, var(--acc) 38%, transparent);
+
+  /* ---------- base ---------- */
+  & body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; letter-spacing: -.003em; }
+  & * { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--mute) 38%, transparent) transparent; }
+  & ::selection { background: color-mix(in srgb, var(--acc) 40%, transparent); }
+  & :focus-visible { outline: 2px solid color-mix(in srgb, var(--acc) 80%, transparent); outline-offset: 2px; border-radius: var(--r1); }
+  & h2 { font-size: 18px; letter-spacing: -.01em; font-weight: 650; }
+  & h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--mute); font-weight: 650; }
+
+  & header { padding: 8px 16px; background: color-mix(in srgb, var(--panel) 72%, transparent); backdrop-filter: blur(14px) saturate(1.3); border-bottom: 0; box-shadow: 0 1px 0 var(--hair); }
+  & header b { font-weight: 650; letter-spacing: .04em; }
+
+  /* ---------- buttons, inputs, chips, cards ---------- */
+  & .ib { border-radius: var(--r1); padding: 6px 12px; background: color-mix(in srgb, var(--panel2) 55%, transparent); border-color: var(--hair); transition: background var(--d) var(--ease), border-color var(--d) var(--ease), color var(--d) var(--ease), transform .12s var(--ease), box-shadow var(--d) var(--ease); }
+  & .ib:hover { background: var(--panel2); border-color: color-mix(in srgb, var(--acc) 55%, var(--line)); }
+  & .ib:active { transform: scale(.97); }
+  & .ib.on { background: linear-gradient(135deg, var(--acc), color-mix(in srgb, var(--acc) 70%, var(--acc2))); border-color: transparent; color: var(--onacc, #0a0c12); font-weight: 600; box-shadow: 0 4px 14px -4px var(--glow); }
+  & .ib:disabled, & .pri:disabled { opacity: .45; cursor: default; transform: none; }
+  & .pri { border-radius: var(--r2); padding: 8px 16px; background: linear-gradient(135deg, var(--acc), color-mix(in srgb, var(--acc) 62%, var(--acc2))); color: var(--onacc, #0a0c12); box-shadow: 0 8px 18px -8px var(--glow); transition: transform .14s var(--ease), box-shadow var(--d) var(--ease), filter var(--d) var(--ease); }
+  & .pri:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); box-shadow: 0 12px 22px -8px var(--glow); }
+  & .pri:active:not(:disabled) { transform: scale(.98); }
+  & input[type=text], & input:not([type]), & input[type=number], & input[type=search], & input[type=password], & textarea, & select { border-radius: var(--r2); border-color: var(--hair); transition: border-color var(--d) var(--ease), box-shadow var(--d) var(--ease), background var(--d) var(--ease); }
+  & input:focus, & textarea:focus, & select:focus { border-color: var(--acc); box-shadow: 0 0 0 3px color-mix(in srgb, var(--acc) 22%, transparent); outline: none; }
+  & .chip { border-color: var(--hair); transition: background var(--d) var(--ease), border-color var(--d) var(--ease), transform .12s var(--ease); }
+  & .chip:hover { background: color-mix(in srgb, var(--acc) 14%, var(--panel2)); border-color: color-mix(in srgb, var(--acc) 60%, var(--line)); }
+  & .chip:active { transform: scale(.96); }
+  & .card, & .td-card, & .lg-card { border-radius: 14px; border-color: var(--hair); box-shadow: var(--sh1); transition: box-shadow var(--d) var(--ease), border-color var(--d) var(--ease), transform var(--d) var(--ease); }
+  & .card:is([data-g], [data-o], [data-e], [data-i], [data-m], [data-l], [data-r], [data-c]):hover, & .bk:hover, & .tile:hover { transform: translateY(-2px); box-shadow: var(--sh2); border-color: color-mix(in srgb, var(--acc) 50%, var(--line)); }
+  & .dlg { border-radius: var(--r3); box-shadow: 0 30px 80px rgba(0, 0, 0, .55); border-color: var(--hair); }
+  & #toast { border-radius: var(--r2); box-shadow: var(--sh2); backdrop-filter: blur(10px); }
+  & .composer { background: color-mix(in srgb, var(--panel) 70%, transparent); backdrop-filter: blur(12px); border-top-color: var(--hair); }
+  & .m.a, & .m.u { box-shadow: var(--sh1); }
+
+  /* ---------- tab bars: shared ---------- */
+  & :is(#nav, #tsub, #psub, #ssub, #plsub, #fasub, #actabs, #hbar) { position: relative; scrollbar-width: none; scroll-behavior: auto; }
+  & :is(#nav, #tsub, #psub, #ssub, #plsub, #fasub, #actabs, #hbar)::-webkit-scrollbar { display: none; }
+  & :is(#nav, #tsub, #psub, #ssub, #plsub, #fasub, #actabs, #hbar) > button { position: relative; z-index: 1; white-space: nowrap; }
+  & :is(#nav, #tsub, #psub, #ssub, #plsub, #fasub, #actabs, #hbar) > button:focus { outline: none; }
+  & :is(#nav, #tsub, #psub, #ssub, #plsub, #fasub, #actabs, #hbar) > button:focus-visible { outline: none; box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--acc) 65%, transparent) !important; }
+  & :is(#nav, #tsub, #psub, #ssub, #plsub, #fasub, #actabs, #hbar).fade-l { mask-image: linear-gradient(90deg, transparent 0, #000 30px); }
+  & :is(#nav, #tsub, #psub, #ssub, #plsub, #fasub, #actabs, #hbar).fade-r { mask-image: linear-gradient(90deg, #000 calc(100% - 30px), transparent 100%); }
+  & :is(#nav, #tsub, #psub, #ssub, #plsub, #fasub, #actabs, #hbar).fade-l.fade-r { mask-image: linear-gradient(90deg, transparent 0, #000 30px, #000 calc(100% - 30px), transparent 100%); }
+  & :is(#nav, #tsub, #psub, #ssub, #plsub, #fasub, #actabs, #hbar)::after { content: ""; position: absolute; pointer-events: none; z-index: 0; left: 0; width: var(--ink-w, 0); transform: translateX(var(--ink-x, 0)); opacity: 0; transition: transform .38s var(--ease), width .38s var(--ease), top .38s var(--ease), height .38s var(--ease), opacity .2s; }
+  & :is(#nav, #tsub, #psub, #ssub, #plsub, #fasub, #actabs, #hbar).inked::after { opacity: 1; }
+
+  /* main navigation: quiet text tabs with a gliding gradient underline */
+  & nav#nav { display: flex; gap: 2px; padding: 4px 16px 0; background: color-mix(in srgb, var(--panel) 42%, transparent); border-bottom: 1px solid var(--hair); overflow-x: auto; }
+  & nav#nav > button { border-radius: 10px 10px 0 0; padding: 9px 14px 10px; font-size: 13px; font-weight: 500; color: var(--mute); background: transparent; transition: color var(--d) var(--ease), background var(--d) var(--ease); }
+  & nav#nav > button:hover { color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); }
+  & nav#nav > button.on { background: transparent !important; color: var(--text) !important; font-weight: 650; box-shadow: none !important; }
+  & nav#nav::after { bottom: 0; top: auto; height: 3px; border-radius: 3px 3px 0 0; background: linear-gradient(90deg, var(--acc), var(--acc2)); box-shadow: 0 0 14px var(--glow); }
+
+  /* Tools / chess history: a segmented control with a sliding pill */
+  & :is(#tsub, #hbar)[data-ink] { display: flex !important; flex-wrap: nowrap !important; gap: 2px !important; margin: 10px 14px 4px; padding: 4px !important; width: fit-content; max-width: calc(100% - 28px); overflow-x: auto; border: 1px solid var(--hair) !important; border-radius: 14px; background: color-mix(in srgb, var(--panel2) 62%, transparent); }
+  & :is(#tsub, #hbar) > button { border: 0 !important; background: transparent !important; border-radius: 10px; padding: 6px 13px; color: var(--mute); font-weight: 500; box-shadow: none !important; transition: color var(--d) var(--ease); }
+  & :is(#tsub, #hbar) > button:hover { color: var(--text); }
+  & :is(#tsub, #hbar) > button.on { color: var(--text) !important; font-weight: 650; }
+  & :is(#tsub, #hbar)::after { top: var(--ink-y, 4px); height: var(--ink-h, 30px); border-radius: 10px; background: var(--panel); box-shadow: var(--sh1), inset 0 0 0 1px var(--hair); }
+
+  /* Prepare: sturdy uppercase tabs with a thick underline */
+  & #psub[data-ink] { display: flex !important; flex-wrap: nowrap !important; gap: 4px !important; padding: 0 16px !important; overflow-x: auto; border-bottom: 1px solid var(--hair) !important; background: color-mix(in srgb, var(--panel) 35%, transparent); }
+  & #psub > button { border: 0 !important; background: transparent !important; border-radius: 0; padding: 12px 12px 11px; text-transform: uppercase; letter-spacing: .07em; font-size: 11.5px; font-weight: 650; color: var(--mute); transition: color var(--d) var(--ease); }
+  & #psub > button:hover { color: var(--text); }
+  & #psub > button.on { color: var(--acc2) !important; box-shadow: none !important; }
+  & #psub::after { bottom: 0; top: auto; height: 3px; background: var(--acc2); border-radius: 0; }
+
+  /* Studio: glowing gradient pills */
+  & #ssub[data-ink] { display: flex !important; flex-wrap: nowrap !important; gap: 8px !important; padding: 10px 16px !important; overflow-x: auto; border-bottom: 1px solid var(--hair) !important; background: radial-gradient(500px 90px at 20% 0, color-mix(in srgb, var(--acc) 14%, transparent), transparent 70%); }
+  & #ssub > button { border: 1px solid var(--hair) !important; background: color-mix(in srgb, var(--panel2) 60%, transparent) !important; border-radius: 999px; padding: 6px 15px; color: var(--mute); transition: color var(--d) var(--ease), border-color var(--d) var(--ease); }
+  & #ssub > button:hover { color: var(--text); border-color: color-mix(in srgb, var(--acc) 60%, var(--line)) !important; }
+  & #ssub > button.on { background: transparent !important; color: var(--onacc, #0a0c12) !important; border-color: transparent !important; box-shadow: none !important; font-weight: 650; }
+  & #ssub::after { top: var(--ink-y, 10px); height: var(--ink-h, 32px); border-radius: 999px; background: linear-gradient(135deg, var(--acc), var(--acc2)); box-shadow: 0 6px 20px -4px var(--glow); }
+
+  /* Entertainment: big tile tabs */
+  & #plsub[data-ink] { display: flex !important; flex-wrap: nowrap !important; gap: 8px !important; padding: 12px 16px !important; overflow-x: auto; border-bottom: 1px solid var(--hair) !important; }
+  & #plsub > button { border: 1px solid var(--hair) !important; background: color-mix(in srgb, var(--panel) 80%, transparent) !important; border-radius: 14px; padding: 9px 17px; font-weight: 600; color: var(--mute); box-shadow: var(--sh1) !important; transition: color var(--d) var(--ease), transform .12s var(--ease); }
+  & #plsub > button:hover { color: var(--text); transform: translateY(-1px); }
+  & #plsub > button.on { background: transparent !important; color: var(--text) !important; border-color: color-mix(in srgb, var(--acc) 65%, transparent) !important; }
+  & #plsub::after { top: var(--ink-y, 12px); height: var(--ink-h, 38px); border-radius: 14px; background: linear-gradient(135deg, color-mix(in srgb, var(--acc) 30%, var(--panel)), color-mix(in srgb, var(--acc2) 18%, var(--panel))); box-shadow: 0 8px 22px -10px var(--glow); }
+
+  /* Spiritual: calm, centred, serif small-caps with a hairline */
+  & #fasub[data-ink] { display: flex !important; flex-wrap: nowrap !important; justify-content: safe center; gap: 2px !important; padding: 8px 16px 0 !important; overflow-x: auto; border-bottom: 1px solid var(--hair) !important; font-family: Georgia, "Iowan Old Style", serif; }
+  & #fasub > button { border: 0 !important; background: transparent !important; border-radius: 0; padding: 9px 14px 11px; font-family: inherit; font-variant: small-caps; letter-spacing: .05em; font-size: 14px; color: var(--mute); transition: color var(--d) var(--ease); }
+  & #fasub > button:hover { color: var(--text); }
+  & #fasub > button.on { color: var(--text) !important; font-style: italic; box-shadow: none !important; }
+  & #fasub::after { bottom: 0; top: auto; height: 2px; background: color-mix(in srgb, var(--acc) 80%, #e8c97a); }
+
+  /* Chess hub: a scrolling rail of compact tabs with a teal gliding marker */
+  & #actabs[data-ink] { display: flex !important; flex-wrap: nowrap !important; gap: 2px !important; margin: 0 0 10px !important; padding: 4px !important; overflow-x: auto; border: 1px solid var(--hair); border-radius: 12px; background: linear-gradient(180deg, color-mix(in srgb, var(--panel2) 80%, transparent), color-mix(in srgb, var(--panel) 80%, transparent)); }
+  & #actabs > button { border: 0 !important; background: transparent !important; border-radius: 9px; padding: 6px 11px; font-size: 12.5px; color: var(--mute); box-shadow: none !important; transition: color var(--d) var(--ease); }
+  & #actabs > button:hover { color: var(--text); }
+  & #actabs > button.on { color: var(--onacc, #0a0c12) !important; font-weight: 650; }
+  & #actabs::after { top: var(--ink-y, 4px); height: var(--ink-h, 30px); border-radius: 9px; background: linear-gradient(135deg, var(--acc2), color-mix(in srgb, var(--acc2) 55%, var(--acc))); box-shadow: 0 4px 14px -4px color-mix(in srgb, var(--acc2) 55%, transparent); }
+
+  /* Settings sidebar */
+  & #snav > button { border: 0 !important; background: transparent !important; border-radius: 10px; color: var(--mute); transition: background var(--d) var(--ease), color var(--d) var(--ease); }
+  & #snav > button:hover { background: color-mix(in srgb, var(--text) 7%, transparent) !important; color: var(--text); }
+
+  /* ---------- an identity for each area ---------- */
+  /* Prepare: practical, a coloured edge on every card */
+  & #p-health { --acc: color-mix(in srgb, var(--acc20) 85%, var(--acc0)); }
+  & #p-health .card, & #p-health .td-card { border-radius: 8px; border-left: 4px solid var(--acc); }
+  /* Spiritual: parchment calm, serif */
+  & #p-faith { --acc: color-mix(in srgb, var(--acc0) 50%, #d9b36c); font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif; }
+  & #p-faith :is(h2, h3) { font-family: inherit; text-transform: none; letter-spacing: 0; color: var(--text); font-weight: 600; }
+  & #p-faith .card { border-radius: 20px; background: linear-gradient(180deg, color-mix(in srgb, var(--panel) 92%, #d9b36c), var(--panel)); }
+  & #p-faith button, & #p-faith input, & #p-faith select { font-family: "Segoe UI", system-ui, sans-serif; }
+  /* Studio: a dark canvas with a dotted grid, translucent cards */
+  & #p-studio { background: radial-gradient(color-mix(in srgb, var(--text) 9%, transparent) 1px, transparent 1.4px) 0 0 / 22px 22px; }
+  & #p-studio .card { background: color-mix(in srgb, var(--panel) 72%, transparent); backdrop-filter: blur(10px); border-radius: 16px; }
+  /* Tools: flat, compact and exact */
+  & #p-tools .card { border-radius: 8px; box-shadow: none; padding: 10px 12px; }
+  & #p-tools h2 { font-size: 15px; }
+  /* Languages: friendly and round */
+  & #p-lang { --acc: color-mix(in srgb, var(--acc0) 62%, #ff8a5c); }
+  & #p-lang :is(.card, .lg-card) { border-radius: 24px; border-width: 2px; }
+  & #p-lang .ib, & #p-lang .pri { border-radius: 999px; }
+  /* Study: big flash-card feel */
+  & #p-study .card { border-radius: 18px; box-shadow: var(--sh2); padding: 16px 18px; }
+  /* Today: airy dashboard tiles */
+  & #p-home .td-card { border-radius: 18px; padding: 16px 18px; background: linear-gradient(160deg, color-mix(in srgb, var(--panel) 94%, var(--acc)), var(--panel)); }
+  & #p-home .td-card h4 { text-transform: uppercase; letter-spacing: .08em; font-size: 11.5px; color: var(--mute); margin: 0 0 8px; }
+  /* Guide: a readable book */
+  & #p-guide .gsec h2 { font-family: Georgia, "Iowan Old Style", serif; font-size: 22px; font-weight: 600; letter-spacing: -.01em; padding-bottom: 6px; border-bottom: 1px solid var(--hair); }
+  & #p-guide .gsec { max-width: 860px; margin-left: auto; margin-right: auto; line-height: 1.7; }
+  /* Notes: paper */
+  & #p-notes textarea { font-family: Georgia, "Iowan Old Style", serif; font-size: 15.5px; line-height: 1.75; }
+  /* Library / Search: tidy result cards */
+  & :is(#p-lib, #p-web) .card { border-radius: 12px; }
+
+  /* ---------- Chess community: a chat-app layout ---------- */
+  & .cmv > #cml, & .cmv > #cmu { background: color-mix(in srgb, var(--panel) 70%, transparent); border: 1px solid var(--hair); border-radius: 14px; padding: 6px; }
+  & .cmv .cmc { border-radius: 9px; transition: background var(--d) var(--ease); }
+  & .cmv .cmc.on { background: color-mix(in srgb, var(--acc) 16%, var(--panel2)); border: 1px solid color-mix(in srgb, var(--acc) 50%, transparent); }
+  & .cmv .cmbub { border-radius: 4px 14px 14px 14px; box-shadow: var(--sh1); }
+  & .cmv .cmx.me .cmbub { border-radius: 14px 4px 14px 14px; }
+  & .cmv #cmm { border-radius: 14px; background: color-mix(in srgb, var(--panel2) 70%, transparent); }
+}
+
+/* ---------- Hollow Creek: warm, cosy village ---------- */
+.uiTown { --acc: #e8a35a; --acc2: #8fbf7a; --panel: color-mix(in srgb, var(--panel0) 76%, #7a5230); --panel2: color-mix(in srgb, var(--panel20) 72%, #6b4a2c); --line: color-mix(in srgb, var(--line0) 55%, #a9794a); padding: 14px; border-radius: 18px; background: radial-gradient(900px 380px at 15% -10%, rgba(232, 163, 90, .18), transparent 62%), radial-gradient(700px 360px at 100% 100%, rgba(143, 191, 122, .12), transparent 62%); }
+.uiTown > div > div > b:first-child, .uiTown h2 { font-family: Georgia, "Iowan Old Style", serif; }
+.uiTown .card { border-radius: 20px; border-width: 1.5px; box-shadow: 0 6px 18px -10px rgba(122, 82, 48, .6); }
+.uiTown .chip { border-radius: 999px; background: color-mix(in srgb, var(--acc) 12%, var(--panel2)); }
+.uiTown .ib.on, .uiTown .pri { background: linear-gradient(135deg, #e8a35a, #d4823a); color: #2a1a0c; }
+
+/* ---------- AI Commons: a terminal in the dark ---------- */
+.uiAI { --acc: #37e6c6; --acc2: #7aa2ff; --panel: color-mix(in srgb, var(--panel0) 80%, #001a18); --line: color-mix(in srgb, var(--line0) 50%, #1f6f66); font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 13px; padding: 14px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--acc) 35%, transparent); background: linear-gradient(rgba(55, 230, 198, .035) 50%, transparent 50%) 0 0 / 100% 4px, radial-gradient(700px 300px at 50% -20%, rgba(55, 230, 198, .12), transparent 70%); box-shadow: inset 0 0 40px rgba(55, 230, 198, .05); }
+.uiAI .acb { border-radius: 4px; border-left: 3px solid var(--acc); background: color-mix(in srgb, var(--panel) 90%, transparent); }
+.uiAI .acx.me .acb { border-left: 0; border-right: 3px solid var(--acc2); }
+.uiAI .chip { border-radius: 4px; border-color: color-mix(in srgb, var(--acc) 45%, transparent); }
+.uiAI .ib, .uiAI .pri, .uiAI input, .uiAI select { border-radius: 4px; }
+.uiAI b { color: var(--acc); font-weight: 600; }
+
+/* the two game windows fill the stage instead of floating in the middle */
+.uiTown, .uiAI { display: block !important; width: 100% !important; max-width: 1000px; margin: 0 auto; align-self: stretch !important; box-sizing: border-box; overflow: auto; }
+.uiAI #acm { height: min(54vh, 480px); }
+
+/* ---------- the featured game in Entertainment ---------- */
+.feat { position: relative; display: flex; gap: 22px; align-items: center; margin: 14px 0 6px; padding: 22px 26px; border-radius: 22px; cursor: pointer; overflow: hidden; border: 1px solid color-mix(in srgb, var(--acc) 55%, var(--line)); background: radial-gradient(520px 240px at 100% 0, color-mix(in srgb, var(--acc2) 26%, transparent), transparent 70%), radial-gradient(520px 260px at 0 100%, color-mix(in srgb, var(--acc) 30%, transparent), transparent 70%), linear-gradient(135deg, color-mix(in srgb, var(--panel) 90%, var(--acc)), var(--panel)); box-shadow: 0 18px 44px -18px color-mix(in srgb, var(--acc) 60%, transparent), 0 2px 6px rgba(0, 0, 0, .2); transition: transform .25s cubic-bezier(.22, .8, .24, 1), box-shadow .25s; }
+.feat:hover { transform: translateY(-3px); box-shadow: 0 26px 56px -18px color-mix(in srgb, var(--acc) 70%, transparent), 0 4px 10px rgba(0, 0, 0, .25); }
+.feat:focus-visible { outline: 3px solid var(--acc); outline-offset: 3px; }
+.feat::before { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .5; background: conic-gradient(rgba(255, 255, 255, .06) 25%, transparent 0 50%, rgba(255, 255, 255, .06) 0 75%, transparent 0) 0 0 / 56px 56px; mask-image: linear-gradient(100deg, transparent 35%, #000 100%); -webkit-mask-image: linear-gradient(100deg, transparent 35%, #000 100%); }
+.feat-board { flex: none; width: 104px; height: 104px; border-radius: 20px; display: flex; align-items: center; justify-content: center; font-size: 66px; line-height: 1; color: var(--onacc, #0a0c12); background: linear-gradient(135deg, var(--acc), var(--acc2)); box-shadow: 0 14px 30px -10px color-mix(in srgb, var(--acc) 75%, transparent), inset 0 0 0 2px rgba(255, 255, 255, .25); position: relative; }
+.feat-body { position: relative; min-width: 0; }
+.feat-tag { font-size: 11.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--acc2); margin-bottom: 2px; }
+.feat-title { font-size: 30px !important; margin: 0 0 4px !important; letter-spacing: -.02em !important; text-transform: none !important; color: var(--text) !important; }
+.feat-desc { max-width: 640px; color: var(--mute); line-height: 1.55; }
+.feat-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
+.feat-chips span { font-size: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--acc) 45%, var(--line)); background: color-mix(in srgb, var(--acc) 12%, transparent); }
+.feat-go { padding: 10px 24px; font-size: 15px; }
+@media (max-width: 640px) { .feat { flex-direction: column; align-items: flex-start; padding: 18px; } .feat-board { width: 72px; height: 72px; font-size: 46px; } .feat-title { font-size: 24px !important; } }
+
+/* Middle Watch: the second featured game, smaller and candlelit */
+.feat2 { --acc: #f0b35a; --acc2: #8b7cff; margin: 10px 0 6px; padding: 16px 22px; border-radius: 20px; background: radial-gradient(460px 220px at 100% 0, rgba(139, 124, 255, .22), transparent 70%), radial-gradient(420px 220px at 0 100%, rgba(240, 179, 90, .24), transparent 70%), linear-gradient(135deg, color-mix(in srgb, var(--panel) 90%, #f0b35a), var(--panel)); }
+.feat2::before { background: radial-gradient(rgba(255, 220, 150, .12) 1.4px, transparent 1.6px) 0 0 / 22px 22px; mask-image: linear-gradient(100deg, transparent 40%, #000 100%); -webkit-mask-image: linear-gradient(100deg, transparent 40%, #000 100%); }
+.feat2 .feat-board { width: 76px; height: 76px; font-size: 44px; border-radius: 18px; }
+.feat2 .feat-title { font-size: 22px !important; }
+.feat2 .feat-chips { margin: 8px 0; }
+.feat2 .feat-go { padding: 8px 20px; font-size: 14px; background: linear-gradient(135deg, #f0b35a, #d98a3a); color: #2a1a08; }
+
+/* Imperium: the third featured game, imperial purple, gold and marble */
+.feat3 { --acc: #c9a227; --acc2: #8b5fe6; margin: 10px 0 6px; padding: 16px 22px; border-radius: 20px; background: radial-gradient(480px 220px at 100% 0, rgba(139, 95, 230, .24), transparent 70%), radial-gradient(420px 220px at 0 100%, rgba(201, 162, 39, .22), transparent 70%), linear-gradient(135deg, color-mix(in srgb, var(--panel) 88%, #6d1f24), var(--panel)); border-color: color-mix(in srgb, #c9a227 45%, var(--line)); }
+.feat3::before { background: repeating-linear-gradient(115deg, rgba(255, 226, 160, .05) 0 12px, transparent 12px 30px); mask-image: linear-gradient(100deg, transparent 30%, #000 100%); -webkit-mask-image: linear-gradient(100deg, transparent 30%, #000 100%); }
+.feat3 .feat-board { width: 76px; height: 76px; font-size: 42px; border-radius: 18px; background: linear-gradient(135deg, #caa22f, #8b5fe6); }
+.feat3 .feat-title { font-size: 22px !important; letter-spacing: .04em !important; }
+.feat3 .feat-chips { margin: 8px 0; }
+.feat3 .feat-tag { color: #e0c46a; }
+.feat3 .feat-go { padding: 8px 20px; font-size: 14px; background: linear-gradient(135deg, #e0c46a, #c9a227); color: #2a1a08; }

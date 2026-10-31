@@ -1,0 +1,9 @@
+/* The fonts this app is designed in. They ship with it, so the interface and the games keep the same voice on
+   every PC instead of falling back to whatever Segoe UI happens to look like there.
+   Atkinson Hyperlegible is the readable one (designed by the Braille Institute for low-vision readers);
+   Pixelify Sans and Silkscreen are the pixel ones, for the games and their headings. */
+@font-face { font-family: 'Atkinson Hyperlegible'; font-style: normal; font-weight: 400; font-display: swap; src: url('/web/fonts/AtkinsonHyperlegible-400.woff2') format('woff2'); }
+@font-face { font-family: 'Atkinson Hyperlegible'; font-style: normal; font-weight: 700; font-display: swap; src: url('/web/fonts/AtkinsonHyperlegible-700.woff2') format('woff2'); }
+@font-face { font-family: 'Pixelify Sans'; font-style: normal; font-weight: 400; font-display: swap; src: url('/web/fonts/PixelifySans-400.woff2') format('woff2'); }
+@font-face { font-family: 'Pixelify Sans'; font-style: normal; font-weight: 600; font-display: swap; src: url('/web/fonts/PixelifySans-600.woff2') format('woff2'); }
+@font-face { font-family: 'Silkscreen'; font-style: normal; font-weight: 400; font-display: swap; src: url('/web/fonts/Silkscreen-400.woff2') format('woff2'); }

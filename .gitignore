@@ -1,0 +1,38 @@
+# Only Moundshroud's own program files are ever committed. Everything else in this folder
+# (your notes, chats, vault, mail, photos index, downloads, AI models, libraries, music, the window's
+# browser profile, snapshots and releases) is ignored, so it can never be uploaded by accident.
+/*
+!/.gitignore
+!/README.md
+!/START-HERE.txt
+!/SNAPSHOTS.txt
+!/VERSION
+!/LICENSE
+!/server.js
+!/Listener.cs
+!/setup.ps1
+!/Setup-Moundshroud.bat
+!/make-release.ps1
+!/open-moundshroud.ps1
+!/ocr.ps1
+!/pc-volume.ps1
+!/snapshot.ps1
+!/restore-snapshot.ps1
+!/restore-progress.ps1
+!/install-art-model.ps1
+!/install-music-model.ps1
+!/lib/
+!/py/
+!/web/
+!/tests/
+!/data/
+/data/*
+!/data/cmudict.dict
+!/data/cmudict-LICENSE.txt
+
+# inside the allowed folders
+/web/music/
+__pycache__/
+*.pyc
+*.log
+*.bak*

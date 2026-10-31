@@ -1,0 +1,19 @@
+MOUNDSHROUD SNAPSHOTS - how to undo a change
+=======================================
+
+Before every change to the app, a snapshot of the code (and small settings/data files) is saved in the
+_snapshots folder as a zip named  DATE_TIME_label.zip.
+
+Make one yourself        .\snapshot.ps1 -Label "what I am about to change"
+List them                .\snapshot.ps1 -List
+Roll back to the newest  .\restore-snapshot.ps1 -Name latest
+Roll back to a specific  .\restore-snapshot.ps1 -Name part-of-the-file-name
+Look inside without changing anything
+                         .\restore-snapshot.ps1 -Name latest -To C:\temp\moundshroud-check
+
+A restore first saves the current state as "before-restore", so a restore can itself be undone.
+The last 40 snapshots are kept. Libraries (nomad), the voice model, pyenv and the search index are not
+included - they are large and unaffected by code changes. Use Settings > Back up everything inside Moundshroud
+for your notes, flashcards, chats and quizzes.
+
+Tutorial: the in-app guide (web\js\guide.js) lists every feature and a What's new log. Each new feature adds a section line, a changelog entry and, if it has one, a hotkey.

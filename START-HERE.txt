@@ -1,0 +1,30 @@
+MOUNDSHROUD - START HERE
+========================
+
+Moundshroud is a private assistant that runs entirely on your own Windows PC: an AI chat, offline libraries, a star chart,
+calendar, kitchen, garden, music, chess and much more. Nothing is sent to the internet unless you choose to download something.
+
+SETUP (about 10 minutes, plus the download time for the AI)
+
+ 1. Make sure BOTH zip files are unzipped into the SAME folder (for example C:\Moundshroud):
+       Moundshroud-1.0.0-part1-program.zip
+       Moundshroud-1.0.0-part2-data.zip
+    Do not run it from inside the zip file, and do not put it in OneDrive.
+ 2. Double-click   Setup-Moundshroud.bat
+    - If Windows says "Windows protected your PC": click "More info", then "Run anyway".
+      (It shows this for any program that is not from a big company. The setup is plain text you can open and read.)
+    - Say Yes when it offers to install Node.js and Ollama. They are free, standard programs.
+    - Pick the Small AI model unless your PC has a graphics card with 8 GB or more.
+ 3. When it finishes, Moundshroud opens. Open it any time with the "Moundshroud" shortcut or Ctrl + Alt + A.
+ 4. In Moundshroud: Settings (the gear) > "Run a self-test". Everything should show a green tick.
+ 5. Optional: Prepare > Stock up downloads the offline libraries (Wikipedia and more). They are big (tens of GB), so check your free disk space first.
+
+TIPS
+ - The Today page is home. The Guide tab explains everything, and F1 opens it anywhere.
+ - Settings > "Back up everything" saves all your own data in one zip.
+ - Your data stays on your PC, in this folder and in Documents\Assistant Notes.
+
+TROUBLE?
+ - Run Setup-Moundshroud.bat again. It only does what is still missing.
+ - "Needs a restart of Moundshroud": close every Moundshroud window and open it again.
+ - Moundshroud needs Windows 10 or 11 and Microsoft Edge (already part of Windows).

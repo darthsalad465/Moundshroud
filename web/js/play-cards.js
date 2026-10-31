@@ -1,0 +1,74 @@
+// Entertainment > card games: Klondike Solitaire (draw 1 or 3, undo) and Blackjack (3:2, double down, persistent bankroll). Texas Hold'em lives in play-poker.js.
+// Cards are drawn large, with a Card size setting (Normal / Large / Huge) shared by all card games. Play money only: nothing is bought or wagered.
+(() => {
+  const P = A.play; if (!P) return; const SU = ['♠', '♥', '♦', '♣'], RK = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'], red = s => s === 1 || s === 2;
+  const deck = () => { const d = []; for (let s = 0; s < 4; s++) for (let r = 0; r < 13; r++) d.push({ s, r }); for (let i = d.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0;[d[i], d[j]] = [d[j], d[i]]; } return d; };
+  const SIZES = [['1', 'Normal'], ['1.3', 'Large'], ['1.6', 'Huge']], cs = () => +ls.get('card_cs', '1.3') || 1.3;
+  const css = '.cd{display:inline-flex;flex-direction:column;justify-content:space-between;width:calc(var(--cs,1.3)*72px);height:calc(var(--cs,1.3)*100px);border-radius:calc(var(--cs,1.3)*8px);background:#fcfcf8;color:#111;border:1px solid #777;padding:calc(var(--cs,1.3)*4px) calc(var(--cs,1.3)*6px);font:700 calc(var(--cs,1.3)*19px)/1 Georgia,serif;box-shadow:0 3px 8px rgba(0,0,0,.4);user-select:none;box-sizing:border-box;flex:none}.cd.r{color:#c4161c}.cd .m{align-self:center;font-size:calc(var(--cs,1.3)*38px);line-height:1}.cd .bt{align-self:flex-end;transform:rotate(180deg)}.cd.b{background:repeating-linear-gradient(45deg,#2b4c9b 0 6px,#1f3a7a 6px 12px);border:2px solid #fff}.cd.b *{visibility:hidden}.cd.sel{outline:4px solid #ffd24a;transform:translateY(-4px)}.cd.em{background:rgba(255,255,255,.04);border:2px dashed rgba(255,255,255,.25);box-shadow:none}.cd.new{animation:cdin .35s ease-out}@keyframes cdin{from{transform:translateY(-30px) rotate(-8deg);opacity:0}to{transform:none;opacity:1}}.cdbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}';
+  if (!document.getElementById('cardcss')) { const st = document.createElement('style'); st.id = 'cardcss'; st.textContent = css; document.head.appendChild(st); }
+  const card = (c, o) => !c ? '<div class="cd em"></div>' : '<div class="cd' + (red(c.s) ? ' r' : '') + (c.down ? ' b' : '') + (o && o.sel ? ' sel' : '') + (o && o.anim ? ' new' : '') + '"><span>' + RK[c.r] + SU[c.s] + '</span><span class="m">' + SU[c.s] + '</span><span class="bt">' + RK[c.r] + '</span></div>';
+  const sizeSel = () => '<label class="small mute">Card size <select id="cszsel">' + SIZES.map(s => '<option value="' + s[0] + '"' + (String(cs()) === s[0] ? ' selected' : '') + '>' + s[1] + '</option>').join('') + '</select></label>';
+  const bindSize = (el, again) => { const s = el.querySelector('#cszsel'); if (s) s.onchange = () => { ls.set('card_cs', s.value); again(); }; };
+  window.CardUI = { card, deck, cs, sizeSel, bindSize, SU, RK, red };
+
+  /* ================= SOLITAIRE (Klondike) ================= */
+  P.games.solitaire = { name: 'Solitaire', icon: '🂡', desc: 'Klondike on a big table: build four foundations from Ace to King. Click a card then a pile to move it, click the stock to draw, double-click to send a card up. Draw 1 or 3, undo, card size setting.', mount(el, api) {
+    let G, sel = null, hist = [], draw3 = ls.get('sol_d3', '0') === '1', t0 = Date.now(), dead = false, moves = 0, won = false;
+    const deal = () => { const d = deck(); G = { t: [[], [], [], [], [], [], []], f: [[], [], [], []], st: [], w: [] }; for (let i = 0; i < 7; i++) for (let j = 0; j <= i; j++) { const c = d.pop(); c.down = j < i; G.t[i].push(c); } G.st = d.map(c => (c.down = true, c)); sel = null; hist = []; t0 = Date.now(); moves = 0; won = false; render(); };
+    const snap = () => { hist.push(JSON.stringify(G)); if (hist.length > 80) hist.shift(); };
+    const canTab = (c, onto) => !onto ? c.r === 12 : (red(c.s) !== red(onto.s) && c.r === onto.r - 1);
+    const canFnd = (c, f) => f.length ? (f[f.length - 1].s === c.s && c.r === f[f.length - 1].r + 1) : c.r === 0;
+    const getSel = () => { if (!sel) return null; if (sel.k === 'w') return [G.w[G.w.length - 1]]; if (sel.k === 'f') return [G.f[sel.i][G.f[sel.i].length - 1]]; return G.t[sel.i].slice(sel.j); };
+    const take = () => { if (sel.k === 'w') return [G.w.pop()]; if (sel.k === 'f') return [G.f[sel.i].pop()]; return G.t[sel.i].splice(sel.j); };
+    const flipTop = i => { const p = G.t[i]; if (p.length && p[p.length - 1].down) p[p.length - 1].down = false; };
+    const check = () => { if (G.f.every(f => f.length === 13)) { won = true; api.submit(Math.max(1, Math.round(10000 - (Date.now() - t0) / 1000 * 3 - moves * 4))); } };
+    const moveTo = (kind, i) => {
+      const cs0 = getSel(); if (!cs0 || !cs0[0]) { sel = null; return render(); }
+      const ok = kind === 't' ? canTab(cs0[0], G.t[i][G.t[i].length - 1]) && !(sel.k === 't' && sel.i === i) : cs0.length === 1 && canFnd(cs0[0], G.f[i]) && !(sel.k === 'f' && sel.i === i);
+      if (!ok) { sel = null; return render(); } snap(); const mv = take(); if (kind === 't') G.t[i].push(...mv); else G.f[i].push(mv[0]); if (sel.k === 't') flipTop(sel.i); sel = null; moves++; check(); render();
+    };
+    const auto = () => { const c = getSel(); if (!c || c.length !== 1) return false; for (let i = 0; i < 4; i++) if (canFnd(c[0], G.f[i])) { snap(); const mv = take(); G.f[i].push(mv[0]); if (sel.k === 't') flipTop(sel.i); sel = null; moves++; check(); render(); return true; } return false; };
+    const off = (p, j) => { let y = 0; const z = cs(); for (let k = 0; k < j; k++) y += (p[k].down ? 16 : 34) * z; return Math.round(y); };
+    const render = () => {
+      if (dead) return; const topW = G.w[G.w.length - 1], z = cs(), cw = Math.round(72 * z), gap = Math.round(10 * z);
+      el.innerHTML = '<div style="--cs:' + z + ';padding:' + gap + 'px;border-radius:16px;background:radial-gradient(ellipse at center,#14753f,#0b4a28);border:1px solid #094;min-width:' + (7 * (cw + gap) + gap) + 'px"><div class="cdbar"><button class="ib" id="snew">New deal</button><button class="ib" id="sund">↶ Undo</button><label class="chk small" style="color:#dfd"><input type="checkbox" id="sd3"' + (draw3 ? ' checked' : '') + '> Draw 3</label>' + sizeSel() + '<span class="small" style="color:#dfd" id="stm"></span></div>' +
+        '<div style="display:flex;gap:' + gap + 'px;margin-bottom:' + gap * 2 + 'px"><div data-p="stock" style="cursor:pointer">' + (G.st.length ? card({ s: 0, r: 0, down: true }) : '<div class="cd em"></div>') + '</div><div data-p="w">' + (topW ? card(topW, { sel: sel && sel.k === 'w' }) : card(null)) + '</div><div style="flex:1"></div>' + G.f.map((f, i) => '<div data-p="f" data-i="' + i + '">' + (f.length ? card(f[f.length - 1], { sel: sel && sel.k === 'f' && sel.i === i }) : '<div class="cd em" style="align-items:center;justify-content:center;font-size:' + Math.round(34 * z) + 'px;color:rgba(255,255,255,.35)">' + SU[i] + '</div>') + '</div>').join('') + '</div>' +
+        '<div style="display:flex;gap:' + gap + 'px;align-items:flex-start;min-height:' + Math.round(420 * z) + 'px">' + G.t.map((p, i) => '<div data-p="t" data-i="' + i + '" style="position:relative;width:' + cw + 'px;min-height:' + Math.round(100 * z) + 'px">' + (p.length ? p.map((c, j) => '<div data-j="' + j + '" style="position:' + (j ? 'absolute' : 'relative') + ';top:' + (j ? off(p, j) : 0) + 'px;left:0">' + card(c, { sel: sel && sel.k === 't' && sel.i === i && j >= sel.j }) + '</div>').join('') : '<div class="cd em"></div>') + '</div>').join('') + '</div>' + (won ? '<div class="card" style="margin:14px 0 0;border-color:var(--ok)"><b>🎉 You won in ' + moves + ' moves!</b> <button class="pri" id="sagain" style="margin-left:10px">Deal again</button></div>' : '') + '</div>';
+      el.querySelector('#snew').onclick = deal; el.querySelector('#sund').onclick = () => { if (!hist.length) return; G = JSON.parse(hist.pop()); sel = null; render(); }; el.querySelector('#sd3').onchange = e => { draw3 = e.target.checked; ls.set('sol_d3', draw3 ? '1' : '0'); }; bindSize(el, render); const ag = el.querySelector('#sagain'); if (ag) ag.onclick = deal;
+      api.hud('Moves ' + moves + ' · Foundations ' + G.f.reduce((a, f) => a + f.length, 0) + '/52');
+    };
+    el.onclick = e => {
+      if (won || dead) return; const pile = e.target.closest('[data-p]'); if (!pile) return; const k = pile.dataset.p, i = +pile.dataset.i;
+      if (k === 'stock') { snap(); if (G.st.length) { for (let n = 0; n < (draw3 ? 3 : 1) && G.st.length; n++) { const c = G.st.pop(); c.down = false; G.w.push(c); } } else { G.st = G.w.reverse().map(c => (c.down = true, c)); G.w = []; } sel = null; moves++; return render(); }
+      if (sel) { if ((k === 't' || k === 'f') && !(sel.k === k && sel.i === i && k === 'f')) return moveTo(k, i); sel = null; return render(); }
+      if (k === 'w') { if (G.w.length) sel = { k: 'w' }; } else if (k === 'f') { if (G.f[i].length) sel = { k: 'f', i }; } else { const jEl = e.target.closest('[data-j]'), j = jEl ? +jEl.dataset.j : G.t[i].length - 1; if (G.t[i].length && !G.t[i][j].down) sel = { k: 't', i, j }; else if (G.t[i].length && j === G.t[i].length - 1) { snap(); G.t[i][j].down = false; } }
+      render();
+    };
+    el.ondblclick = () => { if (sel && !won) auto(); };
+    const tick = setInterval(() => { const s = el.querySelector('#stm'); if (s && !won) { const t = Math.floor((Date.now() - t0) / 1000); s.textContent = '⏱ ' + Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); } }, 1000);
+    deal(); return () => { dead = true; clearInterval(tick); el.onclick = el.ondblclick = null; };
+  } };
+
+  /* ================= BLACKJACK ================= */
+  P.games.blackjack = { name: 'Blackjack', icon: '🃏', desc: 'Beat the dealer to 21 without going over, at a big felt table. Blackjack pays 3:2, the dealer stands on 17, you can double down. Play money with a saved bankroll.', mount(el, api) {
+    let bank = +ls.get('bj_bank', '500') || 500, d = [], hand = [], dealer = [], bet = 25, state = 'bet', dbl = false, msg = '', dead = false, fresh = 0;
+    const val = h => { let t = 0, a = 0; for (const c of h) { t += c.r === 0 ? 11 : Math.min(10, c.r + 1); if (c.r === 0) a++; } while (t > 21 && a--) t -= 10; return t; };
+    const draw = () => { if (d.length < 15) d = deck(); return d.pop(); };
+    const save = () => { ls.set('bj_bank', String(bank)); api.submit(bank); };
+    const render = () => {
+      if (dead) return; const hideD = state === 'play', z = cs(), n0 = fresh; fresh = 0;
+      const row = (h, hide) => h.map((c, i) => card(hide && i === 1 ? { s: 0, r: 0, down: true } : c, { anim: i >= h.length - 1 && n0 })).join('');
+      el.innerHTML = '<div style="--cs:' + z + ';max-width:' + Math.round(760 * Math.max(1, z / 1.3)) + 'px"><div class="cdbar"><span style="font-size:18px">💰 Bankroll <b>' + bank + '</b></span><span class="small mute">Bet <b>' + bet * (dbl ? 2 : 1) + '</b></span><span style="flex:1"></span>' + sizeSel() + '</div>' +
+        '<div style="padding:18px;border-radius:18px;background:radial-gradient(ellipse at center,#14753f,#0b4a28);border:1px solid #094;min-height:' + Math.round(330 * z) + 'px"><div style="color:#dfd;font-size:15px;margin-bottom:6px">Dealer ' + (hideD || !dealer.length ? '' : '· <b>' + val(dealer) + '</b>') + '</div><div style="display:flex;gap:' + Math.round(10 * z) + 'px;min-height:' + Math.round(100 * z) + 'px">' + row(dealer, hideD) + '</div><div style="height:' + Math.round(20 * z) + 'px"></div><div style="color:#dfd;font-size:15px;margin-bottom:6px">You ' + (hand.length ? '· <b>' + val(hand) + '</b>' : '') + '</div><div style="display:flex;gap:' + Math.round(10 * z) + 'px;min-height:' + Math.round(100 * z) + 'px">' + row(hand, false) + '</div></div>' +
+        '<div style="min-height:34px;margin:10px 0;font-size:17px;font-weight:600">' + msg + '</div>' + (state === 'bet' ? '<div class="row" style="gap:8px;flex-wrap:wrap">' + [10, 25, 50, 100].map(b => '<button class="ib' + (bet === b ? ' on' : '') + '" data-b="' + b + '" style="padding:10px 18px;font-size:16px">' + b + '</button>').join('') + '<button class="pri" id="bdeal" style="padding:10px 26px;font-size:16px">Deal</button>' + (bank < 10 ? '<button class="ib" id="brefill">Refill bankroll</button>' : '') + '</div>' : state === 'play' ? '<div class="row" style="gap:8px"><button class="pri" id="bhit" style="padding:10px 26px;font-size:16px">Hit</button><button class="ib" id="bstand" style="padding:10px 26px;font-size:16px">Stand</button>' + (hand.length === 2 && bank >= bet ? '<button class="ib" id="bdbl" style="padding:10px 22px;font-size:16px">Double</button>' : '') + '</div>' : '<button class="pri" id="bnext" style="padding:10px 26px;font-size:16px">Next hand</button>') + '</div>';
+      el.querySelectorAll('[data-b]').forEach(b => b.onclick = () => { bet = +b.dataset.b; render(); }); const q = id => el.querySelector('#' + id); if (q('bdeal')) q('bdeal').onclick = deal; if (q('bhit')) q('bhit').onclick = hit; if (q('bstand')) q('bstand').onclick = stand; if (q('bdbl')) q('bdbl').onclick = double; if (q('bnext')) q('bnext').onclick = () => { state = 'bet'; hand = []; dealer = []; msg = ''; render(); }; if (q('brefill')) q('brefill').onclick = () => { bank = 500; save(); render(); }; bindSize(el, render);
+      api.hud('Bankroll ' + bank);
+    };
+    const finish = (res, why) => { const stake = bet * (dbl ? 2 : 1); if (res === 'win') bank += stake; else if (res === 'bj') bank += Math.round(stake * 1.5); else if (res === 'lose') bank -= stake; msg = why + (res === 'push' ? ' Push.' : res === 'lose' ? ' You lose ' + stake + '.' : ' You win ' + (res === 'bj' ? Math.round(stake * 1.5) : stake) + '!'); state = 'done'; save(); render(); };
+    const deal = () => { if (bank < 10) return render(); if (bank < bet) bet = Math.max(10, bank); if (d.length < 15) d = deck(); dbl = false; hand = [draw(), draw()]; dealer = [draw(), draw()]; msg = ''; state = 'play'; fresh = 1; if (val(hand) === 21) { state = 'done'; return val(dealer) === 21 ? finish('push', 'Both have blackjack.') : finish('bj', 'Blackjack!'); } render(); };
+    const hit = () => { hand.push(draw()); fresh = 1; if (val(hand) > 21) return finish('lose', 'Bust (' + val(hand) + ').'); if (val(hand) === 21) return stand(); render(); };
+    const stand = () => { state = 'done'; while (val(dealer) < 17) dealer.push(draw()); const p = val(hand), q = val(dealer); if (q > 21) finish('win', 'Dealer busts (' + q + ').'); else if (p > q) finish('win', p + ' beats ' + q + '.'); else if (p < q) finish('lose', 'Dealer has ' + q + '.'); else finish('push', 'Both have ' + p + '.'); };
+    const double = () => { dbl = true; hand.push(draw()); fresh = 1; if (val(hand) > 21) return finish('lose', 'Bust (' + val(hand) + ').'); stand(); };
+    d = deck(); render(); return () => { dead = true; };
+  } };
+})();

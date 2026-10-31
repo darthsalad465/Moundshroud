@@ -1,0 +1,76 @@
+/* Flair: the extra movement that makes the app feel alive. Every distance here is multiplied by --mv (1 at full motion,
+   about half at subtle), and Settings > Appearance > Motion "off" stops all of it (anim.css). Nothing loops while the
+   window is hidden (html.idle pauses it). */
+
+/* ---------- changing tabs: the new page slides in from the side you are moving towards ---------- */
+@keyframes vtInFwd { from { opacity: 0; transform: translateX(calc(34px * var(--mv, 1))) } to { opacity: 1; transform: none } }
+@keyframes vtOutFwd { to { opacity: 0; transform: translateX(calc(-22px * var(--mv, 1))) } }
+@keyframes vtInBack { from { opacity: 0; transform: translateX(calc(-34px * var(--mv, 1))) } to { opacity: 1; transform: none } }
+@keyframes vtOutBack { to { opacity: 0; transform: translateX(calc(22px * var(--mv, 1))) } }
+html[data-vtdir="fwd"]::view-transition-new(content) { animation: vtInFwd 300ms cubic-bezier(.22,.8,.28,1) both; }
+html[data-vtdir="fwd"]::view-transition-old(content) { animation: vtOutFwd 170ms ease-in both; }
+html[data-vtdir="back"]::view-transition-new(content) { animation: vtInBack 300ms cubic-bezier(.22,.8,.28,1) both; }
+html[data-vtdir="back"]::view-transition-old(content) { animation: vtOutBack 170ms ease-in both; }
+html[data-motion="off"]::view-transition-new(content), html[data-motion="off"]::view-transition-old(content) { animation: none !important; }
+
+/* ---------- the tab bar ---------- */
+@keyframes tabOn { 0% { transform: scale(.92) } 60% { transform: scale(calc(1 + .05 * var(--mv, 1))) } 100% { transform: none } }
+#nav button { transition: background-color .2s, color .2s, box-shadow .25s, transform .15s; }
+#nav button.on { animation: tabOn .38s cubic-bezier(.3,1.4,.5,1); }
+#nav button:hover:not(.on) { transform: translateY(calc(-1px * var(--mv, 1))); }
+
+/* ---------- buttons press in, and the main ones glow ---------- */
+button, .ib, .pri, .chip, .nw-chip, .mk-btn { transition: transform .09s ease-out, background-color .18s, border-color .18s, box-shadow .2s, filter .18s; }
+button:active:not(:disabled), .ib:active, .chip:active, .nw-chip:active, .mk-btn:active { transform: scale(calc(1 - .045 * var(--mv, 1))); }
+.pri:hover:not(:disabled) { box-shadow: 0 0 0 3px color-mix(in srgb, var(--acc) 28%, transparent), 0 4px 14px color-mix(in srgb, var(--acc) 35%, transparent); }
+input, select, textarea { transition: border-color .18s, box-shadow .2s; }
+input:focus, select:focus, textarea:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--acc) 25%, transparent); }
+
+/* ---------- section chips: the chosen one pops ---------- */
+@keyframes chipOn { 0% { transform: scale(.9) } 70% { transform: scale(calc(1 + .04 * var(--mv, 1))) } 100% { transform: none } }
+.nw-chip.on, .mk-btn.on, .am-nav button.on { animation: chipOn .32s cubic-bezier(.3,1.4,.5,1); }
+
+/* ---------- cards lift under the pointer ---------- */
+.nw-ev, .mk-tile, .am-box, .am-card, .nw-bi, .card { transition: transform .18s ease-out, box-shadow .2s, border-color .2s, background-color .2s; }
+.nw-ev:hover, .mk-tile:hover, .am-box:hover, .nw-bi:hover { transform: translateY(calc(-2px * var(--mv, 1))); box-shadow: 0 6px 18px rgba(0,0,0,.25); }
+
+/* ---------- News ---------- */
+@keyframes bkPulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--bad) 45%, transparent) } 50% { box-shadow: 0 0 0 calc(6px * var(--mv, 1)) transparent } }
+[data-bk] { animation: bkPulse 2.2s ease-in-out infinite; }
+@keyframes dotPulse { 0%, 100% { transform: scale(1); opacity: 1 } 50% { transform: scale(calc(1 + .5 * var(--mv, 1))); opacity: .55 } }
+.nw-ev .dot { animation: dotPulse 2.4s ease-in-out infinite; }
+@keyframes detIn { from { opacity: 0; transform: translateX(calc(16px * var(--mv, 1))) } to { opacity: 1; transform: none } }
+.nw-det > * { animation: detIn .32s cubic-bezier(.22,.8,.28,1) both; }
+.nw-det > *:nth-child(2) { animation-delay: .03s } .nw-det > *:nth-child(3) { animation-delay: .06s } .nw-det > *:nth-child(4) { animation-delay: .09s } .nw-det > *:nth-child(n+5) { animation-delay: .12s }
+@keyframes readIn { from { opacity: 0; transform: translateY(calc(26px * var(--mv, 1))) scale(.985) } to { opacity: 1; transform: none } }
+.nw-read { animation: fadeIn .2s ease-out; }
+.nw-read > div { animation: readIn .32s cubic-bezier(.22,.8,.28,1); }
+@keyframes aiType { 0%, 100% { opacity: .35 } 50% { opacity: 1 } }
+#nwaitxt .mute { animation: aiType 1.2s ease-in-out infinite; }
+/* the briefing: the story being read aloud */
+@keyframes nowReading { 0%, 100% { box-shadow: inset 4px 0 0 var(--acc) } 50% { box-shadow: inset 7px 0 0 var(--acc) } }
+.nw-bi.reading { background: color-mix(in srgb, var(--acc) 14%, transparent); border-radius: 10px; animation: nowReading 1.6s ease-in-out infinite; }
+
+/* ---------- Markets: prices flash when they change ---------- */
+@keyframes flashUp { 0% { background-color: color-mix(in srgb, var(--ok) 38%, transparent) } 100% { background-color: transparent } }
+@keyframes flashDown { 0% { background-color: color-mix(in srgb, var(--bad) 38%, transparent) } 100% { background-color: transparent } }
+.mk-flash-up { animation: flashUp 1.4s ease-out; }
+.mk-flash-down { animation: flashDown 1.4s ease-out; }
+
+/* ---------- dialogs, menus, focus mode ---------- */
+[role="dialog"] { animation: dlgIn .26s cubic-bezier(.22,.8,.28,1); }
+@keyframes afxIn { from { opacity: 0; transform: translateY(calc(14px * var(--mv, 1))) } to { opacity: .28; transform: none } }
+#afx { animation: afxIn .4s ease-out; }
+@keyframes focusIn { from { transform: scale(calc(1 - .015 * var(--mv, 1))); opacity: .6 } to { transform: none; opacity: 1 } }
+html.afocus main { animation: focusIn .35s cubic-bezier(.22,.8,.28,1); }
+
+/* ---------- progress bars move while they work ---------- */
+@keyframes barFlow { from { background-position: 0 0 } to { background-position: 40px 0 } }
+.bar i { background-image: linear-gradient(45deg, rgba(255,255,255,.18) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.18) 50%, rgba(255,255,255,.18) 75%, transparent 75%); background-size: 40px 40px; animation: barFlow 1s linear infinite; transition: width .4s ease-out; }
+
+/* ---------- open and close of folded sections ---------- */
+details > summary { transition: color .15s; }
+details[open] > summary ~ * { animation: panelIn .26s ease-out; }
+
+/* ---------- nothing loops while the window is hidden ---------- */
+html.idle [data-bk], html.idle .nw-ev .dot, html.idle .nw-bi.reading, html.idle .bar i, html.idle #nwaitxt .mute { animation-play-state: paused; }
