@@ -1,0 +1,88 @@
+/* Motion for the whole app. Switched off by Low-power mode (body.lowpower) and by the system "reduce motion" setting. */
+@keyframes panelIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes dlgIn{from{opacity:0;transform:translateY(-14px) scale(.96)}to{opacity:1;transform:none}}
+@keyframes msgIn{from{opacity:0;transform:translateY(8px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes cardIn{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes shimmerBar{0%{background-position:200% 0}100%{background-position:-200% 0}}
+@keyframes popIn{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.08);opacity:1}100%{transform:scale(1)}}
+@keyframes hop{0%{transform:translateY(0) rotate(0)}30%{transform:translateY(-14px) rotate(-12deg)}60%{transform:translateY(0) rotate(6deg)}100%{transform:none}}
+@keyframes slideUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
+@keyframes ringPulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--acc) 55%,transparent)}100%{box-shadow:0 0 0 14px transparent}}
+
+.panel.on{animation:panelIn .34s cubic-bezier(.2,.8,.2,1)}
+#acbody>*,#plbody>*{animation:panelIn .3s cubic-bezier(.2,.8,.2,1)}
+nav button{transition:background .2s,color .2s,transform .15s}
+nav button:hover{transform:translateY(-1px)}nav button:active{transform:scale(.96)}
+nav button.on{animation:popIn .3s ease-out}
+button,.ib,.pri,.chip,select{transition:background .18s,color .18s,border-color .18s,transform .14s,box-shadow .18s,filter .18s}
+.ib:active,.pri:active,.chip:active,nav button:active{transform:scale(.95)}
+.pri:hover{transform:translateY(-1px);filter:brightness(1.08)}
+.ib:hover,.chip:hover{transform:translateY(-1px)}
+.card,.hit,.tile,.stat{transition:transform .18s,border-color .18s,box-shadow .2s,background .18s}
+.card:hover,.tile:hover{transform:translateY(-3px);box-shadow:0 10px 24px rgba(0,0,0,.3)}
+.acg .card{animation:cardIn .42s cubic-bezier(.2,.8,.2,1) both}
+.acg .card:nth-child(1){animation-delay:.02s}.acg .card:nth-child(2){animation-delay:.06s}.acg .card:nth-child(3){animation-delay:.10s}.acg .card:nth-child(4){animation-delay:.14s}.acg .card:nth-child(5){animation-delay:.18s}.acg .card:nth-child(6){animation-delay:.22s}.acg .card:nth-child(7){animation-delay:.26s}.acg .card:nth-child(8){animation-delay:.30s}.acg .card:nth-child(9){animation-delay:.34s}.acg .card:nth-child(n+10){animation-delay:.38s}
+.m{animation:msgIn .3s cubic-bezier(.2,.8,.2,1)}
+#ov.on{animation:fadeIn .2s ease-out}#ov.on .dlg{animation:dlgIn .3s cubic-bezier(.2,.9,.3,1.15)}
+#toast{transform:translate(-50%,14px);transition:opacity .25s,transform .3s cubic-bezier(.2,.9,.3,1.2)}#toast.on{transform:translate(-50%,0)}
+input:focus,textarea:focus,select:focus{box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 26%,transparent);transition:box-shadow .2s,border-color .2s}
+.scroll,.panel{scroll-behavior:smooth}
+.bar i{transition:width .6s cubic-bezier(.2,.8,.2,1)}
+.logo{transition:transform .3s}.logo:hover{transform:rotate(12deg) scale(1.1)}
+.hit:hover{transform:translateX(2px)}
+.chip{animation:popIn .25s ease-out}
+.fxpop{animation:popIn .35s ease-out}
+details>summary{transition:color .2s}details[open]>.mgb,details[open]>div{animation:panelIn .25s ease-out}
+.dots::after{content:'...';display:inline-block;animation:fadeIn .8s ease-in-out infinite alternate}
+
+/* chess hub */
+.acb .chs{transition:background .2s}
+.acb .chs:hover{filter:brightness(1.08)}
+.acb .chs.last::after,.acb .chs.hint::after{animation:fadeIn .3s}
+.acb .chs.hint::after{animation:ringPulse 1.4s infinite}
+.acq{transition:transform .15s,border-color .15s,background .2s}.acq:hover{transform:translateX(4px)}
+.acq.ok{animation:popIn .35s}
+.acmsg.ok{animation:popIn .4s}.acmsg.no{animation:acshake .3s}
+.trophy.got{animation:popIn .5s both}
+.mascot{display:flex;align-items:flex-end;gap:8px;margin-bottom:6px;min-height:44px}
+.mascot .mk{font-size:34px;display:inline-block;filter:drop-shadow(0 3px 4px rgba(0,0,0,.4));animation:float 3.2s ease-in-out infinite}
+.mascot .mk.hop{animation:hop .6s ease-out}
+.mascot .mb{max-width:240px;padding:6px 11px;border-radius:14px 14px 14px 4px;background:var(--panel2);border:1px solid var(--line);font-size:13px;opacity:0;transform:translateY(6px) scale(.9);transition:opacity .25s,transform .25s}
+.mascot .mb.on{opacity:1;transform:none}.mascot .mb.good{border-color:var(--ok)}.mascot .mb.bad{border-color:var(--bad)}
+.achtoast{position:fixed;right:18px;bottom:24px;z-index:10000;display:flex;gap:12px;align-items:center;padding:12px 16px;border-radius:16px;background:linear-gradient(135deg,var(--panel),var(--panel2));border:1px solid var(--acc);box-shadow:0 12px 40px rgba(0,0,0,.5),0 0 24px color-mix(in srgb,var(--acc) 35%,transparent);animation:slideUp .5s cubic-bezier(.2,.9,.3,1.2) both;max-width:340px}
+.achtoast.out{opacity:0;transform:translateX(30px);transition:all .4s}
+.achtoast .ai{font-size:36px;animation:popIn .6s .15s both}.achtoast .an{font-weight:700;font-size:15px}
+
+/* efficiency: panels animate from fx.js; nothing decorative keeps running while the window is hidden or in the background */
+html[data-fx] .panel.on{animation:none}
+html.idle *,html.idle *::before,html.idle *::after{animation-play-state:paused!important}
+/* Motion off (Settings > Appearance > Motion) stops every animation. Windows' own "animation effects" switch used to do this
+   too, which silently turned all motion off on many PCs; the app's setting decides now. */
+html[data-motion="off"] *,html[data-motion="off"] *::before,html[data-motion="off"] *::after{animation:none!important;transition:none!important}
+
+/* the logo: a purple M in gold laurels. The leaves shimmer in turn, a glint sweeps over the M, the crown jewel twinkles (paused when the window is idle, off with reduced motion) */
+.mk-wl path{animation:mkl 5.2s ease-in-out infinite}
+.mk-wl path:nth-child(3n){animation-delay:-1.7s}.mk-wl path:nth-child(3n+1){animation-delay:-3.4s}.mk-wl path:nth-child(5n){animation-delay:-.6s}
+@keyframes mkl{0%,100%{filter:brightness(1)}50%{filter:brightness(1.35)}}
+.mark .mk-sh{animation:mksh 6.5s ease-in-out infinite}
+@keyframes mksh{0%,45%{transform:translateX(0)}85%,100%{transform:translateX(260px)}}
+.mark .mk-j{animation:mkj 3.2s ease-in-out infinite}
+@keyframes mkj{0%,100%{opacity:.55}50%{opacity:1}}
+.mark .mk-cr{transform-box:fill-box;transform-origin:center bottom;animation:mkcr 6s ease-in-out infinite}
+@keyframes mkcr{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.2px)}}
+.mark{transition:transform .25s,filter .25s;cursor:pointer;filter:drop-shadow(0 2px 6px rgba(0,0,0,.45))}.mark:hover{transform:scale(1.07);filter:drop-shadow(0 0 9px rgba(240,190,70,.75))}
+
+/* Confetti burst on milestones */
+@keyframes confetti-fall{0%{transform:translateY(0) rotateZ(0deg);opacity:1}100%{transform:translateY(100vh) rotateZ(720deg);opacity:0}}
+.confetti-burst{position:fixed;width:10px;height:10px;border-radius:50%;pointer-events:none;animation:confetti-fall 2.5s ease-in forwards;z-index:9999;background:var(--acc)}
+.confetti-burst{background:linear-gradient(45deg, #ffd700, #ff69b4, #87ceeb, #98d8c8, #f7dc6f)}
+
+/* Thinking spinner during AI generation */
+@keyframes spinner-pulse{0%{opacity:.3}50%{opacity:1}100%{opacity:.3}}
+#thinking-spinner{position:fixed;bottom:30px;right:30px;z-index:9998;display:none;pointer-events:none}
+.thinking-spinner{display:flex;gap:8px}
+.spinner-dot{width:12px;height:12px;border-radius:50%;background:var(--acc);animation:spinner-pulse 1.4s infinite}
+.spinner-dot:nth-child(2){animation-delay:.2s}
+.spinner-dot:nth-child(3){animation-delay:.4s}

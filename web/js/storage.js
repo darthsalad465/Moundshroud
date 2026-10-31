@@ -1,0 +1,31 @@
+// Tools > Storage: where the disk space goes, safe clean-up, and a backup of the settings that live in the browser (favorites, notes on verses, progress...).
+(() => {
+  const esc2 = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const fmt = b => b >= 1e9 ? (b / 1e9).toFixed(b >= 1e10 ? 0 : 1) + ' GB' : b >= 1e6 ? Math.round(b / 1e6) + ' MB' : b >= 1e3 ? Math.round(b / 1e3) + ' KB' : b + ' B';
+  const COL = ['#6c8cff', '#a78bfa', '#34d399', '#fbbf24', '#f87171', '#38bdf8', '#fb923c', '#94a3b8'];
+  async function render(b) {
+    b.innerHTML = '<div class="scroll pad" style="flex:1"><h2>💾 Storage</h2><div id="fbk"></div><div id="stg"><div class="mute">Measuring...</div></div></div>';
+    if (A.backup) A.backup.card(document.getElementById('fbk'));
+    let r; try { r = await A.api('/api/storage'); } catch (e) { r = null; }
+    const el = document.getElementById('stg'); if (!el) return;
+    if (!r || !r.groups) { el.innerHTML = '<div class="bad">The storage report needs Moundshroud to be restarted once (a new part was added). Close and reopen Moundshroud, then try again.</div>'; return; }
+    const total = r.groups.reduce((a, g) => a + g.bytes, 0) || 1, disk = r.disk;
+    el.innerHTML = '<div class="card"><div class="row" style="gap:10px;align-items:baseline"><b style="font-size:22px">' + fmt(total) + '</b><span class="mute">used by Moundshroud</span><span class="sp"></span>' + (disk ? '<span class="small mute">' + fmt(disk.free) + ' free of ' + fmt(disk.total) + ' on this drive</span>' : '') + '</div>' +
+      '<div style="display:flex;height:16px;border-radius:8px;overflow:hidden;margin:10px 0;background:var(--panel2)">' + r.groups.map((g, i) => g.bytes ? '<div title="' + esc2(g.name) + ' ' + fmt(g.bytes) + '" style="width:' + Math.max(.5, g.bytes / total * 100) + '%;background:' + COL[i % COL.length] + '"></div>' : '').join('') + '</div>' +
+      (disk ? '<div class="small mute">Drive: ' + Math.round((1 - disk.free / disk.total) * 100) + '% full' + (disk.free < 10e9 ? ' <span class="bad">- low on space. Free some before downloading libraries.</span>' : '') + '</div>' : '') + '</div>' +
+      r.groups.slice().sort((a, b) => b.bytes - a.bytes).map(g => { const i = r.groups.indexOf(g); return '<div class="card" style="display:flex;gap:12px;align-items:flex-start"><span style="width:12px;height:12px;border-radius:4px;background:' + COL[i % COL.length] + ';margin-top:5px;flex:none"></span><div style="flex:1;min-width:0"><div class="row" style="gap:8px"><b>' + esc2(g.name) + '</b><span class="sp"></span><b>' + fmt(g.bytes) + '</b><span class="small mute">' + Math.round(g.bytes / total * 100) + '%</span></div><div class="small mute" style="margin:2px 0 6px">' + esc2(g.note) + '</div>' + (g.clean === 'snapshots' ? '<div class="row" style="gap:6px;align-items:center"><span class="small">' + r.snapshots + ' snapshots.</span><select id="skeep"><option value="5">Keep newest 5</option><option value="10" selected>Keep newest 10</option><option value="20">Keep newest 20</option></select><button class="ib" data-clean="snapshots">Delete older ones</button></div>' : '') + (g.clean === 'cache' ? '<button class="ib" data-clean="cache">Clear the window\'s cache</button>' : '') + '<div class="small mute" style="margin-top:4px;word-break:break-all">' + esc2(g.path) + '</div></div></div>'; }).join('') +
+      '<div class="card"><b>🛟 Protect your settings and progress</b><div class="small mute" style="margin:4px 0 8px">Some things live in the Moundshroud window\'s browser storage rather than in files: favorites and folders, Bible bookmarks, highlights and notes, reading plans, chess profile and ratings, music likes and playlists, journal, preferences. <b>Back up everything</b> in Settings saves your notes, flashcards and chats; this saves the rest.</div><div class="row" style="gap:8px"><button class="pri" id="sexp">Export settings and progress</button><button class="ib" id="simp2">Import them</button><a class="ib" href="/api/backup" download style="text-decoration:none">Zip of notes, cards and chats</a><span class="small mute" id="sinfo"></span></div></div>';
+    el.onclick = async e => {
+      const c = e.target.closest('[data-clean]'); if (!c) return; c.disabled = true;
+      const what = c.dataset.clean, keep = what === 'snapshots' ? +document.getElementById('skeep').value : 0;
+      if (what === 'snapshots' && !confirm('Delete all but the newest ' + keep + ' rollback snapshots? You will not be able to undo changes older than those.')) { c.disabled = false; return; }
+      try { const x = await A.api('/api/storage/clean', { what, keep }); A.toast('Freed ' + fmt(x.freed || 0) + (x.removed ? ' (' + x.removed + ' removed)' : ''), 3500); } catch (er) { A.toast('Could not clean up'); }
+      render(b);
+    };
+    const keys = () => { const o = {}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/^(oa_|middlewatch\.)/.test(k)) o[k] = localStorage.getItem(k); } return o; };
+    const bytes = JSON.stringify(keys()).length; document.getElementById('sinfo').textContent = Object.keys(keys()).length + ' items, ' + fmt(bytes);
+    document.getElementById('sexp').onclick = () => { const blob = new Blob([JSON.stringify({ app: 'moundshroud-settings', at: Date.now(), data: keys() })], { type: 'application/json' }), a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'moundshroud-settings-' + new Date().toISOString().slice(0, 10) + '.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 3000); ls.set('settingsbackup', String(Date.now())); };
+    document.getElementById('simp2').onclick = () => { const i = document.createElement('input'); i.type = 'file'; i.accept = '.json'; i.onchange = async () => { try { const j = JSON.parse(await i.files[0].text()); if (j.app !== 'moundshroud-settings' && j.app !== 'atlas-settings') throw 0; if (!confirm('Import ' + Object.keys(j.data).length + ' items? They replace items with the same name. The page will reload.')) return; Object.entries(j.data).forEach(([k, v]) => { if (/^(oa_|middlewatch\.)/.test(k)) localStorage.setItem(k, v); }); location.reload(); } catch (er) { A.toast('That is not a Moundshroud settings file.'); } }; i.click(); };
+  }
+  A.storage = { render };
+})();

@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Offline Assistant</title>
+<link rel="icon" type="image/svg+xml" href="/web/logo.svg">
+<link rel="icon" type="image/png" sizes="256x256" href="/web/logo-256.png">
+<link rel="apple-touch-icon" href="/web/logo-256.png">
+<link rel="stylesheet" href="/web/fonts.css">
+<link rel="stylesheet" href="/web/style.css">
+<link rel="stylesheet" href="/web/anim.css">
+<link rel="stylesheet" href="/web/pro.css">
+<link rel="stylesheet" href="/web/games-ui.css">
+<link rel="stylesheet" href="/web/browser.css">
+<link rel="stylesheet" href="/web/motion.css">
+<link rel="stylesheet" href="/web/flair.css">
+<style>/* shown while the 178 script files are read, so the window is never blank (it used to be white for about a second) */
+#boot{position:fixed;inset:0;z-index:4000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:radial-gradient(120% 90% at 50% 0%,#241a4d 0%,#120d24 55%,#0a0714 100%);color:#f3ecff;font:600 15px/1.4 system-ui,'Segoe UI',sans-serif;letter-spacing:.4px;pointer-events:none;transition:opacity .32s ease}
+#boot.done{opacity:0}
+#boot .bm{width:74px;height:74px;border-radius:22px;display:flex;align-items:center;justify-content:center;font-size:40px;font-weight:800;color:#1a0f2e;background:linear-gradient(160deg,#fff3b8,#e8b53a 45%,#b47c14);box-shadow:0 12px 34px rgba(232,181,58,.28),inset 0 -3px 0 rgba(0,0,0,.18)}
+#boot .bt{font-size:17px;letter-spacing:2.4px;text-transform:uppercase;opacity:.92}
+#boot .bb{width:190px;height:3px;border-radius:3px;background:rgba(255,255,255,.12);overflow:hidden}
+#boot .bb i{display:block;width:40%;height:100%;border-radius:3px;background:linear-gradient(90deg,transparent,#e8b53a,transparent);animation:bootmove 1.15s ease-in-out infinite}
+#boot .bs{font-size:12.5px;font-weight:500;opacity:.6}
+@keyframes bootmove{0%{transform:translateX(-110%)}100%{transform:translateX(320%)}}
+@media(prefers-reduced-motion:reduce){#boot .bb i{animation:none;width:100%;opacity:.5}}
+</style>
+</head><body>
+<div id="boot" role="status" aria-live="polite" aria-label="Moundshroud is starting"><div class="bm">M</div><div class="bt">Moundshroud</div><div class="bb"><i></i></div><div class="bs">Waking up your private assistant…</div></div>
+<header>
+  <svg class="mark" viewBox="0 0 128 128" width="76" height="76" aria-label="Moundshroud" style="flex:none"><defs>
+<linearGradient id="mkG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff3b8"/><stop offset=".45" stop-color="#e8b53a"/><stop offset="1" stop-color="#9c6a12"/></linearGradient>
+<linearGradient id="mkP" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c9b3ff"/><stop offset=".5" stop-color="#7d4fe6"/><stop offset="1" stop-color="#3f1d96"/></linearGradient>
+<linearGradient id="mkT" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2b1760"/><stop offset="1" stop-color="#0d0722"/></linearGradient>
+<radialGradient id="mkR" cx=".5" cy=".42" r=".6"><stop offset="0" stop-color="#7d4fe6" stop-opacity=".45"/><stop offset="1" stop-color="#7d4fe6" stop-opacity="0"/></radialGradient>
+<clipPath id="mkMc"><path d="M36 94 V44 H50 L64 74 L78 44 H92 V94 H81 V62 L67 88 H61 L47 62 V94 Z M30 94 H56 V98 H30 Z M72 94 H98 V98 H72 Z M30 40 H56 V44 H30 Z M72 40 H98 V44 H72 Z"/></clipPath>
+<linearGradient id="mkS" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".8"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+</defs>
+<g class="mk-wl" fill="url(#mkG)" stroke="#7a4f0a" stroke-width=".5" stroke-linejoin="round"><path transform="translate(47.93 112.17) rotate(-202)" d="M0 0 C4.76 -4.6 12.24 -3.91 17 0 C12.24 3.91 4.76 4.6 0 0Z"/><path transform="translate(47.93 112.17) rotate(-118)" d="M0 0 C4.38 -4.37 11.26 -3.71 15.64 0 C11.26 3.71 4.38 4.37 0 0Z"/><path transform="translate(37.04 106.5) rotate(-187)" d="M0 0 C4.49 -4.38 11.56 -3.72 16.05 0 C11.56 3.72 4.49 4.38 0 0Z"/><path transform="translate(37.04 106.5) rotate(-103)" d="M0 0 C4.13 -4.16 10.63 -3.54 14.77 0 C10.63 3.54 4.13 4.16 0 0Z"/><path transform="translate(28 98.21) rotate(-172)" d="M0 0 C4.23 -4.16 10.87 -3.54 15.1 0 C10.87 3.54 4.23 4.16 0 0Z"/><path transform="translate(28 98.21) rotate(-88)" d="M0 0 C3.89 -3.95 10 -3.36 13.89 0 C10 3.36 3.89 3.95 0 0Z"/><path transform="translate(21.4 87.86) rotate(-157)" d="M0 0 C3.96 -3.94 10.19 -3.35 14.15 0 C10.19 3.35 3.96 3.94 0 0Z"/><path transform="translate(21.4 87.86) rotate(-73)" d="M0 0 C3.65 -3.74 9.37 -3.18 13.02 0 C9.37 3.18 3.65 3.74 0 0Z"/><path transform="translate(17.71 76.16) rotate(-142)" d="M0 0 C3.7 -3.72 9.5 -3.16 13.2 0 C9.5 3.16 3.7 3.72 0 0Z"/><path transform="translate(17.71 76.16) rotate(-58)" d="M0 0 C3.4 -3.53 8.74 -3 12.14 0 C8.74 3 3.4 3.53 0 0Z"/><path transform="translate(17.18 63.9) rotate(-127)" d="M0 0 C3.43 -3.5 8.82 -2.97 12.25 0 C8.82 2.97 3.43 3.5 0 0Z"/><path transform="translate(17.18 63.9) rotate(-43)" d="M0 0 C3.16 -3.32 8.11 -2.83 11.27 0 C8.11 2.83 3.16 3.32 0 0Z"/><path transform="translate(19.83 51.93) rotate(-112)" d="M0 0 C3.16 -3.28 8.14 -2.79 11.3 0 C8.14 2.79 3.16 3.28 0 0Z"/><path transform="translate(19.83 51.93) rotate(-28)" d="M0 0 C2.91 -3.12 7.49 -2.65 10.4 0 C7.49 2.65 2.91 3.12 0 0Z"/><path transform="translate(25.5 41.04) rotate(-97)" d="M0 0 C2.9 -3.06 7.45 -2.6 10.35 0 C7.45 2.6 2.9 3.06 0 0Z"/><path transform="translate(25.5 41.04) rotate(-13)" d="M0 0 C2.67 -2.91 6.86 -2.47 9.52 0 C6.86 2.47 2.67 2.91 0 0Z"/><path transform="translate(33.79 32) rotate(-82)" d="M0 0 C2.63 -2.84 6.77 -2.41 9.4 0 C6.77 2.41 2.63 2.84 0 0Z"/><path transform="translate(33.79 32) rotate(2)" d="M0 0 C2.42 -2.7 6.23 -2.29 8.65 0 C6.23 2.29 2.42 2.7 0 0Z"/><path transform="translate(44.14 25.4) rotate(-25)" d="M0 0 C2.8 -3 7.2 -2.55 10 0 C7.2 2.55 2.8 3 0 0Z"/><path transform="translate(80.07 112.17) rotate(-62)" d="M0 0 C4.76 -4.6 12.24 -3.91 17 0 C12.24 3.91 4.76 4.6 0 0Z"/><path transform="translate(80.07 112.17) rotate(22)" d="M0 0 C4.38 -4.37 11.26 -3.71 15.64 0 C11.26 3.71 4.38 4.37 0 0Z"/><path transform="translate(90.96 106.5) rotate(-77)" d="M0 0 C4.49 -4.38 11.56 -3.72 16.05 0 C11.56 3.72 4.49 4.38 0 0Z"/><path transform="translate(90.96 106.5) rotate(7)" d="M0 0 C4.13 -4.16 10.63 -3.54 14.77 0 C10.63 3.54 4.13 4.16 0 0Z"/><path transform="translate(100 98.21) rotate(-92)" d="M0 0 C4.23 -4.16 10.87 -3.54 15.1 0 C10.87 3.54 4.23 4.16 0 0Z"/><path transform="translate(100 98.21) rotate(-8)" d="M0 0 C3.89 -3.95 10 -3.36 13.89 0 C10 3.36 3.89 3.95 0 0Z"/><path transform="translate(106.6 87.86) rotate(-107)" d="M0 0 C3.96 -3.94 10.19 -3.35 14.15 0 C10.19 3.35 3.96 3.94 0 0Z"/><path transform="translate(106.6 87.86) rotate(-23)" d="M0 0 C3.65 -3.74 9.37 -3.18 13.02 0 C9.37 3.18 3.65 3.74 0 0Z"/><path transform="translate(110.29 76.16) rotate(-122)" d="M0 0 C3.7 -3.72 9.5 -3.16 13.2 0 C9.5 3.16 3.7 3.72 0 0Z"/><path transform="translate(110.29 76.16) rotate(-38)" d="M0 0 C3.4 -3.53 8.74 -3 12.14 0 C8.74 3 3.4 3.53 0 0Z"/><path transform="translate(110.82 63.9) rotate(-137)" d="M0 0 C3.43 -3.5 8.82 -2.97 12.25 0 C8.82 2.97 3.43 3.5 0 0Z"/><path transform="translate(110.82 63.9) rotate(-53)" d="M0 0 C3.16 -3.32 8.11 -2.83 11.27 0 C8.11 2.83 3.16 3.32 0 0Z"/><path transform="translate(108.17 51.93) rotate(-152)" d="M0 0 C3.16 -3.28 8.14 -2.79 11.3 0 C8.14 2.79 3.16 3.28 0 0Z"/><path transform="translate(108.17 51.93) rotate(-68)" d="M0 0 C2.91 -3.12 7.49 -2.65 10.4 0 C7.49 2.65 2.91 3.12 0 0Z"/><path transform="translate(102.5 41.04) rotate(-167)" d="M0 0 C2.9 -3.06 7.45 -2.6 10.35 0 C7.45 2.6 2.9 3.06 0 0Z"/><path transform="translate(102.5 41.04) rotate(-83)" d="M0 0 C2.67 -2.91 6.86 -2.47 9.52 0 C6.86 2.47 2.67 2.91 0 0Z"/><path transform="translate(94.21 32) rotate(-182)" d="M0 0 C2.63 -2.84 6.77 -2.41 9.4 0 C6.77 2.41 2.63 2.84 0 0Z"/><path transform="translate(94.21 32) rotate(-98)" d="M0 0 C2.42 -2.7 6.23 -2.29 8.65 0 C6.23 2.29 2.42 2.7 0 0Z"/><path transform="translate(83.86 25.4) rotate(-155)" d="M0 0 C2.8 -3 7.2 -2.55 10 0 C7.2 2.55 2.8 3 0 0Z"/></g>
+<path d="M47.93 112.17 L37.04 106.5 L28 98.21 L21.4 87.86 L17.71 76.16 L17.18 63.9 L19.83 51.93 L25.5 41.04 L33.79 32 L44.14 25.4" fill="none" stroke="url(#mkG)" stroke-width="1.8" stroke-linecap="round"/><path d="M80.07 112.17 L90.96 106.5 L100 98.21 L106.6 87.86 L110.29 76.16 L110.82 63.9 L108.17 51.93 L102.5 41.04 L94.21 32 L83.86 25.4" fill="none" stroke="url(#mkG)" stroke-width="1.8" stroke-linecap="round"/>
+<g fill="url(#mkG)"><circle cx="21.5" cy="85.6" r="1.9"/><circle cx="21.98" cy="49.29" r="1.9"/><circle cx="106.5" cy="85.6" r="1.9"/><circle cx="106.02" cy="49.29" r="1.9"/></g>
+<g stroke="#2a1070" stroke-width=".7" stroke-linejoin="round"><path d="M64 110 L51 117 L56 119 L51 124 L64 117 Z" fill="url(#mkP)"/><path d="M64 110 L77 117 L72 119 L77 124 L64 117 Z" fill="url(#mkP)"/></g><circle cx="64" cy="111" r="3.6" fill="url(#mkG)" stroke="#7a4f0a" stroke-width=".6"/>
+<g class="mk-m"><path d="M36 94 V44 H50 L64 74 L78 44 H92 V94 H81 V62 L67 88 H61 L47 62 V94 Z M30 94 H56 V98 H30 Z M72 94 H98 V98 H72 Z M30 40 H56 V44 H30 Z M72 40 H98 V44 H72 Z" fill="url(#mkG)" stroke="url(#mkG)" stroke-width="5.2" stroke-linejoin="round"/><path d="M36 94 V44 H50 L64 74 L78 44 H92 V94 H81 V62 L67 88 H61 L47 62 V94 Z M30 94 H56 V98 H30 Z M72 94 H98 V98 H72 Z M30 40 H56 V44 H30 Z M72 40 H98 V44 H72 Z" fill="url(#mkP)" stroke="#2a1070" stroke-width=".8" stroke-linejoin="round"/>
+<g clip-path="url(#mkMc)"><rect class="mk-sh" x="-50" y="30" width="30" height="80" fill="url(#mkS)" transform="skewX(-18)"/></g></g>
+<g class="mk-cr"><path d="M54 33 L53 22 L59 27 L64 18 L69 27 L75 22 L74 33 Z" fill="url(#mkG)" stroke="#7a4f0a" stroke-width=".6" stroke-linejoin="round"/><circle class="mk-j" cx="64" cy="18" r="1.9" fill="#fff6c8"/><circle cx="53" cy="22" r="1.4" fill="#fff6c8"/><circle cx="75" cy="22" r="1.4" fill="#fff6c8"/><rect x="53" y="31" width="22" height="3" rx="1" fill="url(#mkG)" stroke="#7a4f0a" stroke-width=".5"/></g></svg><b style="font-size:14px;letter-spacing:.3px">Moundshroud</b><span class="sp"></span>
+  <button class="ib" id="gs" title="Search everything, or run a command (Ctrl+K)">&#128269;</button>
+  <select id="model" title="Model"></select>
+  <button class="ib" id="newc" title="New chat (Ctrl+N)">&#9998; New</button>
+  <button class="ib" id="cog" title="Settings">&#9881;</button>
+</header>
+<nav id="nav"></nav>
+<main>
+  <!-- CHAT -->
+  <section class="panel on" id="p-chat">
+    <div id="msgs"></div>
+    <div id="sel"></div>
+    <div id="calcchip"></div>
+    <div class="composer">
+      <div id="row">
+        <button class="ib" id="mic" title="Speak (click to start, click again to stop)">&#127908;</button>
+        <textarea id="in" rows="1" placeholder="Ask anything...  (Enter to send)"></textarea>
+        <button class="ib" id="prm" title="Saved prompts">Prompts</button>
+        <button class="pri" id="go">Send</button>
+      </div>
+      <div id="meta">
+        <label class="chk" title="Let Qwen reason step by step first (slower, better on hard questions)"><input type="checkbox" id="think"> Think harder</label>
+        <label class="chk" id="uwl" style="display:none" title="Look the question up in your offline libraries first"><input type="checkbox" id="usewiki" checked> Use libraries</label>
+        <label class="chk" id="ufl" title="Search your own files and notes first"><input type="checkbox" id="usefiles" checked> Use my files</label>
+        <label class="chk" id="uwb" style="display:none" title="Search the internet for this question and cite what it finds (turn internet access on in Settings)"><input type="checkbox" id="useweb"> &#127760; Web</label>
+        <span class="sp"></span><span id="status">connecting...</span>
+      </div>
+    </div>
+  </section>
+  <!-- LIBRARY -->
+  <section class="panel" id="p-web"></section>
+  <section class="panel" id="p-lib"></section>
+  <!-- NOTES -->
+  <section class="panel" id="p-notes"></section>
+  <!-- MY FILES -->
+  <section class="panel" id="p-files"></section>
+  <!-- STUDY -->
+  <section class="panel" id="p-study"></section>
+  <!-- TOOLS -->
+  <section class="panel" id="p-tools"></section>
+  <!-- HEALTH -->
+  <section class="panel" id="p-health"></section>
+  <!-- GUIDE -->
+  <section class="panel" id="p-play"></section>
+  <section class="panel" id="p-home"></section>
+  <section class="panel" id="p-news"></section>
+  <section class="panel" id="p-lang"></section>
+  <section class="panel" id="p-studio"></section>
+  <section class="panel" id="p-music"></section>
+  <section class="panel" id="p-photos"></section>
+  <section class="panel" id="p-mail"></section>
+  <section class="panel" id="p-docs"></section>
+  <section class="panel" id="p-offed"></section>
+  <section class="panel" id="p-calc"></section>
+  <section class="panel" id="p-scan"></section>
+  <section class="panel" id="p-meet"></section>
+  <section class="panel" id="p-rem"></section>
+  <section class="panel" id="p-clip"></section>
+  <section class="panel" id="p-writing"></section>
+  <section class="panel" id="p-practice"></section>
+  <section class="panel" id="p-teach"></section>
+  <section class="panel" id="p-albums"></section>
+  <section class="panel" id="p-sky"></section>
+  <section class="panel" id="p-cal"></section>
+  <section class="panel" id="p-kitchen"></section>
+  <section class="panel" id="p-garden"></section>
+  <section class="panel" id="p-lab"></section>
+  <div id="p-timeline" style="flex:1;min-height:0;display:none;flex-direction:column"></div>
+  <section class="panel" id="p-money"></section>
+  <section class="panel" id="p-journal"></section>
+  <section class="panel" id="p-cyber"></section>
+  <section class="panel" id="p-faith"></section>
+  <section class="panel" id="p-map"></section>
+  <section class="panel" id="p-guide"></section>
+</main>
+<div id="pop"></div>
+<div id="ov"><div class="dlg" id="dlg"></div></div>
+<script defer src="/web/js/themes2.js"></script>
+<script defer src="/web/js/themes3.js"></script>
+<script defer src="/web/js/styles2.js"></script>
+<script defer src="/web/js/styles3.js"></script>
+<script defer src="/web/js/themes.js"></script>
+<script defer src="/web/js/styles.js"></script>
+<script defer src="/web/js/custom.js"></script>
+<script defer src="/web/js/core.js"></script>
+<script defer src="/web/js/commands.js"></script>
+<script defer src="/web/js/keyboard.js"></script>
+<script defer src="/web/js/fx.js"></script>
+<script defer src="/web/js/motion.js"></script>
+<script defer src="/web/js/sfx.js"></script>
+<script defer src="/web/js/music.js"></script>
+<script defer src="/web/js/md.js"></script>
+<script defer src="/web/js/calc.js"></script>
+<script defer src="/web/js/calculator.js"></script>
+<script defer src="/web/js/remind.js"></script>
+<script defer src="/web/js/speech.js"></script>
+<script defer src="/web/js/voice.js"></script>
+<script defer src="/web/js/memory.js"></script>
+<script defer src="/web/js/chat.js"></script>
+<script defer src="/web/js/voicemode.js"></script>
+<script defer src="/web/js/favorites.js"></script>
+<script defer src="/web/js/libframe.js"></script>
+<script defer src="/web/js/lib.js"></script>
+<script defer src="/web/js/classics.js"></script>
+<script defer src="/web/js/chessbooks.js"></script>
+<script defer src="/web/js/bookmarks.js"></script>
+<script defer src="/web/js/library.js"></script>
+<script defer src="/web/js/thesaurus.js"></script>
+<script defer src="/web/js/rhyme.js"></script>
+<script defer src="/web/js/viewer.js"></script>
+<script defer src="/web/js/pc.js"></script>
+<script defer src="/web/js/actions.js"></script>
+<script defer src="/web/js/notes.js"></script>
+<script defer src="/web/js/files.js"></script>
+<script defer src="/web/js/study.js"></script>
+<script defer src="/web/js/quiz.js"></script>
+<script defer src="/web/js/documents.js"></script>
+<script defer src="/web/js/tools.js"></script>
+<script defer src="/web/js/converter.js"></script>
+<script defer src="/web/js/cb-data.js"></script>
+<script defer src="/web/js/cb-ops.js"></script>
+<script defer src="/web/js/codebreaker.js"></script>
+<script defer src="/web/js/cb-lab.js"></script>
+<script defer src="/web/js/cb-lab2.js"></script>
+<script defer src="/web/js/cybercourse-data.js"></script>
+<script defer src="/web/js/cybercourse.js"></script>
+<script defer src="/web/js/cyberlab.js"></script>
+<script defer src="/web/js/health.js"></script>
+<script defer src="/web/js/prepare.js"></script>
+<script defer src="/web/js/prep-plans.js"></script>
+<script defer src="/web/js/prep-supplies.js"></script>
+<script defer src="/web/js/prep-people.js"></script>
+<script defer src="/web/js/prep-signals.js"></script>
+<script defer src="/web/js/prep-sky.js"></script>
+<script defer src="/web/js/faith-data.js"></script>
+<script defer src="/web/js/prep-recipes.js"></script>
+<script defer src="/web/js/faith.js"></script>
+<script defer src="/web/js/faith-extra.js"></script>
+<script defer src="/web/js/power.js"></script>
+<script defer src="/web/js/play.js"></script>
+<script defer src="/web/js/play-levels.js"></script>
+<script defer src="/web/js/play-g1.js"></script>
+<script defer src="/web/js/play-g2.js"></script>
+<script defer src="/web/js/play-g3.js"></script>
+<script defer src="/web/js/play-g4.js"></script>
+<script defer src="/web/js/play-depths.js"></script>
+<script defer src="/web/js/play-trader.js"></script>
+<script defer src="/web/js/play-defense.js"></script>
+<script defer src="/web/js/play-boards.js"></script>
+<script defer src="/web/js/rome-engine.js"></script>
+<script defer src="/web/js/play-rome.js"></script>
+<script defer src="/web/js/play-cards.js"></script>
+<script defer src="/web/js/play-poker.js"></script>
+<script defer src="/web/js/play-classics.js"></script>
+<script defer src="/web/js/play-help.js"></script>
+<script defer src="/web/js/cyber-games.js"></script>
+<script defer src="/web/js/chess-engine.js"></script>
+<script defer src="/web/js/chess-study-data.js"></script>
+<script defer src="/web/js/chess-courses.js"></script>
+<script defer src="/web/js/chess-games2.js"></script>
+<script defer src="/web/js/chess-capa.js"></script>
+<script defer src="/web/js/chess-wchamp.js"></script>
+<script defer src="/web/js/chess-tips.js"></script>
+<script defer src="/web/js/chess-puzzles.js"></script>
+<script defer src="/web/js/chess-settings.js"></script>
+<script defer src="/web/js/play-chess-study.js"></script>
+<script defer src="/web/js/play-middlewatch.js"></script>
+<script defer src="/web/js/chess-analysis.js"></script>
+<script defer src="/web/js/chess-coach.js"></script>
+<script defer src="/web/js/chess-clock.js"></script>
+<script defer src="/web/js/chess-play.js"></script>
+<script defer src="/web/js/chess-learn.js"></script>
+<script defer src="/web/js/chess-neg.js"></script>
+<script defer src="/web/js/chess-trainer.js"></script>
+<script defer src="/web/js/chess-profile.js"></script>
+<script defer src="/web/js/chess-online.js"></script>
+<script defer src="/web/js/chess-lichess.js"></script>
+<script defer src="/web/js/chess-scan.js"></script>
+<script defer src="/web/js/chess-scan-ui.js"></script>
+<script defer src="/web/js/chess-react.js"></script>
+<script defer src="/web/js/characters.js"></script>
+<script defer src="/web/js/charvoice.js"></script>
+<script defer src="/web/js/pet-anim.js"></script>
+<script defer src="/web/js/chess-bots.js"></script>
+<script defer src="/web/js/chess-vx.js"></script>
+<script defer src="/web/js/chess-variants.js"></script>
+<script defer src="/web/js/chess-live.js"></script>
+<script defer src="/web/js/chess-review.js"></script>
+<script defer src="/web/js/chess-analyze-ui.js"></script>
+<script defer src="/web/js/chess-fun.js"></script>
+<script defer src="/web/js/chess-minis.js"></script>
+<script defer src="/web/js/chess-board-ui.js"></script>
+<script defer src="/web/js/chess-history.js"></script>
+<script defer src="/web/js/chess-fun2.js"></script>
+<script defer src="/web/js/chess-tourney.js"></script>
+<script defer src="/web/js/chess-daily.js"></script>
+<script defer src="/web/js/chess-extras.js"></script>
+<script defer src="/web/js/chess-social.js"></script>
+<script defer src="/web/js/chess-sf.js"></script>
+<script defer src="/web/js/chess-career.js"></script>
+<script defer src="/web/js/websearch.js"></script>
+<script defer src="/web/js/music-mine.js"></script>
+<script defer src="/web/js/music-lib.js"></script>
+<script defer src="/web/js/sky-core.js"></script>
+<script defer src="/web/js/sky.js"></script>
+<script defer src="/web/js/sky-chart.js"></script>
+<script defer src="/web/js/sky-space.js"></script>
+<script defer src="/web/js/sky-compass.js"></script>
+<script defer src="/web/js/sky-weather.js"></script>
+<script defer src="/web/js/backup.js"></script>
+<script defer src="/web/js/verse-note.js"></script>
+<script defer src="/web/js/ask-all.js"></script>
+<script defer src="/web/js/selftest.js"></script>
+<script defer src="/web/js/holidays.js"></script>
+<script defer src="/web/js/onthisday.js"></script>
+<script defer src="/web/js/cal.js"></script>
+<script defer src="/web/js/kitchen.js"></script>
+<script defer src="/web/js/garden.js"></script>
+<script defer src="/web/js/lab.js"></script>
+<script defer src="/web/js/timeline.js"></script>
+<script defer src="/web/js/money.js"></script>
+<script defer src="/web/js/play-bible.js"></script>
+<script defer src="/web/js/lang-notes.js"></script>
+<script defer src="/web/js/lang.js"></script>
+<script defer src="/web/js/ai.js"></script>
+<script defer src="/web/js/studio.js"></script>
+<script defer src="/web/js/teach.js"></script>
+<script defer src="/web/js/studio-pixel-rand.js"></script>
+<script defer src="/web/js/studio-pixel.js"></script>
+<script defer src="/web/js/aiart.js"></script>
+<script defer src="/web/js/studio-albums.js"></script>
+<script defer src="/web/js/studio-paint.js"></script>
+<script defer src="/web/js/studio-music.js"></script>
+<script defer src="/web/js/tabletop.js"></script>
+<script defer src="/web/js/app-context.js"></script>
+<script defer src="/web/js/companion.js"></script>
+<script defer src="/web/js/companion-chat.js"></script>
+<script defer src="/web/js/community.js"></script>
+<script defer src="/web/js/chess-community.js"></script>
+<script defer src="/web/js/chess-notify.js"></script>
+<script defer src="/web/js/scanner.js"></script>
+<script defer src="/web/js/meetings.js"></script>
+<script defer src="/web/js/vault.js"></script>
+<script defer src="/web/js/puzzle-maker.js"></script>
+<script defer src="/web/js/chess-voice.js"></script>
+<script defer src="/web/js/office-edit.js"></script>
+<script defer src="/web/js/play-meta.js"></script>
+<script defer src="/web/js/play-hub.js"></script>
+<script defer src="/web/js/ui-polish.js"></script>
+<script defer src="/web/js/storage.js"></script>
+<script defer src="/web/js/journal.js"></script>
+<script defer src="/web/js/today.js"></script>
+<script defer src="/web/js/markets.js"></script>
+<script defer src="/web/js/news.js"></script>
+<script defer src="/web/js/photos.js"></script>
+<script defer src="/web/js/mail.js"></script>
+<script defer src="/web/js/tutorial.js"></script>
+<script defer src="/web/js/guide.js"></script>
+<script defer src="/web/js/appmap.js"></script>
+<script defer src="/web/js/whatsnew.js"></script>
+<script defer src="/web/js/search.js"></script>
+<script defer src="/web/js/delights.js"></script>
+<script defer src="/web/js/relocate.js"></script>
+<script defer src="/web/js/net.js"></script>
+<script defer src="/web/js/problems.js"></script>
+<script defer src="/web/js/focus.js"></script>
+<script defer src="/web/js/regroup.js"></script>
+<script defer src="/web/js/main.js"></script>
+<script defer src="/web/js/guard.js"></script>
+<script defer src="/web/js/privacy.js"></script>
+<script defer src="/web/js/settings.js"></script>
+<script defer src="/web/js/walk.js"></script>
+<script>/* the splash goes as soon as the app is built, and never stays if something else goes wrong */
+(function(){function off(){var b=document.getElementById('boot');if(!b||b.classList.contains('done'))return;b.classList.add('done');setTimeout(function(){if(b.parentNode)b.parentNode.removeChild(b)},420);}
+if(document.readyState!=='loading')off();else addEventListener('DOMContentLoaded',off);addEventListener('load',off);setTimeout(off,7000);})();</script>
+</body></html>
+
+
+
