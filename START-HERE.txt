@@ -7,8 +7,8 @@ calendar, kitchen, garden, music, chess and much more. Nothing is sent to the in
 SETUP (about 10 minutes, plus the download time for the AI)
 
  1. Make sure BOTH zip files are unzipped into the SAME folder (for example C:\Moundshroud):
-       Moundshroud-1.0.0-part1-program.zip
-       Moundshroud-1.0.0-part2-data.zip
+       Moundshroud-<version>-part1-program.zip
+       Moundshroud-<version>-part2-data.zip
     Do not run it from inside the zip file, and do not put it in OneDrive.
  2. Double-click   Setup-Moundshroud.bat
     - If Windows says "Windows protected your PC": click "More info", then "Run anyway".

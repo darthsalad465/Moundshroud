@@ -1,0 +1,2 @@
+# What is new in this version: one line each. Shown in the app's "Update available" box and on the release page.
+# Lines starting with # are ignored. Replace these lines for each new version.

@@ -16,6 +16,7 @@ const photos = require('./lib/photos');
 const mail = require('./lib/mail');
 const lichess = require('./lib/lichess');
 const appmap = require('./lib/appmap');
+const update = require('./lib/update');
 const ROOT = __dirname, DATA = path.join(ROOT, 'data'), WEB = path.join(ROOT, 'web'), CHEF = path.join(ROOT, 'nomad', 'cyberchef');
 fs.mkdirSync(DATA, { recursive: true });
 const PORT = +process.env.MOUNDSHROUD_PORT || +process.env.ATLAS_PORT || 47231, OLLAMA = { host: '127.0.0.1', port: 11434 };
@@ -408,6 +409,11 @@ const mainServer = http.createServer(async (req, res) => {
       try { for (const f of fs.readdirSync(path.join(ROOT, 'releases'))) { const m = /^Moundshroud-(.+?)-part1-program\.zip$/i.exec(f); if (m && newer(m[1], ver)) offers.push({ file: f, version: m[1] }); } } catch (e) { }
       return json(res, 200, { version: ver, built, offers, started: new Date(started).toISOString().slice(0, 10), folder: ROOT });
     }
+    /* updates: is there a newer version (asked online only with internet access on), and install it when the user says so */
+    if (url === '/api/update/status') return json(res, 200, update.status());
+    if (url === '/api/update/check' && req.method === 'POST') return json(res, 200, await update.check(false));
+    if (url === '/api/update/install' && req.method === 'POST') return json(res, 200, await update.install(shutdown, PORT));
+    if (url === '/api/update/seen' && req.method === 'POST') { try { fs.unlinkSync(path.join(DATA, 'update-result.json')); } catch (e) { } return json(res, 200, { ok: true }); }
     /* problems: the page posts what it caught, and both sides can read the list or the log */
     if (url === '/api/problems') {
       if (req.method === 'POST') { const b = await jbody(req, 2e5); problems.note(b.kind || 'page', b.text, b.where); return json(res, 200, { ok: true }); }
@@ -603,6 +609,7 @@ const mainServer = http.createServer(async (req, res) => {
   } catch (e) { if (!res.headersSent) json(res, 500, { error: String(e.message) }); else res.end(); }
 }).listen(PORT, '127.0.0.1', () => {
   console.log('assistant on http://127.0.0.1:' + PORT);
+  update.start();                                 // the once-a-day update question (only with internet access on)
   try { const r = privacy.edgePrefs(); if (r.note) console.log('privacy: ' + r.note); } catch (e) { }   // lock the window's own settings down, while it is closed
   setTimeout(() => { try { store.notesSync(); } catch (e) {} }, 1500);
   /* a copy of the user's progress in Documents, once a day, a little after start-up so nothing is delayed.

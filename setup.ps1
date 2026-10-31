@@ -20,7 +20,7 @@ Write-Host ''; Write-Host '   MOUNDSHROUD  -  a private assistant that lives on 
 Step '1. Checking the files'
 try { Get-ChildItem $root -Recurse -File -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue } catch { }
 foreach ($f in 'server.js', 'open-moundshroud.ps1', 'Listener.cs', 'web\index.html') { if (-not (Test-Path (Join-Path $root $f))) { $problems += "Missing $f. Unzip Part 1 completely into this folder." } }
-if (-not (Test-Path (Join-Path $root 'web\data\bible-web.json'))) { Say 'Part 2 (the Bibles, recipes and star data) is not here yet.' Yellow; $problems += 'Unzip Moundshroud-1.0.0-part2-data.zip into the SAME folder (choose "Replace" or "Merge" if asked), then run setup again.' } else { Say 'All the files are here.' Green }
+if (-not (Test-Path (Join-Path $root 'web\data\bible-web.json'))) { Say 'Part 2 (the Bibles, recipes and star data) is not here yet.' Yellow; $problems += 'Unzip the Moundshroud ...-part2-data.zip file into the SAME folder (choose "Replace" or "Merge" if asked), then run setup again.' } else { Say 'All the files are here.' Green }
 New-Item -ItemType Directory -Force (Join-Path $root 'data'), (Join-Path $root 'nomad\library') | Out-Null
 
 Step '2. Node.js (runs the Moundshroud server)'

@@ -81,7 +81,8 @@
       row('Written guide', 'Searchable guide and what is new.', '<button class="ib" data-a="guide">Open the guide</button>', 'guide help what is new changelog'));
     h += sec('data', '💾', 'Backup & data',
       row('Back up everything', 'One zip with your notes, flashcards, chats, prompts, reminders and everything Moundshroud remembers (settings, progress, chess careers, scores, favourites, playlists). Choose where to save it, such as an external drive.', '<button class="pri" data-a="fullbak">Back up now</button>', 'backup export full everything save') +
-      row('About this version', '<span id="aboutver">Moundshroud ' + A.version + ' (built ' + A.built + ')</span>. ' + (() => { const t = A.selftest && A.selftest.last(); return t ? 'Last self-test: ' + new Date(t.at).toLocaleDateString() + ', ' + t.checks + ' checks, ' + (t.bad ? t.bad + ' need attention' : 'all passed') + '.' : 'No self-test has been run yet.'; })(), '<button class="ib" data-a="update">Check for updates</button>', 'about version build update newer') +
+      row('About this version', '<span id="aboutver">Moundshroud ' + A.version + ' (built ' + A.built + ')</span>. ' + (() => { const t = A.selftest && A.selftest.last(); return t ? 'Last self-test: ' + new Date(t.at).toLocaleDateString() + ', ' + t.checks + ' checks, ' + (t.bad ? t.bad + ' need attention' : 'all passed') + '.' : 'No self-test has been run yet.'; })(), '', 'about version build') +
+      row('Updates', '<div id="updbox" class="small mute">Reading…</div>', '', 'update updates newer new version upgrade download install') +
       row('Run a self-test', 'Opens every tab and page in turn, and checks that the files and the local services respond. Takes about a minute. Run it after any update.', '<button class="ib" data-a="selftest">Run the test</button>', 'test check health diagnose broken errors') +
       row('Problems &amp; crash log', 'Whenever something fails, the reason is written to <code>data\\problems.log</code> on this PC (never sent anywhere) and the app keeps running instead of closing. Open it to see what happened, or copy it to send on when a page misbehaves.', '<button class="ib" data-a="problems">Show</button>', 'problems crash log error diagnose bug report') +
       row('Restore from a backup', 'Choose a full backup (or an older Moundshroud backup). Matching items are replaced; anything not in the backup is left alone.', '<button class="ib" data-a="restore">Choose a backup</button>', 'restore import') +
@@ -146,10 +147,11 @@
     if ($$('#cweb')) $$('#cweb').addEventListener('change', e => cset({ web: e.target.checked }));
     cget();
     if (A.privacyPage) A.privacyPage($$('#prvbox'), cset);
-    /* the version is read from the VERSION file on disk (one place to change it), and "updates" are the release zips you have
-       already unzipped into the releases folder - Moundshroud never asks the internet whether it is out of date. */
+    /* the version is read from the VERSION file on disk (one place to change it). Updates live in updates.js (Settings › Backup & data › Updates);
+       the old "releases folder" check below stays for copies with no update source. */
     const about = async () => { try { return await A.api('/api/about'); } catch (e) { return null; } };
     about().then(a => { const el = document.getElementById('aboutver'); if (!a || !el) return; A.version = a.version || A.version; A.built = a.built || A.built; el.innerHTML = 'Moundshroud <b>' + esc(a.version) + '</b>' + (a.built ? ' (built ' + esc(a.built) + ')' : ''); });
+    if (A.updates) A.updates.render(document.getElementById('updbox'));
     root.addEventListener('click', async e => {
       const b = e.target.closest('[data-a]'); if (!b) return; const a = b.dataset.a;
       if (a === 'vtest') test(); else if (a === 'cust') { A.custom && A.custom.open(); } else if (a === 'sounds') { close(); A.showTab('play'); setTimeout(() => { const s = document.querySelector('#plsub [data-s=sounds]'); s && s.click(); }, 400); }
