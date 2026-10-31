@@ -18,6 +18,10 @@
 !/pc-volume.ps1
 !/snapshot.ps1
 !/restore-snapshot.ps1
+!/apply-update.ps1
+!/update.json
+!/publish-update.ps1
+!/RELEASE-NOTES.txt
 !/restore-progress.ps1
 !/install-art-model.ps1
 !/install-music-model.ps1

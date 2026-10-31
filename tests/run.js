@@ -177,6 +177,26 @@ console.log('chess rules');
     const pts = [[40, 30], [420, 60], [400, 410], [20, 380]], H = S._t.homography(pts), at = (u, v) => { const w = H[6] * u + H[7] * v + 1; return [(H[0] * u + H[1] * v + H[2]) / w, (H[3] * u + H[4] * v + H[5]) / w]; };
     ok('scan: the straightening lands each corner on a corner of the board', [[0, 0], [1, 0], [1, 1], [0, 1]].every(([u, v], i) => Math.hypot(at(u, v)[0] - pts[i][0], at(u, v)[1] - pts[i][1]) < 1e-6), JSON.stringify([[0, 0], [1, 0], [1, 1], [0, 1]].map(([u, v]) => at(u, v))));
   }
+  /* Updates: version order, where updates may come from, and that the installer never overwrites the data folder */
+  {
+    const UT = require(path.join(__dirname, '..', 'lib', 'update.js'))._t, fs3 = require('fs');
+    ok('updates: 1.3.10 is newer than 1.3.9', UT.newer('1.3.10', '1.3.9') && !UT.newer('1.3.9', '1.3.10'));
+    ok('updates: the same version is not newer', !UT.newer('1.3.0', '1.3.0') && UT.newer('1.4', '1.3.9'));
+    ok('updates: GitHub over https is allowed', UT.okHost(new URL('https://github.com/a/b/releases/latest/download/latest.json')) && UT.okHost(new URL('https://objects.githubusercontent.com/x')));
+    ok('updates: anything else is refused', ![
+      'http://github.com/a', 'https://evil.com/x', 'https://github.com.evil.com/x', 'https://githubusercontent.com.evil.com/x', 'http://127.0.0.1:9/x'
+    ].some(u => UT.okHost(new URL(u))));
+    const was = process.env.MOUNDSHROUD_UPDATE_TEST;
+    process.env.MOUNDSHROUD_UPDATE_TEST = 'http://evil.com:80'; const s1 = UT.source();
+    ok('updates: the test override only accepts this PC', !(s1 && s1.test));
+    if (was === undefined) delete process.env.MOUNDSHROUD_UPDATE_TEST; else process.env.MOUNDSHROUD_UPDATE_TEST = was;
+    const ap = fs3.readFileSync(path.join(__dirname, '..', 'apply-update.ps1'), 'utf8');
+    ok('updates: the installer never replaces a file in data\\', /if \(\$rel -like 'data\\\*'\) \{ if \(Test-Path \$dest\) \{ continue \} \}/.test(ap));
+    ok('updates: the installer keeps the replaced files and can put them back', /update-backup/.test(ap) && /Putting \$OldVersion back/.test(ap));
+    const mr = fs3.readFileSync(path.join(__dirname, '..', 'make-release.ps1'), 'utf8');
+    ok('release: the package carries the installer and the update source', /'apply-update\.ps1', 'update\.json'/.test(mr));
+    ok('release: the privacy scan reads data\\private-words.txt', /Join-Path \$root 'data\\private-words\.txt'/.test(mr));
+  }
   /* Lichess: the token check, the speed rule, and the fair-play lock */
   {
     const L = require(path.join(__dirname, '..', 'lib', 'lichess.js')), fs2 = require('fs');

@@ -99,6 +99,7 @@ mark{background:rgba(242,201,76,.35);color:inherit;border-radius:3px}
       ['Track holdings and trades', 'Markets › 💼 Portfolio & journal.', '', 'markets']
     ]],
     ['Play, create, relax', [
+      ['Update Moundshroud', 'Settings › Backup & data › Updates: check for a newer version and install it (internet access must be on).', '', 'updates'],
       ['Scan a chess position from a picture', 'Entertainment › Games › Chess › 📷 Scan: a screenshot, a book diagram or a photo becomes a board to analyse or play.', '', 'chessscan'],
       ['Play real people online', 'Entertainment › Games › Chess › ♞ Lichess, with your own free Lichess account.', '', 'lichess'],
       ['Look through your photos', 'Entertainment › Photos. ✨ Describe my photos lets you search by what is in them.', '', 'photos'],
