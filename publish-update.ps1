@@ -40,7 +40,7 @@ Write-Host "Published to https://github.com/$repo/releases/tag/v$ver" -Foregroun
 
 # 2. itch.io
 if ($itch) {
-  $butler = @((Join-Path $env:APPDATA 'itch\apps\butler\butler.exe'), (Get-Command butler -ErrorAction SilentlyContinue).Source) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+  $butler = @((Join-Path $env:USERPROFILE 'Tools\butler\butler.exe'), (Join-Path $env:APPDATA 'itch\apps\butler\butler.exe'), (Get-Command butler -ErrorAction SilentlyContinue).Source) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
   if (-not $butler) { Write-Host 'itch.io skipped: butler is not installed.' -ForegroundColor Yellow }
   elseif (Ok "Upload $ver to itch.io ($itch)?") {
     # itch gets the two parts unpacked into one folder, which it offers as a single download
