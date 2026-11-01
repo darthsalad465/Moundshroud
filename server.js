@@ -110,10 +110,12 @@ const jbody = async (req, limit) => { const t = await body(req, limit); return t
 function json(res, code, obj) { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); }
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff': 'font/woff', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.wasm': 'application/wasm', '.txt': 'text/plain; charset=utf-8', '.map': 'application/json', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.ogg': 'audio/ogg', '.mp3': 'audio/mpeg' };
 const CHESSBOOKS = path.join(__dirname, 'nomad', 'chessbooks');
-const SD_EXE = path.join(__dirname, 'imggen', 'bin', 'sd-cli.exe'), SD_MODEL = path.join(__dirname, 'imggen', 'models', 'sd_xl_turbo_1.0_fp16.safetensors'); let sdBusy = false;
+/* the picture model: the compact ready-made q8 copy (3.9 GB) when it is there, else the original (6.5 GB, made compact in memory each time) */
+const SD_EXE = path.join(__dirname, 'imggen', 'bin', 'sd-cli.exe'), SD_Q8 = path.join(__dirname, 'imggen', 'models', 'sd_xl_turbo_1.0_q8_0.gguf'), SD_FULL = path.join(__dirname, 'imggen', 'models', 'sd_xl_turbo_1.0_fp16.safetensors'); let sdBusy = false;
+const sdModel = () => { try { if (fs.existsSync(SD_Q8)) return { file: SD_Q8, args: [] }; } catch (e) { } return { file: SD_FULL, args: ['--type', 'q8_0'] }; };
 const MG_PY = path.join(__dirname, 'musicgen', 'venv', 'Scripts', 'python.exe'), MG_GEN = path.join(__dirname, 'musicgen', 'gen.py'), MG_MODEL = path.join(__dirname, 'musicgen', 'models', 'musicgen-small', 'config.json'); let mgBusy = false;
 const mgReady = () => { try { return fs.existsSync(MG_PY) && fs.existsSync(MG_GEN) && fs.existsSync(MG_MODEL); } catch (e) { return false; } };
-const sdReady = () => { try { return fs.existsSync(SD_EXE) && fs.existsSync(SD_MODEL); } catch (e) { return false; } };
+const sdReady = () => { try { return fs.existsSync(SD_EXE) && fs.existsSync(sdModel().file); } catch (e) { return false; } };
 /* the picture model needs the graphics card's memory, so ask Ollama to let go of any model it is holding (it reloads by itself the next time you chat) */
 const sdUnloadOllama = () => new Promise(done => { let fin = false; const end = () => { if (!fin) { fin = true; done(); } }; const q = http.request({ ...OLLAMA, path: '/api/ps', method: 'GET' }, r => { let t = ''; r.on('data', c => t += c); r.on('end', () => { try { const ms = (JSON.parse(t).models || []).map(m => m.name); let n = ms.length; if (!n) return end(); ms.forEach(name => { const p = JSON.stringify({ model: name, keep_alive: 0 }); const g = http.request({ ...OLLAMA, path: '/api/generate', method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(p) } }, x => { x.resume(); x.on('end', () => { if (!--n) setTimeout(end, 600); }); }); g.on('error', () => { if (!--n) end(); }); g.end(p); }); } catch (e) { end(); } }); }); q.on('error', end); q.setTimeout(3000, () => { q.destroy(); end(); }); q.end(); });
 function serveFile(res, root, rel, req) {
@@ -320,7 +322,7 @@ const mainServer = http.createServer(async (req, res) => {
       sdBusy = true; const out = path.join(require('os').tmpdir(), 'moundshroud-art-' + process.pid + '-' + Date.now() + '.png'); let ok = false;
       try {
         await sdUnloadOllama();
-        const args = ['-m', SD_MODEL, '--type', 'q8_0', '-p', prompt, '--steps', String(steps), '--cfg-scale', '1.0', '-W', String(W), '-H', String(H), '-s', String(seed), '--sampling-method', 'euler_a', '--vae-tiling', '-o', out]; if (neg) args.push('-n', neg);
+        const M = sdModel(), args = ['-m', M.file, ...M.args, '-p', prompt, '--steps', String(steps), '--cfg-scale', '1.0', '-W', String(W), '-H', String(H), '-s', String(seed), '--sampling-method', 'euler_a', '--vae-tiling', '-o', out]; if (neg) args.push('-n', neg);
         const run = extra => new Promise(done => { const pr = cp.spawn(SD_EXE, args.concat(extra), { cwd: path.dirname(SD_EXE), windowsHide: true, stdio: 'ignore' }); const k = setTimeout(() => { try { pr.kill(); } catch (e) { } }, 240000); pr.on('error', () => { clearTimeout(k); done(false); }); pr.on('close', code => { clearTimeout(k); done(code === 0 && fs.existsSync(out)); }); });
         ok = await run([]); if (!ok) { await sdUnloadOllama(); ok = await run([]); } if (!ok) ok = await run(['--backend', 'cpu']);
       } catch (e) { ok = false; } finally { sdBusy = false; }
