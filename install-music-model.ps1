@@ -20,6 +20,10 @@ if (-not $haveTorch) {
 if (-not (Test-Path (Join-Path $model 'config.json'))) {
   Write-Host 'Downloading the MusicGen-small model (about 2.4 GB)...'
   & $py -c "from huggingface_hub import snapshot_download; snapshot_download('facebook/musicgen-small', local_dir=r'$model', allow_patterns=['*.json','*.safetensors','*.txt','*.model'])"; if ($LASTEXITCODE) { throw 'The model did not download.' }
+  # store it at half precision (1.2 GB instead of 2.4 GB). It already runs at half precision on a graphics card, so songs come out the same
+  Write-Host 'Making the model smaller (about a minute)...'
+  & $py -c "import torch; from transformers import MusicgenForConditionalGeneration as M; m=M.from_pretrained(r'$model', torch_dtype=torch.float32, low_cpu_mem_usage=True).half(); m.save_pretrained(r'$model', safe_serialization=True)"
+  if ($LASTEXITCODE) { Write-Host 'It could not be made smaller; the full-size model is kept and works the same.' -ForegroundColor Yellow }
 }
 if ((Test-Path $py) -and (Test-Path (Join-Path $model 'config.json'))) { Write-Host 'Done. Open Moundshroud > Studio > Music studio > Compose.' -ForegroundColor Green } else { Write-Host 'Something is missing; run this again.' -ForegroundColor Red }
 

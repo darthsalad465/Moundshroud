@@ -11,9 +11,16 @@ if (-not (Test-Path $exe)) {
   $asset = $rel.assets | Where-Object { $_.name -match 'bin-win-vulkan-x64\.zip$' } | Select-Object -First 1; if (-not $asset) { throw 'Could not find the Windows picture program on GitHub.' }
   $zip = Join-Path $d 'sd.zip'; Invoke-WebRequest $asset.browser_download_url -OutFile $zip; Expand-Archive $zip (Join-Path $d 'bin') -Force; Remove-Item $zip
 }
-if (-not (Test-Path $model)) {
+$q8 = Join-Path $d 'models\sd_xl_turbo_1.0_q8_0.gguf'
+if (-not (Test-Path $model) -and -not (Test-Path $q8)) {
   Write-Host 'Downloading the SDXL-Turbo model (about 6.5 GB, several minutes)...'
   & curl.exe -L -C - --retry 5 -o $model 'https://huggingface.co/stabilityai/sdxl-turbo/resolve/main/sd_xl_turbo_1.0_fp16.safetensors'
 }
-if ((Test-Path $exe) -and (Test-Path $model)) { Write-Host 'Done. Open Moundshroud > Studio > AI art.' -ForegroundColor Green } else { Write-Host 'Something is missing; run this again.' -ForegroundColor Red }
+# keep a compact copy (about 3.9 GB instead of 6.5 GB; the pictures look the same) and drop the big download once it is made
+if ((Test-Path $exe) -and (Test-Path $model) -and -not (Test-Path $q8)) {
+  Write-Host 'Making the compact copy of the model (under a minute)...'
+  & $exe -M convert -m $model -o $q8 --type q8_0 | Out-Null
+  if ($LASTEXITCODE -eq 0 -and (Test-Path $q8) -and (Get-Item $q8).Length -gt 3GB) { Remove-Item $model } else { Remove-Item $q8 -ErrorAction SilentlyContinue; Write-Host 'The compact copy could not be made; the full model is kept and works the same.' -ForegroundColor Yellow }
+}
+if ((Test-Path $exe) -and ((Test-Path $q8) -or (Test-Path $model))) { Write-Host 'Done. Open Moundshroud > Studio > AI art.' -ForegroundColor Green } else { Write-Host 'Something is missing; run this again.' -ForegroundColor Red }
 
