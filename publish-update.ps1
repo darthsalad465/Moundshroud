@@ -4,8 +4,9 @@
 #   2. itch.io (when update.json names an "itch" page and butler is installed and signed in) gets the same version
 #   .\publish-update.ps1            ask before each step
 #   .\publish-update.ps1 -Yes       no questions
+#   .\publish-update.ps1 -ItchOnly  only the itch.io upload (when GitHub already has this version)
 # Before running it: bump VERSION, write this version's lines in RELEASE-NOTES.txt, run .\make-release.ps1 -Verify.
-param([switch]$Yes)
+param([switch]$Yes, [switch]$ItchOnly)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ver = (Get-Content (Join-Path $root 'VERSION') -Raw).Trim()
@@ -21,22 +22,26 @@ function Ok($q) { if ($Yes) { return $true }; return ((Read-Host "$q [y/N]") -ma
 
 $gh = @('C:\Program Files\GitHub CLI\gh.exe', (Get-Command gh -ErrorAction SilentlyContinue).Source) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
 if (-not $gh) { throw 'The GitHub CLI (gh) is not installed.' }
-& $gh auth status *> $null; if ($LASTEXITCODE) { throw 'Sign in first:  gh auth login' }
+# "not found" answers from gh are normal here; Windows PowerShell would treat their error text as fatal, so ask quietly
+function Quiet { param([scriptblock]$Run) $old = $ErrorActionPreference; $ErrorActionPreference = 'Continue'; try { & $Run *> $null } finally { $ErrorActionPreference = $old }; return $LASTEXITCODE }
+if (Quiet { & $gh auth status }) { throw 'Sign in first:  gh auth login' }
 
+# from here on gh and butler print progress on the error stream; each step is judged by its exit code instead
+$ErrorActionPreference = 'Continue'
 # 1. GitHub
-& $gh repo view $repo --json name *> $null
-if ($LASTEXITCODE) {
+if (-not $ItchOnly) {
+if (Quiet { & $gh repo view $repo --json name }) {
   if (-not (Ok "Make the PUBLIC download repo github.com/$repo (it will only hold release downloads)?")) { throw 'Stopped.' }
   & $gh repo create $repo --public --add-readme --description 'Downloads and updates for Moundshroud, a private assistant that runs offline on your own Windows PC.'
   if ($LASTEXITCODE) { throw 'Could not make the repo.' }
 }
-& $gh release view "v$ver" --repo $repo *> $null
-if (-not $LASTEXITCODE) { throw "v$ver is already published. Bump VERSION for a new release." }
+if (-not (Quiet { & $gh release view "v$ver" --repo $repo })) { throw "v$ver is already published. Bump VERSION for a new release." }
 if (-not (Ok "Publish Moundshroud $ver to github.com/$repo ? Every copy will be offered this update.")) { throw 'Stopped.' }
 $notes = (@("Moundshroud $ver") + '' + (@($lj.notes) | ForEach-Object { "- $_" }) + '' + 'Download BOTH zips, unzip them into the same folder and run Setup-Moundshroud.bat. Copies already installed update themselves from Settings.') -join "`n"
 & $gh release create "v$ver" @files --repo $repo --title "Moundshroud $ver" --notes $notes --latest
 if ($LASTEXITCODE) { throw 'The GitHub release did not publish.' }
 Write-Host "Published to https://github.com/$repo/releases/tag/v$ver" -ForegroundColor Green
+}
 
 # 2. itch.io
 if ($itch) {
