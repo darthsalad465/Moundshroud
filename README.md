@@ -27,6 +27,8 @@ Inside Moundshroud: **Ctrl+K** opens the command palette (search everything, or 
 ## The tabs
 Today · News · Chat · Browser · Calendar · Knowledge (Library, My Files, Notes, Mail) · Learn (Study, Languages, Studio, Sky, Lab, Timeline, Cyber) · Tools · Prepare · Life (Kitchen, Garden, Money, Journal) · Fun (Entertainment, Music, Photos) · Spiritual · App map · Guide.
 
+**Tools › Agent** opens a free coding helper that runs on this PC: Claude Code's tools driven by the Gemma 4 model in Ollama, in a window of its own, working in a folder you choose. It expects its launcher in `%USERPROFILE%\gemma-agent` (set `MOUNDSHROUD_AGENT_DIR` to use another folder) and shows what is missing if it is not set up. Ctrl+K › *Open the coding agent* jumps to it.
+
 **New in 1.3.0**
 * **Passwords** (Tools): an encrypted password vault (AES-256-GCM, key from your master password by PBKDF2 with 600,000 rounds, all done in the window). Generator, check-up for weak and reused passwords, import from browsers and other managers, earlier versions kept. Copied passwords are wiped from the clipboard after 30 seconds and from Moundshroud’s clipboard history. The AI never sees the page.
 * **Photos**: your pictures by month, searchable in plain words once the local AI has described them (“dog in the snow”, “birthday 2024”). Files are only read, never moved. OneDrive files that are only in the cloud are not downloaded unless you open one.

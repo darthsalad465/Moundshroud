@@ -17,6 +17,7 @@ const mail = require('./lib/mail');
 const lichess = require('./lib/lichess');
 const appmap = require('./lib/appmap');
 const update = require('./lib/update');
+const agent = require('./lib/agent');
 const ROOT = __dirname, DATA = path.join(ROOT, 'data'), WEB = path.join(ROOT, 'web'), CHEF = path.join(ROOT, 'nomad', 'cyberchef');
 fs.mkdirSync(DATA, { recursive: true });
 const PORT = +process.env.MOUNDSHROUD_PORT || +process.env.ATLAS_PORT || 47231, OLLAMA = { host: '127.0.0.1', port: 11434 };
@@ -360,6 +361,9 @@ const mainServer = http.createServer(async (req, res) => {
       pr.stdin.on('error', () => { }); pr.stdin.end(text + '\n'); return;
     }
     if (url === '/api/docs/open' && req.method === 'POST') { const b = await jbody(req, 1e5); if (!allowedPath(b.path)) return json(res, 403, { error: 'not allowed' }); cp.spawn('explorer.exe', [b.path], { detached: true, stdio: 'ignore' }).unref(); return json(res, 200, { ok: true }); }
+    /* ---- the local coding agent (Gemma in Ollama): report whether it is set up, open it in its own window ---- */
+    if (url === '/api/agent/status') return agent.status(s => json(res, 200, s));
+    if (url === '/api/agent/launch' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, agent.launch(b.dir)); }
     if (url === '/api/pick-folder' && req.method === 'POST') {
       const ps = "Add-Type -AssemblyName System.Windows.Forms; $f=New-Object System.Windows.Forms.FolderBrowserDialog; $f.Description='Choose a folder for your assistant to read'; $f.ShowNewFolderButton=$false; if($f.ShowDialog() -eq 'OK'){ [Console]::Out.Write($f.SelectedPath) }";
       return cp.execFile('powershell.exe', ['-NoProfile', '-STA', '-Command', ps], { windowsHide: false, timeout: 300000 }, (e, out) => json(res, 200, { path: String(out || '').trim() }));

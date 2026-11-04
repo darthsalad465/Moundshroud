@@ -385,6 +385,21 @@
 <li>Text to PDF uses a plain monospaced layout. For a nicely formatted PDF, make a Word document and convert that. GIF output uses a basic 256-colour palette, so photos look rough.</li>
 <li>A scanned PDF does not turn into editable text (that needs OCR).</li>
 </ul>` },
+    { id: 'agent', icon: '🤖', title: 'Coding agent (Tools)', html: `
+<p><b>Tools &rarr; 🤖 Agent</b> opens a free coding helper that runs on this PC. You type what you want built or fixed, and it reads, writes and edits files in one folder and runs commands you approve. It is Claude Code's tools driven by the Gemma 4 model in Ollama, so nothing leaves this PC.</p>
+<h3>Using it</h3>
+<ul>
+<li>The page checks that everything is in place: the agent's launcher, Claude Code, Ollama and the agent model. A warning line says what is missing.</li>
+<li><b>Choose a folder</b> if you want it to work on a particular project; otherwise it uses its own workspace folder. Point it at a folder you have backed up.</li>
+<li>Press <b>Open the agent</b>. It opens in a window of its own; type your request there. Ctrl+K &rsaquo; <i>Open the coding agent</i> gets you to this page from anywhere.</li>
+<li>It saves file edits itself but asks before running a command. Read each command before you approve it.</li>
+</ul>
+<h3>What to expect</h3>
+<ul>
+<li>It is a small model. It does well on small scripts, single-file games and simple edits, and it can be confidently wrong. Check what it makes.</li>
+<li>It forgets after about 32,000 tokens, so keep jobs small and build in steps.</li>
+<li>The first start makes the agent model, and downloads Gemma 4 (about 6.6 GB) if this PC does not have it yet.</li>
+</ul>` },
     { id: 'websearch', icon: '🔎', title: 'Search: ask anything, like a search engine', html: `
 <p>The <b>🔎 Search</b> tab (next to Chat) is a search engine for everything stored on this PC. Type a question or a few words and Moundshroud searches <b>every offline library at once</b>, plus your documents and notes, then shows a written answer and ranked pages. Nothing leaves your computer.</p>
 <h3>What you get</h3>
