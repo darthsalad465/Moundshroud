@@ -1,0 +1,10 @@
+# The Python packages Moundshroud's own Python needs beyond its standard library.
+#
+# The Claude requests (chat, the buddy, quizzes, documents, the chess coach) go through the open-source
+# Respan Gateway - https://github.com/respanai/respan-gateway - run from this project's private environment
+# (.venv, made by install-gateway.ps1; the app's pyenv is used too if it has the package). Keep this pin and
+# install-gateway.ps1 in step with each other. Wheels only, no build:
+#
+#   .\.venv\Scripts\python.exe -m pip install --only-binary=:all: -r requirements.txt
+#
+respan-gateway==0.3.0
