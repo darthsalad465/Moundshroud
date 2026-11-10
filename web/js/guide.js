@@ -385,11 +385,13 @@
 <li>Text to PDF uses a plain monospaced layout. For a nicely formatted PDF, make a Word document and convert that. GIF output uses a basic 256-colour palette, so photos look rough.</li>
 <li>A scanned PDF does not turn into editable text (that needs OCR).</li>
 </ul>` },
-    { id: 'agent', icon: '🤖', title: 'Coding agent (Tools)', html: `
-<p><b>Tools &rarr; 🤖 Agent</b> opens a free coding helper that runs on this PC. You type what you want built or fixed, and it reads, writes and edits files in one folder and runs commands you approve. It is Claude Code's tools driven by the Gemma 4 model in Ollama, so nothing leaves this PC.</p>
+    { id: 'agent', icon: '🤖', title: 'Coding agent (Chat)', html: `
+<p><b>Chat &rarr; 🤖 Agent</b> (the second tab at the top of the Chat page) opens a free coding helper that runs on this PC. You type what you want built or fixed, and it reads, writes and edits files and runs commands. It is Claude Code's tools driven by a model in Ollama, so nothing leaves this PC.</p>
 <h3>Using it</h3>
 <ul>
-<li>The page checks that everything is in place: the agent's launcher, Claude Code, Ollama and the agent model. A warning line says what is missing.</li>
+<li>The page checks that everything is in place: the agent's launcher, Claude Code, Ollama and the models. A warning line says what is missing.</li>
+<li><b>Model</b> lists every model Ollama has. A model that cannot use tools is greyed out, because the agent works through tools. The first start with a model makes a copy of it with a longer memory.</li>
+<li><b>Whole PC, guarded</b> lets it read files anywhere and run everyday commands unasked. It still asks before deleting, moving, installing, downloading or editing outside its folder, and disk formatting, boot changes and deleting Windows folders are always refused. Leave it off to keep the agent in one folder.</li>
 <li><b>Choose a folder</b> if you want it to work on a particular project; otherwise it uses its own workspace folder. Point it at a folder you have backed up.</li>
 <li>Press <b>Open the agent</b>. It opens in a window of its own; type your request there. Ctrl+K &rsaquo; <i>Open the coding agent</i> gets you to this page from anywhere.</li>
 <li>It saves file edits itself but asks before running a command. Read each command before you approve it.</li>
@@ -399,6 +401,30 @@
 <li>It is a small model. It does well on small scripts, single-file games and simple edits, and it can be confidently wrong. Check what it makes.</li>
 <li>It forgets after about 32,000 tokens, so keep jobs small and build in steps.</li>
 <li>The first start makes the agent model, and downloads Gemma 4 (about 6.6 GB) if this PC does not have it yet.</li>
+</ul>` },
+    { id: 'swarm', icon: '🐝', title: 'Swarm: teams of local models (Chat)', html: `
+<p><b>Chat &rarr; 🐝 Swarm</b> (the third tab at the top of the Chat page) has several of your local models work on one task in one folder. Everything runs on this PC.</p>
+<h3>Using it</h3>
+<ul>
+<li>Type the task, choose a folder, pick a workflow and press <b>Start the swarm</b>. The board shows each helper, its model, what it is doing and the last lines it said.</li>
+<li>A <b>team</b> is a list of helpers. Each has a name, a role, a model and a short description of its job (200 words at most).</li>
+<li>A <b>workflow</b> is a list of stages. Each stage has steps: a helper works on the files, or makes a picture, music, a spoken line or a video clip. Those files go into the folder's <b>assets</b> folder.</li>
+<li>Three workflows are ready to use: <i>Plan, Build, Review</i>; <i>Game jam</i>; and <i>Second opinion</i>. Copy one and change it to make your own.</li>
+</ul>
+<h3>What to expect</h3>
+<ul>
+<li>Helpers on different models take turns, because this PC holds one large model in memory at a time. Two helpers on the same model work side by side.</li>
+<li>The helpers pass work to each other through the file SWARM-NOTES.md in the folder. Read it when a run goes wrong.</li>
+<li>Every helper works under the same guard as the agent. Nobody is there to approve a command during a swarm, so deleting, installing and downloading are refused. Use Chat &rarr; Agent for that work.</li>
+<li>A step may take 15 minutes at most. A failed step is tried once more, then the run carries on.</li>
+<li>Keep tasks small: one file or a handful of files.</li>
+</ul>` },
+    { id: 'aivideo', icon: '🎬', title: 'AI video (Studio)', html: `
+<p><b>Studio &rarr; 🎬 AI video</b> makes a short silent clip from a description, on this PC, with no internet. It uses the Wan 2.1 video model, run by the same engine as the pictures.</p>
+<ul>
+<li>Say what is seen and how it moves. A quick clip (416 by 240, one second) takes about two minutes.</li>
+<li>Chat pauses while a clip is made, because the video model needs the graphics card.</li>
+<li>If the page says the model is not installed, run <b>install-video-model.ps1</b> in the Moundshroud folder (about 6.7 GB).</li>
 </ul>` },
     { id: 'websearch', icon: '🔎', title: 'Search: ask anything, like a search engine', html: `
 <p>The <b>🔎 Search</b> tab (next to Chat) is a search engine for everything stored on this PC. Type a question or a few words and Moundshroud searches <b>every offline library at once</b>, plus your documents and notes, then shows a written answer and ranked pages. Nothing leaves your computer.</p>

@@ -114,13 +114,8 @@ function json(res, code, obj) { res.writeHead(code, { 'Content-Type': 'applicati
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff': 'font/woff', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.wasm': 'application/wasm', '.txt': 'text/plain; charset=utf-8', '.map': 'application/json', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.ogg': 'audio/ogg', '.mp3': 'audio/mpeg' };
 const CHESSBOOKS = path.join(__dirname, 'nomad', 'chessbooks');
 /* the picture model: the compact ready-made q8 copy (3.9 GB) when it is there, else the original (6.5 GB, made compact in memory each time) */
-const SD_EXE = path.join(__dirname, 'imggen', 'bin', 'sd-cli.exe'), SD_Q8 = path.join(__dirname, 'imggen', 'models', 'sd_xl_turbo_1.0_q8_0.gguf'), SD_FULL = path.join(__dirname, 'imggen', 'models', 'sd_xl_turbo_1.0_fp16.safetensors'); let sdBusy = false;
-const sdModel = () => { try { if (fs.existsSync(SD_Q8)) return { file: SD_Q8, args: [] }; } catch (e) { } return { file: SD_FULL, args: ['--type', 'q8_0'] }; };
-const MG_PY = path.join(__dirname, 'musicgen', 'venv', 'Scripts', 'python.exe'), MG_GEN = path.join(__dirname, 'musicgen', 'gen.py'), MG_MODEL = path.join(__dirname, 'musicgen', 'models', 'musicgen-small', 'config.json'); let mgBusy = false;
-const mgReady = () => { try { return fs.existsSync(MG_PY) && fs.existsSync(MG_GEN) && fs.existsSync(MG_MODEL); } catch (e) { return false; } };
-const sdReady = () => { try { return fs.existsSync(SD_EXE) && fs.existsSync(sdModel().file); } catch (e) { return false; } };
-/* the picture model needs the graphics card's memory, so ask Ollama to let go of any model it is holding (it reloads by itself the next time you chat) */
-const sdUnloadOllama = () => new Promise(done => { let fin = false; const end = () => { if (!fin) { fin = true; done(); } }; const q = http.request({ ...OLLAMA, path: '/api/ps', method: 'GET' }, r => { let t = ''; r.on('data', c => t += c); r.on('end', () => { try { const ms = (JSON.parse(t).models || []).map(m => m.name); let n = ms.length; if (!n) return end(); ms.forEach(name => { const p = JSON.stringify({ model: name, keep_alive: 0 }); const g = http.request({ ...OLLAMA, path: '/api/generate', method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(p) } }, x => { x.resume(); x.on('end', () => { if (!--n) setTimeout(end, 600); }); }); g.on('error', () => { if (!--n) end(); }); g.end(p); }); } catch (e) { end(); } }); }); q.on('error', end); q.setTimeout(3000, () => { q.destroy(); end(); }); q.end(); });
+/* pictures, music, voices and video: the engines live in lib/media.js; teams and swarms in lib/swarm.js */
+const media = require('./lib/media'), swarm = require('./lib/swarm'), swarmModel = require('./lib/swarm-model');
 function serveFile(res, root, rel, req) {
   const f = path.normalize(path.join(root, rel)), inside = path.relative(root, f);          // must really be inside the folder (not just share its first letters)
   if (String(rel).includes('\0') || inside.startsWith('..') || path.isAbsolute(inside) || !fs.existsSync(f) || !fs.statSync(f).isFile()) { res.writeHead(404); return res.end('not found'); }
@@ -317,55 +312,53 @@ const mainServer = http.createServer(async (req, res) => {
     if (url === '/api/app/file' && req.method === 'POST') { const b = await jbody(req, 1e5), f = appfiles.read(String(b.path || ''), b.max); return f ? json(res, 200, f) : json(res, 404, { error: 'no such file' }); }
     if (url === '/api/app/list') return json(res, 200, { files: appfiles.list(q.get('dir') || '') });
     /* offline picture making: stable-diffusion.cpp with the SD-Turbo model, both kept in the imggen folder */
-    if (url === '/api/art/status') return json(res, 200, { sd: sdReady(), busy: sdBusy });
-    if (url === '/api/art/sd' && req.method === 'POST') {
-      const b = await jbody(req, 2e4); if (!sdReady()) return json(res, 404, { error: 'The image model is not installed. Run install-art-model.ps1 (or use the Qwen drawing option).' }); if (sdBusy) return json(res, 429, { error: 'A picture is already being made. Wait for it to finish.' });
-      const clean = (s, n) => String(s || '').replace(/[\r\n\0]+/g, ' ').trim().slice(0, n), prompt = clean(b.prompt, 400), neg = clean(b.neg, 200); if (!prompt) return json(res, 400, { error: 'Type what to draw.' });
-      const dim = v => Math.max(256, Math.min(768, Math.round((+v || 512) / 64) * 64)), W = dim(b.w), H = dim(b.h), steps = Math.max(1, Math.min(6, Math.round(+b.steps || 2))), seed = Number.isFinite(+b.seed) && +b.seed >= 0 ? Math.floor(+b.seed) % 2147483647 : Math.floor(Math.random() * 2147483647);
-      sdBusy = true; const out = path.join(require('os').tmpdir(), 'moundshroud-art-' + process.pid + '-' + Date.now() + '.png'); let ok = false;
-      try {
-        await sdUnloadOllama();
-        const M = sdModel(), args = ['-m', M.file, ...M.args, '-p', prompt, '--steps', String(steps), '--cfg-scale', '1.0', '-W', String(W), '-H', String(H), '-s', String(seed), '--sampling-method', 'euler_a', '--vae-tiling', '-o', out]; if (neg) args.push('-n', neg);
-        const run = extra => new Promise(done => { const pr = cp.spawn(SD_EXE, args.concat(extra), { cwd: path.dirname(SD_EXE), windowsHide: true, stdio: 'ignore' }); const k = setTimeout(() => { try { pr.kill(); } catch (e) { } }, 240000); pr.on('error', () => { clearTimeout(k); done(false); }); pr.on('close', code => { clearTimeout(k); done(code === 0 && fs.existsSync(out)); }); });
-        ok = await run([]); if (!ok) { await sdUnloadOllama(); ok = await run([]); } if (!ok) ok = await run(['--backend', 'cpu']);
-      } catch (e) { ok = false; } finally { sdBusy = false; }
-      if (!ok) { fs.unlink(out, () => { }); return json(res, 500, { error: 'The picture could not be made. Close other heavy programs (games, VMs) and try again.' }); }
-      fs.readFile(out, (err, buf) => { fs.unlink(out, () => { }); if (err) return json(res, 500, { error: 'The picture could not be read.' }); res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'no-store', 'X-Seed': String(seed) }); res.end(buf); });
-      return;
-    }
+    /* ---- offline media: each engine writes a file (lib/media.js), the route sends it and removes it ---- */
+    /* only the named fields of a request reach an engine: where the file is written is never the page's choice */
+    const only = (b, keys) => { const o = {}; keys.forEach(k => { if (b && b[k] != null) o[k] = b[k]; }); return o; };
+    const sendMade = (r, type, unread) => {
+      if (!r.ok) return json(res, r.code || 500, { error: r.error });
+      fs.readFile(r.file, (err, buf) => { fs.unlink(r.file, () => { }); if (err) return json(res, 500, { error: unread }); const h = { 'Content-Type': type, 'Cache-Control': 'no-store' }; if (r.seed != null) h['X-Seed'] = String(r.seed); if (r.seconds != null) h['X-Seconds'] = String(r.seconds); res.writeHead(200, h); res.end(buf); });
+    };
+    if (url === '/api/art/status') return json(res, 200, { sd: media.ready().image, busy: media.busy.image });
+    if (url === '/api/art/sd' && req.method === 'POST') return sendMade(await media.image(only(await jbody(req, 2e4), ['prompt', 'neg', 'w', 'h', 'steps', 'seed'])), 'image/png', 'The picture could not be read.');
     /* offline AI music: MusicGen-small run by musicgen/gen.py in its own Python environment (installed by install-music-model.ps1) */
-    if (url === '/api/music/status') return json(res, 200, { model: mgReady(), busy: mgBusy });
-    if (url === '/api/music/gen' && req.method === 'POST') {
-      const b = await jbody(req, 2e4); if (!mgReady()) return json(res, 404, { error: 'The AI music model is not installed. Run install-music-model.ps1 (Qwen can write the song instead).' }); if (mgBusy) return json(res, 429, { error: 'Music is already being made. Wait for it to finish.' });
-      const prompt = String(b.prompt || '').replace(/[\r\n\0]+/g, ' ').trim().slice(0, 300); if (!prompt) return json(res, 400, { error: 'Describe the music first.' });
-      const secs = Math.max(5, Math.min(30, Math.round(+b.seconds || 15))), seed = Number.isFinite(+b.seed) && +b.seed >= 0 ? Math.floor(+b.seed) % 2147483647 : Math.floor(Math.random() * 2147483647);
-      mgBusy = true; const out = path.join(require('os').tmpdir(), 'moundshroud-music-' + process.pid + '-' + Date.now() + '.wav'); let ok = false;
-      try {
-        await sdUnloadOllama();
-        const run = extra => new Promise(done => { const pr = cp.spawn(MG_PY, [MG_GEN, '--prompt', prompt, '--seconds', String(secs), '--seed', String(seed), '--out', out].concat(extra), { cwd: path.dirname(MG_GEN), windowsHide: true, stdio: ['ignore', 'ignore', fs.openSync(path.join(path.dirname(MG_GEN), 'last-error.log'), 'w')] }); const k = setTimeout(() => { try { pr.kill(); } catch (e) { } }, 600000); pr.on('error', () => { clearTimeout(k); done(false); }); pr.on('close', code => { clearTimeout(k); done(code === 0 && fs.existsSync(out)); }); });
-        ok = await run([]); if (!ok) ok = await run(['--cpu']);
-      } catch (e) { ok = false; } finally { mgBusy = false; }
-      if (!ok) { fs.unlink(out, () => { }); return json(res, 500, { error: 'The AI music model could not make that clip.' }); }
-      fs.readFile(out, (err, buf) => { fs.unlink(out, () => { }); if (err) return json(res, 500, { error: 'The clip could not be read.' }); res.writeHead(200, { 'Content-Type': 'audio/wav', 'Cache-Control': 'no-store', 'X-Seed': String(seed) }); res.end(buf); });
-      return;
-    }
+    if (url === '/api/music/status') return json(res, 200, { model: media.ready().music, busy: media.busy.music });
+    if (url === '/api/music/gen' && req.method === 'POST') return sendMade(await media.music(only(await jbody(req, 2e4), ['prompt', 'seconds', 'seed'])), 'audio/wav', 'The clip could not be read.');
     /* natural offline voices (Piper): the voice files live in piper/voices, the engine in piper/bin */
-    if (url === '/api/tts/voices') { const vd = path.join(ROOT, 'piper', 'voices'); let list = []; try { if (fs.existsSync(path.join(ROOT, 'piper', 'bin', 'piper.exe'))) list = fs.readdirSync(vd).filter(f => /\.onnx$/.test(f) && fs.existsSync(path.join(vd, f + '.json'))).map(f => f.replace(/\.onnx$/, '')); } catch (e) { } return json(res, 200, { voices: list }); }
-    if (url === '/api/tts' && req.method === 'POST') {
-      const b = await jbody(req, 2e5), name = String(b.voice || ''), model = path.join(ROOT, 'piper', 'voices', name + '.onnx'), exe = path.join(ROOT, 'piper', 'bin', 'piper.exe');
-      if (!/^[\w.-]+$/.test(name) || !fs.existsSync(model) || !fs.existsSync(exe)) return json(res, 404, { error: 'no such voice' });
-      const text = String(b.text || '').slice(0, 1500).replace(/\s+/g, ' ').trim(); if (!text) return json(res, 400, { error: 'no text' });
-      const ls = Math.min(2.5, Math.max(0.4, +b.length || 1)), out = path.join(require('os').tmpdir(), 'moundshroud-tts-' + process.pid + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7) + '.wav');
-      const pr = cp.spawn(exe, ['--model', model, '--output_file', out, '--length_scale', String(ls)], { cwd: path.dirname(exe), stdio: ['pipe', 'ignore', 'ignore'], windowsHide: true });
-      const kill = setTimeout(() => { try { pr.kill(); } catch (e) { } }, 30000);
-      pr.on('error', () => { clearTimeout(kill); json(res, 500, { error: 'voice engine failed' }); });
-      pr.on('close', () => { clearTimeout(kill); fs.readFile(out, (err, buf) => { fs.unlink(out, () => { }); if (err) return json(res, 500, { error: 'voice engine failed' }); res.writeHead(200, { 'Content-Type': 'audio/wav', 'Cache-Control': 'no-store' }); res.end(buf); }); });
-      pr.stdin.on('error', () => { }); pr.stdin.end(text + '\n'); return;
+    if (url === '/api/tts/voices') return json(res, 200, { voices: media.voices() });
+    if (url === '/api/tts' && req.method === 'POST') return sendMade(await media.voice(only(await jbody(req, 2e5), ['voice', 'text', 'length'])), 'audio/wav', 'voice engine failed');
+    /* short offline video clips: Wan 2.1 run by the picture engine (installed by install-video-model.ps1) */
+    if (url === '/api/video/status') return json(res, 200, { video: media.ready().video, busy: media.busy.video, size: media.VID_DEFAULT });
+    if (url === '/api/video/make' && req.method === 'POST') return sendMade(await media.video(only(await jbody(req, 2e4), ['prompt', 'neg', 'w', 'h', 'frames', 'seed'])), 'video/webm', 'The video could not be read.');
+    /* ---- teams and swarms: several local models working on one task in one folder (lib/swarm.js) ---- */
+    if (url === '/api/swarm/data') return agent.list((up, models) => json(res, 200, Object.assign(swarmModel.load(DATA, models), { ollama: up, models, roles: swarmModel.ROLES, types: swarmModel.STEP_TYPES, media: media.ready(), maxWords: swarmModel.MAX_WORDS })));
+    if (url === '/api/swarm/status') return json(res, 200, swarm.status());
+    if (url === '/api/swarm/stop' && req.method === 'POST') return json(res, 200, swarm.stop());
+    /* opens the folder of the latest run; the folder is the one the run was given, never one the page sends now */
+    if (url === '/api/swarm/open' && req.method === 'POST') { const d = swarm.status().dir; if (!d || !fs.existsSync(d)) return json(res, 200, { ok: false, error: 'There is no swarm folder to open yet.' }); cp.spawn('explorer.exe', [d], { detached: true, stdio: 'ignore' }).unref(); return json(res, 200, { ok: true }); }
+    if (url === '/api/swarm/save' && req.method === 'POST') {
+      const b = await jbody(req, 2e6), teams = Array.isArray(b.teams) ? b.teams : [], flows = Array.isArray(b.workflows) ? b.workflows : [];
+      return agent.list((up, models) => {
+        if (!up) return json(res, 200, { ok: false, error: 'Ollama is not running, so the models cannot be checked. Open the Agent tab once to start it.' });
+        for (const t of teams) { const c = swarmModel.checkTeam(t, models); if (!c.ok) return json(res, 200, c); }
+        for (const w of flows) { const c = swarmModel.checkWorkflow(w, teams.find(t => t && t.id === w.teamId)); if (!c.ok) return json(res, 200, c); }
+        try { swarmModel.save(DATA, { teams, workflows: flows }); } catch (e) { return json(res, 200, { ok: false, error: 'The teams could not be saved.' }); }
+        json(res, 200, { ok: true });
+      });
+    }
+    if (url === '/api/swarm/run' && req.method === 'POST') {
+      const b = await jbody(req, 2e4);
+      return agent.list((up, models) => {
+        if (!up) return json(res, 200, { ok: false, error: 'Ollama is not running. Open the Agent tab once to start it.' });
+        const d = swarmModel.load(DATA, models), workflow = d.workflows.find(w => w.id === b.workflowId);
+        if (!workflow) return json(res, 200, { ok: false, error: 'Choose a workflow first.' });
+        json(res, 200, swarm.start({ task: b.task, dir: b.dir, workflow, team: d.teams.find(t => t.id === workflow.teamId), models, runners: swarm.runners(agent, media, models) }));
+      });
     }
     if (url === '/api/docs/open' && req.method === 'POST') { const b = await jbody(req, 1e5); if (!allowedPath(b.path)) return json(res, 403, { error: 'not allowed' }); cp.spawn('explorer.exe', [b.path], { detached: true, stdio: 'ignore' }).unref(); return json(res, 200, { ok: true }); }
     /* ---- the local coding agent (Gemma in Ollama): report whether it is set up, open it in its own window ---- */
     if (url === '/api/agent/status') return agent.status(s => json(res, 200, s));
-    if (url === '/api/agent/launch' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, agent.launch(b.dir)); }
+    if (url === '/api/agent/launch' && req.method === 'POST') { const b = await jbody(req, 1e4); return agent.list((up, models) => json(res, 200, agent.launch(b.dir, { model: b.model, guard: !!b.guard, ctx: b.ctx }, models))); }
     if (url === '/api/pick-folder' && req.method === 'POST') {
       const ps = "Add-Type -AssemblyName System.Windows.Forms; $f=New-Object System.Windows.Forms.FolderBrowserDialog; $f.Description='Choose a folder for your assistant to read'; $f.ShowNewFolderButton=$false; if($f.ShowDialog() -eq 'OK'){ [Console]::Out.Write($f.SelectedPath) }";
       return cp.execFile('powershell.exe', ['-NoProfile', '-STA', '-Command', ps], { windowsHide: false, timeout: 300000 }, (e, out) => json(res, 200, { path: String(out || '').trim() }));
