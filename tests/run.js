@@ -494,6 +494,8 @@ try {
     ok('...with no script, style or tags left in it', !/bad\(\)|color:red|<[a-z]/i.test(t), JSON.stringify(t).slice(0, 90));
     await require('./mail-test.js')(ok);
     await require('./gateway-test.js')(ok);
+    try { await require('./agent-test.js')(ok); } catch (e) { ok('the agent module loads', false, e.message); }
+    try { await require('./swarm-test.js')(ok); } catch (e) { ok('the swarm modules load', false, e.message); }
     try { const MT = require(path.join(__dirname, '..', 'lib', 'mail.js'))._t, pw = 'tést "pw" ✓', blob = await MT.protectPw(pw); ok('mail: Windows keeps the password protected and gives it back', !blob.includes('pw') && await MT.unprotectPw(blob) === pw); } catch (e) { ok('mail: Windows keeps the password protected', false, e.message); }
     console.log('\n' + pass + ' passed, ' + fail + ' failed');
     process.exit(fail ? 1 : 0);
