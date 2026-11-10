@@ -42,6 +42,20 @@ Today · News · Chat · Browser · Calendar · Knowledge (Library, My Files, No
 ## Look and feel
 Switching areas is a cross-fade: the page you are leaving fades and lifts out while the next fades in, and the first few cards on it settle into place behind. A thin line runs along the top of the window while the app is fetching something slow. Messages (copied, saved, failed) stack in the bottom corner with an icon, a colour and a bar showing how long each has left. **Settings > Appearance > Motion** chooses **Full**, **Subtle** or **Off**: *Off* leaves the app perfectly still while colours and highlights still tell you what is happening, and the app’s own Motion setting decides (Windows’ performance setting no longer switches animations off). Any of the 43 colour themes and 29 interface styles can be combined, and changing either one fades rather than jumps.
 
+## Claude and the Respan Gateway
+Every Claude request Moundshroud makes - chat, the buddy, quizzes, documents, the chess coach, and **Test it** in Settings - goes through the [Respan Gateway](https://github.com/respanai/respan-gateway?utm_source=freebuff&utm_medium=paid&utm_campaign=respan-gateway&bfcid=bfc_1.eyJpZCI6ImMwZWU0YmM5LTNkZTAtNDA2ZS04YTU4LTU5MTFkMDgwZjkxMiIsImMiOiIyMDM2ODZkZS1mMzg0LTQ4NTQtYmViNC1hYzBiYWRmNmM1NTUiLCJrIjoiM2IxMGE4YmUtNzgyOS00MmJhLWFmNmEtYmI0YWUxZTRhY2Y4IiwiaWF0IjoxNzkzODIwNTU1fQ.x926rcSBqpt1Jalqxe-fPvgRSl30NPkOyw9dcMPIvRk), an open-source gateway that runs quietly on this PC.
+
+* **Nothing to sign up for.** The gateway is open source (MIT) and spends the Anthropic key you already saved in Settings. No Respan account, no Respan key, no credits, and nothing is traced or sent anywhere else. Your key reaches the gateway in its memory for the length of a request; it is never written into the gateway's own files.
+* **One local door.** It listens on `127.0.0.1` only, starts the first time a Claude model is used, and stops with Moundshroud. Because it speaks the same Anthropic API, the request Moundshroud sends is byte for byte the one it always sent - so routing, retries and a request log now have one place to live, without any other part of the app changing.
+* **It is optional.** With it not installed, or not started, Claude answers straight from Anthropic exactly as before, and `/api/cloud` says `gateway: off` (or why it failed).
+* **Installing it:** Python 3.10 or newer is needed (the app's `pyenv` is fine), then one command:
+  ```
+  powershell -ExecutionPolicy Bypass -File install-gateway.ps1
+  ```
+  It makes a private environment in `.venv` and installs `respan-gateway==0.3.0` (wheels only, no build). Close Moundshroud first and open it again afterwards: it looks for the gateway when it starts.
+* **By hand:** `.\\.venv\\Scripts\\python.exe -m respan_gateway` serves it on `http://127.0.0.1:8080` (`/ui/` there shows the live request log); Ctrl+C stops it. Moundshroud starts its own copy when it needs one, on a free port, so there is nothing to keep running. `.\\install-gateway.ps1` is the restart command after a Python change.
+* **What was checked here:** `node tests\run.js` sends one Claude request and one streamed request through the gateway to a pretend Anthropic server on this PC (`tests\gateway-test.js`). It passed: the reply came back through the gateway, the stream arrived as the chat window reads it, the provider saw the real key the gateway holds rather than the caller's placeholder, and the app fell back to Anthropic's own address when the gateway was taken away. **No live Anthropic request was made or verified** during that check - that happens the next time you chat with a Claude model, in this PC's normal app.
+
 ## Your data and backups
 * Everything you create is stored on this PC: notes in `Documents\Assistant Notes`, server data in `data\`, and the rest in the Moundshroud window's own browser storage (`edge-profile\`).
 * **Settings > Back up everything** makes one zip with all of it (choose where to save it, for example an external drive). **Restore from a backup** puts it back. Imported songs, offline libraries and AI models are not in the backup.
@@ -68,6 +82,7 @@ Bible texts: World English Bible and Douay-Rheims (public domain). Music: Kevin 
 
 ## For developers
 * `node tests/run.js` runs the automated checks (about 120: the chess engine, the news and markets code, the vault, photos, the mail client against a pretend mail server, the release rules and more). Run it before every release.
+* `install-gateway.ps1` adds the Respan Gateway (`.venv`, `respan-gateway==0.3.0`, the same pin as `requirements.txt`); `lib/gateway.js` starts it for Claude requests and `py/gatewayworker.py` is the worker it starts. `node tests\run.js` checks the whole path against a pretend Anthropic server on this PC, and says so plainly and carries on if the gateway is not installed.
 * `.make-release.ps1 -Verify` builds the two release zips and installs them into a folder with spaces, an accented letter and an apostrophe in its name to prove setup still works there.
 * The server has no npm dependencies: `node server.js` with Node 24 is all it needs. `MOUNDSHROUD_PORT` runs a second copy on another port for testing (it uses the same `data` folder, so test with care).
 * `.gitignore` lists only the program’s own files; personal data, downloads, the browser profile, snapshots and releases can never be committed.

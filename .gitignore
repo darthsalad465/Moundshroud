@@ -25,6 +25,8 @@
 !/restore-progress.ps1
 !/install-art-model.ps1
 !/install-music-model.ps1
+!/install-gateway.ps1
+!/requirements.txt
 !/lib/
 !/py/
 !/web/

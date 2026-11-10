@@ -6,6 +6,7 @@ const U = require('./lib/util'), docs = require('./lib/docs'), kiwix = require('
 const safe = require('./lib/safe');
 const problems = require('./lib/problems');
 const cloud = require('./lib/cloud');
+const gateway = require('./lib/gateway');
 const net = require('./lib/net');
 const news = require('./lib/news');
 const privacy = require('./lib/privacy');
@@ -32,6 +33,7 @@ function killTree(pid) { try { cp.spawnSync('taskkill', ['/PID', String(pid), '/
 function cleanup() {
   if (spawnedOllama && spawnedOllama.pid) { killTree(spawnedOllama.pid); spawnedOllama = null; }
   kiwix.stop(); voice.stop(); docs.close(); try { office.stop(); } catch (e) {}
+  try { gateway.stop(); } catch (e) {}
 }
 try { require('./lib/chess-sf').setActive(() => Date.now() - lastPing < 90000); } catch (e) { }
 function shutdown() { if (down) return; down = true; cleanup(); setTimeout(() => process.exit(0), 200); }
