@@ -34,6 +34,7 @@ function cleanup() {
   if (spawnedOllama && spawnedOllama.pid) { killTree(spawnedOllama.pid); spawnedOllama = null; }
   kiwix.stop(); voice.stop(); docs.close(); try { office.stop(); } catch (e) {}
   try { gateway.stop(); } catch (e) {}
+  try { harness.stop(); } catch (e) {}      // the hidden Claude Code process of the in-app agent
 }
 try { require('./lib/chess-sf').setActive(() => Date.now() - lastPing < 90000); } catch (e) { }
 function shutdown() { if (down) return; down = true; cleanup(); setTimeout(() => process.exit(0), 200); }
@@ -116,6 +117,8 @@ const CHESSBOOKS = path.join(__dirname, 'nomad', 'chessbooks');
 /* the picture model: the compact ready-made q8 copy (3.9 GB) when it is there, else the original (6.5 GB, made compact in memory each time) */
 /* pictures, music, voices and video: the engines live in lib/media.js; teams and swarms in lib/swarm.js */
 const media = require('./lib/media'), swarm = require('./lib/swarm'), swarmModel = require('./lib/swarm-model');
+const safeDir = require('./lib/safe-dir'), harnessLib = require('./lib/harness');
+const harnessStore = harnessLib.store(DATA), harness = harnessLib.create({ save: rec => harnessStore.save(rec) });
 function serveFile(res, root, rel, req) {
   const f = path.normalize(path.join(root, rel)), inside = path.relative(root, f);          // must really be inside the folder (not just share its first letters)
   if (String(rel).includes('\0') || inside.startsWith('..') || path.isAbsolute(inside) || !fs.existsSync(f) || !fs.statSync(f).isFile()) { res.writeHead(404); return res.end('not found'); }
@@ -357,6 +360,25 @@ const mainServer = http.createServer(async (req, res) => {
     }
     if (url === '/api/docs/open' && req.method === 'POST') { const b = await jbody(req, 1e5); if (!allowedPath(b.path)) return json(res, 403, { error: 'not allowed' }); cp.spawn('explorer.exe', [b.path], { detached: true, stdio: 'ignore' }).unref(); return json(res, 200, { ok: true }); }
     /* ---- the local coding agent (Gemma in Ollama): report whether it is set up, open it in its own window ---- */
+    /* ---- the in-app agent: Claude Code runs hidden and the Agent tab shows the conversation (lib/harness.js) ---- */
+    if (url === '/api/harness/state') return json(res, 200, harness.state(q.get('since')));
+    if (url === '/api/harness/sessions') return json(res, 200, { sessions: harnessStore.list() });
+    if (url === '/api/harness/send' && req.method === 'POST') { const b = await jbody(req, 1e5); return json(res, 200, harness.send(b.text)); }
+    if (url === '/api/harness/answer' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, harness.answer(b.id, b.allow === true)); }
+    if (url === '/api/harness/stop' && req.method === 'POST') return json(res, 200, harness.stop());
+    if (url === '/api/harness/show' && req.method === 'POST') { const b = await jbody(req, 1e4), rec = harnessStore.get(String(b.id || '')); return json(res, 200, rec ? harness.show(rec) : { ok: false, error: 'That conversation is no longer kept.' }); }
+    if (url === '/api/harness/forget' && req.method === 'POST') { const b = await jbody(req, 1e4); harnessStore.forget(String(b.id || '')); return json(res, 200, { ok: true }); }
+    if (url === '/api/harness/start' && req.method === 'POST') {
+      const b = await jbody(req, 1e4);
+      return agent.list(async (up, models) => {
+        /* the model, the memory size and the folder come from the page and are checked exactly as for the terminal agent */
+        const c = agent.check({ model: b.model, guard: !!b.guard, ctx: b.ctx }, models); if (!c.ok) return json(res, 200, c);
+        let dir = String(b.dir || '').trim();
+        if (!dir) { dir = path.join(agent.DIR, 'workspace'); try { fs.mkdirSync(dir, { recursive: true }); } catch (e) { } }
+        const sd = safeDir.check(dir); if (!sd.ok) return json(res, 200, sd);
+        json(res, 200, await harness.start({ check: c, dir: sd.dir, resume: b.resume }));
+      });
+    }
     if (url === '/api/agent/status') return agent.status(s => json(res, 200, s));
     if (url === '/api/agent/launch' && req.method === 'POST') { const b = await jbody(req, 1e4); return agent.list((up, models) => json(res, 200, agent.launch(b.dir, { model: b.model, guard: !!b.guard, ctx: b.ctx }, models))); }
     if (url === '/api/pick-folder' && req.method === 'POST') {
