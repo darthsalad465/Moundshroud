@@ -387,7 +387,15 @@
 </ul>` },
     { id: 'agent', icon: '🤖', title: 'Coding agent (Chat)', html: `
 <p><b>Chat &rarr; 🤖 Agent</b> (the second tab at the top of the Chat page) opens a free coding helper that runs on this PC. You type what you want built or fixed, and it reads, writes and edits files and runs commands. It is Claude Code's tools driven by a model in Ollama, so nothing leaves this PC.</p>
-<h3>Using it</h3>
+<h3>Talking to it on the page</h3>
+<ul>
+<li>Type what you want in the box at the bottom and press Enter. The first message starts a session; the first time with a model takes about a minute.</li>
+<li>Its words appear as it writes. Each file it reads or writes and each command it runs is shown, with what came back.</li>
+<li>When a command needs your say, a card shows the command with <b>Allow</b> and <b>Refuse</b>. Read it first. With no answer in 5 minutes it is refused.</li>
+<li><b>Stop</b> ends what it is doing. <b>Continue</b> picks the same conversation up again. <b>Earlier</b> lists the last 20 conversations.</li>
+<li><b>Settings</b> holds the model, the memory size, the folder and how far it may reach. <b>Open in a terminal window instead</b>, in Settings, runs the same agent in a console window of its own.</li>
+</ul>
+<h3>Settings</h3>
 <ul>
 <li>The page checks that everything is in place: the agent's launcher, Claude Code, Ollama and the models. A warning line says what is missing.</li>
 <li><b>Model</b> lists every model Ollama has. A model that cannot use tools is greyed out, because the agent works through tools. The first start with a model makes a copy of it with a longer memory.</li>
