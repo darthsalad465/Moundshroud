@@ -79,7 +79,7 @@ if (Test-Path $exeL) { Say 'Already built.' Green }
 else {
   $csc = @("$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe", "$env:WINDIR\Microsoft.NET\Framework\v4.0.30319\csc.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
   if (-not $csc) { $problems += 'Could not build the hotkey helper (Windows .NET compiler not found). Moundshroud still works from its shortcut.' }
-  else { Say 'Building it from its source code on this PC (so nothing unknown is run)...'; & $csc /nologo /target:winexe "/out:$exeL" /r:System.Windows.Forms.dll /r:System.Drawing.dll (Join-Path $root 'Listener.cs') | Out-Null; if (Test-Path $exeL) { Say 'Built.' Green } else { $problems += 'The hotkey helper did not build. Moundshroud still works from its shortcut.' } }
+  else { Say 'Building it from its source code on this PC (so nothing unknown is run)...'; $speech = Join-Path (Split-Path $csc) 'WPF\System.Speech.dll'; & $csc /nologo /target:winexe "/out:$exeL" /r:System.Windows.Forms.dll /r:System.Drawing.dll "/r:$speech" (Join-Path $root 'Listener.cs') | Out-Null; if (Test-Path $exeL) { Say 'Built.' Green } else { $problems += 'The hotkey helper did not build. Moundshroud still works from its shortcut.' } }
 }
 
 Step '6. Shortcuts'

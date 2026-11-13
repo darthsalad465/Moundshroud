@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Counter game</title>
+</head>
+<body>
+<h1>Counter</h1>
+<p id="score">Score: 0</p>
+<!-- Reset comes first: on a fresh page it changes nothing until Add has been clicked -->
+<button id="reset">Reset</button>
+<button id="add">Add one</button>
+<button id="new">New Game</button>
+<input type="button" id="double" value="Double">
+<div role="button" id="half" tabindex="0">Halve</div>
+<a href="#rules">Rules</a>
+<button data-check="skip">Debug</button>
+<div data-check="skip"><span role="button">Hidden tools</span></div>
+<canvas id="board" width="60" height="20"></canvas>
+<h2 id="rules">Rules</h2>
+<p>Click Add one.</p>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  let score = 0, games = 1;
+  const show = () => {
+    document.getElementById('score').textContent = 'Score: ' + score + ' (game ' + games + ')';
+    const g = document.getElementById('board').getContext('2d');
+    g.clearRect(0, 0, 60, 20); g.fillRect(0, 0, Math.min(60, score * 5), 20);
+  };
+  document.getElementById('reset').addEventListener('click', () => { score = 0; show(); });
+  document.getElementById('add').addEventListener('click', () => { score++; show(); });
+  document.getElementById('new').addEventListener('click', () => { score = 0; games++; show(); });
+  document.getElementById('double').addEventListener('click', () => { score *= 2; show(); });
+  document.getElementById('half').addEventListener('click', () => { score = Math.floor(score / 2); show(); });
+  show();
+});
+</script>
+</body>
+</html>

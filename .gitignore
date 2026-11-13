@@ -29,6 +29,7 @@
 !/install-gateway.ps1
 !/requirements.txt
 !/lib/
+!/agent/
 !/py/
 !/web/
 !/tests/

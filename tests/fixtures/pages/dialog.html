@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Dialogs</title>
+</head>
+<body>
+<p id="msg">Nothing yet</p>
+<button id="quit">Quit</button>
+<button id="hello">Hello</button>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const msg = document.getElementById('msg');
+  let n = 0;
+  document.getElementById('quit').addEventListener('click', () => { n++; msg.textContent = (confirm('Quit the game?') ? 'Quit ' : 'Stayed ') + n; });
+  document.getElementById('hello').addEventListener('click', () => { alert('Hello'); n++; msg.textContent = 'Said hello ' + n; });
+});
+</script>
+</body>
+</html>

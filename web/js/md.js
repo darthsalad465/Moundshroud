@@ -5,7 +5,7 @@ function mdInline(s) {
 function md(t) {
   const parts = t.split(/```/); let out = '';
   parts.forEach((p, i) => {
-    if (i % 2) { const nl = p.indexOf('\n'); const code = nl >= 0 && /^[\w+#.-]*$/.test(p.slice(0, nl).trim()) ? p.slice(nl + 1) : p; out += '<pre><button class="cp">Copy</button><code>' + esc(code.replace(/\n$/, '')) + '</code></pre>'; return; }
+    if (i % 2) { const nl = p.indexOf('\n'), hasLang = nl >= 0 && /^[\w+#.-]*$/.test(p.slice(0, nl).trim()), code = hasLang ? p.slice(nl + 1) : p, lang = hasLang ? p.slice(0, nl).trim().toLowerCase() : ''; out += '<pre' + (lang ? ' data-lang="' + esc(lang) + '"' : '') + '><button class="cp">Copy</button><code>' + esc(code.replace(/\n$/, '')) + '</code></pre>'; return; }      /* data-lang: the chat's code interpreter adds ▶ Run to Python and JavaScript blocks */
     const lines = p.split('\n'); let list = null, html = '';
     const close = () => { if (list) { html += '</' + list + '>'; list = null; } };
     for (const ln of lines) {

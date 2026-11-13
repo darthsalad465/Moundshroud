@@ -109,7 +109,8 @@
       } catch (e) { st.innerHTML = '<span class="bad">' + (e.message || 'That did not work.') + '</span>'; } finally { clearInterval(tk); aiBusy = false; q('#aipg').disabled = false; }
     };
     q('#aipg').onclick = aiPixel; q('#aipp').onkeydown = e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) aiPixel(); };
-    if (window.AIArt && AIArt.pending) { const p = AIArt.pending; AIArt.pending = null; loadImg(p.url).then(im => { setSize(p.n); q('#aipn2').value = p.n; q('#pxmatch').checked = false; importImg(im); name = (p.prompt || 'AI art').slice(0, 30); q('#pxn').value = name; }); }
+    const takeArt = () => { if (window.AIArt && AIArt.pending && !AIArt.pending.mode) { const p = AIArt.pending; AIArt.pending = null; loadImg(p.url).then(im => { setSize(p.n); q('#aipn2').value = p.n; q('#pxmatch').checked = false; importImg(im); name = (p.prompt || 'AI art').slice(0, 30); q('#pxn').value = name; }); } };
+    takeArt(); body._onShow = takeArt;
     /* saving */
     const enc = f => { let s = ''; const u8 = new Uint8Array(f.buffer); for (let i = 0; i < u8.length; i += 8192) s += String.fromCharCode.apply(null, u8.subarray(i, i + 8192)); return btoa(s); }, dec = s => { const b = atob(s), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return new Uint32Array(u.buffer); };
     q('#pxsave').onclick = () => { const l = projects().filter(p => p.n !== name); l.unshift({ n: name, w: W, f: frames.map(enc), t: Date.now(), p: toCanvas([frames[0]], Math.max(1, Math.floor(96 / W))).toDataURL('image/png') }); try { ls.set('px_projects', JSON.stringify(l.slice(0, 30))); A.toast('Saved "' + name + '"'); } catch (e) { A.toast('Could not save (storage full?)'); } gallery(); };

@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node \"$MOUNDSHROUD_TOOLS/audit-pc.js\" *)"
+    ]
+  }
+}

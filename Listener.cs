@@ -7,6 +7,9 @@
 //   Ctrl+Alt+E : open MOUNDSHROUD at the emergency cards and contacts
 //   Ctrl+Alt+C : open MOUNDSHROUD at the clipboard history (history itself is opt-in, data\clip-on)\n//   Ctrl+Alt+S : draw a box on the screen, read the text inside it (Windows OCR) and copy it
 // Also shows reminders (data\reminders.tsv) as Windows notifications, even when the assistant window is closed.
+// Wake word: while data\wake-on exists it listens (offline Windows speech recognizer) for "Hey Moundshroud" and opens voice mode.
+// Agent routines: when data\routines-next.txt says one is due, it starts the server in the background so the routine runs.
+// Build: csc /target:winexe /out:assistant-listener.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Speech.dll Listener.cs
 // When the assistant window closes it tells the local server to shut down (which also stops the Ollama it started).
 using System;
 using System.Diagnostics;
@@ -18,6 +21,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
+using System.Speech.Recognition;
 using Microsoft.Win32;
 
 public class Listener : Form
@@ -74,8 +78,96 @@ public class Listener : Form
         AddClipboardFormatListener(h);
         BuildTray();
         watch.Interval = 2000; watch.Tick += Watch; watch.Start();
-        rem.Interval = 4000; rem.Tick += CheckReminders; rem.Start();
-        CheckReminders(null, null);
+        rem.Interval = 4000; rem.Tick += CheckReminders; rem.Tick += delegate { WakeCheck(); RoutineCheck(); RemoteCheck(); }; rem.Start();
+        CheckReminders(null, null); WakeCheck();
+    }
+
+    // ---------- wake word: "Hey Moundshroud" opens voice mode (only while data\wake-on exists) ----------
+    SpeechRecognitionEngine wake = null; DateTime lastWake = DateTime.MinValue; string wakeErr = null; ToolStripMenuItem wakeItem;
+    static string WakeFlag { get { return Path.Combine(Root, "data", "wake-on"); } }
+    void WakeStatus(string s) { try { File.WriteAllText(Path.Combine(Root, "data", "wake-status.txt"), s, new UTF8Encoding(false)); } catch { } }
+    void WakeCheck()
+    {
+        bool want = File.Exists(WakeFlag);
+        if (wakeItem != null) wakeItem.Checked = want;
+        if (want && wake == null && wakeErr == null) StartWake();
+        else if (!want && (wake != null || wakeErr != null)) { StopWake(); wakeErr = null; WakeStatus("off"); }
+    }
+    double WakeThreshold()
+    {
+        try { double t; string s = File.ReadAllText(WakeFlag).Trim(); if (double.TryParse(s, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out t) && t >= 0.3 && t <= 0.99) return t; } catch { }
+        return 0.75;
+    }
+    void StartWake()
+    {
+        try
+        {
+            System.Globalization.CultureInfo ci = new System.Globalization.CultureInfo("en-US");
+            SpeechRecognitionEngine e = new SpeechRecognitionEngine(ci);
+            GrammarBuilder gb = new GrammarBuilder(new Choices("hey moundshroud", "okay moundshroud", "hello moundshroud", "hey mound shroud")); gb.Culture = ci;
+            Grammar g = new Grammar(gb); g.Name = "wake"; e.LoadGrammar(g);
+            e.SetInputToDefaultAudioDevice();
+            e.SpeechRecognized += OnWake;
+            e.RecognizeAsync(RecognizeMode.Multiple);
+            wake = e; WakeStatus("listening");
+        }
+        catch (Exception ex)
+        {
+            wakeErr = ex.Message; WakeStatus("error: " + ex.Message);
+            try { tray.ShowBalloonTip(5000, "Wake word could not start", "Is a microphone connected and allowed for desktop apps? (" + ex.Message + ")", ToolTipIcon.Warning); } catch { }
+        }
+    }
+    void StopWake()
+    {
+        if (wake == null) return;
+        try { wake.RecognizeAsyncCancel(); } catch { }
+        try { wake.Dispose(); } catch { }
+        wake = null;
+    }
+    void OnWake(object s, SpeechRecognizedEventArgs e)
+    {
+        if (e.Result == null || e.Result.Confidence < WakeThreshold()) return;
+        if ((DateTime.Now - lastWake).TotalSeconds < 4) return;       // one phrase, one wake
+        lastWake = DateTime.Now;
+        BeginInvoke(new MethodInvoker(delegate { VoiceMode(); }));
+    }
+    void ToggleWake()
+    {
+        try { if (File.Exists(WakeFlag)) File.Delete(WakeFlag); else File.WriteAllText(WakeFlag, "0.75"); } catch { }
+        wakeErr = null; WakeCheck();
+    }
+
+    // ---------- phone access: while data\remote-on exists, keep the server running (it stops only on Quit) ----------
+    int remoteTick = 0; bool remoteEnsuring = false;
+    void RemoteCheck()
+    {
+        if (++remoteTick % 8 != 0 || remoteEnsuring) return;                       // about every 30 seconds
+        if (!File.Exists(Path.Combine(Root, "data", "remote-on"))) return;
+        remoteEnsuring = true;
+        /* a busy server can take more than a second to answer; only an address nobody listens on means it is really down */
+        ThreadPool.QueueUserWorkItem(delegate { try { if (!PortOpen(47231, 2000)) EnsureServer(); } catch { } remoteEnsuring = false; });
+    }
+
+    static bool PortOpen(int port, int ms)
+    {
+        try { using (System.Net.Sockets.TcpClient c = new System.Net.Sockets.TcpClient()) { IAsyncResult r = c.BeginConnect("127.0.0.1", port, null, null); bool ok = r.AsyncWaitHandle.WaitOne(ms) && c.Connected; try { c.EndConnect(r); } catch { } return ok; } }
+        catch { return false; }
+    }
+
+    // ---------- agent routines: start the server in the background when one is due and the app is closed ----------
+    long routineWoke = 0;
+    void RoutineCheck()
+    {
+        try
+        {
+            string f = Path.Combine(Root, "data", "routines-next.txt"); if (!File.Exists(f)) return;
+            long next; if (!long.TryParse(File.ReadAllText(f).Trim(), out next) || next == routineWoke) return;
+            long now = (long)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalMilliseconds;
+            if (now < next || now - next > 10L * 60L * 1000L) return;
+            routineWoke = next;
+            ThreadPool.QueueUserWorkItem(delegate { try { if (!PortOpen(47231, 2000)) EnsureServer(); } catch { } });
+        }
+        catch { }
     }
     protected override void SetVisibleCore(bool v) { base.SetVisibleCore(false); }
     protected override void WndProc(ref Message m)
@@ -408,6 +500,10 @@ public class Listener : Form
         menu.Items.Add("Quick note  (Ctrl+Alt+N)", null, delegate { QuickCapture(); });
         menu.Items.Add("Talk to MOUNDSHROUD  (Ctrl+Alt+V)", null, delegate { VoiceMode(); });
         menu.Items.Add("Emergency cards and contacts  (Ctrl+Alt+E)", null, delegate { OpenMode("emergency"); });
+        wakeItem = new ToolStripMenuItem("Listen for \"Hey Moundshroud\"");
+        wakeItem.Checked = File.Exists(WakeFlag);
+        wakeItem.Click += delegate { ToggleWake(); };
+        menu.Items.Add(wakeItem);
         ToolStripMenuItem auto = new ToolStripMenuItem("Start with Windows");
         auto.Checked = AutoStartOn();
         auto.Click += delegate { SetAutoStart(!AutoStartOn()); auto.Checked = AutoStartOn(); };
@@ -433,7 +529,7 @@ public class Listener : Form
     void Shutdown()
     {
         try { PostJson("/api/shutdown", "{}"); } catch { }
-        RemoveClipboardFormatListener(Handle); for (int i = 1; i <= 9; i++) UnregisterHotKey(Handle, i);
+        StopWake(); RemoveClipboardFormatListener(Handle); for (int i = 1; i <= 9; i++) UnregisterHotKey(Handle, i);
         tray.Visible = false; Application.Exit();
     }
 
@@ -483,7 +579,7 @@ public class Listener : Form
         else if (seen)
         {   // the window was closed -> shut the server (and the Ollama it started) down
             seen = false;
-            ThreadPool.QueueUserWorkItem(delegate { try { PostJson("/api/shutdown", "{}"); } catch { } });
+            ThreadPool.QueueUserWorkItem(delegate { try { PostJson("/api/shutdown", "{\"why\":\"closed\"}"); } catch { } });   // a running agent routine finishes first
         }
     }
 

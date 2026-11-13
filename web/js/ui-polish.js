@@ -22,18 +22,37 @@
   const place = c => {
     const a = c.querySelector(':scope > button.on, :scope > .on'); if (!a) { c.style.setProperty('--ink-w', '0px'); return; }
     c.style.setProperty('--ink-x', a.offsetLeft + 'px'); c.style.setProperty('--ink-w', a.offsetWidth + 'px'); c.style.setProperty('--ink-y', a.offsetTop + 'px'); c.style.setProperty('--ink-h', a.offsetHeight + 'px'); c.classList.add('inked');
-    if (c.scrollWidth > c.clientWidth + 4 && c.dataset.ink !== 'side') { const want = a.offsetLeft - (c.clientWidth - a.offsetWidth) / 2; try { c.scrollTo({ left: Math.max(0, want), behavior: c._ink === 2 ? 'smooth' : 'auto' }); } catch (e) { c.scrollLeft = want; } }
+    /* bring the active tab into view only when the active tab changed. Doing it on every repaint pulled the bar back
+       each time someone scrolled it, so tabs past the edge of the window could never be reached. */
+    const moved = c._lastOn !== a; c._lastOn = a;
+    if (moved && c.scrollWidth > c.clientWidth + 4 && c.dataset.ink !== 'side') { const want = a.offsetLeft - (c.clientWidth - a.offsetWidth) / 2; try { c.scrollTo({ left: Math.max(0, want), behavior: c._ink === 2 ? 'smooth' : 'auto' }); } catch (e) { c.scrollLeft = want; } }
     fades(c);
   };
-  const fades = c => { const max = c.scrollWidth - c.clientWidth; c.classList.toggle('fade-l', max > 4 && c.scrollLeft > 6); c.classList.toggle('fade-r', max > 4 && c.scrollLeft < max - 6); };
+  const fades = c => { const max = c.scrollWidth - c.clientWidth; c.classList.toggle('fade-l', max > 4 && c.scrollLeft > 6); c.classList.toggle('fade-r', max > 4 && c.scrollLeft < max - 6); if (c.id === 'nav') arrows(c); };
+  /* the main tab bar: when some tabs do not fit, an arrow at each end says so and moves the bar. They sit over the bar's
+     ends (outside it, because the bar fades its own edges) and follow its position. */
+  let arrL = null, arrR = null;
+  const arrows = c => {
+    if (!arrL) {
+      const mk = (cls, ch, label, dir) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'navarrow ' + cls; b.textContent = ch; b.title = label; b.setAttribute('aria-label', label); b.onclick = () => { const n = document.getElementById('nav'); if (n) n.scrollBy({ left: dir * Math.max(160, n.clientWidth * .6), behavior: 'smooth' }); }; document.body.appendChild(b); return b; };
+      arrL = mk('l', '‹', 'Show the tabs to the left', -1); arrR = mk('r', '›', 'Show more tabs', 1);
+    }
+    const r = c.getBoundingClientRect(), max = c.scrollWidth - c.clientWidth, shown = r.height > 8 && max > 4;
+    [arrL, arrR].forEach(b => { b.style.top = r.top + 'px'; b.style.height = r.height + 'px'; });
+    arrL.style.left = r.left + 'px'; arrR.style.left = (r.right - 30) + 'px';
+    arrL.classList.toggle('on', shown && c.scrollLeft > 6); arrR.classList.toggle('on', shown && c.scrollLeft < max - 6);
+  };
+  /* words beside the icon-only buttons in the top bar; pro/style CSS hides them (.hl) when the window is narrow */
+  const HL = { gs: 'Search', hist: 'History', cog: 'Settings', afbtn: 'Focus' };
+  const labels = () => Object.keys(HL).forEach(id => { const b = document.getElementById(id); if (!b || b.querySelector('.hl') || b.closest('header') !== document.querySelector('body > header')) return; const s = document.createElement('span'); s.className = 'hl'; s.textContent = HL[id]; b.appendChild(s); if (!b.getAttribute('aria-label')) b.setAttribute('aria-label', HL[id]); });
   const bind = (c, kind) => {
     if (c._ink) return; c._ink = 1; c.dataset.ink = kind; let raf = 0;
     const later = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { place(c); c._ink = 2; }); };
-    new MutationObserver(later).observe(c, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+    new MutationObserver(recs => { if (recs.every(r => r.type === 'attributes' && r.target === c)) return; later(); }).observe(c, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });      // the bar's own class changes (edge fades) are not a reason to re-place it
     c.addEventListener('scroll', () => fades(c), { passive: true });
     c.addEventListener('wheel', e => { if (kind === 'side' || c.scrollWidth <= c.clientWidth + 4 || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return; c.scrollLeft += e.deltaY; e.preventDefault(); }, { passive: false });
     addEventListener('resize', later); later();
   };
-  const scan = () => Object.keys(BARS).forEach(sel => document.querySelectorAll(sel).forEach(c => bind(c, BARS[sel])));
+  const scan = () => { Object.keys(BARS).forEach(sel => document.querySelectorAll(sel).forEach(c => bind(c, BARS[sel]))); labels(); const n = document.getElementById('nav'); if (n) arrows(n); };
   scan(); setInterval(scan, 1200); document.addEventListener('click', () => setTimeout(scan, 60), true);
 })();

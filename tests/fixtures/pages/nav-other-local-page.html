@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Goes to another local page</title>
+</head>
+<body>
+<p>Menu</p>
+<button id="play">Play</button>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('play').addEventListener('click', () => { location.href = 'nav-target.html'; });
+});
+</script>
+</body>
+</html>

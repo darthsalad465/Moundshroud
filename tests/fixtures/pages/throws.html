@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Throws</title>
+</head>
+<body>
+<p id="msg">Ready</p>
+<button id="start">Start</button>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  // startGame is used here but never defined
+  document.getElementById('start').addEventListener('click', () => { startGame(); });
+});
+</script>
+</body>
+</html>

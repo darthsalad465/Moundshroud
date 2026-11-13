@@ -5,14 +5,14 @@
   const root = $('p-tools');
   let sub = 'sys', chefLoaded = false;
   root.innerHTML = '<div class="row" style="padding:8px 12px;gap:6px;border-bottom:1px solid var(--line);flex-wrap:wrap" id="tsub"></div><div id="tbody" style="flex:1;min-height:0;display:flex;flex-direction:column"></div>';
-  const SUBS = [['sys', 'System'], ['conv', '🔄 Converter']];   // the Agent moved to Chat > Agent (web/js/agent.js)
+  const SUBS = [['sys', 'System'], ['conv', '🔄 Converter'], ['opt', '✨ Prompt optimizer']];   // the Agent moved to Chat > Agent (web/js/agent.js)
   /* a tool is still running only while the page it was opened in is the one on screen */
   const live = b => !!(b && b.isConnected && b.closest('.panel.on'));
   function tabs() { $('tsub').innerHTML = SUBS.filter(s => s[0] !== 'chef' || A.caps.chef).map(s => '<button class="ib' + (sub === s[0] ? ' on' : '') + '" data-s="' + s[0] + '">' + s[1] + '</button>').join(''); }
   $('tsub').onclick = e => { const b = e.target.closest('[data-s]'); if (b) go(b.dataset.s); };
   let tok = 0;
-  const RENDER = () => ({ docs: (x, my) => A.docs.render(x, my), office: x => A.officeEdit.render(x), sys, calc, rem, trans, clip, prm, conv: x => A.converter.render(x), agent: x => A.agent.render(x), scan: x => A.scanner.render(x), meet: x => A.meetings.render(x), vault: x => A.vault.render(x), puzz: x => A.puzzlemaker.render(x), chef });
-  function go(s) { if (s === 'agent' && A.agent && A.agent.open) return A.agent.open(); if (!SUBS.some(x => x[0] === s)) s = 'sys'; sub = s; tabs(); const b = $('tbody'); if (b._cleanup) { try { b._cleanup(); } catch (e) { } b._cleanup = null; } b.innerHTML = ''; ({ docs: (x, my) => A.docs.render(x, my), office: x => A.officeEdit.render(x), sys, calc, rem, trans, clip, prm, cyber: x => A.cyber.render(x), codes: x => A.cbLab.render(x), course: x => A.cybercourse.render(x), conv: x => A.converter.render(x), scan: x => A.scanner.render(x), meet: x => A.meetings.render(x), vault: x => A.vault.render(x), puzz: x => A.puzzlemaker.render(x), journal: x => A.journal.render(x), storage: x => A.storage.render(x), agent: x => A.agent.render(x), chef })[s](b, ++tok); }
+  const RENDER = () => ({ docs: (x, my) => A.docs.render(x, my), office: x => A.officeEdit.render(x), sys, calc, rem, trans, clip, prm, conv: x => A.converter.render(x), opt: x => A.promptOpt.render(x), agent: x => A.agent.render(x), scan: x => A.scanner.render(x), meet: x => A.meetings.render(x), vault: x => A.vault.render(x), puzz: x => A.puzzlemaker.render(x), chef });
+  function go(s) { if (s === 'agent' && A.agent && A.agent.open) return A.agent.open(); if (!SUBS.some(x => x[0] === s)) s = 'sys'; sub = s; tabs(); const b = $('tbody'); A.keep(b, s, el => ({ docs: (x, my) => A.docs.render(x, my), office: x => A.officeEdit.render(x), sys, calc, rem, trans, clip, prm, cyber: x => A.cyber.render(x), codes: x => A.cbLab.render(x), course: x => A.cybercourse.render(x), conv: x => A.converter.render(x), scan: x => A.scanner.render(x), meet: x => A.meetings.render(x), vault: x => A.vault.render(x), puzz: x => A.puzzlemaker.render(x), journal: x => A.journal.render(x), storage: x => A.storage.render(x), agent: x => A.agent.render(x), chef })[s](el, ++tok)); }
 
   /* ---- system dashboard ---- */
   function sys(b, my) {
@@ -166,7 +166,7 @@
     docs: () => A.showTab('docs'), office: () => A.showTab('offed'), calc: () => A.showTab('calc'), scan: () => A.showTab('scan'), meet: () => A.showTab('meet'), rem: () => A.showTab('rem'), clip: () => A.showTab('clip'),
     vault: () => A.cybertab.go('vault'), puzz: () => A.play.open('puzz'), trans: () => A.lang.translate(), prm: () => A.prep.open('prm') };
   /* show one of these tools inside another page (its new home): the same code, a fresh start each time it is opened */
-  const show = (s, b) => { const f = RENDER()[s]; if (!f) return; if (b._cleanup) { try { b._cleanup(); } catch (e) { } b._cleanup = null; } b.innerHTML = ''; f(b, ++tok); };
+  const show = (s, b) => { const f = RENDER()[s]; if (!f) return; A.keep(b, s, el => f(el, ++tok)); };
   A.tools = { subs: SUBS, show, managePrompts() { A.prep.open('prm'); }, go: s => { const m = MOVED[s]; if (m) return m(); sub = s; A.showTab('tools'); } };
   A.registerTab('tools', 'Tools', () => go(sub));
 })();

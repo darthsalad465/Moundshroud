@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Goes to a missing page</title>
+</head>
+<body>
+<p>Menu</p>
+<!-- the page it goes to does not exist -->
+<button id="play">Play</button>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('play').addEventListener('click', () => { location.href = 'missing-game.html'; });
+});
+</script>
+</body>
+</html>

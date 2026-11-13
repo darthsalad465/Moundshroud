@@ -142,17 +142,20 @@
       const bgL = .299 * bg[0] + .587 * bg[1] + .114 * bg[2];
       const sh = n / (w * h) > .045 ? shapeOf(mask, w, h) : null;
       /* how light the whole piece is: every pixel inside its outline, the outline included */
-      let sumL = 0, cnt = 0; if (sh) for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (sh.full[y * w + x]) { sumL += lum(d, ((Y + inner + y) * N + X + inner + x) * 4); cnt++; }
+      let sumL = 0, cnt = 0, light = 0; if (sh) for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (sh.full[y * w + x]) { const i = ((Y + inner + y) * N + X + inner + x) * 4, l = lum(d, i); sumL += l; cnt++; if (l > 175 && l > bgL + 12 && Math.hypot(d[i] - bg[0], d[i + 1] - bg[1], d[i + 2] - bg[2]) > T * .6) light++; }      /* light, and not the square showing through a gap in the piece */
       /* how black a piece is: how much of its shape is ink, times how dark that ink is. A white piece is light, or (in
          books) a hollow outline; a black piece is solid and dark. */
       const inkL = L.length ? L.reduce((a, b) => a + b, 0) / L.length : 0, ink = sh ? Math.min(1, n / sh.area) : 0;
-      sq.push({ r, c, bgL, sh: sh && sh.area / (w * h) > .06 && sh.bh > h * .25 ? sh : null, Lin: cnt ? sumL / cnt : 0, ink, dark: ink * ink * (1 - inkL / 255) });   /* solid and dark = black; an outline with the square showing through = white */
+      /* lightFrac: how much of the piece, inside its outline, is light. A website's white piece is a white body with a black
+         outline and black details (which alone made it look as dark as a black piece); a black piece has almost no light inside. */
+      sq.push({ r, c, bgL, sh: sh && sh.area / (w * h) > .06 && sh.bh > h * .25 ? sh : null, Lin: cnt ? sumL / cnt : 0, ink, dark: ink * ink * (1 - inkL / 255), lightFrac: cnt ? light / cnt : 0 });   /* solid and dark = black; an outline with the square showing through = white */
     }
     let occ = sq.filter(s => s.sh), hmax = 0;
     const judge = () => {
       /* white or black: two groups of brightness (a white piece is light inside its dark outline; a black piece is dark) */
-      const v = s => 1 - s.dark; let lo = Math.min(...occ.map(v)), hi = Math.max(...occ.map(v));     /* high = white */
+      const v = s => .5 * (1 - s.dark) + .5 * s.lightFrac; let lo = Math.min(...occ.map(v)), hi = Math.max(...occ.map(v));     /* high = white */
       if (hi - lo < .2) { occ.forEach(s => s.white = v(s) > .38); }
+      else if ((() => { const a = occ.map(v).sort((x, y) => x - y); let g = 0, at = 0; for (let i = 1; i < a.length; i++) if (a[i] - a[i - 1] > g) { g = a[i] - a[i - 1]; at = (a[i] + a[i - 1]) / 2; } if (g < .08) return false; occ.forEach(s => s.white = v(s) > at); return true; })()) { }      /* the clearest break between the two colours: white pieces vary a lot (a pawn shows less white body than a knight), so averaging two groups put white pawns with the black pieces */
       else { for (let it = 0; it < 12; it++) { const A = [], B = []; occ.forEach(s => (Math.abs(v(s) - lo) < Math.abs(v(s) - hi) ? A : B).push(v(s))); if (A.length) lo = A.reduce((a, b) => a + b) / A.length; if (B.length) hi = B.reduce((a, b) => a + b) / B.length; } occ.forEach(s => s.white = Math.abs(v(s) - hi) < Math.abs(v(s) - lo)); }
       /* which piece: the outline against every reference piece, with its height compared with the tallest piece on the board */
       hmax = Math.max(...occ.map(s => s.sh.bh));
@@ -201,7 +204,7 @@
     let flipped = opts.flipped !== undefined ? opts.flipped : below - blackBelow < 0;
     const board = Array(64).fill(''), conf = Array(64).fill(1);
     occ.forEach(s => { let r = s.r, c = s.c; if (flipped) { r = 7 - r; c = 7 - c; } const i = r * 8 + c; let t = s.t; if (t === 1 && (r === 0 || r === 7)) { t = [2, 3, 4, 5].sort((a, b) => s.scores[b] - s.scores[a])[0]; s.conf = Math.min(s.conf, .3); } board[i] = s.white ? TYPES[t] : TYPES[t].toLowerCase(); conf[i] = s.conf; });
-    return { board, conf, flipped, pieces: occ.length, debug: opts.debug ? occ.map(o => ({ sq: 'abcdefgh'[o.c] + (8 - o.r), t: o.t, white: o.white, dark: +o.dark.toFixed(2), ink: +o.ink.toFixed(2), hn: +(o.sh.bh / hmax).toFixed(2), asp: +o.sh.asp.toFixed(2), sc: o.scores.slice(1).map(x => +x.toFixed(2)) })) : undefined };
+    return { board, conf, flipped, pieces: occ.length, debug: opts.debug ? occ.map(o => ({ sq: 'abcdefgh'[o.c] + (8 - o.r), t: o.t, white: o.white, dark: +o.dark.toFixed(2), ink: +o.ink.toFixed(2), lf: +o.lightFrac.toFixed(2), hn: +(o.sh.bh / hmax).toFixed(2), asp: +o.sh.asp.toFixed(2), sc: o.scores.slice(1).map(x => +x.toFixed(2)) })) : undefined };
   }
 
   /* ---------- the position as FEN ---------- */
