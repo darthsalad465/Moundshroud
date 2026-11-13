@@ -45,6 +45,25 @@ A.notify = (kind, m, ms) => {
 };
 A.toast = (m, ms) => A.notify(guessKind(m), m, ms);
 
+/* keep-alive pages: in a host that shows one page at a time (Studio, Tools, Prepare, the tool tabs, Cyber, Chat's panes),
+   each page is made once and then only hidden and shown again. Switching away never throws away a picture being drawn,
+   a reply being written or a form half filled in. A page may set el._onShow (run each time it comes back, e.g. to take
+   something sent to it) and el._onHide. opts.fresh makes it again from scratch (its _cleanup runs first). */
+A.keep = (host, key, render, opts) => {
+  opts = opts || {}; if (!host) return null;
+  if (!host._kp || host._kpGone) { if (host._cleanup) { try { host._cleanup(); } catch (e) { } host._cleanup = null; } host.innerHTML = ''; host._kp = {}; host._kpGone = false; }
+  const P = host._kp, drop = el => { if (el._cleanup) { try { el._cleanup(); } catch (e) { } } el.remove(); };
+  for (const k of Object.keys(P)) if (k !== key) { const el = P[k]; if (!el.isConnected) { delete P[k]; continue; } if (!el.hidden) { el.hidden = true; if (el._onHide) { try { el._onHide(); } catch (e) { } } } }
+  let el = P[key];
+  if (el && (opts.fresh || !el.isConnected)) { drop(el); el = null; }
+  if (!el) {
+    el = document.createElement('div'); el.className = 'kpage'; el.dataset.kp = key; host.appendChild(el); P[key] = el;
+    try { render(el); } catch (e) { el.innerHTML = '<div class="pad bad">This page hit a problem: ' + String(e && e.message || e).replace(/[<>&]/g, '') + '</div>'; }
+  } else { el.hidden = false; if (el._onShow) { try { el._onShow(); } catch (e) { } } }
+  return el;
+};
+/* forget every kept page of a host (its pages' _cleanup runs); the next A.keep makes them fresh */
+A.keepReset = host => { if (!host || !host._kp) return; for (const el of Object.values(host._kp)) { if (el._cleanup) { try { el._cleanup(); } catch (e) { } } } host._kpGone = true; };
 A.registerTab = (name, label, onShow, opts = {}) => { A.tabs[name] = { label, onShow, hidden: !!opts.hidden }; A.order.push(name); };
 A.showTab = name => {
   if (!A.tabs[name]) return;

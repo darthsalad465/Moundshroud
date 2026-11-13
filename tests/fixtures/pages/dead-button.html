@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Dead button</title>
+</head>
+<body>
+<p id="score">Score: 0</p>
+<button id="add">Add one</button>
+<!-- no handler: the fault a local model makes most often -->
+<button id="new">New Game</button>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  let score = 0;
+  document.getElementById('add').addEventListener('click', () => { score++; document.getElementById('score').textContent = 'Score: ' + score; });
+});
+</script>
+</body>
+</html>

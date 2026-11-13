@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Animated, dead button</title>
+</head>
+<body>
+<p id="score">Score: 0</p>
+<canvas id="board" width="120" height="40"></canvas>
+<!-- no handler: the page animates by itself, which must not make this button pass -->
+<button id="new">New Game</button>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const g = document.getElementById('board').getContext('2d');
+  let x = 0;
+  const frame = () => { x = (x + 2) % 120; g.clearRect(0, 0, 120, 40); g.fillRect(x, 10, 20, 20); requestAnimationFrame(frame); };
+  requestAnimationFrame(frame);
+});
+</script>
+</body>
+</html>

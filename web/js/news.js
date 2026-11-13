@@ -638,10 +638,12 @@
   }
 
   /* ---------- the tab ---------- */
+  let nwShown = false;
   A.registerTab('news', 'News', async () => {
     if (!root.querySelector('#nwtop')) shell();
-    if (!D) { paintTop(); drawBody(); await load(); }
-    draw();
+    if (!D) { paintTop(); drawBody(); await load(); draw(); }
+    else if (!root.querySelector('#nwtop + *') || !nwShown) draw();       // coming back keeps the page as it was: a briefing or research still being written carries on
+    nwShown = true;
     if (stale() || (D && D.internet && !D.at)) refresh(false, true);
     clearInterval(timer);
     timer = setInterval(() => { if (A.cur === 'news' && !document.hidden && stale()) refresh(false, true); }, 60000);

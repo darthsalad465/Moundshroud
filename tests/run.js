@@ -496,7 +496,14 @@ try {
     await require('./gateway-test.js')(ok);
     try { await require('./agent-test.js')(ok); } catch (e) { ok('the agent module loads', false, e.message); }
     try { await require('./harness-test.js')(ok); } catch (e) { ok('the harness module loads', false, e.message); }
+    try { await require('./routines-test.js')(ok); } catch (e) { ok('the routines module loads', false, e.message); }
+    try { await require('./remote-test.js')(ok); } catch (e) { ok('the phone access module loads', false, e.message); }
+    try { await require('./olympics-test.js')(ok); } catch (e) { ok('the AI Olympics loads', false, e.message); }
+    try { await require('./longvideo-test.js')(ok); } catch (e) { ok('the long video module loads', false, e.message); }
     try { await require('./swarm-test.js')(ok); } catch (e) { ok('the swarm modules load', false, e.message); }
+    try { await require('./agent-modes-test.js')(ok); } catch (e) { ok('the agent modes module loads', false, e.message); }
+    try { await require('./bible-test.js')(ok); } catch (e) { ok('the bible expert test loads', false, e.message); }
+    try { await require('./checker-test.js')(ok); } catch (e) { ok('the page checker test loads', false, e.message); }
     try { const MT = require(path.join(__dirname, '..', 'lib', 'mail.js'))._t, pw = 'tést "pw" ✓', blob = await MT.protectPw(pw); ok('mail: Windows keeps the password protected and gives it back', !blob.includes('pw') && await MT.unprotectPw(blob) === pw); } catch (e) { ok('mail: Windows keeps the password protected', false, e.message); }
     console.log('\n' + pass + ' passed, ' + fail + ' failed');
     process.exit(fail ? 1 : 0);

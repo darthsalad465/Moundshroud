@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node \"$MOUNDSHROUD_TOOLS/trash.js\" *)"
+    ],
+    "deny": [
+      "Bash(rm *)",
+      "Bash(del *)",
+      "Bash(rmdir *)",
+      "Bash(rd *)",
+      "Edit({{ROOT}}/**)",
+      "Write({{ROOT}}/**)"
+    ]
+  }
+}

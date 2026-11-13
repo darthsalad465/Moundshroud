@@ -3,7 +3,7 @@
 // (3) add a hotkey to KEYS if it has one, and (4) add a STEPS entry if it deserves a mention in the tour. Bump GUIDE_UPDATED.
 (() => {
   const root = $('p-guide');
-  const GUIDE_UPDATED = '2026-10-31';
+  const GUIDE_UPDATED = '2026-11-13';
 
   const KEYS = [
     ['Ctrl + Alt + A', 'Open or hide Moundshroud, from anywhere'],
@@ -13,17 +13,29 @@
     ['Ctrl + Alt + S', 'Draw a box around anything on screen and copy its text (works on images, videos, PDFs)'],
     ['Ctrl + Alt + N', 'Quick note: type a thought or "remind me ..." from anywhere, press Enter'],
     ['Ctrl + Alt + V', 'Open Moundshroud in voice mode (talk hands-free)'],
+    ['“Hey Moundshroud”', 'Say it to open voice mode (switch on in Settings › Voice & sound, or the tray menu)'],
     ['Ctrl + Alt + C', 'Open the clipboard history (turn it on first in Tools)'],
     ['Ctrl + Alt + E', 'Open emergency cards and contacts (Prepare &rarr; People)'],
     ['Ctrl + K', 'Search everything: chats, notes, files, library'],
     ['Ctrl + N', 'New chat (or new note when you are in Notes)'],
     ['Ctrl + Shift + F', 'Focus mode: hide the top bar and tabs on any tab (⤢ in the top bar; Esc to leave)'],
     ['F1', 'This guide'],
-    ['Esc', 'Close a panel or dialog; with nothing open, close Moundshroud (it shuts everything down)'],
+    ['Esc', 'Stop a reply that is being written in Chat; close a panel or dialog; with nothing open, close Moundshroud (it shuts everything down)'],
+    ['Shift + Enter', 'Start a new line in the Chat and Agent message boxes (Enter alone sends)'],
   ];
 
   /* newest first */
   const CHANGELOG = [
+    ['2026-11-13', [
+      '<b>✝️ Chat &rsaquo; Bible Expert:</b> a new Chat tab for questions about Scripture, the Church and Christian history, answered for a Catholic reader. It finds passages in the texts you put in <code>data\\bible</code> (plain .txt files), hands them to your local model and cites them as [1], [2], so verses are quoted from the text and not from memory. Pick any model you have; the normal chat is unchanged.',
+      '<b>🦠 New game: Germ Theory</b> (Games &rarr; Adventure &amp; strategy). Pick a germ (bacterium, virus, fungus or parasite), a difficulty and a name, then click the region of a made-up world where it starts. Spend points on spread, symptoms and defenses, and wipe out all twelve regions before scientists finish a cure. Regions close airports, seaports and borders as they panic. Space pauses, 1 to 3 set the speed, and the game saves itself.',
+    ]],
+    ['2026-11-12', [
+      '<b>💬 Chat is easier to follow.</b> A reply now says what it is doing inside the bubble (looking through your files, thinking, writing). The Send button turns into <b>■ Stop</b>, and <kbd>Esc</kbd> stops a reply too. A reply that fails gets a <b>↻ Try again</b> button. Copy, Redo, Edit and the other actions are always on show under each message. Long chats sit in a centred column, code wraps and has its own Copy button, and <b>↓ Newest message</b> appears when you scroll up. The small <b>?</b> under the message box explains Think harder, Use libraries, Use my files and Web.',
+      '<b>🤖 Agent and 🐝 Swarm start simpler.</b> The Agent tab opens with a short explanation, three example tasks to click, and the folder, model and reach it will use. When the agent asks permission, the card says in plain words what it wants to do, and <b>Refuse</b> is the highlighted, safe choice. Swarm shows only the task, the folder and Start; the team and workflow editors open with one button.',
+      '<b>🧭 Top bar and tabs.</b> The top bar is shorter, the model list shows each model\'s size and full name, and the icon buttons carry words on a wide window. When the tabs do not all fit, arrows at the ends of the tab bar move it. Your corner companion now has a slot beside the message box and no longer covers buttons. Notifications appear above the message box, and chess community pop-ups show only on the Games tab.',
+      '<b>🌐 Browser home page fixed.</b> The Browser search page used to shrink away a few seconds after opening. It now stays.',
+    ]],
     ['2026-10-31', [
       '<b>⬆ Updates from inside the app.</b> When a newer Moundshroud is out, a small notice says so, and Settings › Backup & data › Updates shows what is new. Press Update now and it downloads, checks every file is intact, keeps your notes, chats, passwords and settings, and restarts in a few seconds; if the new version will not start, the old one is put back. It only looks (once a day) while internet access is switched on, and nothing installs until you say so.',
       '<b>📷 Scan a chess position from a picture.</b> Games › Chess › 📷 Scan: drop, paste or choose a screenshot, a diagram from a book or magazine, or a photo of a real board. Moundshroud finds the board, reads every square and puts the position on a board you can fix with a click, then Analyse it or play it out against Moundshroud as White or Black. It all happens on this PC; for a tilted photo, drag the four corners onto the board.',
@@ -391,8 +403,21 @@
 <ul>
 <li>Type what you want in the box at the bottom and press Enter. The first message starts a session; the first time with a model takes about a minute.</li>
 <li>Its words appear as it writes. Each file it reads or writes and each command it runs is shown, with what came back.</li>
-<li>When a command needs your say, a card shows the command with <b>Allow</b> and <b>Refuse</b>. Read it first. With no answer in 5 minutes it is refused.</li>
-<li><b>Stop</b> ends what it is doing. <b>Continue</b> picks the same conversation up again. <b>Earlier</b> lists the last 20 conversations.</li>
+<li>When a command needs your say, a card shows the command with <b>Allow</b> and <b>Refuse</b>. Read it first. With no answer in 30 minutes it is refused.</li>
+<li><b>Stop</b> ends what it is doing. <b>Continue</b> picks the same conversation up again.</li>
+<li><b>Sessions:</b> the list on the left keeps your last 60 conversations, grouped by day, with a search box. Click one to read it; type in it to pick it up again. Only one session runs at a time (the graphics card holds one model), so if another is still working you are asked first. ✎ <b>New session</b> starts a fresh one. In a narrow window, ☰ shows the list.</li>
+<li><b>Under the message box:</b> the folder, model and reach for the next new session. Click one to change it.</li>
+</ul>
+<h3>Playbooks</h3>
+<ul>
+<li>Every session follows 7 short playbooks written for small models (agent\\playbooks\\core): plan, debug, check your work, review, explain, documents, safe. They add about 700 tokens to each session.</li>
+</ul>
+<h3>Routines: the agent works by itself on a schedule</h3>
+<ul>
+<li><b>⏱ Routines</b> in the session list. Pick a suggestion (list TODOs, what changed in a project, a tidy plan for Downloads, the biggest files in a folder, check scripts for mistakes, a weekly notes digest) or make your own: a name, the task, a folder, when (every day, weekdays, once a week or every few hours), the model.</li>
+<li>Nobody is at the PC when a routine runs, so every permission question is refused automatically. A routine can read, search, list, run harmless checks and write in its own folder; it cannot delete, move, install or download.</li>
+<li>Each result waits under <b>Results</b> (with a count on ⏱ Routines) and on the Today page. Its full conversation is in the session list, marked ⏱. <b>Run now</b> tries one straight away; <b>Watch</b> shows it working.</li>
+<li>If Moundshroud is closed when a routine is due, the tray helper opens it in the background for the routine (the PC must be on). A run missed by more than 12 hours is skipped and noted. While you are using the agent yourself, a due routine waits.</li>
 <li><b>Settings</b> holds the model, the memory size, the folder and how far it may reach. <b>Open in a terminal window instead</b>, in Settings, runs the same agent in a console window of its own.</li>
 </ul>
 <h3>Settings</h3>
@@ -426,6 +451,70 @@
 <li>Every helper works under the same guard as the agent. Nobody is there to approve a command during a swarm, so deleting, installing and downloading are refused. Use Chat &rarr; Agent for that work.</li>
 <li>A step may take 15 minutes at most. A failed step is tried once more, then the run carries on.</li>
 <li>Keep tasks small: one file or a handful of files.</li>
+</ul>` },
+    { id: 'pictures', icon: '🪄', title: 'Pictures in chat, photo editing, better prompts', html: `
+<h3>Pictures in any chat</h3>
+<ul>
+<li>Say <b>“make me an image of …”</b>, <b>“draw a …”</b>, <b>“create a highly detailed picture of …”</b> or <b>/imagine …</b>. The AI on this PC first writes a detailed prompt, then the picture model draws it and the picture appears in the chat (kept in data\\art). Words like <i>wallpaper</i> or <i>portrait</i> pick the shape; <i>detailed</i> or <i>realistic</i> picks the higher quality.</li>
+<li>Attach a photo (📎) and say <b>“make it look like winter”</b>, <b>“remove the car”</b>, <b>“turn him into a knight”</b>: the photo is edited and sent back. Under each picture: Save, Another version, Edit it.</li>
+<li>Switch the automatic prompt off in Tools › ✨ Prompt optimizer.</li>
+</ul>
+<h3>Studio › AI art › 🪄 Edit a photo</h3>
+<ul>
+<li>Choose or drop a photo, say what to change, press Edit it. The result shows beside the original; ↪ Edit the result keeps going.</li>
+<li><b>Precise edit</b> uses the edit model (FLUX.1 Kontext dev, 4-bit, in imggen\\models\\kontext): it changes what you ask and keeps the rest. About 2 to 5 minutes on this PC. Its licence allows personal use, not selling the pictures.</li>
+<li><b>Quick redraw</b> uses the picture model: seconds, but it redraws the whole photo; the slider says how much may change.</li>
+<li>✨ Improve my words: the local AI looks at the photo and rewrites your words into the instruction the engine follows best.</li>
+</ul>
+<h3>Tools › ✨ Prompt optimizer</h3>
+<ul>
+<li>Pick what the prompt is for (picture, photo edit, photo redraw, chat question, coding agent, research, writing, video, music), say what you want, press Optimize. The local AI rewrites it with the rules that tool reads best, shows the tokens before and after, and Use it sends it there.</li>
+<li>Shorter, structured prompts make the small local models faster and more accurate.</li>
+</ul>` },
+    { id: 'olympics', icon: '🏅', title: 'AI Olympics and Debate (Chat)', html: `
+<p><b>Chat › 🏅 Olympics</b>: every model on this PC competes in the events it can do and wins medals.</p>
+<ul>
+<li><b>▶ Run the Games</b>: Reasoning, Instructions, Code (run against tests in a sealed sandbox), Knowledge, Speed, Vision (models that can see), Search (embedding models such as nomic-embed-text) and Writing (scored by a judge model you pick). Quick or Full. Models run one at a time; it keeps going while you use other pages.</li>
+<li><b>🏆 Medal table</b>: golds, silvers, bronzes and what each model is best at. Debate wins count too.</li>
+<li><b>🏗 Build-off</b>: pick or type a challenge; each model builds a one-page web toy. You see Entry A, B, C… without knowing who made which, give 🥇 🥈 🥉, then Reveal. Entries run sealed off: no access to Moundshroud, your files or the internet.</li>
+<li><b>🖼 Picture duel</b>: the picture models draw the same prompt; you pick blind.</li>
+</ul>
+<p><b>Chat › 🗣 Debate</b>: pick a motion (suggestions, your own, or 🎲 Random topic), two models (or 🎲 Random pair) and a judge. Three rounds each, then the verdict; agree or overrule it. Results are kept and count in the Olympics.</p>` },
+    { id: 'bible', icon: '✝️', title: 'Bible Expert (Chat)', html: `
+<p><b>Chat › ✝️ Bible</b>: ask about Scripture, the Church or Christian history and get an answer for a Catholic reader, with numbered sources under each reply.</p>
+<ul>
+<li><b>Your texts:</b> put plain <code>.txt</code> files (a Bible, the Catechism, Church Fathers, for example from Project Gutenberg) in <code>data\\bible</code>. New files are picked up on their own; the top of the page shows how many passages are loaded.</li>
+<li><b>How it answers:</b> the best-matching passages are found first and handed to the model, which must cite them as [1], [2] and say so when a verse is not in the texts. It marks anything from its general knowledge.</li>
+<li><b>Which model:</b> any local model; Gemma 4 12b is chosen when you have it. The choice is remembered. <b>New conversation</b> clears the page.</li>
+<li><b>Check it:</b> small models can still misread a passage. Open <b>Sources</b> under a reply to see the exact text it was given.</li>
+</ul>` },
+    { id: 'studiosessions', icon: '🖼️', title: 'Studio: AI art, music and video as sessions', html: `
+<ul>
+<li><b>Studio › 🖼️ AI art, 🎵 AI music, 🎬 AI video</b> look like Chat › Agent: your sessions on the left (new, search, switch, delete), what you asked and each result in the middle, the message box at the bottom with the tool's choices as chips.</li>
+<li>AI art: describe a picture, or 📎 attach (or drop, or paste) a photo and say what to change. Under each picture: Save, Edit it (attaches it to keep changing it), Album, Pixel art, 🎲 Again.</li>
+<li><b>Nothing stops when you look away.</b> Every request waits in one queue outside the page and its result lands in its session, even if you switch sessions, tools or tabs. Only closing Moundshroud stops a job (it is marked so you can press ↻).</li>
+<li>Every page of Studio, Tools, Prepare and the other tool tabs now stays as you left it when you switch away and back.</li>
+</ul>` },
+    { id: 'interp', icon: '🧮', title: 'Code interpreter (Chat)', html: `
+<ul>
+<li>With <b>🧮 Run code</b> ticked (under the chat box, on by default), a question that needs working out (sums, percentages, primes, dates, statistics, a chart, numbers in an attached CSV) gets a small program first. Moundshroud runs it and the AI answers from what it really printed. A box under the answer shows the code, the output and any chart.</li>
+<li>Every Python or JavaScript block in a chat answer has <b>▶ Run</b>, to try it yourself.</li>
+<li>The code runs sealed off on this PC: Python (with numpy, pandas and matplotlib) and JavaScript each run in a sandbox with no internet, no access to your files or Moundshroud's data, and a time limit (60 s for Python, 10 s for JavaScript). Files you attach to the chat are copied in (Python reads them from /data/).</li>
+</ul>` },
+    { id: 'longvideo', icon: '🎞️', title: 'Long videos (Studio › AI video)', html: `
+<ul>
+<li>Pick a <b>Length</b> (10 s up to 10 min, or Other… for any number of seconds). The AI writes a shot list from your idea; each shot (about 1 or 2 seconds) is made on this PC and all of them are joined into one MP4.</li>
+<li><b>🌊 Smooth</b>: every shot starts from the last picture of the shot before (the continuation model, Wan 2.1 VACE), so it flows on instead of cutting.</li>
+<li>Time: about a minute per second of video on this PC, so a 1-minute video takes about an hour. It runs on its own: you can use the rest of the app, and Moundshroud stays open in the background until it is done. If Moundshroud is closed half way, the finished shots are kept and <b>▶ Resume</b> carries on.</li>
+</ul>` },
+    { id: 'phone', icon: '📱', title: 'Phone access', html: `
+<p>Talk to Moundshroud from your phone: chat with a model on the PC, make pictures, drive the coding agent (Allow or Refuse its commands), see routine results. Set it up in <b>Settings › 📱 Phone access</b>.</p>
+<ul>
+<li>Set a PIN (6 to 12 digits), then pick <b>Home Wi-Fi</b>, <b>Tailscale</b> (anywhere) or <b>Both</b>. The page shows the address to open on the phone; add it to the home screen for an app icon.</li>
+<li>It listens only on this PC's home-network address and its Tailscale address, never on every address. Only the phone page and its few actions answer; everything else in Moundshroud stays private to this PC.</li>
+<li>5 wrong PINs lock that phone out for 15 minutes. Changing the PIN signs every phone out. Each phone's key lasts 60 days.</li>
+<li>While it is on, Moundshroud keeps running after its window closes. Quit in the tray menu stops it.</li>
+<li>The PC must be on and awake. The page explains how to switch it on from far away with a smart plug or Wake-on-LAN (a BIOS cannot hold an AI).</li>
 </ul>` },
     { id: 'aivideo', icon: '🎬', title: 'AI video (Studio)', html: `
 <p><b>Studio &rarr; 🎬 AI video</b> makes a short silent clip from a description, on this PC, with no internet. It uses the Wan 2.1 video model, run by the same engine as the pictures.</p>
@@ -511,7 +600,8 @@
 <li><b>Memory</b>: flip cards to find pairs in as few moves as possible.</li>
 <li><b>Minesweeper</b>: right-click (or turn on Flag mode) to flag mines; click a number to clear its neighbours once the flags match.</li>
 <li><b>Sudoku</b>: every puzzle has exactly one solution. Use Pencil for notes, Check to highlight mistakes and Hint to reveal a cell.</li>
-<li><b>Word Guess</b>: five letters, six tries. Green is the right spot, yellow is the wrong spot.</li></ul>
+<li><b>Word Guess</b>: five letters, six tries. Green is the right spot, yellow is the wrong spot.</li>
+<li><b>🦠 Germ Theory</b>: design a germ, click where it starts, and spend points on Spread, Symptoms and Defenses. Wipe out all twelve regions before the cure bar fills. Symptoms with 🔥 severity get you noticed sooner; click an owned symptom to remove it for 1 point. Space pauses and 1 to 3 change the speed.</li></ul>
 <p><b>Chess</b> is one card with sixteen tabs, including <b>🌐 Online</b>, <b>🏟 Tournament</b> and <b>👤 Profile</b> (see their sections). The newest are <b>🏛 History</b> and <b>⚙ Board settings</b> (see the next sections), and the Play tab now has <b>opponents with personalities you can chat with</b>. The original tabs:</p><ul><li><b>♟ Play</b>: play Moundshroud at any strength from 400 to 2400 Elo (approximate), as White, Black or random, with an optional clock (3+2, 5, 10 or 15+10), Hint, Undo, Flip, Resign and Offer draw. Click a move in the list to look back. Finished games are saved automatically; copy or download them as PGN.</li><li><b>🔬 Analysis</b>: load a game by <b>uploading a .pgn file</b> (or dragging it onto the page), pasting a PGN, a list of moves or a FEN position, picking one of your saved games or any of the 10 famous games. Press <b>Analyze</b> (Quick, Standard or Deep): every move is checked on several engine threads at once. You get an accuracy score for each side, a mark on every move (book, best, excellent, good, inaccuracy ?!, mistake ?, blunder ??), an evaluation graph, key moments and the engine's top lines for any position. Move pieces on the board to explore other ideas and press Back to return. <b>Turn my mistakes into puzzles</b> saves them to My puzzles.</li><li><b>🧑‍🏫 Coach</b>: the local AI explains moves and plans. In Analysis, the Coach tab sees the engine's verdict for the position you are looking at, so it explains why a move was a mistake, what the plan is, and writes a coaching report. The Coach tab also builds a training plan from all your analyzed games. If your main AI model cannot start (for example, graphics memory is full), the small model answers instead.</li><li><b>📘 Courses</b> (7 courses, 61 lessons: you play the key moves, answer quizzes, and finish with endless puzzles on that theme), <b>🧩 Puzzles</b> (never run out: Moundshroud generates them as you go, from one move to five. Hard puzzles really need several moves. Open <b>⚙ Customize</b> for the number of moves, themes, difficulty, side, board size, source, timer and more; save favourites or create your own from a FEN position, or press <b>🧩 Puzzles from my games</b> on the Trainer's card in Chess &gt; Opponents &gt; Learning bots and it will turn the moments where your own games went wrong into puzzles), <b>🏆 Famous games</b> (10 great games to watch with comments or play the winner's moves), <b>📖 Openings</b> and <b>🏁 Endgames</b>.</li></ul>
 <h3>Storyteller, Trivia and Fun</h3>
 <p><b>Storyteller</b> runs an adventure: pick a genre, then choose what happens next or type your own move. Your story is saved so you can continue later. <b>Trivia</b> writes a new quiz on any topic. <b>Fun with Moundshroud</b> opens jokes, riddles, 20 Questions, characters and writing prompts in Chat, plus a random Wikipedia article from your library.</p>

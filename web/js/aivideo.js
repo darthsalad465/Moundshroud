@@ -4,7 +4,8 @@
   if (typeof A === 'undefined' || !A.studio) return;
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const SIZES = [['416x240x17', 'Quick (416x240, 1 second)'], ['624x352x17', 'Medium (624x352, 1 second)'], ['624x352x33', 'Medium (624x352, 2 seconds)'], ['832x480x33', 'Large (832x480, 2 seconds, slow)']];
-  A.studio.reg('video', '🎬 AI video', body => {
+  /* the old one-page AI video (Studio now shows it as sessions: web/js/studio-sessions.js) */
+  window.AIVideoClassic = (body => {
     const root = document.createElement('div'); root.className = 'scroll pad'; root.style.flex = '1'; body.appendChild(root); const q = s => root.querySelector(s);
     root.innerHTML = '<h2 style="margin:0 0 4px">🎬 AI video</h2><div class="small mute" style="margin-bottom:10px">Type a scene and a short silent clip is made right here on your PC, with no internet. Say what is seen and how it moves. A quick clip takes about two minutes; larger ones take longer. Chat pauses while a clip is made, because the video model needs the graphics card.</div>' +
       '<div class="row" style="gap:14px;align-items:flex-start;flex-wrap:wrap"><div style="flex:1;min-width:280px;max-width:520px"><textarea id="vip" rows="3" placeholder="e.g. a red fox running through snow, camera following from the side" style="width:100%"></textarea>' +

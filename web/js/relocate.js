@@ -7,7 +7,7 @@
   const jp = document.getElementById('p-journal');
   if (jp && A.journal) {
     jp.innerHTML = '<div id="jrbody" style="flex:1;min-height:0;display:flex;flex-direction:column"></div>';
-    A.registerTab('journal', 'Journal', () => { const b = document.getElementById('jrbody'); if (b._cleanup) { try { b._cleanup(); } catch (e) { } b._cleanup = null; } b.innerHTML = ''; A.journal.render(b); });
+    A.registerTab('journal', 'Journal', () => { A.keep(document.getElementById('jrbody'), 'journal', el => A.journal.render(el)); });      // kept: a half-written entry stays
   }
   /* ---------- Cyber (Code Breaker, Cyber Course, Cyber Lab, CyberChef) ---------- */
   const cp = document.getElementById('p-cyber'); let cysub = ls.get('cysub', 'course');
@@ -36,8 +36,9 @@
   const cyShow = s => {
     cysub = s; ls.set('cysub', s); const bar = document.getElementById('cysub'), body = document.getElementById('cybody'); if (!bar || !body) return;
     let grp = ''; bar.innerHTML = CY.filter(x => x[0] !== 'chef' || A.caps.chef).map(x => { const h = x[2] !== grp ? (grp ? '<span style="width:1px;align-self:stretch;background:var(--line);margin:0 4px"></span>' : '') + '<span class="small mute" style="align-self:center">' + x[2] + '</span>' : ''; grp = x[2]; return h + '<button class="ib' + (x[0] === s ? ' on' : '') + '" data-s="' + x[0] + '">' + x[1] + '</button>'; }).join('');
-    if (body._cleanup) { try { body._cleanup(); } catch (e) { } body._cleanup = null; } body.innerHTML = '';
-    body.onclick = null; ({ course: b => A.cybercourse.render(b), codes: b => A.cbLab.render(b), cyber: b => A.cyber.render(b), vault: b => A.vault.render(b), games, chef })[s](body);
+    /* kept alive (A.keep), except the games, which stop when you leave them */
+    const R2 = { course: b => A.cybercourse.render(b), codes: b => A.cbLab.render(b), cyber: b => A.cyber.render(b), vault: b => A.vault.render(b), games, chef };
+    A.keep(body, s, el => R2[s](el), { fresh: s === 'games' });
   };
   if (cp) {
     cp.innerHTML = '<div class="row" id="cysub" style="padding:8px 12px;gap:6px;border-bottom:1px solid var(--line);flex-wrap:wrap"></div><div id="cybody" style="flex:1;min-height:0;display:flex;flex-direction:column"></div>';

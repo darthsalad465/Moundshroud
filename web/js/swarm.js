@@ -20,11 +20,16 @@
       '<div class="card"><div style="font-weight:600;margin-bottom:6px">The task</div><textarea id="swtask" rows="3" style="width:100%" placeholder="e.g. a snake game in one file, snake.html, with a score and a restart button"></textarea>' +
       '<div class="row" style="gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px"><label class="small mute">Workflow <select id="swflow"></select></label><button class="ib" id="swpick">Choose a folder...</button><span class="small mute" id="swdir" style="word-break:break-all"></span></div>' +
       '<div class="row" style="gap:8px;margin-top:10px;align-items:center"><button class="pri" id="swgo">▶ Start the swarm</button><button class="ib dang" id="swstop" style="display:none">■ Stop</button><span class="small mute" id="swmsg"></span></div></div>' +
+      '<div class="small mute" style="margin-top:8px">Three steps: describe the task, choose an empty folder, press Start. The ready-made team and workflow work as they are.</div>' +
       '<div id="swboard" style="margin-top:10px"></div>' +
+      /* the editors for teams and workflows stay folded away until asked for: a first run needs only the task, a folder and Start */
+      '<div class="row" style="margin-top:10px"><button class="ib" id="swadvbtn" aria-expanded="false" aria-controls="swadv"></button></div>' +
+      '<div id="swadv" style="display:none">' +
       '<div class="card" style="margin-top:10px"><div class="row" style="align-items:center;gap:8px;flex-wrap:wrap"><div style="font-weight:600;flex:1">Teams</div><select id="swteam"></select><button class="ib" data-act="team-new">New</button><button class="ib" data-act="team-copy">Copy</button><button class="ib dang" data-act="team-del">Delete</button></div><div id="swteamed" style="margin-top:8px"></div></div>' +
       '<div class="card" style="margin-top:10px"><div class="row" style="align-items:center;gap:8px;flex-wrap:wrap"><div style="font-weight:600;flex:1">Workflows</div><select id="swflowed"></select><button class="ib" data-act="flow-new">New</button><button class="ib" data-act="flow-copy">Copy</button><button class="ib dang" data-act="flow-del">Delete</button></div><div id="swflowbody" style="margin-top:8px"></div></div>' +
       '<div class="row" style="gap:8px;margin:12px 0;align-items:center"><button class="ib on" id="swsave" style="padding:8px 16px">Save teams and workflows</button><span class="small mute" id="swsavemsg"></span></div>' +
-      '<div class="card"><div style="font-weight:600;margin-bottom:6px">Good to know</div><ul class="small" style="margin:0;padding-left:18px;line-height:1.6">' +
+      '</div>' +
+      '<div class="card" style="margin-top:10px"><div style="font-weight:600;margin-bottom:6px">Good to know</div><ul class="small" style="margin:0;padding-left:18px;line-height:1.6">' +
       '<li><b>Keep tasks small.</b> These are small models. One file or a handful of files works; a large program does not.</li>' +
       '<li><b>The notes file.</b> Each helper reads and adds to SWARM-NOTES.md in the folder. That file is how they pass work to each other, and it is the first place to look when a run goes wrong.</li>' +
       '<li><b>Safety.</b> Every helper works under the same guard as the Agent tab. Nobody is there to approve a command during a swarm, so anything that would ask (deleting, installing, downloading) is refused and shown here. Use the Agent tab for that work.</li>' +
@@ -38,6 +43,8 @@
     const dirLine = () => { $('swdir').textContent = lsGet('swarmdir', '') || 'No folder chosen yet.'; };
     $('swtask').value = lsGet('swarmtask', ''); $('swtask').oninput = () => lsPut('swarmtask', $('swtask').value);
     dirLine();
+    const adv = open => { $('swadv').style.display = open ? '' : 'none'; $('swadvbtn').textContent = open ? '▾ Hide teams and workflows' : '⚙ Change teams and workflows (optional)'; $('swadvbtn').setAttribute('aria-expanded', open ? 'true' : 'false'); lsPut('swarmadv', open ? '1' : ''); };
+    adv(lsGet('swarmadv', '') === '1'); $('swadvbtn').onclick = () => adv($('swadv').style.display === 'none');
 
     const opt = (v, label, sel, dis) => '<option value="' + esc(v) + '"' + (sel ? ' selected' : '') + (dis ? ' disabled' : '') + '>' + esc(label) + '</option>';
     const modelOpts = cur => { const names = D.models.map(m => m.name); return (names.includes(cur) || !cur ? '' : opt(cur, cur + ' (not on this PC)', true)) + D.models.map(m => opt(m.name, m.name.replace(/:latest$/, '') + (m.tools ? '' : ' · cannot use tools'), m.name === cur, !m.tools)).join(''); };

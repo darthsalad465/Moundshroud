@@ -6,7 +6,7 @@
   const tools = []; let sub = ls.get('studio_sub', 'pixel'), tok = 0;
   root.innerHTML = '<div class="row" id="ssub" style="padding:8px 12px;gap:6px;border-bottom:1px solid var(--line);flex-wrap:wrap"></div><div id="sbody" style="flex:1;min-height:0;display:flex;flex-direction:column"></div>';
   const bar = () => { root.querySelector('#ssub').innerHTML = tools.map(t => '<button class="ib' + (sub === t.id ? ' on' : '') + '" data-s="' + t.id + '">' + t.label + '</button>').join(''); };
-  function go(id) { const t = tools.find(x => x.id === id) || tools[0]; if (!t) return; sub = t.id; ls.set('studio_sub', sub); bar(); const b = root.querySelector('#sbody'); try { A.speech && A.speech.stop && A.speech.stop(); } catch (e) { } if (b._cleanup) { try { b._cleanup(); } catch (e) { } b._cleanup = null; } b.innerHTML = ''; try { t.render(b, ++tok); } catch (e) { b.innerHTML = '<div class="pad bad">This tool hit a problem: ' + esc2(e.message) + '</div>'; } }
+  function go(id) { const t = tools.find(x => x.id === id) || tools[0]; if (!t) return; sub = t.id; ls.set('studio_sub', sub); bar(); const b = root.querySelector('#sbody'); try { A.speech && A.speech.stop && A.speech.stop(); } catch (e) { } A.keep(b, t.id, el => t.render(el, ++tok)); }      // kept alive: switching away never loses work in progress
   root.querySelector('#ssub').onclick = e => { const b = e.target.closest('[data-s]'); if (b) go(b.dataset.s); };
   /* tools that moved to tabs of their own (Writing, Practice and Teach me to Education, Albums to Personal) are taken out
      of Studio with take(); A.studio.go() still finds them there */

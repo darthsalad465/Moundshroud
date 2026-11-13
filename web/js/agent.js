@@ -1,30 +1,44 @@
-// Agent (Chat > Agent): the second tab of the Chat page. It opens the free coding agent that runs on this PC, a window of
-// its own where you type what you want built or fixed. It is Claude Code's tools driven by a model in Ollama, so nothing
-// leaves this PC. This page checks that it is set up, lets you pick the model, the folder and how far it may reach, and
-// opens it; the agent itself runs in its own window.
+// Agent (Chat > Agent): the second tab of the Chat page, laid out like the Claude Code desktop app. A list of sessions on
+// the left (switch between them, search, forget), the conversation in the middle with each tool step as a short line, and
+// a message box with the folder, model and reach underneath. The agent is Claude Code's tools driven by a model in Ollama
+// (lib/harness.js), so nothing leaves this PC. One session runs at a time, because the graphics card holds one model:
+// looking at an earlier session never stops the running one; typing in it does, after asking.
+// Routines (lib/routines.js) live here too: the agent does a task on a schedule and leaves the result in an inbox.
 (() => {
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; } };
   const lsPut = (k, v) => { try { if (v) localStorage.setItem(k, v); else localStorage.removeItem(k); } catch (e) { } };
-  const KEY = 'agentdir', MKEY = 'agentmodel', GKEY = 'agentguard', CKEY = 'agentctx';
+  const KEY = 'agentdir', MKEY = 'agentmodel', GKEY = 'agentguard', CKEY = 'agentctx', SKEY = 'agentside';
   const get = () => lsGet(KEY, ''), put = v => lsPut(KEY, v);
   const gb = n => n ? (n / 1073741824).toFixed(1) + ' GB' : '';
+  const bare = m => String(m || '').replace(/:latest$/, '');
+  const base = p => String(p || '').split(/[\\/]/).filter(Boolean).pop() || String(p || '');
+  const plain = t => String(t || '').replace(/[*`#_>]+/g, '').replace(/\s+/g, ' ').trim();      // a title without markdown marks
+  const mdx = t => typeof md === 'function' ? md(String(t || '')) : esc(t).replace(/\n/g, '<br>');
+  const ago = t => { const s = (Date.now() - t) / 1000; return s < 60 ? 'just now' : s < 3600 ? Math.round(s / 60) + ' min ago' : s < 86400 ? Math.round(s / 3600) + ' h ago' : new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }); };
+  const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  let wantView = '';      // A.agent.open('routines') asks for a page before the tab is drawn
 
   function render(b) {
-    let alive = true, st = null; b._cleanup = () => { alive = false; };
-    /* the page: a bar of buttons, then either the conversation with its message box, or the settings */
-    b.innerHTML = '<div style="flex:1;min-height:0;display:flex;flex-direction:column">' +
-      '<div class="row" style="padding:8px 12px;gap:6px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--line);flex:none">' +
-      '<button class="ib on" id="hnew" title="Start a fresh conversation with the model and folder chosen in Settings">▶ New session</button>' +
-      '<button class="ib" id="hcont" style="display:none" title="Pick this conversation up where it stopped">Continue</button>' +
-      '<button class="ib dang" id="hstop" style="display:none">■ Stop</button>' +
-      '<button class="ib" id="hset">⚙ Settings</button><button class="ib" id="hhist">🕘 Earlier</button>' +
-      '<span class="small mute" id="hline" style="flex:1;min-width:120px;word-break:break-all"></span></div>' +
-      '<div id="hconv" class="scroll pad" style="flex:1;min-height:0"><div id="hmsgs" style="max-width:860px"></div></div>' +
-      '<div class="composer" id="hcomp" style="flex:none"><div style="display:flex;gap:8px;align-items:flex-end"><textarea id="hin" rows="2" style="flex:1" placeholder="Tell the agent what to build or fix...  (Enter to send, Shift+Enter for a new line)"></textarea><button class="pri" id="hsend">Send</button></div></div>' +
+    let alive = true, st = null;
+    b.innerHTML = '<div class="agx" id="agx">' +
+      /* ---- the session list ---- */
+      '<aside class="agside" id="agside"><div class="agsidetop"><button class="agnew" id="hnew" title="Start a fresh conversation">✎ New session</button>' +
+      '<input id="agsq" type="search" placeholder="Search sessions" autocomplete="off"></div>' +
+      '<button class="agnavr" id="agrbtn" title="Tasks the agent does by itself on a schedule">⏱ Routines<span class="agbadge" id="agrbadge"></span></button>' +
+      '<div class="agslist" id="aglist"></div>' +
+      '<div class="agsidefoot"><button class="agnavr" id="hset">⚙ Agent settings</button></div></aside>' +
+      /* ---- the main column ---- */
+      '<section class="agmain"><div class="aghead"><button class="ib agtog" id="agtog" title="Show or hide the session list">☰</button>' +
+      '<div class="aghtitle"><b id="agtitle">New session</b><span class="small mute" id="agsub"></span></div>' +
+      '<span class="agstat" id="hline"></span><button class="ib" id="hcont" style="display:none" title="Pick this conversation up where it stopped">↻ Continue</button><button class="ib dang" id="hstop" style="display:none">■ Stop</button></div>' +
+      '<div id="hconv" class="scroll agconv"><div id="hmsgs" class="agtx"></div></div>' +
+      '<div class="agcomp" id="hcomp"><div class="agbox"><textarea id="hin" rows="2" placeholder="Tell the agent what to build or fix…"></textarea>' +
+      '<div class="agchips"><button class="agchip" id="agcdir"></button><button class="agchip" id="agcmod"></button><button class="agchip" id="agcreach"></button><span style="flex:1"></span><span class="small mute agkeys">Enter to send · Shift+Enter new line</span><button class="agsend" id="hsend" title="Send (Enter)">↑</button></div></div></div>' +
+      '<div id="agrout" class="scroll pad" style="flex:1;min-height:0;display:none"></div>' +
       '<div id="agset" class="scroll pad" style="flex:1;min-height:0;display:none"><div style="max-width:760px">' +
-      '<h2>🤖 Agent settings</h2>' +
-      '<div class="mute small" style="margin:2px 0 14px">A free coding helper that runs on this PC. Tell it what to build or fix; it reads, writes and edits files and runs commands. It uses a model in Ollama, so nothing leaves this PC. These choices are used by the next session you start.</div>' +
+      '<h2>⚙ Agent settings</h2>' +
+      '<div class="mute small" style="margin:2px 0 14px">A free coding helper that runs on this PC. Tell it what to build or fix; it reads, writes and edits files and runs commands. It uses a model in Ollama, so nothing leaves this PC. These choices are used by the next session you start, and are also under the message box.</div>' +
       '<div class="card" id="agst"><div class="mute small">Checking...</div></div>' +
       '<div class="card" style="margin-top:10px"><div style="font-weight:600;margin-bottom:6px">Model</div>' +
       '<select id="agmodel" style="max-width:100%"></select><div class="small mute" id="agmnote" style="margin-top:6px"></div>' +
@@ -40,26 +54,28 @@
       '<li><b>Good for:</b> small scripts, single-file projects and games, simple edits, explaining code.</li>' +
       '<li><b>Not good for:</b> big projects, careful debugging or long jobs left running unattended. These are small models: they can be confidently wrong and they forget after about 32,000 tokens.</li>' +
       '<li><b>Approvals:</b> read each command before you approve it. The guard catches known harmful commands; it cannot judge a command it has never seen, so those reach you as a question.</li>' +
+      '<li><b>Sessions:</b> the list on the left keeps your last 60 conversations. Click one to read it; type in it to pick it up again. Only one runs at a time.</li>' +
       '<li><b>Safety:</b> point it at a folder you have backed up, not at your documents or this app.</li>' +
       '<li><b>First run:</b> the first start with a model makes a copy of it with the chosen memory, which takes a minute. The terminal window also asks you to pick a text style once.</li>' +
-      '<li><b>Here or in a terminal:</b> the conversation on this page and the terminal window are the same agent with the same rules. On this page, a command that needs your say shows Allow and Refuse buttons; in the terminal you answer with the keyboard.</li>' +
-      '</ul></div></div></div>';
+      '</ul></div></div></div></section></div>';
     const $ = id => b.querySelector('#' + id);
-    const dirLine = () => { const d = get(); $('agdir').textContent = d || 'Its own workspace folder (inside the agent folder).'; $('agreset').style.display = d ? '' : 'none'; };
-    dirLine();
-    $('agguard').checked = lsGet(GKEY, '') === '1';
-    $('agguard').onchange = () => lsPut(GKEY, $('agguard').checked ? '1' : '');
+    const post = async (u, body) => { try { return await A.api(u, body || {}); } catch (e) { return { ok: false, error: String(e.message || e) }; } };
 
+    /* ---------- settings (also shown as the chips under the message box) ---------- */
+    const dirLine = () => { const d = get(); $('agdir').textContent = d || 'Its own workspace folder (inside the agent folder).'; $('agreset').style.display = d ? '' : 'none'; chips(); };
+    $('agguard').checked = lsGet(GKEY, '') === '1';
+    $('agguard').onchange = () => { lsPut(GKEY, $('agguard').checked ? '1' : ''); chips(); };
     const chosen = () => { const s = $('agmodel'); return s && s.value ? (st && st.models || []).find(m => m.name === s.value) : null; };
     function modelNote() {
       const m = chosen(), n = $('agmnote'); if (!n) return;
-      if (!m) { n.textContent = st && st.ollama ? '' : 'The list appears once Ollama is running. The agent starts Ollama when it opens.'; return; }
+      if (!m) { n.textContent = st && st.ollama ? '' : 'The list appears once Ollama is running. The agent starts Ollama when it opens.'; chips(); return; }
       fillCtx(m);
       const made = +$('agctx').value === st.ctxDefault ? m.ready : (m.readyCtx || []).includes(+$('agctx').value);
       /* measured on this PC: Gemma 4 (6.1 GB) fits on the 8 GB graphics card even at 128k; Bonsai 2 27b at 128k needed 17 GB, more than the PC has */
       const heavy = (m.size > 6.6 * 1073741824 && +$('agctx').value > 32768) || (m.size > 6.2 * 1073741824 && +$('agctx').value > 65536) ? ' Warning: this model with this memory size needs more memory than this PC has free, so it will run very slowly. Gemma 4 (e4b) is the one that handles a large memory well here.' : '';
       n.textContent = (!m.tools ? 'This model cannot use tools, so it cannot drive the agent.' : made ? 'Ready to use.' : 'First start makes a copy of this model with this memory size (about a minute, no download).') + heavy;
       $('aggo').disabled = !st || !st.installed || !st.claude || !m.tools;
+      chips();
     }
     /* the memory sizes this model supports; the last choice is kept when the model allows it */
     function fillCtx(m) {
@@ -68,17 +84,24 @@
       sel.innerHTML = sizes.map(c => '<option value="' + c + '">' + esc(label(c)) + '</option>').join('');
       sel.value = String(sizes.includes(want) ? want : sizes[0]);
     }
+    const toolModels = () => ((st && st.models) || []).filter(m => m.tools);
     function fillModels() {
       const sel = $('agmodel'), list = (st && st.models) || [];
       if (!list.length) { sel.innerHTML = '<option value="">' + esc(st && st.base || 'gemma4:e4b') + ' (default)</option>'; sel.disabled = true; modelNote(); return; }
       sel.disabled = false;
-      sel.innerHTML = list.map(m => '<option value="' + esc(m.name) + '"' + (m.tools ? '' : ' disabled') + '>' + esc(m.name.replace(/:latest$/, '')) + (m.size ? '  ·  ' + gb(m.size) : '') + (m.tools ? '' : '  ·  cannot use tools') + '</option>').join('');
+      sel.innerHTML = list.map(m => '<option value="' + esc(m.name) + '"' + (m.tools ? '' : ' disabled') + '>' + esc(bare(m.name)) + (m.size ? '  ·  ' + gb(m.size) : '') + (m.tools ? '' : '  ·  cannot use tools') + '</option>').join('');
       const saved = lsGet(MKEY, ''), ok = n => list.some(m => m.name === n && m.tools);
       sel.value = ok(saved) ? saved : ok(st.base) ? st.base : ((list.find(m => m.tools) || {}).name || '');
       modelNote();
     }
     $('agmodel').onchange = () => { lsPut(MKEY, $('agmodel').value); modelNote(); };
     $('agctx').onchange = () => { lsPut(CKEY, $('agctx').value); modelNote(); };
+    const modelNow = () => bare($('agmodel').value || (st && st.base) || 'gemma4:e4b');
+    function chips() {
+      $('agcdir').textContent = '📁 ' + (get() ? base(get()) : 'workspace'); $('agcdir').title = 'Folder for the next new session: ' + (get() || 'its own workspace folder') + '. Click to change.';
+      $('agcmod').textContent = '🧠 ' + modelNow(); $('agcmod').title = 'Model for the next new session. Click to change.';
+      $('agcreach').textContent = $('agguard').checked ? '🔓 Whole PC, guarded' : '🔒 This folder only'; $('agcreach').title = 'Click to switch. Used by the next new session.';
+    }
 
     const row = (ok, text, hint) => '<div style="display:flex;gap:8px;align-items:baseline;margin:3px 0"><span style="width:18px">' + (ok ? '✅' : '⚠️') + '</span><div>' + esc(text) + (hint ? '<div class="small mute">' + esc(hint) + '</div>' : '') + '</div></div>';
     async function check() {
@@ -91,136 +114,339 @@
         + row(s.ollama, s.ollama ? 'Ollama is running' : 'Ollama is not running', s.ollama ? '' : 'The agent starts it for you when it opens.')
         + (s.ollama ? row(can > 0, can + ' of ' + (s.models || []).length + ' models can drive the agent', can ? '' : 'The first start downloads Gemma 4 (about 6.6 GB).') : '');
       $('aggo').disabled = !s.installed || !s.claude;
-      fillModels();
+      fillModels(); if (view === 'routines') drawRoutines();
     }
-    check();
-
-    $('agpick').onclick = async () => {
-      $('agmsg').textContent = 'Choose a folder in the window that opened...';
+    dirLine(); check();
+    async function pickFolder() {
+      $('agmsg').textContent = 'Choose a folder in the window that opened...'; A.toast('Choose a folder in the window that opened');
       let r; try { r = await A.api('/api/pick-folder', {}); } catch (e) { r = null; }
-      if (!alive) return; $('agmsg').textContent = '';
-      if (r && r.path) { put(r.path); dirLine(); }
-    };
+      if (!alive) return ''; $('agmsg').textContent = '';
+      return r && r.path ? r.path : '';
+    }
+    $('agpick').onclick = async () => { const p = await pickFolder(); if (p) { put(p); dirLine(); } };
     $('agreset').onclick = () => { put(''); dirLine(); };
     $('aggo').onclick = async () => {
       const btn = $('aggo'); btn.disabled = true; $('agmsg').textContent = 'Opening...';
       let r; try { r = await A.api('/api/agent/launch', { dir: get(), model: $('agmodel').value || '', guard: $('agguard').checked, ctx: +$('agctx').value || undefined }); } catch (e) { r = { ok: false, error: String(e.message || e) }; }
-      if (!alive) return; btn.disabled = false;
-      if (r && r.ok) { $('agmsg').textContent = ''; A.toast('Opened the agent in a new window'); }
-      else { $('agmsg').textContent = ''; A.toast('Could not open the agent: ' + String((r && r.error) || 'unknown problem')); }
+      if (!alive) return; btn.disabled = false; $('agmsg').textContent = '';
+      if (r && r.ok) A.toast('Opened the agent in a new window'); else A.toast('Could not open the agent: ' + String((r && r.error) || 'unknown problem'));
       check();
     };
+    /* the chips: same settings, one click away */
+    const later = () => { if (H && H.running) A.toast('Used by the next new session. The one running now keeps its own.'); };
+    $('agcdir').dataset.pop = '1'; $('agcmod').dataset.pop = '1';
+    $('agcdir').onclick = function () {
+      const pp = A.pop(this, '<div class="grp" style="margin-top:0">Folder for new sessions</div><div class="small mute" style="padding:2px 10px 6px;max-width:320px;word-break:break-all">' + esc(get() || 'Its own workspace folder') + '</div><div class="hit" data-f="pick">📂 Choose a folder…</div>' + (get() ? '<div class="hit" data-f="ws">🏠 Use its own workspace</div>' : ''));
+      pp.onclick = async e => { const h = e.target.closest('[data-f]'); if (!h) return; A.closePop(); if (h.dataset.f === 'ws') put(''); else { const p = await pickFolder(); if (!p) return; put(p); } dirLine(); later(); };
+    };
+    $('agcmod').onclick = function () {
+      const list = toolModels();
+      const pp = A.pop(this, '<div class="grp" style="margin-top:0">Model for new sessions</div>' + (list.length ? list.map(m => '<div class="hit" data-m="' + esc(m.name) + '">' + (m.name === $('agmodel').value ? '✓ ' : '') + esc(bare(m.name)) + ' <span class="small mute">' + gb(m.size) + '</span></div>').join('') : '<div class="small mute" style="padding:6px 10px">The list appears once Ollama is running.</div>') + '<div class="hit" data-m="">⚙ Memory and more…</div>');
+      pp.onclick = e => { const h = e.target.closest('[data-m]'); if (!h) return; A.closePop(); if (!h.dataset.m) return show('set'); $('agmodel').value = h.dataset.m; lsPut(MKEY, h.dataset.m); modelNote(); later(); };
+    };
+    $('agcreach').onclick = () => { $('agguard').checked = !$('agguard').checked; lsPut(GKEY, $('agguard').checked ? '1' : ''); chips(); later(); };
 
-    /* ---- the conversation: the agent runs hidden in the server (lib/harness.js) and this page shows what it does ---- */
-    let seq = 0, H = null, timer = 0, starting = false, shown = 'conv';
-    const stopPoll = () => { clearInterval(timer); timer = 0; };
-    b._cleanup = () => { alive = false; stopPoll(); };
-    const view = v => { shown = v; $('agset').style.display = v === 'set' ? '' : 'none'; $('hconv').style.display = $('hcomp').style.display = v === 'conv' ? '' : 'none'; $('hset').classList.toggle('on', v === 'set'); };
-    $('hset').onclick = () => view(shown === 'set' ? 'conv' : 'set'); $('hback').onclick = () => view('conv');
-    const post = async (u, body) => { try { return await A.api(u, body || {}); } catch (e) { return { ok: false, error: String(e.message || e) }; } };
+    /* ---------- the pages of the main column: the live conversation, an earlier one, a routine running, routines, settings ---------- */
+    let seq = 0, H = null, starting = false, view = 'live', recId = '', rec = null, rseq = 0, SESS = [], RT = null, rform = null;
+    const timers = [];
+    b._cleanup = () => { alive = false; timers.forEach(clearInterval); ro && ro.disconnect(); };
+    function show(v, opts) {
+      view = v; opts = opts || {};
+      const conv = v === 'live' || v === 'rec' || v === 'rlive';
+      $('hconv').style.display = conv ? '' : 'none'; $('hcomp').style.display = v === 'live' || v === 'rec' ? '' : 'none';
+      $('agset').style.display = v === 'set' ? '' : 'none'; $('agrout').style.display = v === 'routines' ? '' : 'none';
+      $('hset').classList.toggle('on', v === 'set'); $('agrbtn').classList.toggle('on', v === 'routines');
+      if (v === 'routines') { drawRoutines(); post('/api/routines/seen', {}).then(loadRoutines); }
+      if (!opts.keep && conv) $('hmsgs').innerHTML = '';
+      if (narrow()) $('agx').classList.remove('sideopen');
+      head(); drawList();
+    }
+    $('hset').onclick = () => show(view === 'set' ? 'live' : 'set'); $('hback').onclick = () => show('live');
+    $('agrbtn').onclick = () => show('routines');
     const nearEnd = () => { const c = $('hconv'); return c.scrollHeight - c.scrollTop - c.clientHeight < 140; };
     const toEnd = () => { const c = $('hconv'); c.scrollTop = c.scrollHeight; };
-    /* a short name for what a tool was asked to do */
-    const what = (name, i) => { i = i || {}; return name === 'Bash' ? String(i.command || '') : i.file_path ? String(i.file_path) : i.pattern ? String(i.pattern) + (i.path ? '  in ' + i.path : '') : JSON.stringify(i).slice(0, 200); };
-    const ICON = { Bash: '⌨️ Run', Write: '📝 Write', Edit: '✏️ Edit', Read: '📖 Read', Glob: '🔎 Find files', Grep: '🔎 Search' };
-    const note = t => '<div class="small mute" style="margin:8px 0;text-align:center">' + esc(t) + '</div>';
-    function draw(e) {
-      const box = $('hmsgs'), el = document.createElement('div'); el.dataset.seq = e.seq;
-      if (e.kind === 'user') el.innerHTML = '<div style="display:flex;justify-content:flex-end;margin:10px 0"><div class="card" style="margin:0;max-width:80%;white-space:pre-wrap;word-break:break-word;background:var(--acc-soft,rgba(125,79,230,.18))">' + esc(e.text) + '</div></div>';
-      else if (e.kind === 'text') el.innerHTML = '<div class="card" style="margin:10px 0;white-space:pre-wrap;word-break:break-word">' + esc(e.text) + '</div>';
-      else if (e.kind === 'tool') { el.dataset.tool = e.toolId || ''; el.innerHTML = '<div style="margin:6px 0 6px 10px;border-left:3px solid var(--line);padding-left:10px"><div class="small"><b>' + esc(ICON[e.name] || e.name) + '</b> <span style="word-break:break-all">' + esc(what(e.name, e.input).slice(0, 600)) + '</span></div>' + (e.name === 'Write' && e.input && e.input.content ? '<details class="small"><summary class="mute">What it wrote</summary><pre style="white-space:pre-wrap;word-break:break-word;max-height:260px;overflow:auto;margin:4px 0">' + esc(e.input.content) + '</pre></details>' : '') + '<div data-res></div></div>'; }
+
+    /* ---------- one event of a conversation, drawn the way Claude Code draws it ---------- */
+    const arg = (name, i) => { i = i || {}; return name === 'Bash' ? String(i.command || '') : i.file_path ? String(i.file_path) : i.pattern ? String(i.pattern) + (i.path ? '  in ' + i.path : '') : JSON.stringify(i).slice(0, 200); };
+    const PLAIN = { Bash: 'It wants to run this command on your PC:', Write: 'It wants to create this file, or replace it if it exists:', Edit: 'It wants to change this file:', Read: 'It wants to read this file:', Glob: 'It wants to look for files named like this:', Grep: 'It wants to search inside files for this:' };
+    const note = t => '<div class="agnote">' + esc(t) + '</div>';
+    function draw(e, box, ro2) {
+      const el = document.createElement('div'); el.dataset.seq = e.seq;
+      if (e.kind === 'user') el.innerHTML = '<div class="aguser">' + esc(e.text) + '</div>';
+      else if (e.kind === 'text') el.innerHTML = '<div class="agtext">' + mdx(e.text) + '</div>';
+      else if (e.kind === 'tool') {
+        el.dataset.tool = e.toolId || ''; el.className = 'agtool';
+        const a = arg(e.name, e.input);
+        el.innerHTML = '<div class="agth"><span class="agdot"></span><b>' + esc(e.name) + '</b><span class="agarg">(' + esc(a.length > 160 ? a.slice(0, 160) + '…' : a) + ')</span></div>' +
+          (e.name === 'Write' && e.input && e.input.content ? '<details class="agres"><summary>⎿  Wrote ' + String(e.input.content).split('\n').length + ' lines</summary><pre>' + esc(e.input.content) + '</pre></details>' : '') +
+          (e.name === 'Edit' && e.input && (e.input.old_string || e.input.new_string) ? '<details class="agres"><summary>⎿  Changed text</summary><pre class="agdiff"><span class="del">' + esc(String(e.input.old_string || '').split('\n').map(l => '- ' + l).join('\n')) + '</span>\n<span class="add">' + esc(String(e.input.new_string || '').split('\n').map(l => '+ ' + l).join('\n')) + '</span></pre></details>' : '') +
+          '<div data-res></div>';
+      }
       else if (e.kind === 'result') {
         const host = [...box.querySelectorAll('[data-tool]')].reverse().find(x => x.dataset.tool === String(e.toolId || '')), t = String(e.text || '').trim();
-        const html = t ? '<details class="small"' + (e.isError ? ' open' : '') + '><summary class="' + (e.isError ? 'bad' : 'mute') + '">' + (e.isError ? 'It did not work' : 'What came back') + '</summary><pre style="white-space:pre-wrap;word-break:break-word;max-height:220px;overflow:auto;margin:4px 0">' + esc(t) + '</pre></details>' : '';
-        if (host && host.querySelector('[data-res]')) { host.querySelector('[data-res]').innerHTML = html; return; }
-        el.innerHTML = '<div style="margin:0 0 6px 23px">' + html + '</div>';
+        const lines = t ? t.split('\n') : [], first = lines[0] || '';
+        const html = t ? '<details class="agres"' + (e.isError ? ' open' : '') + '><summary class="' + (e.isError ? 'bad' : '') + '">⎿  ' + esc(first.length > 110 ? first.slice(0, 110) + '…' : first) + (lines.length > 1 ? ' <span class="mute">(+' + (lines.length - 1) + ' lines)</span>' : '') + '</summary><pre>' + esc(t) + '</pre></details>' : '<div class="agres mute">⎿  (no output)</div>';
+        if (host) { host.classList.add(e.isError ? 'bad' : 'ok'); const r = host.querySelector('[data-res]'); if (r) r.innerHTML = html; return; }
+        el.innerHTML = html;
       }
-      else if (e.kind === 'ask') { el.dataset.ask = e.id; el.innerHTML = '<div class="card" style="margin:10px 0;border:1px solid var(--warn)"><div style="font-weight:600;margin-bottom:4px">The agent wants your say before it does this</div><div class="small"><b>' + esc(ICON[e.tool] || e.tool) + '</b></div><pre style="white-space:pre-wrap;word-break:break-word;margin:6px 0;max-height:200px;overflow:auto">' + esc(what(e.tool, e.input)) + '</pre><div class="row" style="gap:8px;align-items:center"><button class="pri" data-allow="' + esc(e.id) + '">Allow</button><button class="ib dang" data-refuse="' + esc(e.id) + '">Refuse</button><span class="small mute" data-askmsg>Read it first. With no answer in 5 minutes it is refused.</span></div></div>'; }
-      else if (e.kind === 'answer') { const card = box.querySelector('[data-ask="' + String(e.id).replace(/"/g, '') + '"]'); if (card) { card.querySelectorAll('button').forEach(x => x.remove()); const m = card.querySelector('[data-askmsg]'); if (m) { m.textContent = e.allow ? '✅ You allowed it.' : e.late ? '🛑 Nobody answered in time, so it was refused.' : '🛑 You refused it.'; } } return; }
-      else if (e.kind === 'started') el.innerHTML = note((e.resumed ? 'Picked up again' : 'New session') + ' · ' + String(e.model || '').replace(/:latest$/, '') + ' · ' + Math.round((e.ctx || 0) / 1024) + 'k memory · ' + (e.guard ? 'whole PC, guarded' : 'this folder only') + ' · ' + (e.dir || ''));
-      else if (e.kind === 'stopped') el.innerHTML = note('Stopped. Press Continue to pick it up again.');
-      else if (e.kind === 'error') el.innerHTML = '<div class="small bad" style="margin:8px 0">' + esc(e.text) + '</div>';
-      else if (e.kind === 'done') { if (e.ok || !e.text) return; el.innerHTML = '<div class="small bad" style="margin:8px 0">' + esc(e.text) + '</div>'; }
+      /* the permission question: what will happen in plain words, the exact command or file, and Refuse as the highlighted, safe choice */
+      else if (e.kind === 'ask') {
+        el.dataset.ask = e.id;
+        el.innerHTML = '<div class="agask"><div class="agaskh">✋ Allow <b>' + esc(e.tool) + '</b>?</div><div>' + esc(PLAIN[e.tool] || ('It wants to use the tool “' + e.tool + '”:')) + '</div><pre>' + esc(arg(e.tool, e.input)) + '</pre>' +
+          (ro2 ? '<div class="small mute" data-askmsg>Waiting for an answer.</div>' : '<div class="row" style="gap:8px;align-items:center;flex-wrap:wrap"><button class="pri" data-refuse="' + esc(e.id) + '" title="Nothing is changed. The agent is told no and carries on another way.">Refuse (safe choice)</button><button class="ib askallow" data-allow="' + esc(e.id) + '" title="The agent does this one thing. It asks again for the next one.">Allow this once</button><span class="small mute" data-askmsg style="flex:1;min-width:200px">Not sure? Refuse. Nothing is changed, and you can ask the agent what the command does. No answer in 30 minutes counts as Refuse.</span></div>') + '</div>';
+      }
+      else if (e.kind === 'answer') {
+        const card = box.querySelector('[data-ask="' + String(e.id).replace(/"/g, '') + '"]');
+        if (card) { card.querySelectorAll('button').forEach(x => x.remove()); const m = card.querySelector('[data-askmsg]'); if (m) m.textContent = e.allow ? '✅ You allowed it.' : e.unattended ? '🛑 Refused by itself: nobody was at the PC (a routine).' : e.late ? '🛑 Nobody answered in time, so it was refused.' : '🛑 You refused it.'; }
+        return;
+      }
+      else if (e.kind === 'started') el.innerHTML = note((e.resumed ? 'Picked up again' : 'Session started') + ' · ' + bare(e.model) + ' · ' + Math.round((e.ctx || 0) / 1024) + 'k memory · ' + (e.guard ? 'whole PC, guarded' : 'this folder only') + ' · ' + (e.dir || ''));
+      else if (e.kind === 'stopped') el.innerHTML = note('Stopped. Type a message, or press Continue, to pick it up again.');
+      else if (e.kind === 'error') el.innerHTML = '<div class="agerr">' + esc(e.text) + '</div>';
+      else if (e.kind === 'done') { if (e.ok || !e.text) return; el.innerHTML = '<div class="agerr">' + esc(e.text) + '</div>'; }
       else return;
       box.appendChild(el);
     }
+    /* what is happening right now, at the foot of the conversation: the words as they arrive, then a spinner */
+    const SPIN = ['✻', '✶', '✳', '✢', '·', '✢', '✳', '✶']; let spinI = 0;
+    function liveFoot(s, box) {
+      let live = box.querySelector('[data-live]'), sp = box.querySelector('[data-spin]');
+      if (s && s.live) { if (!live) { live = document.createElement('div'); live.dataset.live = '1'; live.className = 'agtext aglive'; } box.appendChild(live); live.innerHTML = mdx(s.live); }
+      else if (live) live.remove();
+      const working = s && s.running && (s.busy || s.preparing) && !(s.pending && s.pending.length);
+      if (working || (s && s.preparing)) { if (!sp) { sp = document.createElement('div'); sp.dataset.spin = '1'; sp.className = 'agspin'; } box.appendChild(sp); sp.textContent = SPIN[spinI++ % SPIN.length] + ' ' + (s.preparing ? 'Getting the model ready (the first time with a model takes a minute)…' : s.thinking ? 'Thinking…' : 'Working…'); }
+      else if (sp) sp.remove();
+    }
+    function welcome() {
+      return '<div class="agwel" data-welcome="1"><div class="aglogo">✻</div><h2>What should we build?</h2>' +
+        '<div class="mute">The agent writes files and runs commands in one folder on this PC, and asks you before anything risky. Nothing leaves this PC.</div>' +
+        '<div class="agex">' + EX.map(x => '<span class="chip" data-ex="' + esc(x) + '">' + esc(x) + '</span>').join('') + '</div>' +
+        '<div class="small mute">Want it to do something by itself every day? <a href="#" data-goroutines="1">Set up a routine →</a></div></div>';
+    }
+    const EX = ['Make a snake game in one file called snake.html', 'Write a script that sorts the files in this folder by type', 'Read the files in this folder and explain what they do'];
+
     $('hmsgs').addEventListener('click', async ev => {
+      const ex = ev.target.closest('[data-ex]'); if (ex) { $('hin').value = ex.dataset.ex; $('hin').focus(); return; }
+      if (ev.target.closest('[data-goroutines]')) { ev.preventDefault(); show('routines'); return; }
       const a = ev.target.closest('[data-allow],[data-refuse]'); if (!a) return;
       const id = a.dataset.allow || a.dataset.refuse; a.parentElement.querySelectorAll('button').forEach(x => { x.disabled = true; });
       const r = await post('/api/harness/answer', { id, allow: !!a.dataset.allow }); if (!r.ok) A.toast(r.error || 'That question is no longer open.'); tick();
     });
-    function bar() {
-      const s = H || {}, has = !!s.sessionId || (s.seq > 0);
-      $('hstop').style.display = s.running ? '' : 'none';
-      $('hcont').style.display = !s.running && s.sessionId && !starting ? '' : 'none';
-      $('hnew').disabled = starting || !!s.preparing; $('hsend').disabled = starting || !!s.busy || !!s.preparing;
-      $('hline').textContent = starting || s.preparing ? 'Getting the model ready (the first time with a model takes a minute)...' : s.running ? (s.pending && s.pending.length ? 'Waiting for your answer above.' : s.busy ? (s.thinking ? 'Thinking...' : 'Working...') : 'Ready. ' + String(s.model || '').replace(/:latest$/, '')) : has ? 'Not running.' : 'No session yet. Type below, or press New session.';
-      let live = $('hmsgs').querySelector('[data-live]');
-      if (s.live) { if (!live) { live = document.createElement('div'); live.dataset.live = '1'; live.className = 'card'; live.style.cssText = 'margin:10px 0;white-space:pre-wrap;word-break:break-word;opacity:.8'; } $('hmsgs').appendChild(live); live.textContent = s.live; }
-      else if (live) live.remove();
+
+    /* ---------- the header: which conversation this is, and what it is doing ---------- */
+    function head() {
+      const s = H || {}, T = $('agtitle'), sub = $('agsub'), line = $('hline');
+      let title = 'New session', info = '', stat = '', k = '';
+      if (view === 'live') {
+        title = s.title || (s.sessionId ? 'Untitled session' : 'New session');
+        info = s.sessionId || s.running ? [base(s.dir), bare(s.model), s.guard ? 'whole PC, guarded' : 'this folder only'].filter(Boolean).join(' · ') : 'Starts with: ' + [get() ? base(get()) : 'workspace', modelNow()].join(' · ');
+        if (starting || s.preparing) { stat = 'Starting'; k = 'busy'; } else if (s.running) { stat = s.pending && s.pending.length ? 'Needs your answer' : s.busy ? (s.thinking ? 'Thinking' : 'Working') : 'Ready'; k = s.pending && s.pending.length ? 'ask' : s.busy ? 'busy' : 'ok'; } else if (s.sessionId) { stat = 'Not running'; k = 'off'; }
+      } else if (view === 'rec' && rec) {
+        title = rec.title || 'Untitled session'; info = [rec.routine ? '⏱ routine' : '', base(rec.dir), bare(rec.model), new Date(rec.at).toLocaleString()].filter(Boolean).join(' · ');
+        stat = H && H.running && H.busy ? 'Another session is working' : 'Saved'; k = 'off';
+      } else if (view === 'rlive') { const r = RT && RT.running; title = '⏱ ' + (r ? r.name : 'Routine'); info = 'Running by itself. Questions are refused automatically.'; stat = r ? 'Running' : 'Finished'; k = r ? 'busy' : 'off'; }
+      else if (view === 'routines') { title = '⏱ Routines'; info = 'Tasks the agent does by itself on a schedule'; }
+      else if (view === 'set') { title = '⚙ Agent settings'; }
+      T.textContent = plain(title) || title; sub.textContent = info; line.textContent = stat; line.dataset.k = k;
+      $('hstop').style.display = (view === 'live' && s.running) || (view === 'rlive' && RT && RT.running) ? '' : 'none';
+      $('hcont').style.display = view === 'live' && !s.running && s.sessionId && !starting ? '' : 'none';
+      $('hsend').disabled = view === 'live' && (starting || !!s.busy || !!s.preparing);
+      $('hin').placeholder = view === 'rec' ? 'Type to pick this session up again…' : s.running ? 'Reply to the agent…' : 'Tell the agent what to build or fix…';
     }
+
+    /* ---------- the session list ---------- */
+    async function loadList() { let r; try { r = await A.api('/api/harness/sessions'); } catch (e) { r = null; } if (!alive) return; SESS = (r && r.sessions) || []; drawList(); }
+    async function loadRoutines() { let r; try { r = await A.api('/api/routines'); } catch (e) { r = null; } if (!alive || !r) return; const was = RT && RT.running; RT = r; $('agrbadge').textContent = r.unread ? String(r.unread) : ''; $('agrbadge').style.display = r.unread ? '' : 'none'; if (was && !r.running) loadList(); drawList(); if (view === 'routines' && !rform) drawRoutines(); if (view === 'rlive') head(); }
+    function drawList() {
+      const q = $('agsq').value.trim().toLowerCase(), box = $('aglist'), s = H || {};
+      const rows = SESS.filter(x => !q || (String(x.title || '') + ' ' + (x.dir || '') + ' ' + (x.routine ? x.routine.name : '')).toLowerCase().includes(q));
+      const liveListed = s.sessionId && SESS.some(x => x.id === s.sessionId);
+      let html = '';
+      if (RT && RT.running) html += '<div class="agrow' + (view === 'rlive' ? ' on' : '') + '" data-rlive="1"><div class="agrt"><span class="agdotlive"></span>⏱ ' + esc(RT.running.name) + '</div><div class="agrm">routine running now</div></div>';
+      if (!liveListed && (s.running || s.title || (view === 'live' && !q))) html += '<div class="agrow' + (view === 'live' ? ' on' : '') + '" data-live="1"><div class="agrt">' + (s.running ? '<span class="agdotlive"></span>' : '') + esc(plain(s.title) || 'New session') + '</div><div class="agrm">' + esc(s.running ? 'running · ' + base(s.dir) : 'not started yet') + '</div></div>';
+      const groups = [['Today', 0], ['Yesterday', 1], ['Previous 7 days', 7], ['Older', 1e9]], day0 = new Date(); day0.setHours(0, 0, 0, 0);
+      const gOf = t => t >= day0.getTime() ? 0 : t >= day0.getTime() - 86400000 ? 1 : t >= day0.getTime() - 7 * 86400000 ? 2 : 3;
+      groups.forEach((g, gi) => {
+        const list = rows.filter(x => gOf(x.at) === gi); if (!list.length) return;
+        html += '<div class="aggrp">' + g[0] + '</div>' + list.map(x => {
+          const isLive = x.id === s.sessionId, on = (view === 'live' && isLive) || (view === 'rec' && recId === x.id);
+          return '<div class="agrow' + (on ? ' on' : '') + '" data-sid="' + esc(x.id) + '" title="' + esc((x.title || '') + '\n' + (x.dir || '')) + '"><div class="agrt">' + (isLive && s.running ? '<span class="agdotlive"></span>' : '') + (x.routine ? '⏱ ' : '') + esc(plain(x.title) || 'Untitled') + '</div><div class="agrm">' + esc(base(x.dir)) + ' · ' + esc(ago(x.at)) + '</div><button class="agfx" data-forget="' + esc(x.id) + '" title="Forget this conversation">✕</button></div>';
+        }).join('');
+      });
+      if (!html) html = '<div class="small mute" style="padding:10px">' + (q ? 'Nothing matches.' : 'No conversations yet. They are kept here once the agent has answered.') + '</div>';
+      box.innerHTML = html;
+    }
+    $('agsq').oninput = drawList;
+    $('aglist').onclick = async e => {
+      const f = e.target.closest('[data-forget]');
+      if (f) { e.stopPropagation(); if (f.dataset.forget === (H && H.sessionId) && H.running) return A.toast('That session is running. Stop it first.'); if (!confirm('Forget this conversation? It is removed from this list. Files it made are not touched.')) return; await post('/api/harness/forget', { id: f.dataset.forget }); if (view === 'rec' && recId === f.dataset.forget) show('live'); loadList(); return; }
+      const r = e.target.closest('.agrow'); if (!r) return;
+      if (r.dataset.live) return openLive();
+      if (r.dataset.rlive) return openRoutineLive();
+      if (r.dataset.sid) return openRec(r.dataset.sid);
+    };
+    function openLive() { seq = 0; show('live'); tick().then(toEnd); }
+    async function openRec(id) {
+      if (H && id === H.sessionId) return openLive();
+      let x; try { x = await A.api('/api/harness/record?id=' + encodeURIComponent(id)); } catch (e) { x = null; }
+      if (!x || !x.ok) { A.toast((x && x.error) || 'Could not open that conversation.'); return loadList(); }
+      rec = x.record; recId = id; show('rec');
+      const box = $('hmsgs'); (rec.events || []).forEach(ev => draw(ev, box, true)); toEnd();
+    }
+    function openRoutineLive() { rseq = 0; show('rlive'); rtick().then(toEnd); }
+
+    /* ---------- polling: the live session always (so the list and header stay right), a running routine when it is on screen ---------- */
     async function tick() {
-      let s; try { s = await A.api('/api/harness/state?since=' + seq); } catch (e) { return; }
+      let s; try { s = await A.api('/api/harness/state?since=' + (view === 'live' ? seq : 1e12)); } catch (e) { return; }
       if (!alive || !s) return;
-      if (s.seq < seq) { seq = 0; $('hmsgs').innerHTML = ''; return tick(); }      // the server began a new conversation
-      const stick = nearEnd(); H = s; (s.events || []).forEach(draw); seq = s.seq; bar(); if (stick) toEnd();
-      if (!$('hmsgs').children.length) $('hmsgs').innerHTML = '';
+      const was = H; H = s;
+      if (view === 'live') {
+        if (s.seq < seq) { seq = 0; $('hmsgs').innerHTML = ''; return tick(); }      // the server began a new conversation
+        const stick = nearEnd(), box = $('hmsgs');
+        (s.events || []).forEach(e => draw(e, box, false)); seq = s.seq;
+        const wel = box.querySelector('[data-welcome]'), blank = !s.sessionId && !s.running && !starting && !s.preparing && ![...box.children].some(c => !c.dataset.welcome);
+        if (blank && !wel) box.insertAdjacentHTML('afterbegin', welcome()); else if (!blank && wel) wel.remove();
+        liveFoot(s, box); if (stick) toEnd();
+      }
+      head();
+      if (!was || was.sessionId !== s.sessionId || was.running !== s.running || was.title !== s.title || (was.busy && !s.busy)) loadList();
+    }
+    async function rtick() {
+      if (view !== 'rlive') return;
+      let s; try { s = await A.api('/api/routines/live?since=' + rseq); } catch (e) { return; }
+      if (!alive || view !== 'rlive') return;
+      const box = $('hmsgs');
+      if (!s || s.none) { liveFoot(null, box); if (!box.querySelector('[data-rdone]')) box.insertAdjacentHTML('beforeend', '<div class="agnote" data-rdone="1">The routine has finished. Its conversation is in the list on the left, and its result is under Routines.</div>'); head(); return; }
+      if (s.seq < rseq) { rseq = 0; box.innerHTML = ''; }
+      const fin = box.querySelector('[data-rdone]'); if (fin) fin.remove();
+      const stick = nearEnd(); (s.events || []).forEach(e => draw(e, box, true)); rseq = s.seq; liveFoot(s, box); if (stick) toEnd();
     }
     const begin = async resume => {
-      if (starting) return false; starting = true; bar();
+      if (starting) return false; starting = true; head();
       if (!resume) { seq = 0; $('hmsgs').innerHTML = ''; }
       const r = await post('/api/harness/start', { model: $('agmodel').value || '', ctx: +$('agctx').value || undefined, guard: $('agguard').checked, dir: get(), resume: resume || undefined });
       starting = false; if (!alive) return false;
-      if (!r.ok) { A.toast('Could not start the agent: ' + (r.error || 'unknown problem')); bar(); return false; }
+      if (!r.ok) { A.toast('Could not start the agent: ' + (r.error || 'unknown problem')); head(); return false; }
       if (!resume) seq = 0; await tick(); return true;
     };
-    $('hnew').onclick = () => { view('conv'); begin(''); };
-    $('hcont').onclick = () => { view('conv'); begin(H && H.sessionId); };
-    $('hstop').onclick = async () => { await post('/api/harness/stop'); tick(); };
+    const busyElsewhere = () => H && H.running && (H.busy || (H.pending && H.pending.length));
+    $('hnew').onclick = async () => {
+      if (busyElsewhere() && !confirm('The agent is still working on “' + (H.title || 'a session') + '”. Stop it and start a new session?')) return;
+      if (H && (H.running || H.sessionId || H.seq)) await post('/api/harness/clear');
+      seq = 0; show('live'); await tick(); $('hin').focus();
+    };
+    $('hcont').onclick = () => { show('live', { keep: true }); begin(H && H.sessionId); };
+    $('hstop').onclick = async () => { if (view === 'rlive') { await post('/api/routines/stop'); loadRoutines(); return; } await post('/api/harness/stop'); tick(); };
     async function sendNow() {
       const t = $('hin').value.trim(); if (!t || starting) return;
-      if (!H || !H.running) { if (!(await begin(H && H.sessionId ? H.sessionId : ''))) return; }
+      if (view === 'rec') {
+        if (busyElsewhere() && !confirm('The agent is working on “' + (H.title || 'another session') + '”. Stop it and pick this one up instead?')) return;
+        const x = await post('/api/harness/show', { id: recId }); if (!x.ok) { A.toast(x.error || 'Could not open that conversation.'); return; }
+        seq = 0; show('live'); await tick();
+        if (!(await begin(recId))) return;
+      } else if (!H || !H.running) { if (!(await begin(H && H.sessionId ? H.sessionId : ''))) return; }
       const r = await post('/api/harness/send', { text: t });
       if (!r.ok) { A.toast(r.error || 'The message was not sent.'); return; }
       $('hin').value = ''; await tick(); toEnd();
     }
     $('hsend').onclick = sendNow;
     $('hin').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendNow(); } });
-    $('hhist').onclick = async function () {
-      let r; try { r = await A.api('/api/harness/sessions'); } catch (e) { r = null; }
-      const list = (r && r.sessions) || [];
-      const pp = A.pop(this, '<div class="grp" style="margin-top:0">Earlier conversations</div>' + (list.length ? list.map(s => '<div class="hit" data-id="' + esc(s.id) + '"><b>' + esc(s.title || 'Untitled') + '</b><div class="small mute">' + esc(new Date(s.at).toLocaleString()) + ' · ' + esc(String(s.model || '').replace(/:latest$/, '')) + '</div></div>').join('') : '<div class="small mute" style="padding:6px 10px">None yet. A conversation is kept once the agent has answered.</div>'));
-      pp.onclick = async e => { const h = e.target.closest('[data-id]'); if (!h) return; A.closePop(); const x = await post('/api/harness/show', { id: h.dataset.id }); if (!x.ok) { A.toast(x.error || 'Could not open that conversation.'); return; } seq = 0; $('hmsgs').innerHTML = ''; view('conv'); await tick(); toEnd(); };
-    };
-    $('hhist').dataset.pop = '1';
-    timer = setInterval(tick, 700); tick().then(toEnd);
+
+    /* ---------- routines ---------- */
+    const hm = s => String(s.h).padStart(2, '0') + ':' + String(s.m).padStart(2, '0');
+    function drawRoutines() {
+      const box = $('agrout'); if (!box) return;
+      if (!RT) { box.innerHTML = '<div class="mute small">Loading…</div>'; return; }
+      if (rform) return drawForm();
+      const R = RT, runs = (R.runs || []).slice(0, 15);
+      let h = '<div class="agrwrap"><div class="row" style="align-items:center;gap:8px;margin-bottom:6px"><h2 style="margin:0;flex:1">⏱ Routines</h2><button class="pri" data-rnew="1">＋ New routine</button></div>' +
+        '<div class="small mute" style="margin-bottom:12px">The agent does a task by itself at the times you choose, then leaves a short result here and on Today. Nobody is there to approve anything, so a routine can only do what needs no approval: read, search, list, check, and write in its own folder. Anything risky is refused automatically. If Moundshroud is closed at that time, the tray helper opens it in the background for the routine.</div>';
+      if (R.running) h += '<div class="card agrrun"><span class="agdotlive"></span><b>' + esc(R.running.name) + '</b> is running now (' + esc(ago(R.running.at)) + ') <span style="flex:1"></span><button class="ib" data-rwatch="1">Watch</button><button class="ib dang" data-rstop="1">■ Stop</button></div>';
+      h += '<h3 class="agrh">Results</h3>' + (runs.length ? runs.map(x => '<div class="card agrres' + (x.seen ? '' : ' new') + '"><div class="row" style="gap:8px;align-items:baseline"><span>' + (x.skipped ? '⏭' : x.ok ? '✅' : '⚠️') + '</span><b style="flex:1">' + esc(x.name) + '</b><span class="small mute">' + esc(new Date(x.at).toLocaleString()) + (x.why === 'manual' ? ' · run by you' : '') + '</span></div><div class="agrsum small">' + mdx(x.summary || '') + '</div>' + (x.session ? '<button class="ib" data-ropen="' + esc(x.session) + '">Open the conversation</button>' : '') + '</div>').join('') : '<div class="small mute">Nothing yet. Results appear here after a routine runs.</div>');
+      h += '<h3 class="agrh">Your routines</h3>' + (R.routines.length ? R.routines.map(r => '<div class="card agrcard"><div class="row" style="gap:8px;align-items:center;flex-wrap:wrap"><b style="flex:1;min-width:160px">' + esc(r.name) + '</b><label class="chk small"><input type="checkbox" data-ron="' + esc(r.id) + '"' + (r.on ? ' checked' : '') + '> On</label><button class="ib" data-rrun="' + esc(r.id) + '"' + (R.running ? ' disabled' : '') + '>▶ Run now</button><button class="ib" data-redit="' + esc(r.id) + '">Edit</button><button class="ib" data-rdel="' + esc(r.id) + '">Delete</button></div>' +
+        '<div class="small mute" style="margin-top:4px">' + esc(r.when) + ' · 📁 ' + esc(r.dir ? base(r.dir) : 'workspace') + ' · 🧠 ' + esc(bare(r.model) || 'default model') + (r.on && r.next ? ' · next ' + esc(new Date(r.next).toLocaleString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit' })) : r.on ? '' : ' · off') + '</div><div class="small agrprompt">' + esc(r.prompt) + '</div></div>').join('') : '<div class="small mute">None yet. Start from a suggestion below, or make your own.</div>');
+      h += '<h3 class="agrh">Suggestions</h3><div class="agrsug">' + (R.suggestions || []).map(s => '<div class="card"><div style="font-size:22px">' + s.icon + '</div><b>' + esc(s.name) + '</b><div class="small mute" style="margin:4px 0">' + esc(s.why) + '</div><div class="small">' + esc(s.when) + '</div><button class="ib" data-rsug="' + esc(s.key) + '" style="margin-top:8px">＋ Add</button></div>').join('') + '</div></div>';
+      box.innerHTML = h;
+    }
+    function drawForm() {
+      const f = rform, s = f.sched, box = $('agrout'), list = toolModels();
+      const kindSel = '<select id="rfk">' + [['daily', 'Every day'], ['weekdays', 'Weekdays (Mon to Fri)'], ['weekly', 'Once a week'], ['hours', 'Every few hours']].map(k => '<option value="' + k[0] + '"' + (s.kind === k[0] ? ' selected' : '') + '>' + k[1] + '</option>').join('') + '</select>';
+      box.innerHTML = '<div class="agrwrap"><h2 style="margin:0 0 10px">' + (f.id ? 'Edit routine' : 'New routine') + '</h2><div class="card agrform">' +
+        '<label>Name<input id="rfn" maxlength="80" value="' + esc(f.name) + '" placeholder="Check my scripts"></label>' +
+        '<label>What should it do?<textarea id="rfp" rows="5" maxlength="4000" placeholder="Describe the task as you would tell the agent. It runs on its own, so ask it to write its findings to a file or end with a summary.">' + esc(f.prompt) + '</textarea></label>' +
+        '<div class="row" style="gap:10px;flex-wrap:wrap;align-items:flex-end"><label>When' + kindSel + '</label>' +
+        '<label id="rfdayw"' + (s.kind === 'weekly' ? '' : ' style="display:none"') + '>Day<select id="rfd">' + DAYS.map((d, i) => '<option value="' + i + '"' + (s.day === i ? ' selected' : '') + '>' + d + '</option>').join('') + '</select></label>' +
+        '<label id="rfevw"' + (s.kind === 'hours' ? '' : ' style="display:none"') + '>Every<select id="rfe">' + [1, 2, 3, 4, 6, 8, 12].map(n => '<option value="' + n + '"' + (s.every === n ? ' selected' : '') + '>' + n + (n === 1 ? ' hour' : ' hours') + '</option>').join('') + '</select></label>' +
+        '<label id="rftw">' + (s.kind === 'hours' ? 'Minute past' : 'Time') + '<input id="rft" type="time" value="' + hm(s) + '"></label></div>' +
+        '<label>Folder it works in<div class="row" style="gap:6px"><input id="rfdir" value="' + esc(f.dir) + '" placeholder="Empty = the agent\'s own workspace folder" style="flex:1"><button class="ib" id="rfpick" type="button">Choose…</button></div></label>' +
+        '<label>Model<select id="rfm">' + (list.length ? list.map(m => '<option value="' + esc(m.name) + '"' + ((f.model || $('agmodel').value) === m.name ? ' selected' : '') + '>' + esc(bare(m.name)) + '</option>').join('') : '<option value="">Default (' + esc(modelNow()) + ')</option>') + '</select></label>' +
+        '<label class="chk" style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" id="rfg"' + (f.guard !== false ? ' checked' : '') + ' style="margin-top:3px"><span><b>Whole PC, guarded</b><div class="small mute">On (best for routines): it may read anywhere and run harmless commands such as listing files, git status and syntax checks. Off: it stays in its folder and cannot run any command, because nobody is there to approve one.</div></span></label>' +
+        '<label class="chk"><input type="checkbox" id="rfon"' + (f.on !== false ? ' checked' : '') + '> Switched on</label>' +
+        '<div class="row" style="gap:8px;margin-top:6px"><button class="pri" id="rfsave">Save routine</button><button class="ib" id="rfcancel">Cancel</button><span class="small mute" id="rfmsg"></span></div></div></div>';
+      const q = id => box.querySelector('#' + id);
+      q('rfk').onchange = () => { const k = q('rfk').value; q('rfdayw').style.display = k === 'weekly' ? '' : 'none'; q('rfevw').style.display = k === 'hours' ? '' : 'none'; q('rftw').firstChild.textContent = k === 'hours' ? 'Minute past' : 'Time'; };
+      q('rfpick').onclick = async () => { const p = await pickFolder(); if (p) q('rfdir').value = p; };
+      q('rfcancel').onclick = () => { rform = null; drawRoutines(); };
+      q('rfsave').onclick = async () => {
+        const [hh, mm] = String(q('rft').value || '08:00').split(':').map(Number);
+        const r = { id: f.id || undefined, name: q('rfn').value.trim() || 'Routine', prompt: q('rfp').value.trim(), dir: q('rfdir').value.trim(), model: q('rfm').value, guard: q('rfg').checked, on: q('rfon').checked, sched: { kind: q('rfk').value, h: hh || 0, m: mm || 0, day: +q('rfd').value, every: +q('rfe').value } };
+        if (!r.prompt) { q('rfmsg').textContent = 'Say what the routine should do.'; q('rfp').focus(); return; }
+        const x = await post('/api/routines/save', { routine: r });
+        if (!x.ok) { q('rfmsg').textContent = x.error || 'Could not save it.'; return; }
+        rform = null; A.toast('Routine saved'); await loadRoutines(); drawRoutines();
+      };
+      q('rfn').focus();
+    }
+    $('agrout').addEventListener('click', async e => {
+      const t = e.target.closest('button,input[data-ron]'); if (!t) return; const d = t.dataset;
+      const findR = id => RT.routines.find(r => r.id === id);
+      if (d.rnew) { rform = { name: '', prompt: '', dir: get(), model: $('agmodel').value, guard: true, on: true, sched: { kind: 'daily', h: 8, m: 0, day: 1, every: 4 } }; drawRoutines(); }
+      else if (d.rsug) { const s = RT.suggestions.find(x => x.key === d.rsug); rform = { name: s.name, prompt: s.prompt, dir: s.dir || get(), model: $('agmodel').value, guard: s.guard, on: true, sched: Object.assign({ day: 1, every: 4 }, s.sched) }; drawRoutines(); }
+      else if (d.redit) { const r = findR(d.redit); if (r) { rform = JSON.parse(JSON.stringify(r)); drawRoutines(); } }
+      else if (d.rdel) { const r = findR(d.rdel); if (r && confirm('Delete the routine “' + r.name + '”? Its past results stay in the list.')) { await post('/api/routines/delete', { id: r.id }); loadRoutines(); } }
+      else if (d.rrun) { const x = await post('/api/routines/run', { id: d.rrun }); if (!x.ok) A.toast(x.error || 'Could not start it.'); else { A.toast('Routine started'); await loadRoutines(); openRoutineLive(); } }
+      else if (d.ron) { const r = findR(d.ron); if (r) { await post('/api/routines/save', { routine: Object.assign({}, r, { on: t.checked }) }); loadRoutines(); } }
+      else if (d.rwatch) openRoutineLive();
+      else if (d.rstop) { await post('/api/routines/stop'); loadRoutines(); }
+      else if (d.ropen) openRec(d.ropen);
+    });
+
+    /* ---------- a narrow window: the session list slides over the conversation ---------- */
+    const narrow = () => b.clientWidth < 760;
+    $('agtog').onclick = () => { if (narrow()) $('agx').classList.toggle('sideopen'); else { const hid = $('agx').classList.toggle('sidehide'); lsPut(SKEY, hid ? 'hide' : ''); } };
+    if (lsGet(SKEY, '') === 'hide') $('agx').classList.add('sidehide');
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => $('agx').classList.toggle('narrow', narrow())) : null;
+    if (ro) ro.observe(b); $('agx').classList.toggle('narrow', narrow());
+
+    timers.push(setInterval(tick, 700), setInterval(() => { if (view === 'rlive') rtick(); }, 900), setInterval(loadRoutines, 5000), setInterval(loadList, 15000));
+    loadList(); loadRoutines();
+    if (wantView === 'routines') { wantView = ''; show('routines'); } else { show('live'); tick().then(toEnd); }
+    b._onShow = () => { if (wantView === 'routines') { wantView = ''; show('routines'); } };      // the pane is kept: A.agent.open('routines') lands here
   }
 
-  /* ---- the two tabs of the Chat page: the normal chat, and the agent ---- */
-  /* the tabs of the Chat page: the normal chat, the agent, and the swarm (web/js/swarm.js) */
+  /* ---- the tabs of the Chat page: the normal chat, the agent, and the swarm (web/js/swarm.js) ---- */
   const panel = document.getElementById('p-chat'), bar = document.getElementById('chattabs');
-  const PANES = { agent: { el: document.getElementById('agentpane'), draw: p => render(p) }, swarm: { el: document.getElementById('swarmpane'), draw: p => A.swarm && A.swarm.render(p) } };
+  const PANES = { agent: { el: document.getElementById('agentpane'), draw: p => render(p) }, swarm: { el: document.getElementById('swarmpane'), draw: p => A.swarm && A.swarm.render(p) }, olympics: { el: document.getElementById('olympane'), draw: p => A.olympics && A.olympics.render(p) }, debate: { el: document.getElementById('debatepane'), draw: p => A.debate && A.debate.render(p) }, bible: { el: document.getElementById('biblepane'), draw: p => A.bible && A.bible.render(p) } };
   let mode = 'chat';
+  /* the panes are made once and kept (like A.keep): switching between Chat, Agent and Swarm never loses a conversation,
+     a running swarm or teams being edited */
   function tab(m) {
     if (!panel || !bar) return;
-    /* a page with unsaved work (the swarm's teams and workflows) is asked about before it is closed */
-    const open = PANES[mode] && PANES[mode].el;
-    if (open && m !== mode && typeof open._dirty === 'function' && open._dirty() && !confirm('Your changes to teams and workflows are not saved yet. Leave without saving?')) return;
     mode = PANES[m] && PANES[m].el ? m : 'chat';
-    Object.keys(PANES).forEach(k => {
-      const p = PANES[k].el; if (!p) return;
-      panel.classList.toggle('mode-' + k, mode === k);
-      if (p._cleanup) { try { p._cleanup(); } catch (e) { } p._cleanup = null; }
-      p._dirty = null; p.innerHTML = '';
-    });
+    Object.keys(PANES).forEach(k => { if (PANES[k].el) panel.classList.toggle('mode-' + k, mode === k); });
     bar.querySelectorAll('[data-ct]').forEach(x => x.classList.toggle('on', x.dataset.ct === mode));
-    if (PANES[mode]) PANES[mode].draw(PANES[mode].el);
+    const P = PANES[mode]; if (!P || !P.el) return;
+    if (!P.el._drawn || !P.el.firstChild) { P.el._drawn = true; P.draw(P.el); }
+    else if (P.el._onShow) { try { P.el._onShow(); } catch (e) { } }
   }
   if (bar) bar.onclick = e => { const x = e.target.closest('[data-ct]'); if (x) tab(x.dataset.ct); };
   /* a new chat always lands on the normal chat */
   const newc = document.getElementById('newc'); if (newc) newc.addEventListener('click', () => { if (mode !== 'chat') tab('chat'); });
-  const open = () => { A.showTab('chat'); tab('agent'); };
+  const open = page => { wantView = page === 'routines' ? 'routines' : ''; A.showTab('chat'); tab('agent'); };
 
   A.agent = { render, tab, open, mode: () => mode };
-  if (A.cmd && A.cmd.reg) A.cmd.reg({ title: 'Open the coding agent', sub: 'A free helper that builds and fixes code on this PC', icon: '🤖', group: 'Go to', tags: 'agent coding code program gemma qwen assistant developer build game', run: open });
+  if (A.cmd && A.cmd.reg) A.cmd.reg([
+    { title: 'Open the coding agent', sub: 'A free helper that builds and fixes code on this PC', icon: '🤖', group: 'Go to', tags: 'agent coding code program gemma qwen assistant developer build game', run: () => open() },
+    { title: 'Agent routines', sub: 'Tasks the agent does by itself on a schedule, and their results', icon: '⏱', group: 'Go to', tags: 'agent routine schedule automatic daily task cron', run: () => open('routines') },
+  ]);
 })();

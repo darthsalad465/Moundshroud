@@ -78,6 +78,18 @@
       '<div style="margin-top:8px"><button class="ib" data-go="cal">Open calendar</button> <button class="ib" id="tdadd">+ Event</button></div>';
     const ad = el.querySelector('#tdadd'); if (ad) ad.onclick = () => A.cal.openAdd(); const kk = el.querySelector('[data-open-kit]'); if (kk) kk.onclick = () => A.kitchen.open('plan'); const gg = el.querySelector('[data-open-gd]'); if (gg) gg.onclick = () => A.showTab('garden');
   }
+  /* "Agent routines": the newest result of a routine the agent ran by itself (web/js/agent.js, lib/routines.js); hidden when you have none */
+  async function routineCard(el) {
+    if (!el) return; let r; try { r = await A.api('/api/routines'); } catch (e) { return; }
+    if (!el.isConnected || !r || (!r.routines.length && !r.runs.length)) return;
+    const last = r.runs[0], md2 = t => typeof md === 'function' ? md(t) : esc2(t);
+    el.style.display = '';
+    el.innerHTML = '<h4>⏱ Agent routines' + (r.unread ? ' <span class="small" style="color:var(--acc)">· ' + r.unread + ' new</span>' : '') + '</h4>' +
+      (r.running ? '<div class="small">Running now: <b>' + esc2(r.running.name) + '</b></div>' : '') +
+      (last ? '<div class="td-row"><span>' + (last.skipped ? '⏭' : last.ok ? '✅' : '⚠️') + '</span><b class="small" style="flex:1">' + esc2(last.name) + '</b><span class="small mute">' + esc2(new Date(last.at).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })) + '</span></div><div class="small" style="max-height:6em;overflow:hidden;line-height:1.45">' + md2(String(last.summary || '')) + '</div>' : '<div class="small mute">' + r.routines.length + ' routine' + (r.routines.length === 1 ? '' : 's') + ' set up. Nothing has run yet.</div>') +
+      '<div style="margin-top:8px"><button class="ib" data-rt="1">Open routines</button></div>';
+    el.querySelector('[data-rt]').onclick = () => A.agent && A.agent.open('routines');
+  }
   /* "This day in history": one event for today's date; the arrows step to the neighbouring days */
   function histCard(el, off) {
     if (!el || !window.OTD) return; off = off || 0; const d = new Date(), t = new Date(d.getFullYear(), d.getMonth(), d.getDate() + off), e = window.OTD.on(t);
@@ -103,11 +115,12 @@
       '<div class="td-card" id="tdjr"><h4>Journal</h4></div><div class="td-card" id="tdlang"><h4>Language</h4></div>' +
       '<div class="td-card" id="tdresume"><h4>Pick up where you left off</h4></div>' +
       '<div class="td-card" id="tdcom" style="display:none"><h4>Community</h4></div>' +
+      '<div class="td-card" id="tdrt" style="display:none"><h4>⏱ Agent routines</h4></div>' +
       '<div class="td-card" id="tdtip"><h4>Tip</h4></div>' +
       '</div><h4 style="margin:18px 0 8px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)">Go to</h4><div class="td-grid" style="grid-template-columns:repeat(auto-fill,minmax(190px,1fr))">' + TILES.map(t => '<div class="td-tile" data-go="' + t[0] + '"><span>' + t[1] + '</span><div><b>' + t[2] + '</b><div class="small mute">' + t[3] + '</div></div></div>').join('') + '</div></div></div>';
     const $ = id => root.querySelector('#' + id);
     const ask = () => { const v = $('tdq').value.trim(); A.showTab('chat'); if (v) A.chat.ask(v); };
-    spirit($('tdsp')); dayCard($('tdday')); histCard($('tdhist'));
+    spirit($('tdsp')); dayCard($('tdday')); histCard($('tdhist')); routineCard($('tdrt'));
     $('tdall').onclick = () => { if (A.askAll) A.askAll.open($('tdq').value.trim()); };
     $('tdgo').onclick = ask; $('tdq').onkeydown = e => { e.stopPropagation(); if (e.key === 'Enter') ask(); };
     root.onclick = e => {

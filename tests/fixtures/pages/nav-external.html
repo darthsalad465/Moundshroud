@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Goes to the internet</title>
+</head>
+<body>
+<p>Menu</p>
+<!-- leaves this PC: must fail -->
+<button id="play">Play online</button>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('play').addEventListener('click', () => { location.href = 'https://example.com/play'; });
+});
+</script>
+</body>
+</html>

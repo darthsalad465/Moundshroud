@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Animated, working button</title>
+</head>
+<body>
+<p id="score">Score: 0</p>
+<canvas id="board" width="120" height="40"></canvas>
+<button id="new">New Game</button>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const g = document.getElementById('board').getContext('2d');
+  let x = 0, score = 0, games = 1;
+  const frame = () => { x = (x + 2) % 120; score++; g.clearRect(0, 0, 120, 40); g.fillRect(x, 10, 20, 20); requestAnimationFrame(frame); };
+  requestAnimationFrame(frame);
+  document.getElementById('new').addEventListener('click', () => { score = 0; games++; x = 0; document.getElementById('score').textContent = 'Score: 0 (game ' + games + ')'; });
+});
+</script>
+</body>
+</html>

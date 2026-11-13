@@ -6,7 +6,7 @@
   const close = () => { if (root) { try { A.speech.stop(); } catch (e) { } root.remove(); root = null; document.removeEventListener('keydown', onKey, true); } };
   const onKey = e => { if (e.key === 'Escape' && root) { e.stopPropagation(); close(); } };
   const bool = (k, d) => ls.get(k, d ? '1' : '0') !== '0';
-  const SECS = [['appearance', '🎨', 'Appearance'], ['voice', '🔊', 'Voice & sound'], ['buddy', '🦉', 'Your buddy'], ['ai', '🧠', 'AI & power'], ['privacy', '🔒', 'Privacy'], ['chess', '♟', 'Chess'], ['games', '🎮', 'Games & cards'], ['help', '🧭', 'Walkthroughs & help'], ['data', '💾', 'Backup & data'], ['keys', '⌨', 'Shortcuts & about']];
+  const SECS = [['appearance', '🎨', 'Appearance'], ['voice', '🔊', 'Voice & sound'], ['buddy', '🦉', 'Your buddy'], ['ai', '🧠', 'AI & power'], ['privacy', '🔒', 'Privacy'], ['phone', '📱', 'Phone access'], ['chess', '♟', 'Chess'], ['games', '🎮', 'Games & cards'], ['help', '🧭', 'Walkthroughs & help'], ['data', '💾', 'Backup & data'], ['keys', '⌨', 'Shortcuts & about']];
   /* the same list the shortcut sheet is built from, so the two can never disagree */
   const keySheet = () => (A.keys && A.keys.help) ? A.keys.help() : A.settings.open('keys');
   const row = (label, desc, ctl, kw) => '<div class="sxrow" data-k="' + esc((label + ' ' + desc + ' ' + (kw || '')).toLowerCase()) + '" style="display:flex;gap:14px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)"><div style="flex:1;min-width:0"><b>' + label + '</b>' + (desc ? '<div class="small mute" style="margin-top:2px;line-height:1.4">' + desc + '</div>' : '') + '</div><div style="flex:none;max-width:56%;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">' + ctl + '</div></div>';
@@ -47,6 +47,7 @@
       row('Read the buddy\'s answers aloud', 'Uses the voice chosen above.', tog('bspeak', bool('buddy_speak', false)), 'buddy speak aloud') +
       row('Talk to your buddy', 'Open its chat window now.', '<button class="ib" data-a="buddychat">Open chat</button>', 'chat') +
       row('Characters remember you', 'Chess opponents, poker players, legends, coaches, friends and your buddy remember what you tell them and what you do together, in every game. See who knows you, or make them forget.', '<button class="ib" data-a="chars">Who remembers me</button><button class="ib dang" data-a="forgetchars">Forget all</button>', 'memory characters remember forget privacy') +
+      row('Wake word: “Hey Moundshroud”', 'Say “Hey Moundshroud” to open voice mode, even when the window is closed. The tray helper listens with the speech recognizer built into Windows, which runs offline: nothing you say leaves this PC, and it only listens for the wake phrase. Off by default. You can also switch it from the tray icon menu. If it wakes by mistake, or not at all, speak the phrase clearly; Windows may need microphone access for desktop apps (Windows Settings › Privacy › Microphone).', '<button class="ib" data-a="wake" id="swake">Checking…</button><span class="small mute" id="swakest"></span>', 'wake word hey moundshroud voice microphone listen hands free hotword') +
       row('Characters speak aloud', 'Every character has their own voice (boy, girl, older, young, robot). Animals make their animal noise first. You can also talk to opponents with the microphone button in the chess opponent panel.', '<button class="ib" data-a="cvox">' + (A.cvoice && A.cvoice.auto ? 'On' : 'Off') + '</button>', 'voice speak aloud characters animals robot') +
       row('Communities', 'The Chess Community (chess tab) keeps chatting whether or not you are there. Turn the AI model off for chatter to use quick built-in lines instead (lighter on the PC).', '<button class="ib" data-a="ccai">AI chatter: ' + (ls.get('cmai', '1') !== '0' ? 'On' : 'Off') + '</button>' + ' <button class="ib" data-a="cnote">Message alerts: ' + (ls.get('cmnote', '1') !== '0' ? 'On' : 'Off') + '</button>', 'community chat chatter ai town hollow creek') +
       row('Back up characters', 'Save or restore everything the characters remember, the communities and the voices you set. (The AI Commons chats are meant to disappear, so they are not included.)', '<button class="ib" data-a="cbak">Export</button><button class="ib" data-a="cimp">Import</button>', 'backup export import restore characters memory community'));
@@ -58,6 +59,7 @@
       '<div class="sxrow" data-k="claude anthropic api key online ai cloud model"><div style="flex:1;min-width:0"><b>&#9729; Online AI: Claude</b>' +
       '<div class="small mute" style="margin-top:2px;line-height:1.4">Off by default. With your own Anthropic API key, Moundshroud can answer with Claude instead of the local model: much faster and stronger, with a bigger context. What you ask, and any file you attach, is then <b>sent to Anthropic</b> over the internet. The key is kept on this PC in <code>data\\cloud.json</code>, is never shown to the page and never written to a log, and clearing it puts everything back to fully offline. Making a key: console.anthropic.com (billed by Anthropic, on your own account).</div>' +
       '<div class="small" id="clstate" style="margin-top:8px"></div><div id="clbox" style="margin-top:8px"></div></div></div>');
+    h += sec('phone', '📱', 'Phone access', '<div id="rmbox" data-k="phone remote mobile tailscale wifi wi-fi access pin wake on lan bios smart plug away" class="sxrow small" style="display:block">Checking…</div>');
     h += sec('privacy', '🔒', 'Privacy', '<div id="prvbox" data-k="privacy private tracking online offline voices microsoft google news internet" class="sxrow small mute" style="display:block">Checking…</div>');
     h += sec('chess', '♟', 'Chess',
       row('Board and pieces', 'Colours, piece sets, coordinates, highlights, animation and sounds.', '<button class="ib" data-a="cset">Open board settings</button>', 'board theme pieces coordinates') +
@@ -95,6 +97,19 @@
     return h;
   }
 
+  /* the wake word lives in the tray helper (Listener.cs); the server only keeps the switch (data\wake-on) and the helper's last report */
+  const WAKEST = s => !s ? '' : s === 'listening' ? 'Listening for “Hey Moundshroud”.' : s === 'off' ? '' : /^error/.test(s) ? 'Could not listen: ' + s.replace(/^error:\s*/, '') : s;
+  async function wakeShow(r) {
+    const b = root && root.querySelector('#swake'), t = root && root.querySelector('#swakest'); if (!b) return;
+    if (!r) { try { r = await A.api('/api/wake'); } catch (e) { b.textContent = 'Unavailable'; return; } }
+    b.textContent = r.on ? 'On' : 'Off'; b.classList.toggle('on', !!r.on);
+    if (t) t.textContent = r.on ? (WAKEST(r.status) || 'Starting… (the tray helper picks this up within a few seconds)') : '';
+  }
+  async function wakeSet(b) {
+    let cur; try { cur = await A.api('/api/wake'); } catch (e) { return; }
+    let r; try { r = await A.api('/api/wake', { on: !cur.on }); } catch (e) { A.toast('Could not change the wake word.'); return; }
+    wakeShow(r); if (r.on) { A.toast('Say “Hey Moundshroud” to open voice mode.'); setTimeout(wakeShow, 5000); }
+  }
   function open(sectionId) {
     close(); root = document.createElement('div'); root.id = 'setx'; root.style.cssText = 'position:fixed;inset:0;z-index:150;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:2vh 2vw';
     root.innerHTML = '<style>#setx .nm{display:none!important}</style><div class="card" style="margin:0;padding:0;width:min(1000px,100%);height:min(88vh,900px);display:flex;flex-direction:column;overflow:hidden"><div style="display:flex;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)"><b style="font-size:18px">⚙ Settings</b><input id="sq" type="text" placeholder="Search settings (voice, theme, cards...)" style="flex:1;max-width:420px" autocomplete="off"><span style="flex:1"></span><button class="pri" id="sdone">Done</button></div><div style="display:flex;flex:1;min-height:0"><div id="snav" style="width:200px;flex:none;border-right:1px solid var(--line);padding:10px;overflow:auto">' + SECS.map(s => '<button class="ib" data-n="' + s[0] + '" style="display:block;width:100%;text-align:left;margin-bottom:4px">' + s[1] + ' ' + s[2] + '</button>').join('') + '</div><div id="sbody" style="flex:1;overflow:auto;padding:14px 22px;min-width:0">' + build() + '</div></div></div>';
@@ -103,6 +118,7 @@
     $$('#snav').onclick = e => { const b = e.target.closest('[data-n]'); if (!b) return; $$('#sq').value = ''; filter(''); const s = body.querySelector('[data-sec=' + b.dataset.n + ']'); if (s) body.scrollTo({ top: s.offsetTop - 8, behavior: 'smooth' }); };
     const filter = q => { q = q.trim().toLowerCase(); body.querySelectorAll('.sxrow').forEach(r => r.classList.toggle('nm', !!q && !r.dataset.k.includes(q))); body.querySelectorAll('section').forEach(s => s.classList.toggle('nm', !!q && [...s.querySelectorAll('.sxrow')].every(r => r.classList.contains('nm')))); }; $$('#sq').oninput = e => filter(e.target.value); $$('#sq').onkeydown = e => e.stopPropagation();
     const TH = window.OA_THEMES;
+    wakeShow(); setTimeout(wakeShow, 6000);
     if ($$('#sst')) $$('#sst').onclick = e => { const b = e.target.closest('.stl'); if (!b) return; TH.applyStyle(b.dataset.s); $$('#sst').querySelectorAll('.stl').forEach(x => { x.style.borderColor = x === b ? 'var(--acc)' : 'var(--line)'; }); };
     if ($$('#sth')) $$('#sth').onclick = e => { const b = e.target.closest('.thm'); if (!b) return; TH.apply(b.dataset.t2); $$('#sth').querySelectorAll('.thm').forEach(x => { x.style.borderColor = x === b ? 'var(--acc)' : 'var(--line)'; }); };
     if ($$('#smot') && A.motion) {
@@ -147,6 +163,7 @@
     if ($$('#cweb')) $$('#cweb').addEventListener('change', e => cset({ web: e.target.checked }));
     cget();
     if (A.privacyPage) A.privacyPage($$('#prvbox'), cset);
+    if (A.remotePage) A.remotePage($$('#rmbox'));
     /* the version is read from the VERSION file on disk (one place to change it). Updates live in updates.js (Settings › Backup & data › Updates);
        the old "releases folder" check below stays for copies with no update source. */
     const about = async () => { try { return await A.api('/api/about'); } catch (e) { return null; } };
@@ -155,6 +172,7 @@
     root.addEventListener('click', async e => {
       const b = e.target.closest('[data-a]'); if (!b) return; const a = b.dataset.a;
       if (a === 'vtest') test(); else if (a === 'cust') { A.custom && A.custom.open(); } else if (a === 'sounds') { close(); A.showTab('play'); setTimeout(() => { const s = document.querySelector('#plsub [data-s=sounds]'); s && s.click(); }, 400); }
+      else if (a === 'wake') { wakeSet(b); }
       else if (a === 'cvox') { A.cvoice.auto = !A.cvoice.auto; b.textContent = A.cvoice.auto ? 'On' : 'Off'; } else if (a === 'cnote') { const v = A.chessNotify ? A.chessNotify.toggle() : ls.get('cmnote', '1') === '0'; if (!A.chessNotify) ls.set('cmnote', v ? '1' : '0'); b.textContent = 'Message alerts: ' + (v ? 'On' : 'Off'); } else if (a === 'ccai') { ls.set('cmai', ls.get('cmai', '1') !== '0' ? '0' : '1'); b.textContent = 'AI chatter: ' + (ls.get('cmai', '1') !== '0' ? 'On' : 'Off'); } else if (a === 'cbak') { const blob = new Blob([A.chars.backup()], { type: 'application/json' }), u = URL.createObjectURL(blob), l = document.createElement('a'); l.href = u; l.download = 'moundshroud-characters-' + new Date().toISOString().slice(0, 10) + '.json'; l.click(); setTimeout(() => URL.revokeObjectURL(u), 3000); } else if (a === 'cimp') { const f = document.createElement('input'); f.type = 'file'; f.accept = '.json'; f.onchange = async () => { try { A.chars.restore(await f.files[0].text()); A.toast('Restored. Reload Moundshroud to see everything.', 5000); } catch (er) { A.toast('That file could not be read.'); } }; f.click(); } else if (a === 'chars') { close(); A.chars.manage(); } else if (a === 'forgetchars') { if (confirm('Every character will forget everything about you: facts, shared history and relationships. Continue?')) { A.chars.forgetAll(); A.toast('All characters have forgotten you.'); } } else if (a === 'buddychat') { close(); A.buddy && A.buddy.open(); } else if (a === 'cset') openChessTab('settings'); else if (a === 'lab') openChessTab('lab');
       else if (a.startsWith('walk:')) { close(); setTimeout(() => A.walk && A.walk.start(a.slice(5)), 250); }
       else if (a === 'present') { close(); A.tutorial && A.tutorial.resume(); } else if (a === 'guide') { close(); A.showTab('guide'); } else if (a === 'storage') { const g = $$('#stghost'); if (g) g.scrollIntoView({ behavior: 'smooth' }); }

@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Reloads itself</title>
+</head>
+<body>
+<p>Game</p>
+<button id="new">New Game</button>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('new').addEventListener('click', () => { location.reload(); });
+});
+</script>
+</body>
+</html>
