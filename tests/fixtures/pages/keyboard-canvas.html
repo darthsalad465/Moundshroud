@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Keyboard-only canvas game</title>
+</head>
+<body>
+<p>Use the arrow keys.</p>
+<canvas id="board" width="120" height="40"></canvas>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const g = document.getElementById('board').getContext('2d');
+  let x = 0;
+  const draw = () => { g.clearRect(0, 0, 120, 40); g.fillRect(x, 10, 20, 20); };
+  document.addEventListener('keydown', e => { if (e.key === 'ArrowRight') x = Math.min(100, x + 10); if (e.key === 'ArrowLeft') x = Math.max(0, x - 10); draw(); });
+  draw();
+});
+</script>
+</body>
+</html>

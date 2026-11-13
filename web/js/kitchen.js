@@ -143,5 +143,6 @@
   // "Add to the plan" from a recipe opened while choosing a slot
   const baseSlot = pickSlot; pickSlot = (r, free) => baseSlot(r, free || st.addTo);
   A.kitchen = { pantry: () => pantry.slice(), plan: () => plan, shop: () => shop.slice(), open: tab => { st.tab = tab || st.tab; A.showTab('kitchen'); } };
-  A.registerTab('kitchen', 'Kitchen', () => draw());
+  let kShown = false;
+  A.registerTab('kitchen', 'Kitchen', () => { if (!kShown) { kShown = true; draw(); } });      // kept as you left it (an AI rewrite in progress carries on)
 })();

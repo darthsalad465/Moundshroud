@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Endless loop</title>
+</head>
+<body>
+<p id="msg">Ready</p>
+<button id="spin">Spin</button>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  // never returns: the checker must give up at its timeout and still end Edge
+  document.getElementById('spin').addEventListener('click', () => { while (true) { } });
+});
+</script>
+</body>
+</html>

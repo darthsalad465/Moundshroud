@@ -9,6 +9,7 @@
   A.chessNotify = { on, set, toggle: () => set(!on()) };
   A.community.on((ev, x) => {
     if (ev !== 'msg' || !x || x.w !== 'chess' || x.a === 'me' || !on() || muted(x.w, x.ch)) return;
+    if (A.cur !== 'play') return;      // chess chatter pops up only on the Games tab, where the community lives; elsewhere it interrupted unrelated work
     const vw = A.community.viewing && A.community.viewing(x.w); if (vw && vw.ch === x.ch && !document.hidden) return;
     const now = Date.now(); if (now - lastAt < GAP) return; lastAt = now;
     let who = x.a, chn = x.ch; try { who = A.community.who(x.w, x.a).name || who; } catch (e) { }

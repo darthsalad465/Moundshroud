@@ -1,6 +1,6 @@
 // Offline assistant suite - local server. Talks only to Ollama and Kiwix on this PC. No outside connections.
 // Lifecycle: started by the hotkey listener when you open the window; shuts itself (and everything it started) down when the window closes.
-const http = require('http'), fs = require('fs'), path = require('path'), cp = require('child_process');
+const http = require('http'), fs = require('fs'), path = require('path'), cp = require('child_process'), os = require('os'), crypto = require('crypto');
 const U = require('./lib/util'), docs = require('./lib/docs'), kiwix = require('./lib/kiwix'), websearch = require('./lib/websearch'), voice = require('./lib/voice'), store = require('./lib/store'), extra = require('./lib/extra'), thesaurus = require('./lib/thesaurus'), rhyme = require('./lib/rhyme'), pcmod = require('./lib/pc'), office = require('./lib/office'), prep = require('./lib/prep'), appfiles = require('./lib/appfiles');
 
 const safe = require('./lib/safe');
@@ -35,6 +35,9 @@ function cleanup() {
   kiwix.stop(); voice.stop(); docs.close(); try { office.stop(); } catch (e) {}
   try { gateway.stop(); } catch (e) {}
   try { harness.stop(); } catch (e) {}      // the hidden Claude Code process of the in-app agent
+  try { routines.shutdown(); } catch (e) {}  // and a routine's, if one is running
+  try { remote.stop(); } catch (e) {}        // and the phone server
+  try { longvideo.shutdown(); } catch (e) {} // and a long video's shot (its finished shots are kept; Resume carries on)
 }
 try { require('./lib/chess-sf').setActive(() => Date.now() - lastPing < 90000); } catch (e) { }
 function shutdown() { if (down) return; down = true; cleanup(); setTimeout(() => process.exit(0), 200); }
@@ -112,13 +115,66 @@ function bodyBuf(req, limit = 8e6) {
 const body = async (req, limit) => (await bodyBuf(req, limit)).toString('utf8');
 const jbody = async (req, limit) => { const t = await body(req, limit); return t ? JSON.parse(t) : {}; };
 function json(res, code, obj) { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); }
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff': 'font/woff', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.wasm': 'application/wasm', '.txt': 'text/plain; charset=utf-8', '.map': 'application/json', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.ogg': 'audio/ogg', '.mp3': 'audio/mpeg' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff': 'font/woff', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.wasm': 'application/wasm', '.txt': 'text/plain; charset=utf-8', '.map': 'application/json', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.ogg': 'audio/ogg', '.mp3': 'audio/mpeg', '.zip': 'application/zip', '.whl': 'application/zip', '.tar': 'application/x-tar', '.mp4': 'video/mp4', '.webm': 'video/webm' };      /* .zip/.whl: the Python sandbox's standard library and packages (web/vendor/pyodide) */
 const CHESSBOOKS = path.join(__dirname, 'nomad', 'chessbooks');
+const bibleLib = require('./lib/bible').create(DATA, path.join(WEB, 'data'));      /* Chat > Bible: passage search over data\bible\*.txt */
 /* the picture model: the compact ready-made q8 copy (3.9 GB) when it is there, else the original (6.5 GB, made compact in memory each time) */
 /* pictures, music, voices and video: the engines live in lib/media.js; teams and swarms in lib/swarm.js */
 const media = require('./lib/media'), swarm = require('./lib/swarm'), swarmModel = require('./lib/swarm-model');
 const safeDir = require('./lib/safe-dir'), harnessLib = require('./lib/harness');
 const harnessStore = harnessLib.store(DATA), harness = harnessLib.create({ save: rec => harnessStore.save(rec) });
+/* starts (or picks up) an agent session; the page's settings are checked exactly as for the terminal agent */
+function startHarness(b) {
+  return new Promise(done => agent.list(async (up, models) => {
+    const c = agent.check({ model: b.model, guard: !!b.guard, ctx: b.ctx }, models); if (!c.ok) return done(c);
+    let dir = String(b.dir || '').trim();
+    if (!dir) { dir = path.join(agent.DIR, 'workspace'); try { fs.mkdirSync(dir, { recursive: true }); } catch (e) { } }
+    const sd = safeDir.check(dir); if (!sd.ok) return done(sd);
+    done(await harness.start({ check: c, dir: sd.dir, resume: b.resume }));
+  }));
+}
+/* the local models Ollama has (never Claude): for the phone */
+const localModels = () => new Promise(done => ensureOllama(up => { if (!up) return done([]); http.get({ ...OLLAMA, path: '/api/tags' }, r => { let t = ''; r.on('data', c => t += c); r.on('end', () => { try { done((JSON.parse(t).models || []).map(m => m.name).filter(n => !/embed/i.test(n))); } catch (e) { done([]); } }); }).on('error', () => done([])); }));
+/* agent routines (lib/routines.js): a second, unattended harness on a schedule; Ollama is woken first so any model can be checked */
+const routines = require('./lib/routines').create({ dataDir: DATA, harnessLib, store: harnessStore,
+  userBusy: () => { const s = harness.state(1e12); return !!(s.busy || s.preparing); },
+  resolve: r => new Promise(res => ensureOllama(() => agent.list((up, models) => {
+    const c = agent.check({ model: r.model, guard: !!r.guard }, models); if (!c.ok) return res(c);
+    let dir = String(r.dir || '').trim();
+    if (!dir) { dir = path.join(agent.DIR, 'workspace'); try { fs.mkdirSync(dir, { recursive: true }); } catch (e) { } }
+    const sd = safeDir.check(dir); if (!sd.ok) return res(sd);
+    res({ ok: true, check: c, dir: sd.dir });
+  }))) });
+/* long videos (lib/longvideo.js): any length, shot by shot, joined with ffmpeg; jobs run here on the server */
+const longvideo = require('./lib/longvideo').create({ dataDir: DATA, media });
+/* phone access (lib/remote.js): off until switched on in Settings; these are the only things a phone can do */
+const remote = require('./lib/remote').create({ dataDir: DATA, webDir: WEB, mainPort: PORT, deferStart: true, loopback: process.env.MOUNDSHROUD_REMOTE_LOOPBACK === '1', routes: {
+  'GET /api/status': async x => x.send(200, { ok: true, models: await localModels(), agent: (s => ({ running: s.running, busy: s.busy, title: s.title }))(harness.state(1e12)), routines: (r => ({ unread: r.unread, running: r.running }))(routines.list()) }),
+  'POST /api/chat': async x => {
+    const ms = await localModels(), model = String(x.b.model || ''), msgs = Array.isArray(x.b.messages) ? x.b.messages.slice(-30) : [];
+    if (!ms.includes(model)) return x.send(400, { error: 'Pick a model on the PC.' });
+    const clean = msgs.filter(m => m && ['system', 'user', 'assistant'].includes(m.role)).map(m => ({ role: m.role, content: String(m.content || '').slice(0, 20000) }));
+    return ollamaChat(JSON.stringify({ model, stream: true, think: false, keep_alive: '5m', messages: clean, options: { temperature: x.b.temp == null ? .7 : Math.max(0, Math.min(1.5, +x.b.temp)) } }), x.res);
+  },
+  'POST /api/art/sd': async x => {
+    const r = await media.image({ prompt: x.b.prompt, neg: x.b.neg, w: x.b.w, h: x.b.h, steps: x.b.steps });
+    if (!r.ok) return x.send(r.code || 500, { error: r.error });
+    fs.readFile(r.file, (e, buf) => { fs.unlink(r.file, () => { }); if (e) return x.send(500, { error: 'The picture could not be read.' }); x.res.writeHead(200, Object.assign({}, x.sec, { 'Content-Type': 'image/png' })); x.res.end(buf); });
+  },
+  'GET /api/harness/state': async x => x.send(200, harness.state(x.q.since)),
+  'GET /api/harness/sessions': async x => x.send(200, { sessions: harnessStore.list() }),
+  'GET /api/harness/record': async x => { const rec = harnessStore.get(String(x.q.id || '')); x.send(200, rec ? { ok: true, record: rec } : { ok: false, error: 'That conversation is no longer kept.' }); },
+  'POST /api/harness/send': async x => x.send(200, harness.send(x.b.text)),
+  'POST /api/harness/answer': async x => x.send(200, harness.answer(x.b.id, x.b.allow === true)),
+  'POST /api/harness/stop': async x => x.send(200, harness.stop()),
+  'POST /api/harness/clear': async x => x.send(200, harness.clear()),
+  'POST /api/harness/show': async x => { const rec = harnessStore.get(String(x.b.id || '')); x.send(200, rec ? harness.show(rec) : { ok: false, error: 'That conversation is no longer kept.' }); },
+  /* the phone starts sessions with the model, folder and reach of the last session started on the PC (or the defaults) */
+  'POST /api/harness/start': async x => { const last = harnessStore.list()[0] || {}; x.send(200, await startHarness({ model: x.b.model || last.model, ctx: last.ctx, guard: last.guard, dir: last.dir, resume: x.b.resume })); },
+  'GET /api/routines': async x => x.send(200, routines.list()),
+  'POST /api/routines/run': async x => x.send(200, await routines.run(String(x.b.id || ''))),
+  'POST /api/routines/seen': async x => x.send(200, routines.seen(null)),
+} });
 function serveFile(res, root, rel, req) {
   const f = path.normalize(path.join(root, rel)), inside = path.relative(root, f);          // must really be inside the folder (not just share its first letters)
   if (String(rel).includes('\0') || inside.startsWith('..') || path.isAbsolute(inside) || !fs.existsSync(f) || !fs.statSync(f).isFile()) { res.writeHead(404); return res.end('not found'); }
@@ -197,7 +253,8 @@ const mainServer = http.createServer(async (req, res) => {
     if (url === '/api/status') return ollamaUp(up => json(res, 200, { ok: true, ollama: up, lib: kiwix.available(), voice: voice.available(), chef: fs.existsSync(CHEF) }));
     if (url === '/api/ping') { lastPing = Date.now(); seen = true; closingAt = 0; if (!kiwixWarm && kiwix.available()) { kiwixWarm = true; setTimeout(() => kiwix.ensureP().catch(() => {}), 2500); } return json(res, 200, { ok: true }); }     // start the library in the background so the first lookup is instant
     if (url === '/api/closing') { closingAt = Date.now() + 6000; return json(res, 200, { ok: true }); }
-    if (url === '/api/shutdown') { json(res, 200, { ok: true }); return setTimeout(shutdown, 50); }
+    /* the tray helper says {why:'closed'} when the window was closed: a routine that is running finishes first (Quit stops everything) */
+    if (url === '/api/shutdown') { let b = {}; try { b = req.method === 'POST' ? await jbody(req, 1e3) : {}; } catch (e) { } json(res, 200, { ok: true }); if (b && b.why === 'closed' && (routines.busy() || remote.on() || longvideo.busy())) { seen = false; return; } return setTimeout(shutdown, 50); }
     if (url === '/api/warm' && req.method === 'POST') {
       const m = (await jbody(req, 1e5)).model || ''; json(res, 200, { ok: true }); if (!m) return;
       return ensureOllama(up => { if (!up) return; const p = JSON.stringify({ model: m, prompt: '', stream: false, keep_alive: '3m' });
@@ -302,6 +359,9 @@ const mainServer = http.createServer(async (req, res) => {
       if (!(await kiwix.ensureP())) return json(res, 200, { text: '' });
       try { return json(res, 200, { text: await kiwix.text(link, 14000) }); } catch (e) { return json(res, 200, { text: '' }); }
     }
+    /* ---- Bible Expert (Chat > Bible): passages from the texts in data\bible, read-only ---- */
+    if (url === '/api/bible/status') return json(res, 200, bibleLib.status());
+    if (url === '/api/bible/search' && req.method === 'POST') { const b = await jbody(req, 1e5); return json(res, 200, { results: bibleLib.search(String(b.q || ''), Math.min(12, +b.n || 6)) }); }
     /* ---- your documents ---- */
     if (url === '/api/docs/sources') {
       if (req.method === 'POST') { const b = await jbody(req, 1e5); if (b.add) docs.addSource(String(b.add)); if (b.remove) docs.removeSource(String(b.remove)); }
@@ -322,7 +382,29 @@ const mainServer = http.createServer(async (req, res) => {
       if (!r.ok) return json(res, r.code || 500, { error: r.error });
       fs.readFile(r.file, (err, buf) => { fs.unlink(r.file, () => { }); if (err) return json(res, 500, { error: unread }); const h = { 'Content-Type': type, 'Cache-Control': 'no-store' }; if (r.seed != null) h['X-Seed'] = String(r.seed); if (r.seconds != null) h['X-Seconds'] = String(r.seconds); res.writeHead(200, h); res.end(buf); });
     };
-    if (url === '/api/art/status') return json(res, 200, { sd: media.ready().image, busy: media.busy.image });
+    if (url === '/api/art/status') return json(res, 200, { sd: media.ready().image, edit: media.ready().edit, busy: media.busy.image });
+    /* photo edit: the page sends the photo (base64, already sized) and what to change */
+    if (url === '/api/art/edit' && req.method === 'POST') {
+      const b = await jbody(req, 2e7), raw = Buffer.from(String(b.image || '').replace(/^data:[^,]*,/, ''), 'base64');
+      if (raw.length < 100 || !(raw[0] === 0x89 || (raw[0] === 0xff && raw[1] === 0xd8))) return json(res, 400, { error: 'Send a PNG or JPEG photo.' });
+      const inp = path.join(os.tmpdir(), 'moundshroud-editin-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7) + (raw[0] === 0x89 ? '.png' : '.jpg'));
+      fs.writeFileSync(inp, raw);
+      const ac = new AbortController(); res.on('close', () => { if (!res.writableEnded) ac.abort(); });      // Stop on the page ends the engine too
+      const r = await media.edit(Object.assign(only(b, ['prompt', 'neg', 'engine', 'strength', 'w', 'h', 'seed', 'steps']), { input: inp, signal: ac.signal }));
+      fs.unlink(inp, () => { }); if (r.ok) res.setHeader('X-Engine', r.engine);
+      return sendMade(r, 'image/png', 'The edited photo could not be read.');
+    }
+    /* pictures kept for the chat (data\art): the page posts a PNG and gets an id; the chat shows it from /api/art/file */
+    if (url === '/api/art/keep' && req.method === 'POST') {
+      const buf = await bodyBuf(req, 15e6); if (!buf || buf.length < 100 || buf[0] !== 0x89) return json(res, 400, { error: 'Send a PNG picture.' });
+      const id = Date.now().toString(36) + '-' + crypto.randomBytes(4).toString('hex'), dir = path.join(DATA, 'art');
+      fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, id + '.png'), buf); return json(res, 200, { ok: true, id });
+    }
+    if (url === '/api/art/file') {
+      const id = String(q.get('id') || ''); if (!/^[a-z0-9]{6,12}-[0-9a-f]{8}$/.test(id)) return json(res, 400, { error: 'bad id' });
+      const f = path.join(DATA, 'art', id + '.png'); if (!fs.existsSync(f)) return json(res, 404, { error: 'That picture is no longer kept.' });
+      res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'private, max-age=86400' }); return fs.createReadStream(f).pipe(res);
+    }
     if (url === '/api/art/sd' && req.method === 'POST') return sendMade(await media.image(only(await jbody(req, 2e4), ['prompt', 'neg', 'w', 'h', 'steps', 'seed'])), 'image/png', 'The picture could not be read.');
     /* offline AI music: MusicGen-small run by musicgen/gen.py in its own Python environment (installed by install-music-model.ps1) */
     if (url === '/api/music/status') return json(res, 200, { model: media.ready().music, busy: media.busy.music });
@@ -332,6 +414,14 @@ const mainServer = http.createServer(async (req, res) => {
     if (url === '/api/tts' && req.method === 'POST') return sendMade(await media.voice(only(await jbody(req, 2e5), ['voice', 'text', 'length'])), 'audio/wav', 'voice engine failed');
     /* short offline video clips: Wan 2.1 run by the picture engine (installed by install-video-model.ps1) */
     if (url === '/api/video/status') return json(res, 200, { video: media.ready().video, busy: media.busy.video, size: media.VID_DEFAULT });
+    /* long videos: start, follow, stop, resume, fetch */
+    if (url === '/api/video/long') return json(res, 200, { ready: longvideo.ready(), jobs: longvideo.list() });
+    if (url === '/api/video/long/status') { const s = longvideo.status(String(q.get('id') || '')); return json(res, s ? 200 : 404, s || { error: 'No such video.' }); }
+    if (url === '/api/video/long/start' && req.method === 'POST') return json(res, 200, longvideo.start(await jbody(req, 4e5)));
+    if (url === '/api/video/long/stop' && req.method === 'POST') return json(res, 200, longvideo.stop(String((await jbody(req, 1e3)).id || '')));
+    if (url === '/api/video/long/resume' && req.method === 'POST') return json(res, 200, longvideo.resume(String((await jbody(req, 1e3)).id || '')));
+    if (url === '/api/video/long/remove' && req.method === 'POST') return json(res, 200, longvideo.remove(String((await jbody(req, 1e3)).id || '')));
+    if (url === '/api/video/long/file') { const f = longvideo.fileOf(String(q.get('id') || '')); if (!f) return json(res, 404, { error: 'That video is not ready.' }); return serveFile(res, path.dirname(f), path.basename(f), req); }
     if (url === '/api/video/make' && req.method === 'POST') return sendMade(await media.video(only(await jbody(req, 2e4), ['prompt', 'neg', 'w', 'h', 'frames', 'seed'])), 'video/webm', 'The video could not be read.');
     /* ---- teams and swarms: several local models working on one task in one folder (lib/swarm.js) ---- */
     if (url === '/api/swarm/data') return agent.list((up, models) => json(res, 200, Object.assign(swarmModel.load(DATA, models), { ollama: up, models, roles: swarmModel.ROLES, types: swarmModel.STEP_TYPES, media: media.ready(), maxWords: swarmModel.MAX_WORDS })));
@@ -363,6 +453,7 @@ const mainServer = http.createServer(async (req, res) => {
     /* ---- the in-app agent: Claude Code runs hidden and the Agent tab shows the conversation (lib/harness.js) ---- */
     if (url === '/api/harness/state') return json(res, 200, harness.state(q.get('since')));
     if (url === '/api/harness/sessions') return json(res, 200, { sessions: harnessStore.list() });
+    if (url === '/api/harness/record') { const rec = harnessStore.get(String(q.get('id') || '')); return json(res, 200, rec ? { ok: true, record: rec } : { ok: false, error: 'That conversation is no longer kept.' }); }
     if (url === '/api/harness/send' && req.method === 'POST') { const b = await jbody(req, 1e5); return json(res, 200, harness.send(b.text)); }
     if (url === '/api/harness/answer' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, harness.answer(b.id, b.allow === true)); }
     if (url === '/api/harness/stop' && req.method === 'POST') return json(res, 200, harness.stop());
@@ -370,15 +461,25 @@ const mainServer = http.createServer(async (req, res) => {
     if (url === '/api/harness/forget' && req.method === 'POST') { const b = await jbody(req, 1e4); harnessStore.forget(String(b.id || '')); return json(res, 200, { ok: true }); }
     if (url === '/api/harness/start' && req.method === 'POST') {
       const b = await jbody(req, 1e4);
-      return agent.list(async (up, models) => {
-        /* the model, the memory size and the folder come from the page and are checked exactly as for the terminal agent */
-        const c = agent.check({ model: b.model, guard: !!b.guard, ctx: b.ctx }, models); if (!c.ok) return json(res, 200, c);
-        let dir = String(b.dir || '').trim();
-        if (!dir) { dir = path.join(agent.DIR, 'workspace'); try { fs.mkdirSync(dir, { recursive: true }); } catch (e) { } }
-        const sd = safeDir.check(dir); if (!sd.ok) return json(res, 200, sd);
-        json(res, 200, await harness.start({ check: c, dir: sd.dir, resume: b.resume }));
-      });
+      return json(res, 200, await startHarness(b));
     }
+    /* ---- agent routines (lib/routines.js) ---- */
+    if (url === '/api/routines') return json(res, 200, routines.list());
+    if (url === '/api/routines/live') return json(res, 200, routines.live(q.get('since')) || { none: true });
+    /* changes only on purpose: each of these answers POST alone */
+    if (url === '/api/routines/save' && req.method === 'POST') return json(res, 200, routines.save((await jbody(req, 2e4)).routine));
+    if (url === '/api/routines/delete' && req.method === 'POST') return json(res, 200, routines.remove(String((await jbody(req, 1e4)).id || '')));
+    if (url === '/api/routines/run' && req.method === 'POST') return json(res, 200, await routines.run(String((await jbody(req, 1e4)).id || '')));
+    if (url === '/api/routines/stop' && req.method === 'POST') return json(res, 200, routines.stop());
+    if (url === '/api/routines/seen' && req.method === 'POST') { const b = await jbody(req, 2e4); return json(res, 200, routines.seen(Array.isArray(b.ids) ? b.ids.map(String) : null)); }
+    /* phone access settings (lib/remote.js) */
+    if (url === '/api/remote') return json(res, 200, remote.status());
+    if (url === '/api/remote/config' && req.method === 'POST') return json(res, 200, remote.config(await jbody(req, 1e3)));
+    if (url === '/api/remote/pin' && req.method === 'POST') return json(res, 200, remote.setPin((await jbody(req, 1e3)).pin));
+    if (url === '/api/remote/forget' && req.method === 'POST') return json(res, 200, remote.forgetPhones());
+    /* wake word: the tray helper listens for "Hey Moundshroud" only while data\wake-on exists (off unless you switch it on) */
+    if (url === '/api/wake') { const W = path.join(DATA, 'wake-on'); if (req.method === 'POST') { const b = await jbody(req, 1e3); if (b.on) fs.writeFileSync(W, '1'); else { try { fs.unlinkSync(W); } catch (e) { } } } let status = ''; try { status = fs.readFileSync(path.join(DATA, 'wake-status.txt'), 'utf8').trim(); } catch (e) { } return json(res, 200, { on: fs.existsSync(W), status }); }
+    if (url === '/api/harness/clear' && req.method === 'POST') return json(res, 200, harness.clear());
     if (url === '/api/agent/status') return agent.status(s => json(res, 200, s));
     if (url === '/api/agent/launch' && req.method === 'POST') { const b = await jbody(req, 1e4); return agent.list((up, models) => json(res, 200, agent.launch(b.dir, { model: b.model, guard: !!b.guard, ctx: b.ctx }, models))); }
     if (url === '/api/pick-folder' && req.method === 'POST') {
@@ -460,7 +561,7 @@ const mainServer = http.createServer(async (req, res) => {
       if (url === '/api/clip/clear') { write([]); return json(res, 200, { ok: true }); }
     }
     if (url === '/api/kv') {                           // small named JSON stores (saved quizzes, study guides)
-      const name = q.get('name') || ''; if (!['quizzes', 'guides', 'memory'].includes(name)) return json(res, 400, { error: 'unknown store' });
+      const name = q.get('name') || ''; if (!['quizzes', 'guides', 'memory', 'olympics', 'debates'].includes(name)) return json(res, 400, { error: 'unknown store' });
       const f = path.join(DATA, name + '.json');
       if (req.method === 'POST') { const v = await jbody(req, 8e6); U.writeJson(f, Array.isArray(v) ? v.slice(0, 300) : []); return json(res, 200, { ok: true }); }
       return json(res, 200, U.readJson(f, []));
@@ -589,6 +690,21 @@ const mainServer = http.createServer(async (req, res) => {
       if (b.do === 'lock') return json(res, 200, pcmod.lock());
       return json(res, 400, { error: 'unknown command' });
     }
+    /* let Ollama free the graphics card (every loaded model is unloaded; it reloads on the next question) */
+    if (url === '/api/unload' && req.method === 'POST') { await media.unloadOllama(); return json(res, 200, { ok: true }); }
+    /* embeddings (AI Olympics' search event): a local model turns texts into vectors */
+    if (url === '/api/embed' && req.method === 'POST') {
+      const b = await jbody(req, 4e5), name = String(b.model || ''), input = (Array.isArray(b.input) ? b.input : []).slice(0, 64).map(s => String(s).slice(0, 2000));
+      if (!/^[\w.:\-\/]+$/.test(name) || /^claude-/i.test(name) || !input.length) return json(res, 400, { error: 'bad request' });
+      return ensureOllama(up => {
+        if (!up) return json(res, 503, { error: 'Ollama is not running' });
+        const p = JSON.stringify({ model: name, input, keep_alive: '2m' });
+        const r2 = http.request({ ...OLLAMA, path: '/api/embed', method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(p) } }, x => { let t = ''; x.on('data', c => t += c); x.on('end', () => { try { const j = JSON.parse(t); if (j.error) return json(res, 400, { error: j.error }); json(res, 200, { embeddings: j.embeddings || [] }); } catch (e) { json(res, 500, { error: 'bad reply' }); } }); });
+        r2.on('error', e => json(res, 502, { error: e.message })); r2.setTimeout(300000, () => r2.destroy()); r2.end(p);
+      });
+    }
+    /* a picture from the edit model with no photo (FLUX text-to-image): the AI Olympics picture duel */
+    if (url === '/api/art/flux' && req.method === 'POST') return sendMade(await media.flux(only(await jbody(req, 2e4), ['prompt', 'w', 'h', 'seed', 'steps'])), 'image/png', 'The picture could not be read.');
     if (url === '/api/modelcaps') {
       const name = q.get('name') || ''; if (!/^[\w.:\-\/]+$/.test(name)) return json(res, 200, { vision: false });
       return ensureOllama(up => {
@@ -639,6 +755,10 @@ const mainServer = http.createServer(async (req, res) => {
      Never allowed to take the app down with it: any failure is swallowed and reported on the Ready page. */
   setTimeout(() => { safe.run().then(r => { if (r && r.ok && !r.skipped) { try { prep.noteBackup(); } catch (e) { } console.log('progress backed up to ' + r.folder); } }).catch(() => { }); }, 20000);
 });
+/* a second copy of Moundshroud (the tray helper thought the first was down while it was only busy) must not linger:
+   it cannot have the app's address, so it stops before it opens anything else (the phone address, routines) */
+mainServer.on('error', e => { if (e && e.code === 'EADDRINUSE') { console.log('Moundshroud is already running on ' + PORT + '; this copy stops.'); try { remote.stop(); } catch (x) { } try { routines.shutdown(); } catch (x) { } process.exit(0); } });
+mainServer.on('listening', () => { try { remote.start(); } catch (e) { } });      // the phone address opens only once this copy owns the app's address
 mainServer.keepAliveTimeout = 75000; mainServer.headersTimeout = 80000;        // idle connections stay open longer than the browser reuses them (avoids sporadic 'Failed to fetch')
 
 /* ---- the offline library on its own address ----
@@ -679,6 +799,9 @@ libServer.listen(LIBPORT, '127.0.0.1');
 
 setInterval(() => {
   const now = Date.now();
+  if (routines.busy()) return;                 // a routine is running: stay up until it ends, then idle out as usual
+  if (longvideo.busy()) return;                // a long video is being made: stay up until it is done
+  if (remote.on()) return;                     // phone access is on: stay up for the phone (Quit in the tray still stops everything)
   if (closingAt && now > closingAt) shutdown();
   else if (seen && now - lastPing > 180000) shutdown();
   else if (!seen && now - started > 120000) shutdown();

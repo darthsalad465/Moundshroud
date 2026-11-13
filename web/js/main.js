@@ -49,6 +49,7 @@
     if ($('ov').classList.contains('on')) return A.closeDlg();
     if ($('pop').style.display === 'block') return A.closePop();
     if ($('sel').style.display === 'block') { $('sel').style.display = 'none'; return; }
+    if (A.cur === 'chat' && A.chat && A.chat.busy && A.chat.busy()) return A.chat.stop();      // Esc stops a reply that is being written, before it does anything else on the Chat page
     const ae = document.activeElement;
     if (ae && /INPUT|TEXTAREA/.test(ae.tagName) && ae.value) { ae.blur(); return; }
     if (A.cur !== 'home') { A.showTab('home'); return; }

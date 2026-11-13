@@ -50,25 +50,30 @@
 <main>
   <!-- CHAT -->
   <section class="panel on" id="p-chat">
-    <div id="chattabs" class="row"><button class="ib on" data-ct="chat">&#128172; Chat</button><button class="ib" data-ct="agent">&#129302; Agent</button><button class="ib" data-ct="swarm">&#128029; Swarm</button></div>
+    <div id="chattabs" class="row"><button class="ib on" data-ct="chat">&#128172; Chat</button><button class="ib" data-ct="agent">&#129302; Agent</button><button class="ib" data-ct="swarm">&#128029; Swarm</button><button class="ib" data-ct="olympics">&#127941; Olympics</button><button class="ib" data-ct="bible">&#10013;&#65039; Bible</button><button class="ib" data-ct="debate">&#128483; Debate</button></div>
     <div id="agentpane"></div>
     <div id="swarmpane"></div>
+    <div id="olympane"></div>
+    <div id="debatepane"></div>
+    <div id="biblepane"></div>
     <div id="msgs"></div>
     <div id="sel"></div>
     <div id="calcchip"></div>
     <div class="composer">
       <div id="row">
         <button class="ib" id="mic" title="Speak (click to start, click again to stop)">&#127908;</button>
-        <textarea id="in" rows="1" placeholder="Ask anything...  (Enter to send)"></textarea>
+        <textarea id="in" rows="1" placeholder="Ask anything...  (Enter to send, Shift+Enter for a new line)"></textarea>
         <button class="ib" id="prm" title="Saved prompts">Prompts</button>
         <button class="pri" id="go">Send</button>
       </div>
       <div id="meta">
         <label class="chk" title="Let Qwen reason step by step first (slower, better on hard questions)"><input type="checkbox" id="think"> Think harder</label>
+        <label class="chk" title="Code interpreter: for sums, data and charts the AI writes Python or JavaScript, Moundshroud runs it in a sealed-off sandbox on this PC, and the AI answers from the real result"><input type="checkbox" id="runcode"> 🧮 Run code</label>
         <label class="chk" id="uwl" style="display:none" title="Look the question up in your offline libraries first"><input type="checkbox" id="usewiki" checked> Use libraries</label>
         <label class="chk" id="ufl" title="Search your own files and notes first"><input type="checkbox" id="usefiles" checked> Use my files</label>
         <label class="chk" id="uwb" style="display:none" title="Search the internet for this question and cite what it finds (turn internet access on in Settings)"><input type="checkbox" id="useweb"> &#127760; Web</label>
-        <span class="sp"></span><span id="status">connecting...</span>
+        <button class="ib" id="methelp" type="button" title="What these boxes do" aria-label="What these boxes do">?</button>
+        <span class="sp"></span><span id="status" role="status" aria-live="polite">connecting...</span>
       </div>
     </div>
   </section>
@@ -163,6 +168,9 @@
 <script defer src="/web/js/tools.js"></script>
 <script defer src="/web/js/agent.js"></script>
 <script defer src="/web/js/swarm.js"></script>
+<script defer src="/web/js/olympics.js"></script>
+<script defer src="/web/js/debate.js"></script>
+<script defer src="/web/js/bible.js"></script>
 <script defer src="/web/js/converter.js"></script>
 <script defer src="/web/js/cb-data.js"></script>
 <script defer src="/web/js/cb-ops.js"></script>
@@ -193,6 +201,7 @@
 <script defer src="/web/js/play-depths.js"></script>
 <script defer src="/web/js/play-trader.js"></script>
 <script defer src="/web/js/play-defense.js"></script>
+<script defer src="/web/js/play-germ.js"></script>
 <script defer src="/web/js/play-boards.js"></script>
 <script defer src="/web/js/rome-engine.js"></script>
 <script defer src="/web/js/play-rome.js"></script>
@@ -275,10 +284,14 @@
 <script defer src="/web/js/studio-pixel-rand.js"></script>
 <script defer src="/web/js/studio-pixel.js"></script>
 <script defer src="/web/js/aiart.js"></script>
+<script defer src="/web/js/promptopt.js"></script>
+<script defer src="/web/js/interp.js"></script>
+<script defer src="/web/js/remote.js"></script>
 <script defer src="/web/js/aivideo.js"></script>
 <script defer src="/web/js/studio-albums.js"></script>
 <script defer src="/web/js/studio-paint.js"></script>
 <script defer src="/web/js/studio-music.js"></script>
+<script defer src="/web/js/studio-sessions.js"></script>
 <script defer src="/web/js/tabletop.js"></script>
 <script defer src="/web/js/app-context.js"></script>
 <script defer src="/web/js/companion.js"></script>

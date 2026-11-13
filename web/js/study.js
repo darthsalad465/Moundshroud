@@ -228,5 +228,6 @@
       A.showTab('study'); load().then(() => { home(); $('stext').value = text.slice(0, 7000); $('stitle').value = (deck || 'New deck').slice(0, 40); make(text, deck || 'New deck'); });
     }
   };
-  A.registerTab('study', 'Study', async () => { await load(); deckSel ? deckPage(deckSel) : home(); });
+  let sShown = false;
+  A.registerTab('study', 'Study', async () => { await load(); if (!sShown) { sShown = true; deckSel ? deckPage(deckSel) : home(); } });      // kept as you left it (a quiz being made carries on)
 })();

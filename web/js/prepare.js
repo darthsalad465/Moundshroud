@@ -25,11 +25,11 @@
   function bar() { $('psub').innerHTML = SUBS.map(s => '<button class="ib' + (sub === s[0] ? ' on' : '') + '" data-s="' + s[0] + '">' + s[1] + '</button>').join(''); }
   $('psub').onclick = e => { const b = e.target.closest('[data-s]'); if (b) { sub = b.dataset.s; ls.set('prepsub', sub); render(); } };
   async function render() {
-    clearInterval(pollT); const my = ++tok; bar(); const b = $('pbody'); b.innerHTML = '<div class="pad mute">Loading...</div>';
-    if (!P.data) await P.load(); if (my !== tok) return;
-    b.innerHTML = '';
-    if (sub === 'aid') return A.firstAid.mount(b);
-    const f = P.sections[sub]; if (f) f(b, my);
+    bar(); const b = $('pbody');
+    /* each section is made once and kept (A.keep): downloads, forms and checks carry on while you look elsewhere */
+    if (!P.data) { const t0 = ++tok; A.keepReset(b); b.innerHTML = '<div class="pad mute">Loading...</div>'; await P.load(); if (t0 !== tok) return; }
+    const my = tok, s0 = sub;
+    A.keep(b, s0, el => { if (s0 === 'aid') return A.firstAid.mount(el); const f = P.sections[s0]; if (f) f(el, my); });
   }
   A.registerTab('health', 'Prepare', render);
 

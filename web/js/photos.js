@@ -113,6 +113,7 @@
   function closeViewer() { const o = document.getElementById('phview'); if (o) o.remove(); viewerAt = -1; clearInterval(slide); slide = 0; document.removeEventListener('keydown', vkey, true); }
   function vkey(e) {
     if (viewerAt < 0) return;
+    if (e.target && /^(TEXTAREA|INPUT)$/.test(e.target.tagName)) return;      // typing a question: arrows move the cursor
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeViewer(); }
     else if (e.key === 'ArrowRight') { e.preventDefault(); step(1); } else if (e.key === 'ArrowLeft') { e.preventDefault(); step(-1); }
   }
@@ -125,6 +126,7 @@
       '<aside class="ph-info"><div style="display:flex;gap:6px;justify-content:flex-end"><button class="ib" id="pvx" title="Close (Esc)">✕</button></div><h3 style="margin:6px 0 2px;word-break:break-word">' + esc(x.n) + '</h3><div class="small mute">' + fmtDate(x.t) + (x.ex ? ' · taken' : ' · file date') + ' · ' + size(x.s) + '</div><div class="small mute" style="margin:2px 0 10px;word-break:break-all">' + esc(x.root + (x.d ? '\\' + x.d : '')) + '</div>' +
       (x.cap ? '<div class="card small" style="line-height:1.5">' + esc(x.cap.c) + '<div style="margin-top:6px">' + x.cap.k.map(k => '<span class="ph-tag" data-tag="' + esc(k) + '">' + esc(k) + '</span>').join('') + '</div></div>' : '') +
       '<div class="ph-acts"><button class="ib" id="pvfav">' + (x.fav ? '★ Favourite' : '☆ Favourite') + '</button>' + (x.show && !x.cloud ? '<button class="ib" id="pvai">✨ ' + (x.cap ? 'Describe again' : 'Describe') + '</button>' : '') + '<button class="ib" id="pvrev2">📂 Show in folder</button><button class="ib" id="pvslide">' + (slide ? '⏸ Stop slideshow' : '▶ Slideshow') + '</button><button class="ib" id="pvhide" title="Take it out of this library. The file itself is not touched.">🙈 Hide from Photos</button></div>' +
+      (x.show && !x.cloud ? '<div class="ph-chat"><div style="font-weight:600;margin:14px 0 6px">💬 Ask about this photo</div><div id="pvmsgs" class="ph-msgs"></div><div style="display:flex;gap:6px;margin-top:6px"><textarea id="pvq" rows="2" style="flex:1;min-width:0" placeholder="What breed is the dog? Where could this be?  (Enter to send)"></textarea><button class="pri" id="pvsend">Ask</button></div><div class="small mute" style="margin-top:4px">Answered by an AI on this PC. The photo never leaves it.</div></div>' : '') +
       '<div class="small mute" style="margin-top:10px">' + (viewerAt + 1) + ' of ' + shown.length + ' · ← → to move · Esc to close</div></aside>';
     const on = (id, f) => { const b = o.querySelector(id); if (b) b.onclick = f; };
     on('#pvx', closeViewer); on('#pvp', () => step(-1)); on('#pvn', () => step(1));
@@ -136,6 +138,39 @@
     on('#pvai', async () => { const b = o.querySelector('#pvai'); b.disabled = true; b.textContent = '✨ Looking…'; const m = await visionModel(); if (!m) { b.textContent = 'No AI model that can see is installed'; return; } const ok = await describeOne(x, m); if (!ok) b.textContent = 'The AI could not describe it'; else drawViewer(); });
     o.querySelectorAll('[data-tag]').forEach(t => t.onclick = () => { closeViewer(); st.q = t.dataset.tag; root.querySelector('#phq').value = st.q; st.view = 'all'; paint(); });
     o.onclick = e => { if (e.target === o || e.target.classList.contains('ph-stage')) closeViewer(); };
+    if (o.querySelector('#pvq')) chatWire(o, x);
+  }
+
+  /* ---------- a conversation about one photo: the picture goes with the first question, later questions follow on ----------
+     one conversation per photo, kept while Moundshroud is open; always a local model that can see, never Claude */
+  const chats = new Map();
+  const chatOf = x => { if (!chats.has(x.id)) chats.set(x.id, { msgs: [], busy: false, ctl: null }); return chats.get(x.id); };
+  function chatPaint(o, x) {
+    const box = o.querySelector('#pvmsgs'); if (!box) return; const c = chatOf(x);
+    box.innerHTML = c.msgs.map(m => '<div class="ph-msg ' + (m.role === 'user' ? 'me' : 'ai') + '">' + (m.role === 'assistant' && m.content && typeof md === 'function' ? md(m.content) : esc(m.content || (m.role === 'assistant' && c.busy ? 'Looking…' : ''))) + '</div>').join('');
+    box.style.display = c.msgs.length ? '' : 'none'; box.scrollTop = box.scrollHeight;
+    const s = o.querySelector('#pvsend'); if (s) { s.textContent = c.busy ? '■ Stop' : 'Ask'; }
+  }
+  function chatWire(o, x) {
+    const q = o.querySelector('#pvq'), c = chatOf(x); chatPaint(o, x);
+    const live = () => shown[viewerAt] === x && document.getElementById('phview') === o;
+    async function ask() {
+      if (c.busy) { if (c.ctl) c.ctl.abort(); return; }
+      const t = q.value.trim(); if (!t) return;
+      const model = await visionModel();
+      if (!model) { A.toast('No AI model that can see pictures is installed. Add one such as Qwen3.5 in Prepare › Stock up.'); return; }
+      q.value = ''; c.busy = true; c.ctl = new AbortController();
+      const user = { role: 'user', content: t };
+      if (!c.msgs.length) { try { const blob = await shrink(x.id, 768, .8); user.images = [await new Promise(r => { const f = new FileReader(); f.onload = () => r(String(f.result).split(',')[1]); f.readAsDataURL(blob); })]; } catch (e) { c.busy = false; A.toast('Could not read this photo.'); return; } }
+      const ans = { role: 'assistant', content: '' }; c.msgs.push(user, ans); if (live()) chatPaint(o, x);
+      const sys = { role: 'system', content: 'You are looking at one photo with the user and answering questions about it. Answer from what you can see, in plain short sentences. Say so when you are unsure. Do not guess the names of people.' + ' File: ' + x.n + ', ' + fmtDate(x.t) + '.' + (x.cap ? ' An earlier look described it as: ' + x.cap.c : '') };
+      try { await A.ai.stream([sys].concat(c.msgs.slice(0, -1).map(m => m.images ? { role: m.role, content: m.content, images: m.images } : { role: m.role, content: m.content })), txt => { ans.content = txt; if (live()) chatPaint(o, x); }, c.ctl.signal, { model, temp: .4 }); }
+      catch (e) { if (!ans.content) ans.content = e.name === 'AbortError' ? '(stopped)' : 'The AI could not answer: ' + (e.message || e); }
+      if (!ans.content) ans.content = 'The AI gave no answer. Try asking again.';
+      c.busy = false; c.ctl = null; if (live()) chatPaint(o, x);
+    }
+    o.querySelector('#pvsend').onclick = ask;
+    q.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); ask(); } else if (e.key === 'Escape') { e.preventDefault(); q.blur(); } });
   }
   let ps = 0; const paintSoon = () => { clearTimeout(ps); ps = setTimeout(paint, 300); };
 

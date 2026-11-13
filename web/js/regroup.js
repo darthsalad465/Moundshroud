@@ -12,7 +12,8 @@
   function toolTab(id, label, render, again) {
     const p = document.getElementById('p-' + id); if (!p) return;
     p.innerHTML = '<div style="flex:1;min-height:0;display:flex;flex-direction:column"></div>'; const b = p.firstChild;
-    const open = () => { if (b._cleanup) { try { b._cleanup(); } catch (e) { } b._cleanup = null; } b.innerHTML = ''; b.onclick = null; try { render(b); } catch (e) { b.innerHTML = '<div class="pad mute">This page could not open: ' + String(e.message || e) + '</div>'; } };
+    /* kept alive (A.keep): coming back shows the page as you left it; open(true) makes it fresh */
+    const open = force => { if (force === true) A.keepReset(b); try { render(b); } catch (e) { b.innerHTML = '<div class="pad mute">This page could not open: ' + String(e.message || e) + '</div>'; } };
     A.registerTab(id, label, open);
     if (again) again(open);
   }
@@ -24,11 +25,11 @@
   toolTab('calc', 'Calculator', fromTools('calc'));
   toolTab('scan', 'Scanner', fromTools('scan'));
   toolTab('meet', 'Meeting notes', fromTools('meet'));
-  toolTab('rem', 'Reminders & timers', fromTools('rem'), open => A.on('reminders', () => { if (A.cur === 'rem') open(); }));
+  toolTab('rem', 'Reminders & timers', fromTools('rem'), open => A.on('reminders', () => { if (A.cur === 'rem') open(true); }));
   toolTab('clip', 'Clipboard', fromTools('clip'));
 
   /* Education and Personal: tools lifted out of Studio */
-  const studio = (sid, tab, label) => { const t = A.studio && A.studio.take ? A.studio.take(sid, tab) : null; toolTab(tab, label, b => { if (t && t.render) { try { A.speech && A.speech.stop && A.speech.stop(); } catch (e) { } t.render(b); } else b.innerHTML = '<div class="pad mute">Not available.</div>'; }); };
+  const studio = (sid, tab, label) => { const t = A.studio && A.studio.take ? A.studio.take(sid, tab) : null; toolTab(tab, label, b => A.keep(b, tab, el => { if (t && t.render) t.render(el); else el.innerHTML = '<div class="pad mute">Not available.</div>'; })); };
   studio('writing', 'writing', 'Writing');
   studio('practice', 'practice', 'Practice');
   studio('teach', 'teach', 'Teach me');
