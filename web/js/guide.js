@@ -27,6 +27,7 @@
   /* newest first */
   const CHANGELOG = [
     ['2026-11-13', [
+      '<b>✨ A new look for the whole app.</b> The row of tabs across the top is now a <b>sidebar</b> at the left: every page has one drawn icon, the four menus (Office, Education, Personal, Entertainment) unfold in place, and a marker glides to the page you are on. The small button at the far left of the top bar folds the sidebar down to icons; a narrow window does that by itself. The top bar has a search box (<kbd>Ctrl</kbd>+<kbd>K</kbd>) and drawn icons. Pages sit on a rounded sheet and change with one smooth rise; sub-tabs everywhere share one control with a gliding tile; cards stay still until you point at one you can press; the message box in Chat floats, and the replies sit on the page with no box around them. There is a <b>new logo</b> (a crowned gold M on a violet tile, also the desktop, tray and window icon), a start-up screen where the logo draws itself, and a new colour theme, <b>Moundshroud</b>, which is now the default. Your old colours are one click away in <b>Settings &rarr; Appearance</b>, and <b>New look: sidebar and drawn icons</b> there switches the old row of tabs back on. The companion now sits at the foot of the sidebar instead of over the page.',
       '<b>✝️ Chat &rsaquo; Bible Expert:</b> a new Chat tab for questions about Scripture, the Church and Christian history, answered for a Catholic reader. It finds passages in the texts you put in <code>data\\bible</code> (plain .txt files), hands them to your local model and cites them as [1], [2], so verses are quoted from the text and not from memory. Pick any model you have; the normal chat is unchanged.',
       '<b>🦠 New game: Germ Theory</b> (Games &rarr; Adventure &amp; strategy). Pick a germ (bacterium, virus, fungus or parasite), a difficulty and a name, then click the region of a made-up world where it starts. Spend points on spread, symptoms and defenses, and wipe out all twelve regions before scientists finish a cure. Regions close airports, seaports and borders as they panic. Space pauses, 1 to 3 set the speed, and the game saves itself.',
     ]],
@@ -1213,7 +1214,7 @@
 <li>Moundshroud already pauses every animation when its window is hidden or not in front, so it does not heat your PC in the background.</li>
 <li>Your look is stored on this PC in Moundshroud's window. <b>Back up everything</b> does not include it, so use <b>Copy my settings</b> to keep a copy.</li>
 <li>If a change does not appear, close Moundshroud fully and reopen it (<kbd>Ctrl+Alt+A</kbd> or the desktop icon). Then use <b>Reset everything</b> if you want to start again.</li>
-<li>The <b>Moundshroud logo</b> (an A inside an orbit with a small moon) is in the top left, takes your accent colour, tilts and glows when you hover it, and is also the icon on your desktop, in the Start menu and in the window's tab.</li>
+<li>The <b>Moundshroud logo</b> (a crowned gold M on a violet tile) is in the top left. A band of light crosses it now and then, it tilts when you hover it, and it is also the icon on your desktop, in the Start menu, in the tray and in the window's tab.</li>
 </ul>` },
     { id: 'settings', icon: '⚙️', title: 'Settings, backup and rolling back', html: `
 <ul>

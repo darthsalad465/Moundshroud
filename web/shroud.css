@@ -1,0 +1,299 @@
+/* The Moundshroud look (2026-11-13). Loaded last, so it is the final word on shape, type and motion while it is on.
+   It is on when <html> has the class "sh" (web/js/shroud.js: interface style Modern + Settings > Appearance > New look).
+   Every colour is mixed from the active theme's variables, so all colour themes work.
+
+   Two strengths of selector are used on purpose:
+     :where(html.sh) X   adds no weight. It restyles a shared part (card, button, field) and still loses to any page's own,
+                         more specific rule, exactly as the old base styles did.
+     html.sh X           outranks the older layers. Used for the frame of the app: top bar, sidebar, page sheet, sub-tabs.
+
+   Motion: one set of curves and durations (--e-out, --d1..--d4). Distances are multiplied by --mv (motion.js: 1 full,
+   .55 subtle, 0 off), and anim.css / motion.css still stop everything for Motion off and Low-power mode. */
+
+html.sh {
+  --r-xs: 6px; --r-sm: 9px; --r-md: 12px; --r-lg: 16px; --r-xl: 22px;
+  --e-out: cubic-bezier(.16, 1, .3, 1);
+  --e-soft: cubic-bezier(.3, .7, .2, 1);
+  --e-spring: cubic-bezier(.34, 1.4, .5, 1);
+  --d1: 110ms; --d2: 190ms; --d3: 320ms; --d4: 520ms;
+  --rail: 232px;
+  --hair: color-mix(in srgb, var(--line) 74%, transparent);
+  --wash: color-mix(in srgb, var(--text) 6%, transparent);
+  --wash2: color-mix(in srgb, var(--text) 10%, transparent);
+  --surface: color-mix(in srgb, var(--panel) 88%, transparent);
+  --glow: color-mix(in srgb, var(--acc) 40%, transparent);
+  --sh-1: 0 1px 0 rgba(255, 255, 255, .03) inset, 0 1px 2px rgba(0, 0, 0, .18);
+  --sh-2: 0 1px 0 rgba(255, 255, 255, .04) inset, 0 14px 30px -18px rgba(0, 0, 0, .6), 0 2px 6px rgba(0, 0, 0, .16);
+  --sh-3: 0 1px 0 rgba(255, 255, 255, .05) inset, 0 40px 90px -30px rgba(0, 0, 0, .75), 0 8px 24px -8px rgba(0, 0, 0, .4);
+  --f-display: "Sitka Display", "Sitka Heading", "Sitka Text", Constantia, Georgia, serif;
+  --f-ui: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+}
+html.sh.rail-min { --rail: 64px; }
+
+/* ================= the frame: top bar across, sidebar at the left, the page as a sheet ================= */
+html.sh body { display: grid; grid-template-columns: var(--rail) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); font-family: var(--f-ui); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; transition: grid-template-columns var(--d3) var(--e-out); }
+html.sh body > header { grid-column: 1 / -1; grid-row: 1; }
+html.sh body > nav#nav { grid-column: 1; grid-row: 2; }
+html.sh body > main { grid-column: 2; grid-row: 2; min-width: 0; min-height: 0; }
+/* focus modes and screenshots hide the bars: the page then takes the whole window, as before */
+html.sh:is(.afocus, .pfocus, [data-shot]) body { display: flex; }
+html.sh:is(.afocus, .pfocus, [data-shot]) body > main { border: 0; border-radius: 0; }
+@media print { html.sh body { display: block; } html.sh body > main { border: 0; } }
+
+/* ---------- top bar ---------- */
+html.sh body > header { height: 56px; padding: 0 14px 0 12px; gap: 6px; border: 0; background: transparent !important; backdrop-filter: none; box-shadow: none !important; position: relative; z-index: 8; }
+html.sh header > * { order: 5; flex: none; }
+html.sh header > #shfold { order: 0; }
+html.sh header > .mark { order: 1; width: 34px; height: 34px; margin-left: 4px; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, .45)); transition: transform var(--d3) var(--e-spring), filter var(--d2); }
+html.sh header > .mark:hover { transform: scale(1.08) rotate(-3deg); filter: drop-shadow(0 6px 16px color-mix(in srgb, var(--acc) 55%, transparent)); }
+html.sh header > b { order: 2; margin-left: 4px; font-family: var(--f-display); font-size: 20px !important; font-weight: 600; letter-spacing: .005em; text-transform: none; background: linear-gradient(180deg, #fff3c2 10%, #ecc35f 55%, #c08a1e); -webkit-background-clip: text; background-clip: text; color: transparent; }
+html.sh header > #gs { order: 3; flex: 0 1 400px; margin-inline: auto; min-width: 190px; }
+html.sh header > .sp { display: none; }
+html.sh header > #net { order: 4; margin-right: 4px; }
+html.sh header .ib { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 10px; border-radius: 10px; border: 1px solid transparent; background: transparent; color: var(--mute); font-size: 13px; transition: color var(--d2), background-color var(--d2), border-color var(--d2), transform var(--d1); }
+html.sh header .ib:hover { color: var(--text); background: var(--wash); border-color: transparent; transform: none; }
+html.sh header .ib .ic { flex: none; }
+html.sh header .hl { margin-left: 0; }
+html.sh header .hl.always { display: inline; }
+html.sh header #shfold { width: 34px; padding: 0; justify-content: center; }
+html.sh header #gs { justify-content: flex-start; background: var(--wash); border-color: var(--hair); color: var(--mute); }
+html.sh header #gs:hover { background: var(--wash2); border-color: color-mix(in srgb, var(--acc) 45%, var(--line)); }
+html.sh header #gs .hl { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; }
+html.sh header #gs kbd { font-size: 10.5px; opacity: .8; }
+html.sh header #newc { background: color-mix(in srgb, var(--acc) 16%, transparent); border-color: color-mix(in srgb, var(--acc) 34%, transparent); color: var(--text); }
+html.sh header #newc:hover { background: color-mix(in srgb, var(--acc) 26%, transparent); }
+html.sh header #afbtn.on { background: var(--acc); color: var(--onacc, #fff); }
+html.sh header select { height: 34px; max-width: 220px; padding: 0 28px 0 11px; border-radius: 10px; border: 1px solid var(--hair); background: var(--wash) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a59cc0' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 8px center / 14px; appearance: none; font-size: 13px; color: var(--text); cursor: pointer; }
+html.sh header select:hover { border-color: color-mix(in srgb, var(--acc) 45%, var(--line)); }
+html.sh header .pill { height: 24px; padding: 0 9px; border-color: var(--hair); background: transparent; }
+@media (max-width: 1280px) { html.sh header .hl:not(.always) { display: none; } }
+@media (max-width: 1180px) { html.sh header #talk .hl, html.sh header #newc .hl { display: none; } html.sh header select { max-width: 170px; } }
+@media (max-width: 1020px) { html.sh header > #gs { flex: none; min-width: 0; width: 34px; padding: 0; justify-content: center; margin-inline: auto 0; } html.sh header #gs .hl, html.sh header #gs kbd { display: none; } html.sh header .hl.always { display: none; } html.sh header select { max-width: 150px; } }
+@media (max-width: 900px) { html.sh body > header { gap: 2px; padding-right: 8px; } html.sh header select { max-width: 116px; } html.sh header > #net { font-size: 0; gap: 0; padding: 0 7px; } html.sh header > #net em { display: none; } }
+@media (max-width: 760px) { html.sh header > b { display: none; } }
+/* on a light colour theme the name is a deeper gold, so it stays readable */
+html.sh[style*="color-scheme: light"] header > b { background-image: linear-gradient(180deg, #b98a22, #7d5610); }
+
+/* ---------- sidebar ---------- */
+html.sh body > nav#nav { display: flex; flex-direction: column; gap: 0; padding: 6px 10px 18px; overflow: hidden auto; min-height: 0; border: 0; background: transparent !important; position: relative; scrollbar-width: none; mask-image: none; }
+html.sh #nav::-webkit-scrollbar { display: none; }
+html.sh #nav::after { content: none; }
+html.sh #nav button { display: flex; align-items: center; gap: 11px; flex: none; width: 100%; height: 36px; margin: 1px 0; padding: 0 10px; border: 0; border-radius: 10px; background: transparent !important; box-shadow: none !important; color: var(--mute); font: 500 13.5px/1 var(--f-ui); letter-spacing: 0; text-transform: none; text-align: left; white-space: nowrap; position: relative; z-index: 1; clip-path: none; animation: none !important; transform: none; transition: color var(--d2), background-color var(--d2); }
+html.sh #nav button:hover { color: var(--text) !important; background: var(--wash) !important; transform: none; }
+html.sh #nav button:active { transform: scale(.985); }
+html.sh #nav button.on { color: var(--text) !important; font-weight: 600; background: transparent !important; }
+html.sh #nav button.on .ni { color: var(--acc); }
+html.sh #nav button.has { color: var(--text) !important; }
+html.sh #nav button:focus-visible { outline: none; box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--acc) 70%, transparent) !important; }
+html.sh #nav .ni { flex: none; width: 20px; height: 20px; display: grid; place-items: center; font-size: 15px; transition: color var(--d2), transform var(--d3) var(--e-spring); }
+html.sh #nav button:hover .ni { transform: scale(1.1); }
+html.sh #nav .nl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+html.sh #nav .nx { flex: none; width: 14px; height: 14px; opacity: .55; transition: transform var(--d3) var(--e-out); }
+html.sh #nav .ngh[aria-expanded="true"] .nx { transform: rotate(90deg); }
+/* a menu's pages unfold underneath it */
+html.sh #nav .ngl { display: grid; grid-template-rows: 0fr; flex: none; transition: grid-template-rows var(--d3) var(--e-out); }
+html.sh #nav .ngl.open { grid-template-rows: 1fr; }
+html.sh #nav .ngi { min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 0; margin-left: 19px; padding-left: 8px; border-left: 1px solid var(--hair); visibility: hidden; opacity: 0; transition: opacity var(--d2), visibility 0s linear var(--d3); }
+html.sh #nav .ngl.open .ngi { visibility: visible; opacity: 1; transition: opacity var(--d3) 60ms, visibility 0s; }
+html.sh #nav .nsub { height: 32px; font-size: 13px; gap: 10px; padding: 0 9px; }
+/* the marker behind the current page */
+html.sh #nav .nink { position: absolute; left: 0; top: 0; width: 0; height: 36px; border-radius: 10px; opacity: 0; pointer-events: none; z-index: 0; background: linear-gradient(90deg, color-mix(in srgb, var(--acc) 22%, transparent), color-mix(in srgb, var(--acc) 9%, transparent)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--acc) 26%, transparent); transition: transform var(--d3) var(--e-out), width var(--d3) var(--e-out), height var(--d2), opacity var(--d2); }
+html.sh #nav .nink.live { transition: opacity var(--d2); }
+html.sh #nav .nink::before { content: ""; position: absolute; left: 0; top: 9px; bottom: 9px; width: 3px; border-radius: 3px; background: linear-gradient(var(--acc2), var(--acc)); box-shadow: 0 0 10px var(--glow); }
+/* folded to icons */
+html.sh.rail-min #nav { padding-inline: 10px; }
+html.sh.rail-min #nav button { justify-content: center; padding: 0; gap: 0; }
+html.sh.rail-min #nav :is(.nl, .nx, .ngl) { display: none; }
+/* the corner companion lives at the foot of the sidebar instead of over the page */
+html.sh body:has(#cmp:not([style*="none"])) #nav { padding-bottom: 92px; mask-image: linear-gradient(to bottom, #000 calc(100% - 100px), transparent calc(100% - 66px)); }
+html.sh.rail-min #cmp { left: 6px !important; }
+@media (min-width: 701px) {
+  html.sh body:has(#cmp:not([style*="none"])) #p-chat .composer { padding-left: 12px; }
+  html.sh body:has(#cmp:not([style*="none"])) #swarmpane > .scroll, html.sh body:has(#cmp:not([style*="none"])) #agset { padding-bottom: 0; }
+  html.sh body:has(#cmp:not([style*="none"])) .agsidefoot { padding-bottom: 8px; }
+}
+html.sh .navarrow { display: none !important; }
+
+/* ---------- the page sheet ---------- */
+html.sh body > main { border: 1px solid var(--hair); border-right: 0; border-bottom: 0; border-top-left-radius: var(--r-xl); background: color-mix(in srgb, var(--bg) 58%, var(--panel)); box-shadow: -18px 0 50px -30px rgba(0, 0, 0, .7); overflow: hidden; isolation: isolate; }
+
+/* changing page: the old one fades, the new one rises from the direction you moved in the sidebar */
+@keyframes shInDown { from { opacity: 0; transform: translateY(calc(16px * var(--mv, 1))) scale(.994) } to { opacity: 1; transform: none } }
+@keyframes shInUp { from { opacity: 0; transform: translateY(calc(-16px * var(--mv, 1))) scale(.994) } to { opacity: 1; transform: none } }
+@keyframes shOut { to { opacity: 0; transform: scale(.996) } }
+html.sh[data-vtdir="fwd"]::view-transition-new(content) { animation: shInDown 380ms var(--e-out) both; }
+html.sh[data-vtdir="back"]::view-transition-new(content) { animation: shInUp 380ms var(--e-out) both; }
+html.sh[data-vtdir]::view-transition-old(content) { animation: shOut 120ms ease-in both; }
+html.sh[data-motion="off"]::view-transition-new(content), html.sh[data-motion="off"]::view-transition-old(content) { animation: none !important; }
+/* the first cards of the new page settle one after another (motion.js adds .rise) */
+@keyframes shRise { from { opacity: 0; transform: translateY(calc(12px * var(--mv, 1))) } to { opacity: 1; transform: none } }
+html.sh .rise { animation: shRise 460ms var(--e-out) both; }
+
+/* ================= type ================= */
+:where(html.sh) h2 { font: 600 22px/1.2 var(--f-display); letter-spacing: -.005em; margin: 2px 0 8px; color: var(--text); text-shadow: none; }
+:where(html.sh) h3 { font: 650 14px/1.35 var(--f-ui); letter-spacing: 0; text-transform: none; color: var(--text); margin: 14px 0 6px; }
+:where(html.sh) .grp { font-size: 12px; font-weight: 600; letter-spacing: .01em; text-transform: none; color: var(--mute); margin: 12px 0 5px; }
+:where(html.sh) .small { font-size: 12.5px; }
+:where(html.sh) .pad { padding: 16px 20px; }
+:where(html.sh) ::selection { background: color-mix(in srgb, var(--acc) 40%, transparent); color: var(--text); }
+:where(html.sh) * { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--mute) 34%, transparent) transparent; }
+:where(html.sh) :focus-visible { outline: 2px solid color-mix(in srgb, var(--acc) 80%, transparent); outline-offset: 2px; border-radius: var(--r-sm); }
+:where(html.sh) kbd { border-radius: 6px; border-color: var(--hair); background: var(--wash); font-size: 11px; }
+:where(html.sh) mark { background: color-mix(in srgb, var(--acc2) 34%, transparent); border-radius: 4px; padding: 0 2px; }
+:where(html.sh) a { text-underline-offset: 3px; }
+
+/* ================= shared parts ================= */
+/* buttons */
+:where(html.sh) .ib { border-radius: 10px; padding: 6px 12px; font-size: 13px; color: var(--mute); border: 1px solid var(--hair); background: color-mix(in srgb, var(--panel2) 50%, transparent); transition: color var(--d2), background-color var(--d2), border-color var(--d2), box-shadow var(--d2), transform var(--d1) var(--e-soft); }
+:where(html.sh) .ib:hover { color: var(--text); background: var(--panel2); border-color: color-mix(in srgb, var(--acc) 50%, var(--line)); transform: none; }
+:where(html.sh) .ib.on { background: linear-gradient(180deg, color-mix(in srgb, var(--acc) 92%, #fff), var(--acc)); border-color: transparent; color: var(--onacc, #fff); font-weight: 600; box-shadow: 0 6px 16px -8px var(--glow), 0 1px 0 rgba(255, 255, 255, .25) inset; }
+:where(html.sh) .ib:disabled, :where(html.sh) .pri:disabled { opacity: .45; cursor: default; transform: none; filter: none; }
+:where(html.sh) .pri { position: relative; overflow: hidden; border-radius: 11px; padding: 8px 16px; font-weight: 600; color: var(--onacc, #fff); background: linear-gradient(180deg, color-mix(in srgb, var(--acc) 88%, #fff), var(--acc) 55%, color-mix(in srgb, var(--acc) 86%, #000)); box-shadow: 0 10px 22px -12px var(--glow), 0 1px 0 rgba(255, 255, 255, .3) inset, 0 -1px 0 rgba(0, 0, 0, .18) inset; transition: transform var(--d2) var(--e-soft), box-shadow var(--d2), filter var(--d2); }
+:where(html.sh) .pri:hover:not(:disabled) { transform: translateY(calc(-1px * var(--mv, 1))); filter: brightness(1.07); box-shadow: 0 14px 26px -12px var(--glow), 0 0 0 3px color-mix(in srgb, var(--acc) 20%, transparent), 0 1px 0 rgba(255, 255, 255, .3) inset; }
+/* a band of light crosses the main button when the pointer arrives */
+:where(html.sh) .pri::after { content: ""; position: absolute; top: 0; bottom: 0; left: -60%; width: 45%; pointer-events: none; background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .34), transparent); transform: skewX(-18deg); opacity: 0; }
+:where(html.sh) .pri:hover:not(:disabled)::after { animation: shSheen 620ms var(--e-soft); }
+@keyframes shSheen { 0% { left: -60%; opacity: 1 } 100% { left: 125%; opacity: 1 } }
+:where(html.sh) :is(.pri, .ib, .chip, button):active:not(:disabled) { transform: scale(calc(1 - .03 * var(--mv, 1))); transition-duration: 60ms; }
+:where(html.sh) #go.stop { background: var(--bad); box-shadow: none; }
+:where(html.sh) .chip { border-radius: 999px; padding: 5px 12px; border: 1px solid var(--hair); background: color-mix(in srgb, var(--panel2) 55%, transparent); animation: none; transition: color var(--d2), background-color var(--d2), border-color var(--d2), transform var(--d1) var(--e-soft); }
+:where(html.sh) .chip:hover { transform: none; color: var(--text); background: color-mix(in srgb, var(--acc) 14%, var(--panel2)); border-color: color-mix(in srgb, var(--acc) 55%, var(--line)); }
+:where(html.sh) .badge { border-radius: 7px; border-color: var(--hair); background: var(--wash); }
+
+/* fields */
+:where(html.sh) :is(input[type=text], input:not([type]), input[type=number], input[type=search], input[type=password], input[type=email], input[type=tel], input[type=url], input[type=date], input[type=time], textarea, select) { border-radius: 11px; border: 1px solid var(--hair); background-color: color-mix(in srgb, var(--panel2) 62%, transparent); transition: border-color var(--d2), box-shadow var(--d2), background-color var(--d2); }
+:where(html.sh) :is(input, textarea, select):hover { border-color: color-mix(in srgb, var(--text) 22%, var(--line)); }
+:where(html.sh) :is(input, textarea, select):focus { border-color: var(--acc); box-shadow: 0 0 0 3px color-mix(in srgb, var(--acc) 22%, transparent); outline: none; }
+:where(html.sh) ::placeholder { color: color-mix(in srgb, var(--mute) 78%, transparent); }
+
+/* cards: quiet at rest. Only a card you can press lifts under the pointer. */
+:where(html.sh) :is(.card, .td-card, .lg-card) { border-radius: var(--r-lg); border: 1px solid var(--hair); background-color: var(--surface); box-shadow: var(--sh-1); transition: transform var(--d3) var(--e-out), box-shadow var(--d3) var(--e-out), border-color var(--d2), background-color var(--d2); }
+:where(html.sh) :is(.card, .hit, .stat):hover { transform: none; box-shadow: var(--sh-1); }
+:where(html.sh) .hit:hover { box-shadow: none; }
+:where(html.sh) :is(.mode .card, .card[onclick], .card[role=button], .card[data-g], .card[data-o], .card[data-e], .card[data-i], .card[data-m], .card[data-l], .card[data-r], .card[data-c], .tile, .bk, .td-tile, .poC, .nw-ev, .mk-tile, .am-box):hover { transform: translateY(calc(-2px * var(--mv, 1))); box-shadow: var(--sh-2); border-color: color-mix(in srgb, var(--acc) 48%, var(--line)); }
+/* the light under the pointer (shroud.js sets --mx / --my and the class) */
+:where(html.sh) :is(.card, .td-card, .td-tile, .feat, .nw-ev, .mk-tile, .am-card).lit { background-image: radial-gradient(260px circle at var(--mx, 50%) var(--my, 0), color-mix(in srgb, var(--acc) 11%, transparent), transparent 70%); }
+:where(html.sh) .tile { border-radius: var(--r-md); border-color: var(--hair); }
+:where(html.sh) .opt { border-radius: var(--r-md); border-color: var(--hair); }
+:where(html.sh) .item { border-radius: var(--r-sm); transition: background-color var(--d2); }
+:where(html.sh) .side { background: color-mix(in srgb, var(--panel) 40%, transparent); border-right-color: var(--hair); }
+:where(html.sh) .flash { border-radius: var(--r-xl); font-family: var(--f-display); font-size: 22px; box-shadow: var(--sh-2); }
+:where(html.sh) .bar { height: 8px; border-radius: 99px; background: var(--wash2); }
+:where(html.sh) .bar i { border-radius: 99px; background-image: linear-gradient(90deg, var(--acc), var(--acc2)); background-size: auto; animation: none; transition: width var(--d4) var(--e-out); }
+:where(html.sh) .disc { border-radius: var(--r-md); }
+:where(html.sh) .skel { border-radius: var(--r-sm); background: var(--wash2); }
+:where(html.sh) details > summary { transition: color var(--d2); }
+:where(html.sh) .guide th { background: var(--wash); }
+:where(html.sh) .guide td, :where(html.sh) .guide th { border-color: var(--hair); }
+
+/* dialogs, menus, notices */
+html.sh #ov { background: color-mix(in srgb, var(--bg) 60%, transparent); backdrop-filter: blur(9px) saturate(1.1); padding-top: 8vh; }
+@keyframes shFade { from { opacity: 0 } to { opacity: 1 } }
+@keyframes shDlg { from { opacity: 0; transform: translateY(calc(18px * var(--mv, 1))) scale(.965) } to { opacity: 1; transform: none } }
+html.sh #ov.on { animation: shFade var(--d2) ease-out; }
+html.sh #ov.on .dlg { animation: shDlg 420ms var(--e-out); }
+html.sh .dlg { border-radius: var(--r-xl); border: 1px solid var(--hair); background: color-mix(in srgb, var(--panel) 97%, transparent); box-shadow: var(--sh-3); }
+html.sh .dlg .hd { padding: 16px 20px 14px; border-bottom-color: var(--hair); }
+html.sh .dlg .hd > b:first-child { font: 600 19px/1.2 var(--f-display); }
+html.sh .dlg .bd { padding: 14px 20px 18px; }
+@keyframes shPop { from { opacity: 0; transform: translateY(calc(-6px * var(--mv, 1))) scale(.97) } to { opacity: 1; transform: none } }
+html.sh #pop { border-radius: 14px; padding: 8px; border: 1px solid var(--hair); background: color-mix(in srgb, var(--panel) 90%, transparent); backdrop-filter: blur(18px) saturate(1.3); box-shadow: var(--sh-3); animation: shPop 200ms var(--e-out) both; }
+html.sh #pop .hit { border-radius: 9px; transition: background-color var(--d1); }
+html.sh #pop .hit:hover { background: var(--wash2); }
+html.sh #pop .ni { width: 20px; display: grid; place-items: center; color: var(--mute); }
+html.sh .nt { border-radius: 14px; border-color: var(--hair); background: color-mix(in srgb, var(--panel) 90%, transparent); box-shadow: var(--sh-3); }
+html.sh .cmdbox { border-radius: var(--r-xl); border-color: var(--hair); box-shadow: var(--sh-3); }
+html.sh #cmdx { backdrop-filter: blur(9px); }
+html.sh #cmdx .hit { transition: background-color var(--d1); }
+html.sh #totop { border-color: var(--hair); }
+html.sh #loadbar { height: 2px; background: linear-gradient(90deg, var(--acc), var(--acc2)); }
+
+/* ================= sub-tabs: one control everywhere, with a tile that glides to the chosen tab ================= */
+html.sh :is(#tsub, #psub, #ssub, #plsub, #fasub, #actabs, #hbar)[data-ink] { display: flex !important; flex-wrap: nowrap !important; gap: 2px !important; width: fit-content; max-width: calc(100% - 32px); margin: 12px 16px 6px !important; padding: 4px !important; overflow-x: auto; position: relative; flex: none; border: 1px solid var(--hair) !important; border-radius: 13px; background: var(--wash) !important; scrollbar-width: none; font-family: inherit; }
+html.sh :is(#tsub, #psub, #ssub, #plsub, #fasub, #actabs, #hbar)[data-ink]::-webkit-scrollbar { display: none; }
+html.sh #actabs[data-ink] { margin: 0 0 12px !important; max-width: 100%; }
+html.sh :is(#tsub, #psub, #ssub, #plsub, #fasub, #actabs, #hbar)[data-ink] > button { position: relative; z-index: 1; flex: none; border: 0 !important; background: transparent !important; box-shadow: none !important; border-radius: 9px; padding: 6px 13px; font: 500 13px/1.4 var(--f-ui); letter-spacing: 0; text-transform: none; font-variant: normal; font-style: normal; color: var(--mute); white-space: nowrap; transition: color var(--d2); }
+html.sh :is(#tsub, #psub, #ssub, #plsub, #fasub, #actabs, #hbar)[data-ink] > button:hover { color: var(--text); transform: none; }
+html.sh :is(#tsub, #psub, #ssub, #plsub, #fasub, #actabs, #hbar)[data-ink] > button.on { color: var(--text) !important; font-weight: 600; }
+html.sh :is(#tsub, #psub, #ssub, #plsub, #fasub, #actabs, #hbar)[data-ink]::after { content: ""; position: absolute; z-index: 0; left: 0; top: var(--ink-y, 4px); height: var(--ink-h, 30px); width: var(--ink-w, 0); transform: translateX(var(--ink-x, 0)); border-radius: 9px; pointer-events: none; opacity: 0; background: color-mix(in srgb, var(--panel) 70%, var(--panel2)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--acc) 30%, var(--line)), 0 6px 14px -8px rgba(0, 0, 0, .6), 0 -2px 0 var(--acc) inset; transition: transform 380ms var(--e-out), width 380ms var(--e-out), top var(--d3), height var(--d3), opacity var(--d2); }
+html.sh :is(#tsub, #psub, #ssub, #plsub, #fasub, #actabs, #hbar).inked::after { opacity: 1; }
+/* Chat's own tabs have no glider, so the chosen one carries the tile itself */
+html.sh #chattabs { gap: 2px; width: fit-content; max-width: calc(100% - 32px); margin: 12px auto 4px; padding: 4px; border: 1px solid var(--hair); border-radius: 13px; background: var(--wash); overflow-x: auto; scrollbar-width: none; }
+html.sh #chattabs .ib { border: 0; background: transparent; border-radius: 9px; padding: 6px 13px; color: var(--mute); box-shadow: none; font-weight: 500; }
+html.sh #chattabs .ib:hover { color: var(--text); }
+html.sh #chattabs .ib.on { color: var(--text) !important; font-weight: 600; background: color-mix(in srgb, var(--panel) 70%, var(--panel2)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--acc) 30%, var(--line)), 0 6px 14px -8px rgba(0, 0, 0, .6), 0 -2px 0 var(--acc) inset; }
+/* Settings sidebar */
+html.sh #snav > button { border: 0 !important; background: transparent !important; border-radius: 10px; color: var(--mute); transition: background-color var(--d2), color var(--d2); }
+html.sh #snav > button:hover { background: var(--wash) !important; color: var(--text); }
+
+/* ================= pages ================= */
+/* ---------- Today ---------- */
+html.sh #p-home .td-wrap { max-width: 1120px; padding-top: 10px; }
+html.sh #p-home #tdd { font-size: 13px; letter-spacing: .01em; }
+html.sh #p-home .td-wrap > .row:first-child > div:first-child > div:last-child { font: 600 42px/1.05 var(--f-display) !important; letter-spacing: -.015em; margin-top: 6px !important; background: linear-gradient(180deg, var(--text) 30%, color-mix(in srgb, var(--text) 62%, var(--acc))); -webkit-background-clip: text; background-clip: text; color: transparent; }
+html.sh #p-home .td-wrap > .row:first-child > .row { flex: 1 1 380px !important; max-width: none !important; margin-top: 6px; }
+html.sh #p-home .td-wrap > .row:first-child > .sp { display: none; }
+html.sh #p-home #tdq { height: 44px; padding: 0 18px !important; border-radius: 14px !important; font-size: 14.5px; background-color: color-mix(in srgb, var(--panel) 80%, transparent); box-shadow: var(--sh-1); }
+html.sh #p-home #tdgo { height: 44px; border-radius: 14px; padding: 0 20px; }
+html.sh #p-home #tdall { height: 44px; border-radius: 14px; }
+html.sh #p-home .td-grid { gap: 14px; }
+html.sh #p-home .td-card { border-radius: 18px; padding: 18px 20px; border-color: var(--hair); background: var(--surface); box-shadow: var(--sh-1); }
+html.sh #p-home .td-card h4 { margin: 0 0 10px; font: 600 12.5px/1.3 var(--f-ui); letter-spacing: .01em; text-transform: none; color: var(--mute); }
+html.sh #p-home .td-big { font-family: var(--f-display); font-weight: 600; letter-spacing: -.01em; }
+html.sh #p-home #tdsp { background: radial-gradient(520px 220px at 0 0, color-mix(in srgb, var(--acc2) 12%, transparent), transparent 70%), radial-gradient(520px 260px at 100% 100%, color-mix(in srgb, var(--acc) 12%, transparent), transparent 70%), var(--surface); border-color: color-mix(in srgb, var(--acc2) 26%, var(--line)); }
+html.sh #p-home .td-wrap > h4 { margin: 26px 0 10px !important; font: 600 20px/1.2 var(--f-display) !important; letter-spacing: 0 !important; text-transform: none !important; color: var(--text) !important; }
+html.sh #p-home .td-tile { gap: 12px; padding: 12px 14px; border-radius: 14px; border-color: var(--hair); background: var(--surface); transition: transform var(--d3) var(--e-out), box-shadow var(--d3) var(--e-out), border-color var(--d2), background-color var(--d2); }
+html.sh #p-home .td-tile:hover { background: var(--surface); }
+html.sh #p-home .td-tile > span:first-child { flex: none; width: 38px; height: 38px; display: grid; place-items: center; border-radius: 11px; font-size: 19px; color: var(--acc); background: color-mix(in srgb, var(--acc) 13%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--acc) 20%, transparent); transition: transform var(--d3) var(--e-spring), background-color var(--d2); }
+html.sh #p-home .td-tile > span:first-child svg { width: 20px; height: 20px; }
+html.sh #p-home .td-tile:hover > span:first-child { transform: scale(1.08) rotate(-4deg); background: color-mix(in srgb, var(--acc) 22%, transparent); }
+
+/* ---------- Chat ---------- */
+html.sh #msgs { padding-top: 18px; padding-bottom: 12px; }
+@keyframes shMsg { from { opacity: 0; transform: translateY(calc(10px * var(--mv, 1))) } to { opacity: 1; transform: none } }
+html.sh .m { animation: shMsg 360ms var(--e-out); margin-bottom: 16px; }
+html.sh .m.u { padding: 10px 15px; border-radius: 18px 18px 6px 18px; border: 1px solid color-mix(in srgb, var(--acc) 26%, transparent); background: linear-gradient(135deg, color-mix(in srgb, var(--acc) 26%, var(--panel2)), color-mix(in srgb, var(--acc) 10%, var(--panel2))); box-shadow: var(--sh-1); }
+/* the assistant's words sit on the page itself, with no box around them */
+html.sh .m.a { max-width: min(100%, 780px); padding: 2px 2px 4px; border: 0; border-radius: 0; background: transparent; box-shadow: none; font-size: 15px; line-height: 1.65; }
+html.sh .m.a code { border-radius: 6px; border-color: var(--hair); background: color-mix(in srgb, var(--bg) 70%, #000); }
+html.sh .m.a pre { border-radius: var(--r-md); border-color: var(--hair); background: color-mix(in srgb, var(--bg) 70%, #000); }
+html.sh .m .tools span { border-color: var(--hair); background: transparent; transition: color var(--d2), border-color var(--d2), background-color var(--d2); }
+html.sh .m .tools span:hover { background: var(--wash); }
+html.sh .src { border-color: var(--hair); background: var(--wash); transition: border-color var(--d2), background-color var(--d2); }
+/* the message box floats over the foot of the page */
+html.sh #p-chat > .composer { flex: none; align-self: center; width: min(900px, calc(100% - 32px)); margin: 0 0 16px; padding: 10px 12px 8px; border: 1px solid var(--hair); border-radius: 22px; background: color-mix(in srgb, var(--panel) 94%, transparent); backdrop-filter: blur(14px); box-shadow: var(--sh-2); transition: border-color var(--d2), box-shadow var(--d3); }
+html.sh #p-chat > .composer:focus-within { border-color: color-mix(in srgb, var(--acc) 55%, var(--line)); box-shadow: 0 0 0 4px color-mix(in srgb, var(--acc) 13%, transparent), var(--sh-2); }
+html.sh #in { border: 0; background: transparent; box-shadow: none !important; padding: 9px 6px; font-size: 15px; border-radius: 10px; }
+html.sh #go { height: 38px; padding: 0 18px; border-radius: 12px; }
+html.sh #mic, html.sh #prm { height: 38px; border-radius: 12px; border-color: transparent; background: transparent; }
+html.sh #mic:hover, html.sh #prm:hover { background: var(--wash2); }
+html.sh #meta { padding: 0 4px; }
+html.sh #sel { border-radius: var(--r-lg); }
+html.sh #tolatest { border-color: var(--hair); box-shadow: var(--sh-2); }
+html.sh #empty .big { font: 600 30px/1.15 var(--f-display); letter-spacing: -.01em; }
+html.sh .starters .chip { border-radius: 14px; padding: 11px 14px; }
+html.sh .agbox, html.sh .agnew { border-color: var(--hair); }
+html.sh .agside { background: color-mix(in srgb, var(--panel) 46%, transparent); border-right-color: var(--hair); }
+
+/* ---------- a little character for a few areas, without changing the shared parts ---------- */
+html.sh #p-faith { font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif; }
+html.sh #p-faith :is(button, input, select) { font-family: var(--f-ui); }
+html.sh #p-notes textarea { font-family: Georgia, "Iowan Old Style", serif; font-size: 15.5px; line-height: 1.75; }
+html.sh #p-guide .gsec { max-width: 860px; margin-inline: auto; line-height: 1.7; }
+html.sh #p-guide .gsec h2 { font-size: 24px; padding-bottom: 6px; border-bottom: 1px solid var(--hair); }
+
+/* ---------- voice mode ---------- */
+html.sh #vm .cap { font-family: var(--f-display); font-size: 22px; }
+html.sh #vm .st { letter-spacing: .02em; text-transform: none; }
+
+/* ================= the logo, wherever it is drawn inline =================
+   A band of light crosses the M now and then, and the three jewels of the crown glint in turn. Paused while the window is hidden. */
+.mark .mk-sh { animation: mkSheen 7s var(--e-soft, ease-in-out) infinite; }
+@keyframes mkSheen { 0%, 62% { transform: translateX(0) skewX(-18deg) } 86%, 100% { transform: translateX(190px) skewX(-18deg) } }
+.mark .mk-j { animation: mkJewel 3.6s ease-in-out infinite; }
+.mark .mk-j:nth-of-type(2) { animation-delay: -1.2s; }
+.mark .mk-j:nth-of-type(3) { animation-delay: -2.4s; }
+@keyframes mkJewel { 0%, 100% { opacity: .65 } 50% { opacity: 1 } }
+.mark { cursor: pointer; }
+/* the bright outline is only for the start-up splash, where the M is drawn as a line first */
+.mark .mk-ml { display: none; }
