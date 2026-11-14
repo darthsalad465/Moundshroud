@@ -117,7 +117,7 @@
       '<div class="td-card" id="tdcom" style="display:none"><h4>Community</h4></div>' +
       '<div class="td-card" id="tdrt" style="display:none"><h4>⏱ Agent routines</h4></div>' +
       '<div class="td-card" id="tdtip"><h4>Tip</h4></div>' +
-      '</div><h4 style="margin:18px 0 8px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)">Go to</h4><div class="td-grid" style="grid-template-columns:repeat(auto-fill,minmax(190px,1fr))">' + TILES.map(t => '<div class="td-tile" data-go="' + t[0] + '"><span>' + t[1] + '</span><div><b>' + t[2] + '</b><div class="small mute">' + t[3] + '</div></div></div>').join('') + '</div></div></div>';
+      '</div><h4 style="margin:18px 0 8px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)">Go to</h4><div class="td-grid" style="grid-template-columns:repeat(auto-fill,minmax(190px,1fr))">' + TILES.map(t => '<div class="td-tile" data-go="' + t[0] + '"><span>' + ((A.icon && A.icon(t[0])) || t[1]) + '</span><div><b>' + t[2] + '</b><div class="small mute">' + t[3] + '</div></div></div>').join('') + '</div></div></div>';
     const $ = id => root.querySelector('#' + id);
     const ask = () => { const v = $('tdq').value.trim(); A.showTab('chat'); if (v) A.chat.ask(v); };
     spirit($('tdsp')); dayCard($('tdday')); histCard($('tdhist')); routineCard($('tdrt'));

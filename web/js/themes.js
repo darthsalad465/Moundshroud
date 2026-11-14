@@ -5,6 +5,10 @@
   const mk = (v) => ':root{' + Object.entries(v).map(([k, x]) => '--' + k + ':' + x).join(';') + '}';
   const stars = 'radial-gradient(1.5px 1.5px at 12% 18%,#fff,transparent),radial-gradient(1px 1px at 27% 72%,#cfd8ff,transparent),radial-gradient(1.5px 1.5px at 41% 33%,#fff,transparent),radial-gradient(1px 1px at 58% 82%,#ffd9f2,transparent),radial-gradient(1.5px 1.5px at 73% 21%,#fff,transparent),radial-gradient(1px 1px at 86% 61%,#cfd8ff,transparent),radial-gradient(1px 1px at 93% 12%,#fff,transparent),radial-gradient(1px 1px at 6% 90%,#fff,transparent),radial-gradient(1.5px 1.5px at 65% 50%,#e7dcff,transparent)';
   const THEMES = [
+    /* the signature theme (2026-11-13): the logo's own violet and gold over a deep ink, with a slow veil of light drifting behind the bars */
+    { id: 'shroud', name: 'Moundshroud', note: 'Royal violet and gold over deep ink: the signature look', dark: 1, sw: ['#0c0916', '#a184ff', '#ebc15f'],
+      v: { bg: '#0c0916', panel: '#161224', panel2: '#1f1a33', line: '#2f2849', text: '#f0ecfa', mute: '#a59cc0', acc: '#a184ff', acc2: '#ebc15f', user: '#2d2260', ok: '#63e2a8', bad: '#ff7189', warn: '#ffc46b', onacc: '#150b2e', sqL: '#cfc4ee', sqD: '#6c57b0' },
+      css: 'body{background:radial-gradient(1100px 620px at 88% -14%,rgba(125,79,230,.32),transparent 62%),radial-gradient(900px 560px at -10% 112%,rgba(235,193,95,.09),transparent 60%),var(--bg)!important}body::before{content:"";position:fixed;inset:-30%;z-index:-1;pointer-events:none;background:radial-gradient(38% 30% at 30% 28%,rgba(161,132,255,.15),transparent 70%),radial-gradient(30% 34% at 74% 70%,rgba(235,193,95,.06),transparent 70%),radial-gradient(36% 30% at 62% 20%,rgba(96,60,220,.17),transparent 72%);animation:shroudDrift 46s ease-in-out infinite alternate;will-change:transform}@keyframes shroudDrift{0%{transform:translate3d(-3%,-2%,0) rotate(0)}100%{transform:translate3d(4%,3%,0) rotate(8deg)}}' },
     { id: 'midnight', name: 'Midnight', note: 'The original: calm violet and teal', dark: 1, sw: ['#0e1016', '#8b7cff', '#46d7c8'],
       v: { bg: '#0e1016', panel: '#161923', panel2: '#1d212e', line: '#2a3042', text: '#eceef5', mute: '#9aa3ba', acc: '#8b7cff', acc2: '#46d7c8', user: '#2b2f55', ok: '#5ee6a8', bad: '#ff6b81', warn: '#ffc266', onacc: '#fff', sqL: '#b7bdd9', sqD: '#5c6590' }, css: '' },
     { id: 'aurora', name: 'Aurora', note: 'Northern lights drifting behind everything', dark: 1, sw: ['#07131a', '#3ee0b0', '#7a8bff'],
@@ -38,7 +42,7 @@
   if (Array.isArray(window.OA_THEMES_MORE)) THEMES.push(...window.OA_THEMES_MORE);
   const BASE = 'header{background:color-mix(in srgb,var(--panel) 72%,transparent)!important}nav{background:color-mix(in srgb,var(--panel) 50%,transparent)!important}.chip:hover{background:var(--panel2)!important}::-webkit-scrollbar-thumb{background:var(--line)}.pri,nav button.on,.ib.on{color:var(--onacc)!important}.logo{box-shadow:0 0 16px color-mix(in srgb,var(--acc) 55%,transparent)}';
   let style = null;
-  const get = () => { try { return localStorage.getItem(KEY) || 'midnight'; } catch (e) { return 'midnight'; } };
+  const get = () => { try { return localStorage.getItem(KEY) || 'shroud'; } catch (e) { return 'shroud'; } };
   const apply = id => {
     const t = THEMES.find(x => x.id === id) || THEMES[0];
     if (!style) { style = document.createElement('style'); style.id = 'oa-theme'; (document.head || document.documentElement).appendChild(style); }
