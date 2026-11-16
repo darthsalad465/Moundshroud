@@ -544,7 +544,13 @@
     if (reading) { reading = false; try { A.speech.stop(); } catch (e) { } }
     const next = Math.max(0, Math.min(readIx + d, cur.pages.length));
     if (next === readIx) { if (next === cur.pages.length) A.toast('The end. ✨'); return; }
-    readIx = next; renderReader();
+    readIx = next; renderReader(); readerTurn(d);
+  }
+  /* the new spread arrives with a small turn of the right-hand page */
+  function readerTurn(d) {
+    if (!reader || !readIx) return;
+    const pages = reader.querySelectorAll('.sb-rpage'), target = pages[pages.length - 1];
+    if (target) target.classList.add(d > 0 ? 'turn-next' : 'turn-prev');
   }
   function readerKey(e) {
     if (!reader || !reader.classList.contains('on')) return;
@@ -552,7 +558,7 @@
     else if (e.key === 'ArrowRight' || e.key === 'PageDown' || (e.key === ' ' && !e.shiftKey)) { e.preventDefault(); e.stopPropagation(); readerGo(1); }
     else if (e.key === 'ArrowLeft' || e.key === 'PageUp' || (e.key === ' ' && e.shiftKey)) { e.preventDefault(); e.stopPropagation(); readerGo(-1); }
     else if (e.key === 'Home') { e.preventDefault(); e.stopPropagation(); readIx = 0; renderReader(); }
-    else if (e.key === 'End') { e.preventDefault(); e.stopPropagation(); readIx = cur.pages.length; renderReader(); }
+    else if (e.key === 'End') { e.preventDefault(); e.stopPropagation(); readIx = cur.pages.length; renderReader(); readerTurn(1); }
     else if (e.key === 'r' || e.key === 'R') { e.preventDefault(); e.stopPropagation(); toggleRead(); }
   }
   function renderReader() {
