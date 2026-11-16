@@ -32,6 +32,7 @@ const juiceshop = require('./lib/juiceshop');
 const modellab = require('./lib/modellab');
 const finetune = require('./lib/finetune');
 const practice = require('./lib/practice');
+const forge = require('./lib/forge');
 const ROOT = __dirname, DATA = path.join(ROOT, 'data'), WEB = path.join(ROOT, 'web'), CHEF = path.join(ROOT, 'nomad', 'cyberchef');
 const ROOT_DIR_GE = path.join(ROOT, 'engines', 'godot', 'web-editor');          // Godot's official web editor build
 fs.mkdirSync(DATA, { recursive: true });
@@ -62,6 +63,7 @@ function cleanup() {
   try { juiceshop.stopAll(); } catch (e) {}  // and the Juice Shop practice target, if it was started
   try { finetune.stopAll(); } catch (e) {}   // and any fine-tune setup or training run
   try { practice.stop(); } catch (e) {}      // and a practice-gym run
+  try { forge.stopAll(); } catch (e) {}      // and a Model Forge training run
 }
 try { require('./lib/chess-sf').setActive(() => Date.now() - lastPing < 90000); } catch (e) { }
 function shutdown() { if (down) return; down = true; cleanup(); setTimeout(() => process.exit(0), 200); }
@@ -819,6 +821,24 @@ const mainServer = http.createServer(async (req, res) => {
     if (url === '/api/autocommit' && req.method === 'GET') { const off = fs.existsSync(path.join(DATA, 'autocommit.off')); return json(res, 200, { on: !off }); }
     if (url === '/api/autocommit' && req.method === 'POST') { const b = await jbody(req, 1e3).catch(() => ({})); const f = path.join(DATA, 'autocommit.off'); try { if (b && b.on) { if (fs.existsSync(f)) fs.unlinkSync(f); } else { fs.writeFileSync(f, 'Auto-commit is off. Delete this file, or toggle it on in Settings, to resume.\n'); } } catch (e) { return json(res, 200, { ok: false, error: String(e.message || e) }); } return json(res, 200, { ok: true, on: !!(b && b.on) }); }
     /* launch a whitelisted installed native app (Cisco Packet Tracer), in its own window */
+    /* Model Forge: build a language model from scratch on any text (lib/forge.js) */
+    if (url === '/api/forge/list') return json(res, 200, { projects: forge.list(), sizes: forge.SIZES });
+    if (url.startsWith('/api/forge/') && req.method === 'POST') {
+      const act = url.slice(11), b = (await jbody(req, act === 'addtext' ? 7e7 : 1e4)) || {};
+      if (act === 'create') return json(res, 200, forge.create(b.name));
+      if (act === 'info') return json(res, 200, forge.info(b.id) || { error: 'not found' });
+      if (act === 'update') return json(res, 200, forge.update(b.id, b));
+      if (act === 'addtext') return json(res, 200, forge.addText(b.id, b.name, b.text));
+      if (act === 'removefile') return json(res, 200, forge.removeFile(b.id, b.file));
+      if (act === 'addsource') return json(res, 200, forge.addSource(b.id, b));
+      if (act === 'removesource') return json(res, 200, forge.removeSource(b.id, b.index));
+      if (act === 'train') return json(res, 200, forge.train(b.id));
+      if (act === 'progress') return json(res, 200, forge.progress(b.id));
+      if (act === 'finish') return json(res, 200, forge.finish(b.id));
+      if (act === 'import') return json(res, 200, await forge.importModel(b.id));
+      if (act === 'try') return json(res, 200, await forge.tryModel(b.model, b.prompt));
+      if (act === 'remove') return json(res, 200, await forge.remove(b.id));
+    }
     /* Practice gym: a model solves graded coding exercises in a sandbox (lib/practice.js) */
     if (url === '/api/practice/status') return json(res, 200, practice.status());
     if (url === '/api/practice/runs') return json(res, 200, { runs: practice.runs(), count: practice.count });
