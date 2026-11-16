@@ -54,5 +54,5 @@
     addEventListener('resize', later); later();
   };
   const scan = () => { Object.keys(BARS).forEach(sel => document.querySelectorAll(sel).forEach(c => bind(c, BARS[sel]))); labels(); const n = document.getElementById('nav'); if (n) arrows(n); };
-  scan(); setInterval(scan, 1200); document.addEventListener('click', () => setTimeout(scan, 60), true);
+  scan(); setInterval(() => { if (!A.awake || A.awake()) scan(); }, 1200); document.addEventListener('click', () => setTimeout(scan, 60), true); addEventListener('focus', scan);   // idle and unfocused: stop re-scanning; refresh the moment focus returns
 })();

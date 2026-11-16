@@ -194,7 +194,7 @@
     };
     document.addEventListener('scroll', () => { if (!raf) raf = requestAnimationFrame(check); }, true);
     A.on('motion', check);
-    setInterval(check, 1200);
+    setInterval(() => { if (!A.awake || A.awake()) check(); }, 1200);
   } catch (e) { }
 
   /* long lists: let the browser skip work for rows that are far off screen (big pages get measurably faster) */
