@@ -5,14 +5,14 @@
   const root = $('p-tools');
   let sub = 'sys', chefLoaded = false;
   root.innerHTML = '<div class="row" style="padding:8px 12px;gap:6px;border-bottom:1px solid var(--line);flex-wrap:wrap" id="tsub"></div><div id="tbody" style="flex:1;min-height:0;display:flex;flex-direction:column"></div>';
-  const SUBS = [['sys', 'System'], ['conv', '🔄 Converter'], ['repos', '📦 Repositories'], ['opt', '✨ Prompt optimizer']];   // the Agent moved to Chat > Agent (web/js/agent.js)
+  const SUBS = [['sys', 'System'], ['conv', '🔄 Converter'], ['repos', '📦 Repositories'], ['safe', '🛡 File safety'], ['opt', '✨ Prompt optimizer']];   // the Agent moved to Chat > Agent (web/js/agent.js)
   /* a tool is still running only while the page it was opened in is the one on screen */
   const live = b => !!(b && b.isConnected && b.closest('.panel.on'));
   function tabs() { $('tsub').innerHTML = SUBS.filter(s => s[0] !== 'chef' || A.caps.chef).map(s => '<button class="ib' + (sub === s[0] ? ' on' : '') + '" data-s="' + s[0] + '">' + s[1] + '</button>').join(''); }
   $('tsub').onclick = e => { const b = e.target.closest('[data-s]'); if (b) go(b.dataset.s); };
   let tok = 0;
   /* the one list of pages: the Tools buttons (go) and the other tabs (A.tools.show) both read it, so a page added here works in both */
-  const RENDER = () => ({ docs: (x, my) => A.docs.render(x, my), office: x => A.officeEdit.render(x), sys, repos, calc, rem, trans, clip, prm, cyber: x => A.cyber.render(x), codes: x => A.cbLab.render(x), course: x => A.cybercourse.render(x), conv: x => A.converter.render(x), opt: x => A.promptOpt.render(x), agent: x => A.agent.render(x), scan: x => A.scanner.render(x), meet: x => A.meetings.render(x), vault: x => A.vault.render(x), puzz: x => A.puzzlemaker.render(x), journal: x => A.journal.render(x), storage: x => A.storage.render(x), chef });
+  const RENDER = () => ({ docs: (x, my) => A.docs.render(x, my), office: x => A.officeEdit.render(x), sys, repos, safe, calc, rem, trans, clip, prm, cyber: x => A.cyber.render(x), codes: x => A.cbLab.render(x), course: x => A.cybercourse.render(x), conv: x => A.converter.render(x), opt: x => A.promptOpt.render(x), agent: x => A.agent.render(x), scan: x => A.scanner.render(x), meet: x => A.meetings.render(x), vault: x => A.vault.render(x), puzz: x => A.puzzlemaker.render(x), journal: x => A.journal.render(x), storage: x => A.storage.render(x), chef });
   function go(s) { if (s === 'agent' && A.agent && A.agent.open) return A.agent.open(); if (!SUBS.some(x => x[0] === s)) s = 'sys'; sub = s; tabs(); const b = $('tbody'); const f = RENDER()[s] || sys; A.keep(b, s, el => f(el, ++tok)); }
 
   /* ---- system dashboard ---- */
@@ -46,6 +46,7 @@
       const box = document.getElementById('rplist'); if (!box) return;
       box.innerHTML = list.map(x => '<div class="card" style="padding:10px;margin-bottom:8px"><div class="row" style="align-items:flex-start;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:220px"><b>' + esc(x.name) + '</b> <span class="small mute">' + [x.size, x.lic, x.installed && x.files + ' files', x.installed && kb(x.bytes) + ' on this PC'].filter(Boolean).join(' · ') + '</span>' +
         '<div class="small mute" style="margin-top:2px">' + esc(x.about || '') + ' <span class="mute">' + esc(x.repo) + '</span></div>' +
+        (x.installed ? '<div class="small" style="margin-top:2px">🛡 ' + (!x.safety || !x.safety.level ? 'not checked yet' : x.safety.level === 'danger' ? '⛔ ' + x.safety.counts.danger + ' serious finding(s)' : x.safety.level === 'warn' ? '⚠️ ' + x.safety.counts.warn + ' to look at' : '✅ nothing risky stood out') + '</div>' : '') +
         (x.job && (x.job.state === 'running' || x.job.state === 'refreshing') ? '<div class="small" style="margin-top:4px">' + (x.job.state === 'refreshing' ? 'Refreshing' : 'Downloading') + '… ' + x.job.pct + '% <span class="mute">' + esc(x.job.said || '') + '</span></div>' : x.job && x.job.state === 'failed' ? '<div class="small warn" style="margin-top:4px">' + esc(x.job.said || 'It failed.') + '</div>' : '') + '</div>' +
         (x.installed ? '<button class="ib" data-rf="' + esc(x.slug) + '"' + (busy ? ' disabled' : '') + '>Refresh</button><button class="ib dang" data-rm="' + esc(x.slug) + '">Remove</button>' : '<button class="pri" data-dl="' + esc(x.slug) + '"' + (busy ? ' disabled' : '') + '>Download</button>') + '</div></div>').join('');
       if (busy && !timer) timer = setInterval(paint, 1500);
@@ -63,10 +64,46 @@
     b.onclick = async e => {
       const d = e.target.closest('[data-dl]'), f = e.target.closest('[data-rf]'), rm = e.target.closest('[data-rm]');
       if (d) { const r = await A.api('/api/refs/install', { slug: d.dataset.dl }); if (r.error) A.toast(r.error, 6000); paint(); }
+      else if (e.target.closest('[data-rsf]')) { const r = await A.api('/api/refs/check', { slug: e.target.closest('[data-rsf]').dataset.rsf }); if (r.error) A.toast(r.error, 6000); paint(); }
       else if (f) { const r = await A.api('/api/refs/update', { slug: f.dataset.rf }); if (r.error) A.toast(r.error, 6000); paint(); }
       else if (rm) { if (!confirm('Delete this repository from this PC? You can download it again later.')) return; const r = await A.api('/api/refs/remove', { slug: rm.dataset.rm }); if (r.error) A.toast(r.error, 6000); paint(); }
     };
     paint();
+  }
+
+  /* ---- 🛡 File safety: what is risky about this file or folder (lib/safety.js does the looking) ---- */
+  const SF_LV = { danger: ['⛔', 'Do not open or run this without reading why'], warn: ['⚠️', 'Look at this before you trust it'], info: ['ℹ️', 'Worth knowing about'], clean: ['✅', 'Nothing risky stood out'] };
+  function safe(b) {
+    b.innerHTML = '<div class="scroll pad" style="flex:1"><h2>🛡 File safety</h2>' +
+      '<div class="mute small" style="max-width:780px;line-height:1.5">Point this at a file or a folder and it says what is risky about it before you open it: a program wearing a picture\'s name, a script that downloads and runs something, encoded PowerShell, reverse shells, password or key theft, secrets left in a file, npm install hooks, invisible characters hiding a real extension. Nothing is run - files are read as bytes and text only. ClamAV and YARA are used too, when they happen to be installed on this PC.</div>' +
+      '<div class="row" style="margin:12px 0;gap:8px;flex-wrap:wrap"><input id="sfp" type="text" placeholder="A file or folder:  C:\\Users\\you\\Downloads\\thing.zip" style="flex:2;min-width:260px"><button class="pri" id="sfgo">Check it</button></div>' +
+      '<div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:10px">' + [['data\\refs', '📦 repositories'], ['data\\webpages', '🌐 pages you read'], ['~/Downloads', '⬇ your Downloads'], ['~/Documents', '📄 your Documents']].map(x => '<button class="ib" data-sf="' + esc(x[0]) + '">' + x[1] + '</button>').join('') + '</div>' +
+      '<div class="small mute" id="sfeng" style="margin-bottom:8px">Extra engines: looking…</div><div id="sfres"></div></div>';
+    const kb = n => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+    async function go() {
+      const p = document.getElementById('sfp').value.trim(), box = document.getElementById('sfres');
+      if (!p) { A.toast('Give the path of a file or folder first.'); return; }
+      box.innerHTML = '<div class="rd-empty">⏳ Reading it…</div>';
+      let r = null; try { r = await A.api('/api/safety/scan', { path: p }); } catch (e) { }
+      if (!r || r.error) { box.innerHTML = '<div class="rd-empty">' + esc((r && r.error) || 'The check did not finish.') + '</div>'; return; }
+      const v = SF_LV[r.level] || SF_LV.clean;
+      let h = '<div class="card" style="margin-bottom:10px"><b>' + v[0] + ' ' + esc(v[1]) + '</b>' +
+        '<div class="small mute" style="margin-top:4px">' + esc(r.path) + ' · ' + r.files + ' file' + (r.files === 1 ? '' : 's') + ' · ' + kb(r.bytes) + ' · ' + r.counts.danger + ' serious, ' + r.counts.warn + ' to look at, ' + r.counts.info + ' to know · ' + (r.ms / 1000).toFixed(1) + 's</div>' +
+        (r.skippedBig ? '<div class="small mute" style="margin-top:2px">' + r.skippedBig + ' file(s) were too big to read fully: their names and first bytes were checked.</div>' : '') +
+        (r.engines.clam ? '<div class="small" style="color:var(--ok);margin-top:4px">ClamAV was used as well' + (r.engines.clamError ? ' (' + esc(r.engines.clamError) + ')' : '') + '.</div>' : '') +
+        (r.engines.yara ? '<div class="small" style="color:var(--ok);margin-top:2px">YARA rules from data\\yara were used as well.</div>' : '') + '</div>';
+      h += r.findings.length ? r.findings.map(f => '<div class="card" style="margin-bottom:6px;padding:9px"><div class="row" style="gap:8px;flex-wrap:wrap"><span>' + (f.level === 'danger' ? '⛔' : f.level === 'warn' ? '⚠️' : 'ℹ️') + '</span><b style="flex:1;min-width:180px;word-break:break-all">' + esc(f.file) + (f.line ? ' · line ' + f.line : '') + '</b><span class="small mute">' + esc(f.rule) + '</span></div><div class="small" style="margin-top:3px">' + esc(f.why) + '</div>' + (f.snippet ? '<div class="small mute" style="margin-top:3px;font-family:monospace;word-break:break-all">' + esc(f.snippet) + '</div>' : '') + '</div>').join('') : '<div class="rd-empty">Nothing stood out in any of those files.</div>';
+      h += '<div class="small mute" style="margin-top:8px">A careful first look, not a guarantee: it knows the usual shapes of a dangerous file, and a clever one can avoid all of them. Anything you did not write or download yourself is worth checking too.</div>';
+      box.innerHTML = h;
+    }
+    document.getElementById('sfgo').onclick = go;
+    document.getElementById('sfp').addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+    b.onclick = e => { const q = e.target.closest('[data-sf]'); if (!q) return; document.getElementById('sfp').value = q.dataset.sf; go(); };
+    A.api('/api/safety/info').then(r => {
+      const el = document.getElementById('sfeng'); if (!el || !r) return;
+      el.textContent = 'Extra engines: ClamAV ' + (r.engines.clam ? 'found (' + r.engines.clam + ')' : 'not installed') + ' · YARA ' + (r.engines.yara && r.engines.yaraRules ? 'found, ' + r.engines.yaraRules + ' rule file(s) in data\\yara' : 'not installed') + '. The built-in check works either way.';
+      if (r.summary && r.summary.repos) el.textContent += ' ' + r.summary.repos + ' repositories checked so far: ' + r.summary.clean + ' clean, ' + r.summary.warn + ' with warnings, ' + r.summary.danger + ' with serious findings.';
+    }).catch(() => { });
   }
 
   /* ---- translate (the local model does the work) ---- */

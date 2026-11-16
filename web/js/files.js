@@ -104,20 +104,48 @@
   }
 
   /* ---------- reference libraries from GitHub ---------- */
-  let rPoll = null;
+  let rPoll = null, refsCache = [];
+  /* every repository is checked for dangerous files as soon as it is downloaded (lib/safety.js) */
+  function safeLine(x) {
+    const s = x.safety || {};
+    if (s.checking) return '<div class="small mute" style="margin-top:2px">🛡 checking what is inside…</div>';
+    if (!s.level) return '<div class="small mute" style="margin-top:2px">🛡 not checked yet</div>';
+    const c = s.counts || {};
+    const t = s.level === 'danger' ? '⛔ ' + c.danger + ' serious finding' + (c.danger === 1 ? '' : 's') + ' - open 🛡 to see them'
+      : s.level === 'warn' ? '⚠️ ' + c.warn + ' thing' + (c.warn === 1 ? '' : 's') + ' to look at'
+        : '✅ checked, nothing risky stood out';
+    return '<div class="small" style="margin-top:2px">🛡 ' + t + (s.at ? ' · ' + A.fmtAgo(s.at) : '') + '</div>';
+  }
+  function safeFindings(name, s, busy) {
+    const F = (s && s.findings) || [];
+    const ic = l => l === 'danger' ? '⛔' : l === 'warn' ? '⚠️' : 'ℹ️';
+    A.dlg('<div class="hd"><b>🛡 ' + esc(name) + '</b></div><div class="bd">' +
+      '<div class="small mute" style="margin-bottom:8px">' + (busy ? 'Reading the files…' : F.length ? F.length + ' thing(s) worth knowing, in the files inside this repository. Nothing here was run: the files were only read.' : 'Nothing risky stood out in the files inside this repository.') + '</div>' +
+      F.slice(0, 60).map(f => '<div class="card" style="margin-bottom:6px;padding:8px"><div class="row" style="gap:8px;flex-wrap:wrap"><span>' + ic(f.level) + '</span><b style="flex:1;min-width:160px;word-break:break-all">' + esc(f.file) + (f.line ? ' · line ' + f.line : '') + '</b><span class="small mute">' + esc(f.rule) + '</span></div><div class="small" style="margin-top:2px">' + esc(f.why) + '</div>' + (f.snippet ? '<div class="small mute" style="font-family:monospace;word-break:break-all">' + esc(f.snippet) + '</div>' : '') + '</div>').join('') +
+      '<div class="small mute" style="margin-top:6px">Reference libraries are full of attack technique notes on purpose, so ⚠️ here is normal. ⛔ means a file that looks like a program or a hidden command: look before opening it.</div>' +
+      '<div class="row" style="margin-top:10px"><span class="sp"></span><button class="ib" id="sfclose">Close</button></div></div>');
+    const c = document.getElementById('sfclose'); if (c) c.onclick = () => A.closeDlg();
+  }
   async function loadRefs() {
     const r = await A.api('/api/refs').catch(() => ({ refs: [] }));
     const box = $('frefs'); if (!box) return;
     const list = r.refs || [], busy = list.some(x => x.job && (x.job.state === 'running' || x.job.state === 'refreshing'));
-    box.innerHTML = list.map(x => '<div class="row" style="padding:8px 0;border-top:1px solid var(--line);align-items:flex-start;gap:10px"><div style="flex:1;min-width:0"><b>' + esc(x.name) + '</b> <span class="small mute">' + [x.size, x.lic, x.installed && x.files + ' files on this PC'].filter(Boolean).join(' · ') + '</span><div class="small mute" style="margin-top:2px">' + esc(x.about) + '</div>' +
+    refsCache = list;
+    box.innerHTML = list.map(x => '<div class="row" style="padding:8px 0;border-top:1px solid var(--line);align-items:flex-start;gap:10px"><div style="flex:1;min-width:0"><b>' + esc(x.name) + '</b> <span class="small mute">' + [x.size, x.lic, x.installed && x.files + ' files on this PC'].filter(Boolean).join(' · ') + '</span><div class="small mute" style="margin-top:2px">' + esc(x.about) + '</div>' + safeLine(x) +
       (x.job && (x.job.state === 'running' || x.job.state === 'refreshing') ? '<div class="small" style="margin-top:4px">' + (x.job.state === 'refreshing' ? 'Refreshing' : 'Downloading') + '… ' + x.job.pct + '% <span class="mute">' + esc(x.job.said || '') + '</span></div>' : x.job && x.job.state === 'failed' ? '<div class="small warn" style="margin-top:4px">' + esc(x.job.said || 'Download failed.') + '</div>' : '') + '</div>' +
-      (x.installed ? '<button class="ib" data-rrf="' + esc(x.slug) + '"' + (busy ? ' disabled' : '') + '>Refresh</button> <button class="ib dang" data-rrm="' + esc(x.slug) + '">Remove</button>' : '<button class="pri" data-rgo="' + esc(x.slug) + '"' + (busy ? ' disabled' : '') + '>Download &amp; index</button>') + '</div>').join('');
+      (x.installed ? '<button class="ib" data-rsf="' + esc(x.slug) + '" title="Check what is inside these files">🛡' + (x.safety && x.safety.level ? ' ' + (x.safety.level === 'danger' ? '⛔' : x.safety.level === 'warn' ? '⚠️' : '✅') : '') + '</button> <button class="ib" data-rrf="' + esc(x.slug) + '"' + (busy ? ' disabled' : '') + '>Refresh</button> <button class="ib dang" data-rrm="' + esc(x.slug) + '">Remove</button>' : '<button class="pri" data-rgo="' + esc(x.slug) + '"' + (busy ? ' disabled' : '') + '>Download &amp; index</button>') + '</div>').join('');
     if (busy && !rPoll) rPoll = setInterval(loadRefs, 1500);
     if (!busy && rPoll) { clearInterval(rPoll); rPoll = null; }
   }
   $('frefs').onclick = async e => {
-    const go = e.target.closest('[data-rgo]'), rm = e.target.closest('[data-rrm]'), rf = e.target.closest('[data-rrf]');
-    if (rf) {
+    const go = e.target.closest('[data-rgo]'), rm = e.target.closest('[data-rrm]'), rf = e.target.closest('[data-rrf]'), sf = e.target.closest('[data-rsf]');
+    if (sf) {
+      const it = (refsCache || []).find(x => x.slug === sf.dataset.rsf) || { name: sf.dataset.rsf };
+      safeFindings(it.name, (it.safety || {}), true);
+      let r = null; try { r = await A.api('/api/refs/check', { slug: sf.dataset.rsf }); } catch (e) { }
+      if (!r || r.error) { A.toast((r && r.error) || 'The check did not finish.', 6000); A.closeDlg(); return loadRefs(); }
+      loadRefs(); safeFindings(it.name, r.safety || {}, false);
+    } else if (rf) {
       const r = await A.api('/api/refs/update', { slug: rf.dataset.rrf });
       if (r.error) return A.toast(r.error, 6000);
       loadRefs();

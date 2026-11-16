@@ -160,10 +160,13 @@
       '<div class="small mute" style="margin:12px 2px">Sources: iptv-org (github.com/iptv-org/iptv) and Free-TV (github.com/Free-TV/IPTV), both open lists of publicly available streams.</div>';
   }
   /* ---------- 🌍 Cameras: public 24/7 webcams, one shelf at a time, flipped with ← and → ---------- */
-  async function loadCams() { if (CAM) return CAM; try { CAM = await A.api('/api/tv/cams'); } catch (e) { CAM = { cams: [], cats: [] }; } if (!CAM || !CAM.cams) CAM = { cams: [], cats: [] }; return CAM; }
+  async function loadCams() { try { CAM = await A.api('/api/tv/cams'); } catch (e) { CAM = CAM || { cams: [], cats: [] }; } if (!CAM || !CAM.cams) CAM = { cams: [], cats: [] }; if (!CAM.live) CAM.live = {}; return CAM; }
+  /* a camera the last check found dark: the card stays (the stream may come back) but flipping skips it */
+  const camDead = id => { const s = CAM && CAM.live && CAM.live[id]; return !!(s && s.live === false); };
   const camCard = c => {
-    const on = P.kind === 'yt' && P.item && P.item.id === c.id;
-    return '<div class="cam-card' + (on ? ' on' : '') + '" data-cam="' + esc(c.id) + '" data-a="camplay" title="Watch ' + esc(c.name) + '"><div class="cam-th"><img loading="lazy" src="/api/tv/yt/thumb?id=' + encodeURIComponent(c.id) + '" alt="" onerror="this.style.display=\'none\'"><span class="yt-live">LIVE</span></div><b>' + esc(c.name) + '</b><span class="small mute">' + esc(c.ch) + '</span></div>';
+    const on = P.kind === 'yt' && P.item && P.item.id === c.id, dead = camDead(c.id);
+    return '<div class="cam-card' + (on ? ' on' : '') + (dead ? ' cam-off' : '') + '" data-cam="' + esc(c.id) + '" data-a="camplay" title="Watch ' + esc(c.name) + '"><div class="cam-th"><img loading="lazy" src="/api/tv/yt/thumb?id=' + encodeURIComponent(c.id) + '" alt="" onerror="this.style.display=\'none\'"><span class="yt-live">' + (dead ? 'OFF' : 'LIVE') + '</span>' +
+      (c.cat === 'found' ? '<button class="cam-x" data-a="camforget" title="Remove this camera from yours">✕</button>' : '') + '</div><b>' + esc(c.name) + '</b><span class="small mute">' + (dead ? 'off at the last check · press to try' : esc(c.ch)) + '</span></div>';
   };
   function drawCams() {
     if (!CAM) return '<div class="rd-empty">⏳ Loading the cameras…</div>';
@@ -171,8 +174,11 @@
     const all = CAM.cams.filter(c => (!camCat || c.cat === camCat) && (!f || (c.name + ' ' + c.ch).toLowerCase().includes(f)));
     /* all 317 pictures at once would hammer the machine: ninety at a time, with a button for the rest */
     camList = all.slice(0, camShown);
-    let h = '<div class="row" style="flex-wrap:wrap;margin-bottom:8px"><b style="flex:1;min-width:180px">🌍 Live cameras <span class="small mute">· ' + CAM.cams.length.toLocaleString() + ' public webcams, always on</span></b><button class="ib" data-a="camfind"' + (camBusy ? ' disabled' : '') + '>🔎 Find more on YouTube</button></div>' +
-      '<div class="small mute" style="margin-bottom:8px">Public 24/7 streams, found on YouTube and checked on 16 November 2026. Press a camera to watch it, then flip with ← and → (or ◀ ▶ in the player). A stream stops when its owner stops sending; 🔎 finds new ones.</div>' +
+    const dead = all.filter(c => camDead(c.id)).length, checked = Object.keys(CAM.live || {}).length;
+    let h = '<div class="row" style="flex-wrap:wrap;margin-bottom:8px"><b style="flex:1;min-width:180px">🌍 Live cameras <span class="small mute">· ' + CAM.cams.length.toLocaleString() + ' public webcams' + (checked ? ' · ' + checked + ' checked, ' + dead + ' dark' : '') + '</span></b>' +
+      '<button class="ib" data-a="camcheck"' + (camBusy ? ' disabled' : '') + '>🩺 Check these</button>' +
+      '<button class="ib" data-a="camfind"' + (camBusy ? ' disabled' : '') + '>🔎 Find more on YouTube</button></div>' +
+      '<div class="small mute" style="margin-bottom:8px">Public 24/7 streams, found on YouTube and checked on 16 November 2026. Press a camera to watch it, then flip with ← and → (or ◀ ▶ in the player). A stream stops when its owner stops sending: 🩺 asks YouTube which ones are still on (flipping skips the dark ones), 🔎 finds new ones and keeps them.</div>' +
       '<div class="rd-cats" style="padding:0 0 10px"><button class="ib' + (!camCat ? ' on' : '') + '" data-camcat="">All <span class="mute">' + CAM.cams.length + '</span></button>' + cats.map(c => { const n = CAM.cams.filter(x => x.cat === c[0]).length; return n ? '<button class="ib' + (camCat === c[0] ? ' on' : '') + '" data-camcat="' + esc(c[0]) + '">' + esc(c[1]) + ' <span class="mute">' + n + '</span></button>' : ''; }).join('') + '</div>';
     if (camBusy) return h + '<div class="rd-empty">⏳ ' + esc(camBusy) + '</div>';
     if (camFound && camFound.length) h += '<h3 class="tv-h">🔎 Found just now <span class="small mute">' + camFound.length + '</span></h3><div class="cam-grid">' + camFound.map(camCard).join('') + '</div><h3 class="tv-h">📷 The shelves</h3>';
@@ -187,9 +193,25 @@
   }
   /* flipping: the next (or previous) camera on the shelf you are looking at, wrapping round at the end */
   function flip(d) {
-    if (!camList.length) return;
-    const at = P.item ? camList.findIndex(c => c.id === P.item.id) : -1;
-    playCam(camList[at < 0 ? 0 : (at + d + camList.length) % camList.length]);
+    /* only cameras that are not known to be dark: flipping should never land on a black square */
+    const pool = camList.filter(c => !camDead(c.id));
+    const use = pool.length ? pool : camList;
+    if (!use.length) return;
+    const at = P.item ? use.findIndex(c => c.id === P.item.id) : -1;
+    playCam(use[at < 0 ? 0 : (at + d + use.length) % use.length]);
+  }
+  /* asking YouTube whether the cameras on this shelf are still broadcasting (a few at a time, 80 per ask) */
+  async function checkCams() {
+    if (S && !S.internet) return A.notify('warn', 'Internet access is off. Turn it on at the top of the TV tab.');
+    const ids = camList.slice(0, 80).map(c => c.id);
+    if (!ids.length) return;
+    camBusy = 'Asking YouTube which of these ' + ids.length + ' cameras are still live…'; drawBody();
+    let r = null; try { r = await A.api('/api/tv/cams/check', { ids }); } catch (e) { }
+    camBusy = '';
+    if (!r || r.error) { A.notify('warn', (r && r.error) || 'The check did not finish.'); return drawBody(); }
+    (r.results || []).forEach(x => { CAM.live[x.id] = { live: !!x.live, at: Date.now(), reason: x.reason || '' }; });
+    drawBody();
+    A.notify('ok', r.live + ' of ' + ids.length + ' still live' + (r.dead ? ', ' + r.dead + ' dark' : '') + '.');
   }
   /* fresh cameras from YouTube's live results, for when a stream has gone quiet */
   async function findCams() {
@@ -201,9 +223,13 @@
     camBusy = '';
     if (r && r.error) A.notify('warn', r.error);
     const have = new Set((CAM.cams || []).concat(camFound || []).map(c => c.id));
-    const fresh = ((r && r.videos) || []).filter(v => v.live && !have.has(v.id)).map(v => ({ id: v.id, name: v.title.replace(/\s+/g, ' ').slice(0, 80), ch: v.channel || 'YouTube', cat: camCat || 'found' }));
-    if (!fresh.length) A.notify('warn', 'No new live cameras came back for that. Try another shelf or another word.');
-    else { camFound = (camFound || []).concat(fresh).slice(0, 60); A.notify('ok', 'Found ' + fresh.length + ' more live camera' + (fresh.length === 1 ? '' : 's') + '.'); }
+    const fresh = ((r && r.videos) || []).filter(v => v.live && !have.has(v.id)).map(v => ({ id: v.id, name: v.title.replace(/\s+/g, ' ').slice(0, 80), ch: v.channel || 'YouTube' }));
+    if (!fresh.length) { A.notify('warn', 'No new live cameras came back for that. Try another shelf or another word.'); return drawBody(); }
+    /* saved on this PC, so a found camera is still there tomorrow and goes into a backup */
+    let saved = null; try { saved = await A.api('/api/tv/cams/add', { cams: fresh }); } catch (e) { }
+    await loadCams();
+    camFound = fresh.slice(0, 60);
+    A.notify('ok', 'Found ' + fresh.length + ' live camera' + (fresh.length === 1 ? '' : 's') + (saved && saved.ok ? ', saved to 📌 Cameras you found' : ' (not saved: the list could not be written)') + '.');
     drawBody();
   }
   function drawList() {
@@ -308,6 +334,8 @@
     if (a === 'prev') return flip(-1);
     if (a === 'next') return flip(1);
     if (a === 'camfind') return findCams();
+    if (a === 'camcheck') return checkCams();
+    if (a === 'camforget') { e.stopPropagation(); const card = b.closest('[data-cam]'); if (!card) return; if (!confirm('Remove this camera from your saved ones?')) return; await A.api('/api/tv/cams/forget', { id: card.dataset.cam }); await loadCams(); return drawBody(); }
     if (a === 'cammore') { camShown += 90; return drawBody(); }
     if (a === 'camplay') { const cid = b.closest('[data-cam]'); if (!cid) return; const id2 = cid.dataset.cam; return playCam((CAM && CAM.cams.find(x => x.id === id2)) || (camFound || []).find(x => x.id === id2)); }
     if (a === 'fs') return toggleFs();
