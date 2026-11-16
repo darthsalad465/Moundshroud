@@ -144,36 +144,56 @@
       let r; try { r = await fetch('/api/chat', { method: 'POST', signal: ctl.signal, body: JSON.stringify({ model, stream: true, think: false, keep_alive: '5m', options: Object.assign({ temperature: .5, num_predict: cap }, cloud ? {} : { num_ctx: ctxFor(messages.reduce((n, m) => n + m.content.length, 0), cap) }), messages }) }); }
       catch (e) { if (e.name === 'AbortError') throw e; throw new Error('Could not reach the AI engine: ' + e.message); }
       const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '', all = '', err = '';
-      for (; ;) { const { value, done } = await rd.read(); if (done) break; buf += dec.decode(value, { stream: true }); let i; while ((i = buf.indexOf('\n')) >= 0) { const ln = buf.slice(0, i).trim(); buf = buf.slice(i + 1); if (!ln) continue; try { const j = JSON.parse(ln); if (j.error) err = String(j.error.message || j.error); if (j.message && j.message.content) { all += j.message.content; onLen(all.length); } } catch (e) { } } }
+      for (; ;) { const { value, done } = await rd.read(); if (done) break; buf += dec.decode(value, { stream: true }); let i; while ((i = buf.indexOf('\n')) >= 0) { const ln = buf.slice(0, i).trim(); buf = buf.slice(i + 1); if (!ln) continue; try { const j = JSON.parse(ln); if (j.error) err = String(j.error.message || j.error);       if (j.message && j.message.content) { all += j.message.content; onLen(all.length, all); } } catch (e) { } } }
       if (buf.trim()) { try { const j = JSON.parse(buf); if (j.error) err = String(j.error.message || j.error); } catch (e) { if (!r.ok) err = buf.trim().slice(0, 300); } }
       if (err) throw new Error(err); if (!r.ok) throw new Error('The AI engine answered with error ' + r.status + '.'); if (!all.trim()) throw new Error('The AI sent back nothing. Check that the model is installed, or try another one.');
       return all;
     }
     async function run(kind, text) {
       if (busy) return; busy = true; ctl = new AbortController(); show(); const t0 = Date.now(), cap = kind === 'new' ? MAX_NEW : MAX_EDIT;
+      /* the game keeps running while this works: nothing below touches the iframe until the new code is ready */
+      const op = A.act ? A.act.begin(kind === 'new' ? 'Writing a game' : 'Fixing the game', { tab: 'studio', kind: 'game', go: () => A.studio.go('games'), phase: 'waiting for the AI' }) : null;
+      $('gmerr').innerHTML = ''; liveShow(true);
       say('busy', '<span class="gmk-spin"></span><span id="gmprog">Asking the AI...</span><button class="gmk-btn" id="gmstop">■ Stop</button><div class="gmk-track"><div id="gmbar"></div></div>');
       $('gmstop').onclick = () => { try { ctl.abort(); } catch (e) { } };
       const wait = setInterval(() => { const p = $('gmprog'); if (!busy || !p) return clearInterval(wait); if (/^Asking|^Waiting/.test(p.textContent)) p.textContent = 'Waiting for the AI engine, ' + Math.round((Date.now() - t0) / 1000) + ' s. It may be loading the model, or busy with another job.'; }, 1000);
       let part = 1;
-      const onLen = n => { const p = $('gmprog'), b = $('gmbar'); if (p) p.textContent = 'Writing the game' + (part > 1 ? ' (part ' + part + ')' : '') + ': ' + Math.round(n / 1000 * 10) / 10 + ' kB of code, ' + Math.round((Date.now() - t0) / 1000) + ' s'; if (b) b.style.width = Math.min(96, n / (cap * 3.4 * part) * 100) + '%'; };
+      const onLen = (n, txt) => {
+        if (txt && txt.length > liveN) { liveAdd(txt.slice(liveN)); liveN = txt.length; }      // the code as it arrives
+        const p = $('gmprog'), b = $('gmbar'), secs = Math.round((Date.now() - t0) / 1000), kb = Math.round(n / 1000 * 10) / 10;
+        const line = 'Writing the game' + (part > 1 ? ' (part ' + part + ')' : '') + ': ' + kb + ' kB of code, ' + secs + ' s';
+        if (p) p.textContent = line; if (b) b.style.width = Math.min(96, n / (cap * 3.4 * part) * 100) + '%';
+        if (op) op.say('part ' + part + ' · ' + kb + ' kB · ' + secs + ' s');
+      };
       const msgs = [{ role: 'system', content: SYS }];
       if (kind === 'new') msgs.push({ role: 'user', content: 'Make this game: ' + text });
-      else msgs.push({ role: 'user', content: 'Here is my current game:\n```html\n' + cur.html + '\n```\n' + (cur.asks.length ? 'Earlier requests, already done: ' + cur.asks.slice(-5).join(' | ') + '\n' : '') + 'Change it like this: ' + text + '\nKeep everything else working. Reply with the complete updated HTML file.' });
+      else msgs.push({ role: 'user', content: 'Here is my current game:\n```html\n' + cur.html + '\n```\n' + (cur.asks.length ? 'Earlier requests, already done: ' + cur.asks.slice(-5).join(' | ') + '\n' : '') + 'Change it like this: ' + text + '\n' +
+        (/^fix this error/i.test(text) ? 'Fix the cause of that one error and nothing else. ' : '') + 'Change only what this needs: keep every other line exactly as it is, and do not rewrite, rename or reshuffle code that already works. Reply with the complete updated HTML file.' });
       try {
         /* a long game comes in parts: when a reply stops before </html>, the AI is asked to carry on from where it stopped */
         let reply = await ask(msgs, cap, onLen), out = extract(reply);
         for (let k = 2; out.cut && k <= MAX_PARTS; k++) {
-          part = k; const p = $('gmprog'); if (p) p.textContent = 'The game is long: writing part ' + k + '...';
+          part = k; liveN = 0; const p = $('gmprog'); if (p) p.textContent = 'The game is long: writing part ' + k + '...'; if (op) op.say('the game is long: part ' + k);
           const nl = reply.lastIndexOf('\n'); if (nl > 0 && nl > reply.length - 600) reply = reply.slice(0, nl + 1);   // a reply cut mid-word ("*.0") got the word written again ("*.0.0006"): the next part starts on a fresh line
           const done = reply.length;
-          reply = joinPart(reply, await ask(msgs.concat([{ role: 'assistant', content: reply }, { role: 'user', content: CONT }]), cap, n => onLen(done + n)));
+          reply = joinPart(reply, await ask(msgs.concat([{ role: 'assistant', content: reply }, { role: 'user', content: CONT }]), cap, (n, txt) => onLen(done + n, txt)));
           out = extract(reply);
         }
         if (out.err) throw new Error(out.err);
+        const before = kind === 'new' ? '' : cur.html;
         if (kind === 'new') cur = { id: 'g' + Date.now().toString(36), name: titleOf(out.html) || text.slice(0, 40), html: out.html, asks: [text], prev: [], model: $('gmm').value, dirty: true };
         else { cur.prev = (cur.prev || []).concat([{ html: cur.html, asks: cur.asks.slice() }]).slice(-5); cur.html = out.html; cur.asks = cur.asks.concat([text]); cur.dirty = true; $('gmc').value = ''; }
-        say('ok', '✓ ' + (kind === 'new' ? 'Made' : 'Changed') + ' in ' + Math.round((Date.now() - t0) / 1000) + ' s. Click the game to give it the keyboard. Save it to keep it.'); play();
-      } catch (e) { if (e.name === 'AbortError') say('warn', 'Stopped. Nothing was changed.'); else say('err', '<b>The game could not be made.</b> ' + esc(e.message)); }
+        const secs = Math.round((Date.now() - t0) / 1000), st = before ? diffStat(before, out.html) : null;
+        const changed = st ? ' · ' + (st.gone + st.add) + ' of ' + st.lines + ' lines changed (' + st.add + ' new, ' + st.gone + ' gone)' : '';
+        say('ok', '✓ ' + (kind === 'new' ? 'Made' : 'Changed') + ' in ' + secs + ' s' + changed + '. Click the game to give it the keyboard. Save it to keep it.');
+        if (op) op.end(true, secs + ' s' + changed);
+        liveShow(false); play();
+      } catch (e) {
+        if (e.name === 'AbortError') say('warn', 'Stopped. Nothing was changed. The game you have is still there and still playing.');
+        else say('err', '<b>The game could not be ' + (kind === 'new' ? 'made' : 'changed') + '.</b> ' + esc(e.message) + '<br><span class="gmk-note">Your game was not touched: it is still playing, and ↶ Undo still goes back.</span>');
+        if (op) op.end(false, e.name === 'AbortError' ? 'stopped' : String(e.message || 'failed').slice(0, 60));
+        liveShow(false);
+      }
       busy = false; ctl = null; show();
     }
     function save() {
