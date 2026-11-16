@@ -197,15 +197,15 @@
     '.pet i,.pet .pa-svg{font-style:normal;display:inline-block;transform-origin:50% 80%;will-change:transform}' +
     '.pet-svg{width:100%;height:100%}.pet-svg .pa-svg{width:100%;height:100%;overflow:visible;filter:drop-shadow(0 4px 10px rgba(0,0,0,.38))}' +
     '.pa-rig,.pa-head,.pa-tail,.pa-arm-l,.pa-arm-r,.pa-leg-l,.pa-leg-r,.pa-ears,.pa-mouth,.pa-lids,.pa-prop{transform-box:fill-box;transform-origin:center}' +
-    '.pa-tail{transform-origin:20% 80%;animation:pa-tail-wag 2.2s ease-in-out infinite}' +
-    '.pa-arm-l{transform-origin:80% 25%;animation:pa-arm-idle 3.2s ease-in-out infinite}' +
-    '.pa-arm-r{transform-origin:20% 25%;animation:pa-arm-idle 3.2s ease-in-out infinite reverse}' +
-    '.pa-pupils{transform:translate(var(--ex,0px),var(--ey,0px));transition:transform .12s ease-out}' +
-    '.pa-lids{opacity:0;animation:pa-blink 5.4s infinite}' +
+    '.pa-tail{transform-origin:20% 80%}' +
+    '.pa-arm-l{transform-origin:80% 25%}' +
+    '.pa-arm-r{transform-origin:20% 25%}' +
+    '.pa-pupils{transform:translate(var(--ex,0px),var(--ey,0px));transition:transform .15s ease-out}' +
+    '.pa-lids{opacity:0;animation:pa-blink 6.5s infinite}' +
     '.pa-prop{opacity:0;transform:scale(.5);transition:opacity .2s,transform .25s cubic-bezier(.34,1.5,.5,1)}' +
     '@keyframes pa-tail-wag{0%,100%{transform:rotate(-8deg)}50%{transform:rotate(10deg)}}' +
     '@keyframes pa-arm-idle{0%,100%{transform:rotate(0deg)}50%{transform:rotate(6deg)}}' +
-    '@keyframes pa-blink{0%,93%,98%,100%{opacity:0}95%,96%{opacity:1}}' +
+    '@keyframes pa-blink{0%,94%,98%,100%{opacity:0}96%,97%{opacity:1}}' +
     '@keyframes pa-step-l{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-5px) rotate(-18deg)}}' +
     '@keyframes pa-step-r{0%,100%{transform:translateY(-5px) rotate(18deg)}50%{transform:translateY(0) rotate(0)}}' +
     '@keyframes pa-walk-bob{0%,100%{transform:translateY(0) rotate(-2deg)}25%{transform:translateY(-4px) rotate(1deg)}50%{transform:translateY(0) rotate(2deg)}75%{transform:translateY(-4px) rotate(-1deg)}}' +
@@ -214,7 +214,8 @@
     '@keyframes pa-dance-rig{0%,100%{transform:translateY(0) rotate(0) scale(1)}25%{transform:translateY(-10px) rotate(-12deg) scale(1.06,.95)}50%{transform:translateY(0) rotate(0) scale(.95,1.06)}75%{transform:translateY(-10px) rotate(12deg) scale(1.06,.95)}}' +
     '@keyframes pa-backflip{0%{transform:translateY(0) rotate(0)}35%{transform:translateY(-26px) rotate(-180deg) scale(1.08)}75%{transform:translateY(-8px) rotate(-360deg)}100%{transform:translateY(0) rotate(-360deg)}}';
 
-  Object.keys(K).forEach(k => { css += '@keyframes pa-' + k + '{' + K[k] + '}.pet[data-a=' + k + '] > i,.pet[data-a=' + k + '] .pa-rig{animation:pa-' + k + ' ' + T[k] + 's ' + (k === 'spin' || k === 'rumble' || k === 'blast' ? 'linear' : 'ease-in-out') + ' infinite}'; });
+  /* Only animate emoji chess avatars continuously; SVG companions stay calm at rest until given a mood/action */
+  Object.keys(K).forEach(k => { css += '@keyframes pa-' + k + '{' + K[k] + '}.pet:not(.pet-svg)[data-a=' + k + '] > i{animation:pa-' + k + ' ' + T[k] + 's ' + (k === 'spin' || k === 'rumble' || k === 'blast' ? 'linear' : 'ease-in-out') + ' infinite}'; });
 
   css +=
     /* mood states for both emoji (i) and articulated SVG (.pa-rig) */
@@ -223,6 +224,7 @@
     '.pet.walk .pa-leg-r,.pet.run .pa-leg-r{animation:pa-step-r .34s ease-in-out infinite!important}' +
     '.pet.walk .pa-arm-l,.pet.run .pa-arm-l{animation:pa-step-r .34s ease-in-out infinite!important}' +
     '.pet.walk .pa-arm-r,.pet.run .pa-arm-r{animation:pa-step-l .34s ease-in-out infinite!important}' +
+    '.pet.walk .pa-tail,.pet.run .pa-tail,.pet.happy .pa-tail,.pet.dance .pa-tail{animation:pa-tail-wag .5s ease-in-out infinite!important}' +
     '.pet.talk > i,.pet.talk .pa-rig{animation:pa-talk .32s ease-in-out infinite!important}@keyframes pa-talk{0%,100%{transform:scale(1,1) translateY(0)}50%{transform:scale(1.04,.95) translateY(1px)}}' +
     '.pet.talk .pa-mouth{animation:pa-mouth-talk .22s ease-in-out infinite!important}' +
     '.pet.talk .pa-arm-r{animation:pa-step-l .45s ease-in-out infinite!important}' +
@@ -241,7 +243,7 @@
     '.pet::after{position:absolute;right:-4px;top:-6px;font-size:15px;line-height:1;pointer-events:none;opacity:0;z-index:3}' +
     '.pet.think::after{content:"💭";opacity:1;animation:pa-fl 1.6s ease-in-out infinite}.pet.happy::after,.pet.dance::after{content:"✨";opacity:1;animation:pa-fl .9s ease-in-out infinite}.pet.interact::after{content:"⚡";opacity:1;animation:pa-fl .7s ease-in-out infinite}.pet.sad::after{content:"💧";opacity:1;animation:pa-drip 1.6s ease-in infinite}.pet.sleep::after{content:"💤";opacity:1;animation:pa-fl 2.4s ease-in-out infinite}.pet.talk::after{content:"💬";opacity:1;animation:pa-fl .8s ease-in-out infinite}' +
     '@keyframes pa-fl{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}@keyframes pa-drip{0%{transform:translateY(-2px);opacity:0}30%{opacity:1}100%{transform:translateY(9px);opacity:0}}' +
-    '.pet::before{content:attr(data-x);position:absolute;left:-2px;bottom:0;font-size:13px;line-height:1;pointer-events:none;opacity:0;z-index:3;animation:pa-aura 3.2s ease-out infinite}@keyframes pa-aura{0%{transform:translateY(2px) scale(.6);opacity:0}25%{opacity:.9}100%{transform:translateY(-15px) scale(1.1);opacity:0}}' +
+    '.pet:not(.pet-svg)::before{content:attr(data-x);position:absolute;left:-2px;bottom:0;font-size:13px;line-height:1;pointer-events:none;opacity:0;z-index:3;animation:pa-aura 3.2s ease-out infinite}@keyframes pa-aura{0%{transform:translateY(2px) scale(.6);opacity:0}25%{opacity:.9}100%{transform:translateY(-15px) scale(1.1);opacity:0}}' +
     'html.idle .pet i,html.idle .pet .pa-rig,html.idle .pet::before,html.idle .pet::after,body.lowpower .pet i,body.lowpower .pet .pa-rig,body.lowpower .pet::before{animation-play-state:paused!important}@media (prefers-reduced-motion:reduce){.pet i,.pet .pa-rig,.pet::before{animation:none!important}}';
 
   const st = document.createElement('style'); st.id = 'petanim'; st.textContent = css; document.head.appendChild(st);
