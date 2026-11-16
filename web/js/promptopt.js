@@ -46,6 +46,12 @@
     if (target === 'redraw') return { prompt: t + ', highly detailed, sharp focus', neg: 'blurry, low quality, deformed', why: ['The AI could not be reached.'], fallback: true };
     return { prompt: t, neg: '', why: ['The AI could not be reached, so your words are unchanged.'], fallback: true };
   }
+  /* at most n words, ending at the last comma or full stop so a picture prompt never stops mid-phrase ("...and create a") */
+  function clip(p, n) {
+    const w = String(p || '').trim().split(/\s+/); if (w.length <= n) return w.join(' ');
+    const cut = w.slice(0, n).join(' '), i = Math.max(cut.lastIndexOf(','), cut.lastIndexOf('.'), cut.lastIndexOf(';'));
+    return (i > cut.length * .5 ? cut.slice(0, i) : cut.replace(/\s+(a|an|the|and|or|of|to|with|in|on|at|for|by)$/i, '')).replace(/[\s,;]+$/, '').trim();
+  }
   async function optimize(target, text, o) {
     o = o || {}; const d = T[target] || T.chat; text = String(text || '').trim(); if (!text) throw new Error('Type what you want first.');
     let model = '';
@@ -58,7 +64,7 @@
       let p = String(j.prompt || '').replace(/\s+/g, ' ').trim();
       if (p.length < 8) { const m = String(out || '').replace(/```[\s\S]*?```/g, ' ').trim(); p = m.length > 8 && m.length < 1500 ? m : ''; }
       if (!p) return fallback(target, text);
-      if (target === 'image' || target === 'redraw') p = p.split(/\s+/).slice(0, 75).join(' ');       // the picture model ignores anything past ~77 tokens
+      if (target === 'image' || target === 'redraw') p = clip(p, 75);       // the picture model ignores anything past ~77 tokens
       return { prompt: p, neg: String(j.negative || j.neg || '').replace(/\s+/g, ' ').trim().slice(0, 300), why: (Array.isArray(j.why) ? j.why : []).map(String).slice(0, 4), fallback: false };
     } catch (e) { return fallback(target, text); }
   }
@@ -122,6 +128,6 @@
     return c.toDataURL('image/jpeg', .85).split(',')[1];
   }
 
-  A.promptOpt = { optimize, render, guess, TARGETS: T, tokens: toks, small };
+  A.promptOpt = { optimize, render, guess, clip, TARGETS: T, tokens: toks, small };
   try { if (A.cmd && A.cmd.reg) A.cmd.reg({ title: 'Prompt optimizer', sub: 'Turn your words into the best prompt for pictures, edits, chat, the agent, video and music', icon: '✨', group: 'Go to', tags: 'prompt optimize improve better image prompt engineering', run: () => { if (A.tools) A.tools.go('opt'); } }); } catch (e) { }
 })();

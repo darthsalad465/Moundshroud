@@ -44,6 +44,8 @@
     albums: 'M4 7h13v12H4zM7 4h13v12M4 16l4-4 3.5 3.5 2-2L17 17',
     play: 'M7.5 8h9a4.5 4.5 0 0 1 4.4 5.4l-.5 2.6a2 2 0 0 1-3.5.9L15 14.5H9l-1.9 2.4a2 2 0 0 1-3.5-.9l-.5-2.6A4.5 4.5 0 0 1 7.5 8M8 10.5v2.5M6.75 11.75h2.5M15.5 11h.01M17.2 12.7h.01',
     music: 'M9 18.5V6l10-2v12.5M9 18.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0M19 16.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0',
+    radio: 'M4 9h16v10H4zM7 9l9-5M10.5 14a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0M14 12.5h3.5M14 15.5h3.5',
+    tv: 'M3 7h18v12H3zM8 3l4 4 4-4M7 21h10',
     photos: 'M4 5h16v14H4zM4 15.5l4.5-4.5 4 4 2.5-2.5 5 5M15 9h.01',
     faith: 'M12 3.5v17M7 8.5h10',
     map: 'M9 4.5 3.5 6.5v13L9 17.5l6 2 5.5-2v-13L15 6.5zM9 4.5v13M15 6.5v13',
@@ -82,7 +84,11 @@
     follow();
   };
   /* the marker behind the current page: it glides to the page's row (or to its menu when that menu is folded) */
-  const ink = () => {
+  /* ink() measures the page, which forces the browser to lay out all ~14,000 elements. While the app starts it was called
+     once per sidebar rebuild (about 4 seconds of layout in the first 20). Now every request in one frame shares one measurement. */
+  let inkQ = 0;
+  const ink = () => { if (!inkQ) inkQ = requestAnimationFrame(() => { inkQ = 0; inkNow(); }); };
+  const inkNow = () => {
     const el = nav.querySelector('.nink'); if (!el) return;
     let t = nav.querySelector('button[data-tab].on');
     if (t && (isMin() || !t.offsetParent || (t.closest('.ngl') && !t.closest('.ngl').classList.contains('open')))) { const g = t.closest('.ngl'); t = g ? nav.querySelector('button[data-grp="' + g.dataset.g + '"]') : t; }
@@ -95,7 +101,7 @@
   const follow = () => {
     const el = nav.querySelector('.nink'); if (!el) return; cancelAnimationFrame(inkT);
     const t0 = performance.now(); el.classList.add('live');
-    const step = now => { ink(); if (now - t0 < 380) inkT = requestAnimationFrame(step); else { el.classList.remove('live'); ink(); } };
+    const step = now => { inkNow(); if (now - t0 < 380) inkT = requestAnimationFrame(step); else { el.classList.remove('live'); ink(); } };
     inkT = requestAnimationFrame(step); setTimeout(() => { el.classList.remove('live'); ink(); }, 420);
   };
   const row = (n, sub) => '<button type="button" data-tab="' + n + '"' + (sub ? ' class="nsub"' : '') + ' title="' + esc(A.tabs[n].label) + '"><span class="ni">' + (IC[n] ? svg(IC[n]) : esc(A.NAVIC[n] || '•')) + '</span><span class="nl">' + esc(A.tabs[n].label) + '</span></button>';

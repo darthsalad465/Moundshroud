@@ -426,7 +426,7 @@
 
   /* ---- the tabs of the Chat page: the normal chat, the agent, and the swarm (web/js/swarm.js) ---- */
   const panel = document.getElementById('p-chat'), bar = document.getElementById('chattabs');
-  const PANES = { agent: { el: document.getElementById('agentpane'), draw: p => render(p) }, swarm: { el: document.getElementById('swarmpane'), draw: p => A.swarm && A.swarm.render(p) }, olympics: { el: document.getElementById('olympane'), draw: p => A.olympics && A.olympics.render(p) }, debate: { el: document.getElementById('debatepane'), draw: p => A.debate && A.debate.render(p) }, bible: { el: document.getElementById('biblepane'), draw: p => A.bible && A.bible.render(p) } };
+  const PANES = { agent: { el: document.getElementById('agentpane'), draw: p => render(p) }, swarm: { el: document.getElementById('swarmpane'), draw: p => A.swarm && A.swarm.render(p) }, olympics: { el: document.getElementById('olympane'), draw: p => A.olympics && A.olympics.render(p) }, debate: { el: document.getElementById('debatepane'), draw: p => A.debate && A.debate.render(p) } };
   let mode = 'chat';
   /* the panes are made once and kept (like A.keep): switching between Chat, Agent and Swarm never loses a conversation,
      a running swarm or teams being edited */

@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Godot editor · Moundshroud</title>
+<!-- Studio > Game Studio > Open in Godot: the real Godot 4 editor (its official web build, in engines\godot\web-editor),
+     running inside the Moundshroud window. The game's files are copied in from Documents\Moundshroud Godot\<game>;
+     "Save to PC" (and Back to Studio, and every minute) writes the project's text files back to that folder. Games
+     started from the editor run in the game panel on this same page. The server serves this page with the
+     cross-origin isolation the editor needs (its threads use SharedArrayBuffer). -->
+<style>
+  html,body{margin:0;height:100%;background:#1d2229;color:#e0e0e0;font:14px system-ui,Segoe UI,sans-serif;overflow:hidden}
+  #bar{display:flex;align-items:center;gap:8px;height:42px;padding:0 10px;background:#262c3b;border-bottom:1px solid #3b4252;box-sizing:border-box}
+  #bar button{background:#363d4a;color:#e0e0e0;border:1px solid #4a5263;border-radius:7px;padding:5px 12px;font:inherit;cursor:pointer}
+  #bar button:hover{border-color:#8b7cff}#bar button.pri{background:#8b7cff;color:#0a0c12;border-color:#8b7cff;font-weight:600}
+  #bar b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:30vw}
+  #st{color:#9aa3ba;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #st.bad{color:#ff6b81}#st.ok{color:#5ee6a8}
+  #stage{position:absolute;top:42px;left:0;right:0;bottom:0}
+  canvas{display:block;outline:none}
+  #editor-canvas{position:absolute;inset:0;width:100%;height:100%}
+  #game{position:absolute;inset:0;background:#000;display:none;flex-direction:column;z-index:2}
+  #game.on{display:flex}
+  #gbar{display:flex;gap:8px;align-items:center;padding:5px 10px;background:#262c3b}
+  #gbar button{background:#363d4a;color:#e0e0e0;border:1px solid #4a5263;border-radius:7px;padding:4px 10px;font:inherit;cursor:pointer}
+  #game-canvas{flex:1;width:100%;min-height:0}
+  #status{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;text-align:center;padding:20px;z-index:3;background:#1d2229}
+  #status.off{display:none}
+  #prog{width:280px;height:6px;border-radius:3px;background:#363d4a;overflow:hidden}#prog i{display:block;height:100%;width:0;background:#8b7cff;transition:width .2s}
+</style></head>
+<body>
+<div id="bar">
+  <button id="back" title="Save, then go back to Studio">← Back to Studio</button>
+  <b id="nm">Godot editor</b><span id="st"></span><span style="flex:1"></span>
+  <button id="save" class="pri" title="Write the project's files back to its folder on this PC">💾 Save to PC</button>
+  <button id="fs" title="Full screen">⛶</button>
+</div>
+<div id="stage">
+  <canvas id="editor-canvas" tabindex="0"></canvas>
+  <div id="game"><div id="gbar"><b>▶ Game running</b><span style="flex:1"></span><button id="gstop">■ Stop the game</button></div><canvas id="game-canvas" tabindex="0"></canvas></div>
+  <div id="status"><b id="sline">Starting the Godot editor…</b><div id="prog"><i></i></div><div id="snote" style="color:#9aa3ba;max-width:520px">The first start loads about 96 MB from this PC and takes a few seconds.</div></div>
+</div>
+<script src="godot.editor.js"></script>
+<script>
+(() => {
+  const P = new URLSearchParams(location.search), NAME = (P.get('p') || '').slice(0, 80);
+  const ROOT = '/home/web_user/projects/' + NAME;
+  const $ = id => document.getElementById(id), st = (t, k) => { $('st').textContent = t; $('st').className = k || ''; };
+  const fail = t => { $('sline').textContent = 'The Godot editor could not start.'; $('snote').textContent = t; $('prog').style.display = 'none'; $('status').classList.remove('off'); };
+  const backUrl = () => '/?go=studio-godot&p=' + encodeURIComponent(NAME);
+  $('nm').textContent = NAME ? '🛠 ' + NAME : 'Godot editor';
+  /* the server shuts itself down when no Moundshroud page has been seen for three minutes */
+  const ping = () => fetch('/api/ping').catch(() => { }); ping(); setInterval(ping, 60000);
+  $('fs').onclick = () => { if (document.fullscreenElement) document.exitFullscreen().catch(() => { }); else document.documentElement.requestFullscreen().catch(() => { }); };
+
+  if (!NAME) return fail('No game was named. Go back to Studio and press Open in Godot on a game.');
+  const missing = Engine.getMissingFeatures();
+  if (missing.length) return fail('This window is missing: ' + missing.join(', ') + '. Close Moundshroud and open it again.');
+
+  /* ---- saving: the editor keeps its files in this window's storage (IndexedDB); the text files a Godot project is
+     made of are read from there and written back to the game's folder ---- */
+  const KEEP = /\.(godot|gd|tscn|tres|cfg|import|json|txt|md|svg|gdshader|gdextension|csv)$/i;
+  function readStore() {
+    return new Promise((resolve, reject) => {
+      const rq = indexedDB.open('/home/web_user');
+      rq.onerror = () => reject(rq.error);
+      rq.onsuccess = () => {
+        const db = rq.result; if (!db.objectStoreNames.contains('FILE_DATA')) { db.close(); return resolve([]); }
+        const out = [], cur = db.transaction('FILE_DATA', 'readonly').objectStore('FILE_DATA').openCursor();
+        cur.onsuccess = e => { const c = e.target.result; if (!c) { db.close(); return resolve(out); } const k = String(c.key); if (k.startsWith(ROOT + '/') && c.value && c.value.contents) out.push({ path: k.slice(ROOT.length + 1), bytes: c.value.contents }); c.continue(); };
+        cur.onerror = () => { db.close(); reject(cur.error); };
+      };
+    });
+  }
+  let lastSaved = '';
+  async function save(quiet) {
+    let files; try { files = await readStore(); } catch (e) { st('Could not read the editor’s files: ' + e.message, 'bad'); return false; }
+    const dec = new TextDecoder();
+    files = files.filter(f => KEEP.test(f.path) && !/^(web|\.godot)\//.test(f.path) && f.path.split('/').length <= 5).map(f => ({ path: f.path, content: dec.decode(f.bytes) }));
+    if (!files.length) { if (!quiet) st('Nothing to save yet. Press Ctrl+S in the editor first.', 'bad'); return true; }
+    const sig = files.map(f => f.path + ':' + f.content.length + ':' + f.content.slice(-40)).join('|');
+    if (quiet && sig === lastSaved) return true;
+    try {
+      const r = await (await fetch('/api/godot/save', { method: 'POST', body: JSON.stringify({ name: NAME, files: files.slice(0, 80) }) })).json();
+      if (!r.ok) { st(r.error || 'Could not save.', 'bad'); return false; }
+      lastSaved = sig; st('Saved ' + r.count + ' file' + (r.count === 1 ? '' : 's') + ' to this PC at ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), 'ok'); return true;
+    } catch (e) { st('Could not save: ' + e.message, 'bad'); return false; }
+  }
+  $('save').onclick = () => { st('Saving…'); save(false); };
+  $('back').onclick = async () => { st('Saving before going back…'); await save(true); location.href = backUrl(); };
+  setInterval(() => save(true), 60000);
+
+  /* ---- the editor, as Godot's own web editor page sets it up, minus its project manager ---- */
+  const editorCanvas = $('editor-canvas'); let gameCanvas = $('game-canvas'), game = null, editor = null;
+  const fit = () => { const s = window.devicePixelRatio || 1, w = $('stage').clientWidth, h = $('stage').clientHeight; if (editorCanvas.width !== Math.round(w * s) || editorCanvas.height !== Math.round(h * s)) { editorCanvas.width = Math.round(w * s); editorCanvas.height = Math.round(h * s); } requestAnimationFrame(fit); };
+  requestAnimationFrame(fit);
+  const gameConfig = {
+    persistentPaths: ['/home/web_user'], unloadAfterInit: false, canvas: gameCanvas, canvasResizePolicy: 1,
+    onExit: () => { const c = document.createElement('canvas'); c.id = 'game-canvas'; c.tabIndex = 0; gameCanvas.replaceWith(c); gameCanvas = c; gameConfig.canvas = c; $('game').classList.remove('on'); game = null; editorCanvas.focus(); }
+  };
+  /* "Run" in the editor: the game plays in the panel over the editor, never in another window */
+  function execute(args) {
+    const isEditor = args.some(a => a === '-e' || a === '--editor'), isPM = args.includes('--project-manager');
+    if (isEditor || isPM) { st('The editor asked to restart; press Back to Studio and open the game again.', 'bad'); return; }
+    if (game) return;
+    $('game').classList.add('on'); game = new Engine(gameConfig);
+    game.init().then(() => requestAnimationFrame(() => game.start({ args, canvas: gameCanvas }).then(() => gameCanvas.focus())));
+  }
+  $('gstop').onclick = () => { if (game) game.requestQuit(); };
+  const cores = Math.min(Math.max(navigator.hardwareConcurrency || 1, 12), 24);
+  editor = new Engine({
+    unloadAfterInit: false, canvas: editorCanvas, canvasResizePolicy: 0, onExecute: execute, persistentPaths: ['/home/web_user'],
+    emscriptenPoolSize: cores, godotPoolSize: Math.floor(cores / 3),
+    onProgress: (cur, total) => { if (total > 0) $('prog').firstChild.style.width = (cur / total * 100) + '%'; },
+    onExit: () => { st('The editor closed. Press Back to Studio.'); }
+  });
+  (async () => {
+    let tree;
+    try { tree = await (await fetch('/api/godot/tree?name=' + encodeURIComponent(NAME))).json(); } catch (e) { return fail('Could not list the game’s files: ' + e.message); }
+    if (!tree.ok) return fail(tree.error || 'That game is not here.');
+    try { await editor.init('godot.editor'); } catch (e) { return fail(e && e.message || String(e)); }
+    $('sline').textContent = 'Opening ' + NAME + '…';
+    /* the files on this PC are the true copy: they replace whatever the editor kept from last time */
+    const enc = new TextEncoder(); let n = 0;
+    /* only the project's own text files: the web/ folder is the exported copy Studio plays, not part of the project */
+    for (const f of tree.files.filter(x => !x.dir && KEEP.test(x.path) && !/^(web|\.godot)\//.test(x.path))) {
+      try { const j = await (await fetch('/api/godot/file?name=' + encodeURIComponent(NAME) + '&file=' + encodeURIComponent(f.path))).json(); if (j.ok) { editor.copyToFS(ROOT + '/' + f.path, enc.encode(j.text)); n++; } } catch (e) { }
+    }
+    if (!n) return fail('The game has no files to open.');
+    try { editor.copyToFS('/home/web_user/keep', new Uint8Array()); } catch (e) { }
+    await editor.start({ args: ['--path', ROOT, '--editor', '--single-window'], canvas: editorCanvas });
+    $('status').classList.add('off'); editorCanvas.focus();
+    st('Opened ' + n + ' file' + (n === 1 ? '' : 's') + '. Press Ctrl+S in the editor, then 💾 Save to PC.');
+  })().catch(e => fail(e && e.message || String(e)));
+})();
+</script>
+</body></html>

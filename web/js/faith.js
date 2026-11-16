@@ -4,7 +4,7 @@
   const F = window.FAITH; if (!F) return; const root = document.getElementById('p-faith'); if (!root) return;
   const esc2 = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const rd = (k, d) => { try { return JSON.parse(ls.get(k, JSON.stringify(d))); } catch (e) { return d; } }, wr = (k, v) => { try { ls.set(k, JSON.stringify(v)); } catch (e) { } };
-  const SUBS = [['today', '🕊️ Today'], ['bible', '📖 Bible'], ['prayers', '🙏 Prayers'], ['rosary', '📿 Rosary'], ['library', '📚 Library'], ['cal', '🗓️ Calendar'], ['mine', '⭐ My notes']];
+  const SUBS = [['today', '🕊️ Today'], ['bible', '📖 Bible'], ['expert', '✝️ Bible Expert'], ['learn', '🎓 Learn'], ['prayers', '🙏 Prayers'], ['rosary', '📿 Rosary'], ['library', '📚 Library'], ['cal', '🗓️ Calendar'], ['mine', '⭐ My notes']];
   /* the devotional pages (Adoration, Stations, Chaplet, Office, Saints) live in faith-extra.js and join this row when it loads */
   const subs = () => SUBS.concat(window.FAITHX && window.FAITHX.tabs ? window.FAITHX.tabs : []);
   let bible = null, drB = null, webB = null, tr = ls.get('faith_tr', 'web') === 'dr' ? 'dr' : 'web', bibleP = null, flat = null, sub = ls.get('faithsub', 'today'), host = null, my = 0;
@@ -19,6 +19,23 @@
   const fmtDate = d => d.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   let st = { hl: rd('faith_hl', {}), bm: rd('faith_bm', []), notes: rd('faith_notes', {}), pos: rd('faith_pos', { b: 46, c: 0 }), plans: rd('faith_plans', {}), size: +ls.get('faith_size', '17'), showNotes: ls.get('faith_challoner', '1') !== '0', view: ls.get('faith_view', 'flow') === 'verses' ? 'verses' : 'flow' };
   const save = k => wr('faith_' + { hl: 'hl', bm: 'bm', notes: 'notes', pos: 'pos', plans: 'plans' }[k], st[k]);
+  /* saved verses: a bookmark with the whole verse kept beside it (f), and d = when it was saved; daily = it came from the verse of the day */
+  const vKey = v => v && v.b >= 0 ? v.b + '.' + v.c + '.' + v.v : '';
+  const isSavedK = k => !!k && st.bm.some(x => x.k === k);
+  function toggleBm(k, ref, text, daily) {
+    const i = st.bm.findIndex(z => z.k === k);
+    if (i >= 0) { st.bm.splice(i, 1); save('bm'); return false; }
+    st.bm.push({ k, t: ref, x: String(text || '').slice(0, 120), f: String(text || ''), d: Date.now(), daily: daily ? 1 : 0 }); save('bm'); return true;
+  }
+  /* "Keep every daily verse" (a switch on the verse card): each day's verse is saved once, the first time it is shown; taking it out again sticks */
+  const autoOn = () => ls.get('faith_autosave', '0') === '1';
+  function autoSave(v) {
+    if (!autoOn() || !v || !v.text || v.b < 0) return;
+    const day = new Date().toISOString().slice(0, 10), done = rd('faith_autodays', {}); if (done[day]) return;
+    done[day] = 1; const keys = Object.keys(done).sort().slice(-400), o = {}; keys.forEach(k => { o[k] = 1; }); wr('faith_autodays', o);
+    if (!isSavedK(vKey(v))) toggleBm(vKey(v), v.ref, v.text, 1);
+  }
+  let lastV = null;
   const css = '.fa-wrap{max-width:1000px}.fa-sub{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}.fa-v{cursor:pointer;border-radius:4px;padding:0 2px;line-height:1.75}.fa-v:hover{background:var(--panel2)}.fa-v sup{color:var(--acc);font-weight:700;margin-right:4px;font-size:.62em}.fa-note{font-size:.82em;color:var(--mute);border-left:3px solid var(--line);padding:2px 10px;margin:2px 0 8px 14px;line-height:1.5;font-style:italic}.fa-flow{max-width:680px;line-height:1.95}.fa-flow .fa-v{line-height:1.95;padding:0}.fa-flow .fa-v sup{opacity:.5;font-weight:600;margin:0 3px 0 2px}.fa-para{margin:0 0 1em}.fa-head{font-family:system-ui,sans-serif;font-weight:700;font-size:.78em;letter-spacing:.04em;text-transform:uppercase;color:var(--acc);margin:1.3em 0 .4em}.fa-hl0{background:rgba(255,214,10,.32)}.fa-hl1{background:rgba(80,200,120,.3)}.fa-hl2{background:rgba(79,168,255,.3)}.fa-hl3{background:rgba(255,105,180,.28)}.fa-day{aspect-ratio:1;border-radius:10px;border:1px solid var(--line);padding:5px;cursor:pointer;position:relative;font-size:13px;min-height:54px;background:var(--panel)}.fa-day:hover{background:var(--panel2)}.fa-day.on{outline:2px solid var(--acc)}.fa-day i{position:absolute;left:5px;right:5px;bottom:4px;font-style:normal;font-size:10px;line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;opacity:.85}.fa-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:0 0 12px}.fa-pop{position:fixed;z-index:70;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 40px rgba(0,0,0,.5);padding:6px;min-width:200px}.fa-pop div{padding:7px 10px;border-radius:8px;cursor:pointer;white-space:nowrap}.fa-pop div:hover{background:var(--panel2)}.fa-bead{display:inline-block;width:14px;height:14px;border-radius:50%;margin:2px;background:var(--panel2);border:1px solid var(--line)}.fa-bead.on{background:var(--acc);border-color:var(--acc)}.fa-bead.cur{outline:2px solid var(--text)}';
   if (!document.getElementById('facss')) { const s = document.createElement('style'); s.id = 'facss'; s.textContent = css; document.head.appendChild(s); }
 
@@ -38,10 +55,12 @@
   function today() {
     const d = new Date(), s = F.season(d), fe = F.today(d), doy = Math.floor((d - new Date(d.getFullYear(), 0, 0)) / 86400000), ref = F.VERSES[doy % F.VERSES.length], pr = parseRef(ref); if (pr && pr.b === 20 && tr === 'web') pr.c = Math.max(0, psConv(pr.c + 1, 'dr', 'web') - 1);
     const vtxt = pr ? ((bible.books[pr.b].ch[pr.c] || { v: [] }).v[pr.v - 1] || '').replace(/\n/g, ' ') : '', refLabel = pr ? refName(pr.b, pr.c, pr.v - 1) : ref, up = []; for (let k = 1; k <= 60 && up.length < 4; k++) { const dd = F.addDays(d, k); F.today(dd).filter(x => x.r !== 'O' && !(x.n === 'Sunday')).forEach(x => { if (up.length < 4) up.push({ d: dd, ...x }); }); }
+    lastV = pr ? { k: vKey(pr), ref: refLabel, text: vtxt } : null; if (lastV) autoSave({ b: pr.b, c: pr.c, v: pr.v, ref: refLabel, text: vtxt });
     const kind = (() => { let k = F.ROSARY_DAYS[d.getDay()]; if (d.getDay() === 0) { if (s.n === 'Advent' || s.n === 'Christmas') k = 'Joyful'; else if (s.n === 'Lent') k = 'Sorrowful'; } return k; })();
     const active = Object.keys(st.plans).find(id => st.plans[id] && st.plans[id].start);
     host.innerHTML = '<div class="fa-wrap"><div class="fa-card" style="border-left:6px solid ' + s.col + '"><div class="small mute">' + esc2(fmtDate(d)) + '</div><div style="font-size:22px;font-weight:700;margin:2px 0">' + esc2(s.n) + ' <span class="small mute" style="font-weight:400">· vestment colour ' + esc2(s.c) + '</span></div>' + (fe.length ? fe.map(x => '<div style="margin-top:6px"><b>' + esc2(x.n) + '</b> <span class="badge">' + ({ S: 'Solemnity', F: 'Feast', M: 'Memorial', O: 'Optional memorial' }[x.r] || '') + '</span><div class="small mute">' + esc2(x.note || '') + '</div></div>').join('') : '<div class="small mute" style="margin-top:4px">A weekday in ' + esc2(s.n) + '. Open the Calendar for what is coming.</div>') + '</div>' +
-      '<div class="fa-card"><div class="small mute">Verse of the day</div><div style="font-size:' + (st.size + 2) + 'px;line-height:1.6;margin:6px 0;font-family:Georgia,serif">&ldquo;' + esc2(vtxt) + '&rdquo;</div><div class="row" style="gap:8px;align-items:center"><b>' + esc2(refLabel) + ' <span class="small mute" style="font-weight:400">' + trShort() + '</span></b><span class="sp"></span><button class="ib" data-open="' + (pr ? pr.b + '.' + pr.c + '.' + pr.v : '') + '">Read the chapter</button><button class="ib" data-askv="' + esc2(refLabel) + '">Explain</button></div></div>' +
+      '<div class="fa-card"><div class="small mute">Verse of the day</div><div style="font-size:' + (st.size + 2) + 'px;line-height:1.6;margin:6px 0;font-family:Georgia,serif">&ldquo;' + esc2(vtxt) + '&rdquo;</div><div class="row" style="gap:8px;align-items:center"><b>' + esc2(refLabel) + ' <span class="small mute" style="font-weight:400">' + trShort() + '</span></b><span class="sp"></span><button class="ib" data-open="' + (pr ? pr.b + '.' + pr.c + '.' + pr.v : '') + '">Read the chapter</button><button class="ib" data-askv="' + esc2(refLabel) + '">Explain</button><button class="ib' + (isSavedK(vKey(pr)) ? ' on' : '') + '" data-savev="1" title="Keep this verse in My notes">' + (isSavedK(vKey(pr)) ? '★ Saved' : '☆ Save') + '</button></div>' +
+        '<label class="small" style="display:flex;gap:6px;align-items:center;margin-top:8px;cursor:pointer" title="Each day\'s verse is saved the first time it is shown"><input type="checkbox" id="faauto"' + (autoOn() ? ' checked' : '') + '> Keep every daily verse automatically</label></div>' +
       '<div class="row" style="gap:12px;flex-wrap:wrap"><div class="fa-card" style="flex:1;min-width:250px"><b>📿 Today\'s Rosary: the ' + kind + ' Mysteries</b><div class="small mute" style="margin:4px 0 8px">' + F.ROSARY[kind].join(', ') + '</div><button class="pri" data-rosary="' + kind + '">Pray the Rosary</button></div><div class="fa-card" style="flex:1;min-width:250px"><b>🔔 The Angelus</b><div class="small mute" style="margin:4px 0 8px">Traditionally prayed at 6 am, noon and 6 pm.</div><button class="ib" data-prayer="The Angelus">Open the Angelus</button></div>' + '<div class="fa-card" style="flex:1;min-width:250px"><b>📖 Reading plan</b><div class="small mute" style="margin:4px 0 8px" id="faplan">' + (active ? '' : 'Start a plan to read the Bible a little each day.') + '</div><button class="ib" data-sub="bible" data-plans="1">' + (active ? 'Continue the plan' : 'Choose a plan') + '</button></div></div>' +
       (up.length ? '<div class="fa-card"><b>Coming up</b>' + up.map(x => '<div class="row" style="gap:10px;padding:4px 0;align-items:baseline"><span class="small mute" style="width:130px">' + x.d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }) + '</span><span>' + esc2(x.n) + '</span></div>').join('') + '</div>' : '') +
       '<div class="fa-card"><b>Ask about the faith</b><div class="small mute" style="margin:2px 0 6px">The AI answers using the Catholic tradition and tells you when it is unsure. For pastoral or personal matters, speak with a priest.</div><div class="row" style="gap:8px"><input type="text" id="faq" placeholder="e.g. What does the Church teach about the Eucharist?" style="flex:1"><button class="pri" id="faqgo">Ask</button></div></div>' +
@@ -168,17 +187,18 @@
   function mine() {
     const hlKeys = Object.keys(st.hl), nk = Object.keys(st.notes), line = k => { const [b, c, v] = k.split('.').map(Number); return { ref: refName(b, c, v - 1), txt: bible.books[b].ch[c].v[v - 1] }; };
     host.innerHTML = '<div class="fa-wrap"><div class="row" style="gap:8px;margin-bottom:10px"><b style="font-size:18px;flex:1">My bookmarks, highlights and notes</b><button class="ib" id="mexp">Copy all as text</button></div>' +
-      '<div class="fa-card"><b>🔖 Bookmarks</b>' + (st.bm.length ? st.bm.map((x, i) => { const [b, c, v] = x.k.split('.').map(Number); return '<div class="fa-v" style="display:block;padding:6px 4px;border-bottom:1px solid var(--line)" data-open="' + x.k + '"><b style="color:var(--acc)">' + esc2(x.t) + '</b> ' + esc2(x.x) + '</div>'; }).join('') : '<div class="small mute" style="margin-top:6px">Click a verse in the Bible and choose Bookmark.</div>') + '</div>' +
+      '<div class="fa-card"><b>🔖 Saved verses</b> <span class="small mute">(' + st.bm.length + ')</span>' + (st.bm.length ? st.bm.slice().reverse().map(x => '<div class="fa-v" style="display:block;padding:6px 4px;border-bottom:1px solid var(--line)" data-open="' + x.k + '"><div class="row" style="gap:8px;align-items:baseline"><b style="color:var(--acc)">' + esc2(x.t) + '</b><span class="small mute">' + (x.daily ? 'verse of the day · ' : '') + (x.d ? new Date(x.d).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '') + '</span><span class="sp"></span><button class="ib" data-rmbm="' + x.k + '" title="Take it out of your saved verses">✕</button></div><div style="font-family:Georgia,serif;margin-top:2px">' + esc2(x.f || x.x) + '</div></div>').join('') : '<div class="small mute" style="margin-top:6px">Press ☆ Save on the verse of the day, or click any verse in the Bible and choose Bookmark.</div>') + '</div>' +
       '<div class="fa-card"><b>📝 Notes</b>' + (nk.length ? nk.map(k => { const l = line(k); return '<div class="fa-v" style="display:block;padding:6px 4px;border-bottom:1px solid var(--line)" data-open="' + k + '"><b style="color:var(--acc)">' + esc2(l.ref) + '</b> <span class="small mute">' + esc2(l.txt.slice(0, 90)) + '...</span><div>' + esc2(st.notes[k]) + '</div></div>'; }).join('') : '<div class="small mute" style="margin-top:6px">Your notes on verses appear here.</div>') + '</div>' +
       '<div class="fa-card"><b>🖍 Highlights</b>' + (hlKeys.length ? hlKeys.map(k => { const l = line(k); return '<div class="fa-v fa-hl' + st.hl[k] + '" style="display:block;padding:6px 4px;margin-bottom:4px" data-open="' + k + '"><b>' + esc2(l.ref) + '</b> ' + esc2(l.txt) + '</div>'; }).join('') : '<div class="small mute" style="margin-top:6px">Highlighted verses appear here.</div>') + '</div></div>';
-    document.getElementById('mexp').onclick = () => { const o = ['MY BIBLE NOTES\n']; st.bm.forEach(x => o.push('Bookmark: ' + x.t + ' - ' + x.x)); nk.forEach(k => { const l = line(k); o.push('Note on ' + l.ref + ': ' + st.notes[k]); }); hlKeys.forEach(k => { const l = line(k); o.push('Highlight ' + l.ref + ': ' + l.txt); }); A.copy(o.join('\n')); A.toast('Copied'); };
+    document.getElementById('mexp').onclick = () => { const o = ['MY BIBLE NOTES\n']; st.bm.forEach(x => o.push('Saved verse: ' + x.t + ' - ' + (x.f || x.x))); nk.forEach(k => { const l = line(k); o.push('Note on ' + l.ref + ': ' + st.notes[k]); }); hlKeys.forEach(k => { const l = line(k); o.push('Highlight ' + l.ref + ': ' + l.txt); }); A.copy(o.join('\n')); A.toast('Copied'); };
   }
 
   /* ---------- the section ---------- */
   function draw() {
     const tabs = '<div class="fa-sub" id="fasub">' + subs().map(s => '<button class="ib' + (sub === s[0] ? ' on' : '') + '" data-fs="' + s[0] + '">' + s[1] + '</button>').join('') + '</div>';
     const wrapHost = document.getElementById('fabody'); if (!wrapHost) return; document.getElementById('fahead').innerHTML = tabs; host = wrapHost; closePop();
-    const f = { today, bible: () => drawBible(), prayers: () => prayers(), rosary: () => rosary(), library, cal: () => calendar(), mine }[sub];
+    root.classList.toggle('fa-expert', sub === 'expert');      /* the Bible Expert is a conversation with its own scrolling, so the page does not scroll around it */
+    const f = { today, bible: () => drawBible(), learn: () => A.faithLearn ? A.faithLearn.render(host) : (host.innerHTML = '<div class="mute">Learn is not available.</div>'), expert: () => A.bible ? A.bible.render(host) : (host.innerHTML = '<div class="mute">The Bible Expert is not available.</div>'), prayers: () => prayers(), rosary: () => rosary(), library, cal: () => calendar(), mine }[sub];
     try {
       if (f) f();
       else if (window.FAITHX && window.FAITHX.has(sub)) window.FAITHX.render(sub, host);
@@ -192,6 +212,9 @@
     b.onclick = e => {
       const T = e.target, c = s => T.closest(s); let el; if (!c('#fapop')) closePop();
       if ((el = c('[data-fs]'))) { sub = el.dataset.fs; ls.set('faithsub', sub); draw(); sc.scrollTop = 0; return; }
+      if ((el = c('[data-savev]')) && lastV) { const was = isSavedK(lastV.k); toggleBm(lastV.k, lastV.ref, lastV.text, 1); A.toast(was ? 'Taken out of your saved verses.' : 'Saved. You will find it in My notes.'); draw(); return; }
+      if ((el = c('[data-rmbm]'))) { const i = st.bm.findIndex(z => z.k === el.dataset.rmbm); if (i >= 0) { st.bm.splice(i, 1); save('bm'); } draw(); return; }
+      if ((el = c('#faauto'))) { ls.set('faith_autosave', el.checked ? '1' : '0'); if (el.checked && lastV) { const day = new Date().toISOString().slice(0, 10), done = rd('faith_autodays', {}); done[day] = 1; wr('faith_autodays', done); if (!isSavedK(lastV.k)) toggleBm(lastV.k, lastV.ref, lastV.text, 1); A.toast('Every daily verse will be saved from now on. Today\'s is saved.'); } else if (!el.checked) A.toast('Daily verses are no longer saved automatically.'); draw(); return; }
       if ((el = c('[data-open]'))) { const [bb, cc, vv] = el.dataset.open.split('.').map(Number); openBible(bb, cc, vv); return; }
       if ((el = c('[data-sub]'))) { sub = el.dataset.sub; ls.set('faithsub', sub); draw(); if (el.dataset.plans) drawBible({ plans: 1 }); return; }
       if ((el = c('[data-rosary]'))) { sub = 'rosary'; ls.set('faithsub', sub); draw(); rosary(el.dataset.rosary); sc.scrollTop = 0; return; }
@@ -221,10 +244,14 @@
     if (d.getDay() === 0) { if (s.n === 'Advent' || s.n === 'Christmas') kind = 'Joyful'; else if (s.n === 'Lent') kind = 'Sorrowful'; }
     const up = []; for (let k = 1; k <= 60 && up.length < 3; k++) { const dd = F.addDays(d, k); F.today(dd).filter(x => x.r !== 'O' && x.n !== 'Sunday').forEach(x => { if (up.length < 3) up.push(Object.assign({ d: dd }, x)); }); }
     const active = Object.keys(st.plans).find(id => st.plans[id] && st.plans[id].start); let plan = null; try { plan = active ? planInfo(active) : null; } catch (e) { }
+    if (d.toDateString() === new Date().toDateString()) autoSave(verse);      /* the verse shown on the Today page counts as shown */
+    verse.saved = isSavedK(vKey(verse));
     return { verse, season: s, feasts, kind, mysteries: F.ROSARY[kind] || [], up, plan };
   };
+  /* save (or take out) the verse of a day: used by the Save button on the Today page */
+  const saveVerse = async d => { const v = await verseOfDay(d); if (v.b < 0 || !v.text) return false; return toggleBm(vKey(v), v.ref, v.text, 1); };
   A.faith = {
-    openBible, getBible, parseRef, search: q => getBible().then(() => search(q)), open: () => A.showTab('faith'), verseOfDay, widgetData,
+    openBible, getBible, parseRef, search: q => getBible().then(() => search(q)), open: () => A.showTab('faith'), saveVerse, learn: () => { sub = 'learn'; ls.set('faithsub', sub); A.showTab('faith'); draw(); }, expert: () => { sub = 'expert'; ls.set('faithsub', sub); A.showTab('faith'); draw(); }, verseOfDay, widgetData,
     tr: () => tr, setTr: async t2 => { await getBible(); setTr(t2); }, bible: () => bible, psConv, rosaryOpen: k => { sub = 'rosary'; ls.set('faithsub', sub); draw(); rosary(k); }
   };
 })();

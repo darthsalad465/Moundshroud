@@ -97,6 +97,8 @@
   document.addEventListener('keydown', e => {
     if (e.repeat || e.isComposing || e.defaultPrevented) return;
     const c = ofEvent(e);
+    /* a code editor ([data-ownkeys], e.g. Cyber › Coding) keeps every key, Ctrl+/ and Ctrl+K included; only F1 still opens the guide */
+    if (c !== 'f1' && e.target && e.target.closest && e.target.closest('[data-ownkeys]')) return;
     const k = list.find(x => x.norm === c && x.run);
     if (!k) return;
     if (typing(e) && !(e.ctrlKey || e.metaKey || e.altKey)) return;         // plain letters belong to whatever you are typing in

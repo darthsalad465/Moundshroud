@@ -230,7 +230,7 @@ html.sh #snav > button:hover { background: var(--wash) !important; color: var(--
 /* ---------- Today ---------- */
 html.sh #p-home .td-wrap { max-width: 1120px; padding-top: 10px; }
 html.sh #p-home #tdd { font-size: 13px; letter-spacing: .01em; }
-html.sh #p-home .td-wrap > .row:first-child > div:first-child > div:last-child { font: 600 42px/1.05 var(--f-display) !important; letter-spacing: -.015em; margin-top: 6px !important; background: linear-gradient(180deg, var(--text) 30%, color-mix(in srgb, var(--text) 62%, var(--acc))); -webkit-background-clip: text; background-clip: text; color: transparent; }
+html.sh #p-home .td-wrap > .row:first-child > div:not(.td-logobox):not(.row) > div:last-child { font: 600 42px/1.05 var(--f-display) !important; letter-spacing: -.015em; margin-top: 6px !important; background: linear-gradient(180deg, var(--text) 30%, color-mix(in srgb, var(--text) 62%, var(--acc))); -webkit-background-clip: text; background-clip: text; color: transparent; }
 html.sh #p-home .td-wrap > .row:first-child > .row { flex: 1 1 380px !important; max-width: none !important; margin-top: 6px; }
 html.sh #p-home .td-wrap > .row:first-child > .sp { display: none; }
 html.sh #p-home #tdq { height: 44px; padding: 0 18px !important; border-radius: 14px !important; font-size: 14.5px; background-color: color-mix(in srgb, var(--panel) 80%, transparent); box-shadow: var(--sh-1); }

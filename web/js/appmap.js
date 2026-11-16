@@ -77,6 +77,9 @@ mark{background:rgba(242,201,76,.35);color:inherit;border-radius:3px}
       ['Keep albums of pictures and memories', 'Personal › Albums.', '', 'studio'],
       ['Explore history on a timeline', 'Office › Library › 🏛️ Timeline.', '', 'library'],
       ['Learn about cyber security', 'Cyber › Course, then the Cyber Lab guides and the Cyber games.', '', 'cyber'],
+      ['Learn to code', 'Cyber › 💻 Coding: lessons from beginner to advanced in 12 languages. Python and JavaScript run on the page, HTML shows a live preview.', '', 'cyber'],
+      ['Read a free textbook', 'Library › 📘 Wikibooks: search or pick a subject, then open the book in the reader.', '', 'library'],
+      ['Save or export a Bible Expert conversation', 'Spiritual › ✝️ Bible Expert › 📂 Saved chats: every conversation is saved by itself; reopen, copy, export or delete it.', '', 'spiritual'],
       ['Make a word search or a crossword', 'Entertainment › Games › Puzzle maker.', '', 'play'],
       ['Save and reuse instructions for the AI', 'Prepare › Prompts.', '', 'tools'],
       ['Calendar', 'The Calendar tab.', '', 'newtabs'],
@@ -107,8 +110,25 @@ mark{background:rgba(242,201,76,.35);color:inherit;border-radius:3px}
       ['Imperium (the Rome RPG)', 'Entertainment › Games › Imperium.', '', 'imperium'],
       ['Chess', 'Entertainment › Games › Chess.', '', 'chessboard'],
       ['Music', 'Entertainment › Music.', '', 'musiclib'],
+      ['Listen to live radio', 'Entertainment › Radio (needs internet access on).', '', 'radio'],
+      ['Watch live TV (or bring in your VLC links)', 'Entertainment › TV › 📡 My channels.', '', 'tv'],
+      ['Watch YouTube', 'Entertainment › TV › ▶ YouTube.', '', 'tv'],
+      ['Scan ports, check DNS, WHOIS, certificates or security headers', 'Cyber › 🧰 Toolkit (or ask the AI: “scan the ports on localhost”).', '', 'cyber'],
+      ['Capture network packets (Wireshark), or see live connections', 'Cyber › 🧰 Toolkit › Packet capture / Live connections.', '', 'cyber'],
+      ['Download a YouTube video, or just its sound', 'Entertainment › TV › ▶ YouTube › ⬇ (then 📥 Downloads).', '', 'tv'],
+      ['Find more TV channels', 'Entertainment › TV › 🌐 More channels, or type a channel name in the TV search box.', '', 'tv'],
+      ['Find a file I converted, or get its original back', 'Tools › Converter › My converted files (↩ Original).', '', 'converter'],
+      ['Listen to police and fire scanners', 'Entertainment › Radio › 🚓 Scanners, or ➕ Add a station for a feed you have.', '', 'radio'],
       ['Make pictures or music', 'Studio.', '', 'studio'],
       ['Bible, prayers, the Rosary', 'The Spiritual tab.', '', 'spiritual'],
+      ['Ask a question about the Bible, the Church or Christian history', 'Spiritual › ✝️ Bible Expert (it moved here from Chat). It searches about 170 texts on this PC: the Church Fathers, Aquinas, the Catechism, the Catholic Encyclopedia, Vatican II, encyclicals, creeds and Orthodox and Protestant writers, and cites them as [1], [2].', '', 'bible'],
+      ['Add more Christian texts', 'Prepare › 🛟 Stock up › Tools › Christian texts for the Bible Expert, or run <code>install-christian-texts.ps1</code>. Your own .txt files go in <code>data\\bible</code>.', '', 'prepare'],
+      ['Learn the Bible step by step', 'Spiritual › 🎓 Learn: the 73 books, the story in 12 steps, memorize a verse (it comes back for review), and a quick quiz.', '', 'spiritual'],
+      ['Keep the verse of the day', 'Press ☆ Save on the Today page or on Spiritual › Today. Switch on Keep every daily verse automatically to save each one. Saved verses are in Spiritual › My notes.', '', 'spiritual'],
+      ['Read any Gutenberg book', 'Library › Classics: every Project Gutenberg collection you have, including geography, medicine, farming, military and naval books.', '', 'library'],
+      ['Read Christian news from many outlets', 'News › ✝ Christian (Vatican, Catholic, Orthodox, Protestant, Ecumenical).', '', 'news'],
+      ['Watch the AI think', 'Chat › 💭 Show thinking, under the message box. It also turns thinking on, so replies are slower.', '', 'chat'],
+      ['Make a video', 'Studio › 🎬 AI video: one clip, or a long video made shot by shot (use Smooth so each shot continues the last).', '', 'longvideo'],
       ['Stars and planets', 'Education › Sky.', '', 'sky']
     ]],
     ['Being ready', [
@@ -252,10 +272,11 @@ mark{background:rgba(242,201,76,.35);color:inherit;border-radius:3px}
     const tab = t => A.showTab(t), news = v => { A.showTab('news'); if (v) setTimeout(() => { const b = document.querySelector('#p-news [data-a="' + v + '"], #p-news [data-c="' + v + '"]'); if (b) b.click(); }, 150); };
     if (has2(/Stock up/)) return A.prep.open('stock');
     /* the tabs and sections of the October 2026 layout (regroup.js) */
+    if (has2(/Library › 📘 Wikibooks/)) return A.wikibooks.open();
     if (has2(/Library › Timeline|Timeline/)) return A.library.timeline();
     if (has2(/Office › Office files/)) return tab('offed'); if (has2(/Calculator/)) return tab('calc'); if (has2(/Scanner/)) return tab('scan'); if (has2(/Clipboard/)) return tab('clip');
     if (has2(/Education › Writing|Writing coach/)) return tab('writing'); if (has2(/Education › Practice/)) return tab('practice'); if (has2(/Teach me/)) return tab('teach'); if (has2(/Personal › Albums|Albums/)) return tab('albums');
-    if (has2(/Cyber › Cyber games/)) return A.cybertab.go('games'); if (has2(/Cyber › Cyber Lab/)) return A.cybertab.go('cyber'); if (has2(/Cyber › Code Breaker/)) return A.cybertab.go('codes'); if (has2(/CyberChef/)) return A.cybertab.go('chef'); if (has2(/^Cyber|Cyber ›/)) return A.cybertab.go('course');
+    if (has2(/Cyber › 💻 Coding/)) return A.cybertab.go('code'); if (has2(/Cyber › Cyber games/)) return A.cybertab.go('games'); if (has2(/Cyber › Cyber Lab/)) return A.cybertab.go('cyber'); if (has2(/Cyber › Code Breaker/)) return A.cybertab.go('codes'); if (has2(/CyberChef/)) return A.cybertab.go('chef'); if (has2(/^Cyber|Cyber ›/)) return A.cybertab.go('course');
     if (has2(/Puzzle maker/)) return A.play.open('puzz'); if (has2(/Languages › Translate|Translate/)) return A.lang.translate(); if (has2(/Prepare › Prompts|Prompt library/)) return A.prep.open('prm');
     if (has2(/Cyber › Passwords/)) return A.tools.go('vault'); if (has2(/Entertainment › Photos/)) return tab('photos'); if (has2(/Office › Mail/)) return tab('mail'); if (has2(/What the AI remembers/)) return A.memory && A.memory.manage();
     if (has2(/^Settings|Settings ›|⚙ in the top bar/)) { const m = w.match(/Settings › ([^,.(]+)/), sec = m ? m[1].trim() : ''; const id = /Privacy/.test(sec) ? 'privacy' : /AI/.test(sec) ? 'ai' : /Voice/.test(sec) ? 'voice' : /Appearance/.test(sec) ? 'appearance' : /Backup/.test(sec) ? 'data' : undefined; return A.settings.open(id); }
@@ -265,6 +286,8 @@ mark{background:rgba(242,201,76,.35);color:inherit;border-radius:3px}
     if (has2(/My Files/)) return tab('files'); if (has2(/Notes/)) return tab('notes'); if (has2(/Library|Browser/)) return tab(has2(/Browser/) ? 'web' : 'lib');
     if (has2(/Study/)) return tab('study'); if (has2(/Languages/)) return tab('lang'); if (has2(/Studio/)) return tab('studio'); if (has2(/Sky/)) return tab('sky');
     if (has2(/Kitchen/)) return tab('kitchen'); if (has2(/Money/)) return tab('money'); if (has2(/Journal/)) return tab('journal'); if (has2(/Calendar/)) return tab('cal');
+    if (has2(/› TV/)) return tab('tv');
+    if (has2(/Radio/)) return tab('radio');
     if (has2(/Music/)) return tab('music'); if (has2(/Photos/)) return tab('photos'); if (has2(/Games|Entertainment/)) return tab('play'); if (has2(/Spiritual/)) return tab('faith');
     if (has2(/Prepare/)) return A.prep.open(has2(/People/) ? 'people' : 'ready');
     if (has2(/Guide|F1/)) return tab('guide'); if (has2(/^Chat|in Chat|Just ask/)) return tab('chat');
