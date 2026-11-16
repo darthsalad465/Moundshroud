@@ -188,6 +188,8 @@
   const runOn = () => { const c = document.getElementById('runcode'); return !!(c && c.checked); };
   function systemPrompt(sources, voice) {
     let s = 'You are MOUNDSHROUD, a helpful, polished assistant running privately and offline on the user\'s own PC. Be clear, accurate and reasonably concise. Today is ' + new Date().toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) + '.';
+    const persona = (ls.get('persona', '') || '').trim();      // the user's own personality setting (Settings › Personality) leads the prompt
+    if (persona) s += '\n\nThe user has set how you should act and think. Follow this closely in your tone, style and behaviour, as long as it stays safe and honest:\n' + persona;
     if (sources.length) {
       s += '\n\nUse the numbered sources below when they help answer the question, and cite them like [1] or [2]. If they do not help, answer from your own knowledge and say that the sources did not cover it. Never invent a citation.\n';
       sources.forEach((x, i) => { s += '\n[' + (i + 1) + '] ' + x.title + (x.page ? ' (page ' + x.page + ')' : '') + ' - ' + (x.where || '') + '\n' + x.text + '\n'; });
