@@ -5,7 +5,7 @@ module.exports = async ok => {
   const root = path.join(__dirname, '..'), rd = f => fs.readFileSync(path.join(root, f), 'utf8');
   const gm = rd('web/js/studio-games.js'), gd = rd('web/js/studio-godot.js'), cv = rd('web/js/codeview.js');
   ok('code: the Game maker code is an editor with Run my code, and your edits can be undone', /<textarea class=\\?"gmk-src\\?" id=\\?"gmsrc\\?" data-code/.test(gm) && /gmrun/.test(gm) && /cur\.prev = \(cur\.prev \|\| \[\]\)\.concat/.test(gm.slice(gm.indexOf('function applyCode'))));
-  ok('code: Godot files can be changed and saved, and only text project files', /<textarea class=\\?"god-ed\\?" id=\\?"gdcode\\?" data-code/.test(gd) && /EDITABLE = \/\\\.\(godot\|gd\|tscn/.test(gd) && /files: \[\{ path: file\.path, content: text \}\]/.test(gd));
+  ok('code: Godot files can be changed and saved, and only text project files', /<textarea class=\\?"god-ed\\?" id=\\?"gdcode\\?" data-code/.test(gd) && /EDITABLE = \/\\\.\(godot\|gd\|tscn/.test(gd) && /files: dirty\.map\(t => \(\{ path: t\.path, content: t\.text \}\)\)/.test(gd));
   ok('code: line numbers load before the pages and cover chat code, lessons, Godot, the Game maker and agent diffs', /core\.js"><\/script>\n<script defer src="\/web\/js\/codeview\.js">/.test(rd('web/index.html')) && /pre > code/.test(cv) && /textarea\.cl-ed/.test(cv) && /pre\.agdiff/.test(cv));
   /* the counting rule: a final newline is not an extra line */
   const ctx = { window: {}, document: { body: null, addEventListener() { } }, MutationObserver: function () { this.observe = () => { }; }, HTMLTextAreaElement: function () { }, setTimeout };

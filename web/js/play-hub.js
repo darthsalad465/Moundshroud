@@ -12,6 +12,14 @@
   const meta = id => M.games[id] || { cat: (P.games[id] && P.games[id].cat) || 'more', tag: (P.games[id] && P.games[id].desc || '').split(/[.!]/)[0], tags: [], diff: 2, mins: '5', tips: [], fact: '' };
   const cat = id => M.cats[meta(id).cat] || M.cats.more;
   const ids = () => Object.keys(P.games);
+  /* games made in the Studio (then sent here) are kept by play-ports.js as port_*; the built-in games never are */
+  const isPort = id => /^port_/.test(String(id || '')) && !!A.arcade && typeof A.arcade.remove === 'function';
+  /* take a Studio game out of the Arcade: the card, its stats and the daily challenge if it was today's */
+  function dropPort(id) {
+    const g = P.games[id]; if (!g || !isPort(id)) return false;
+    if (!confirm('Remove “' + g.name + '” from the Arcade?\n\nThe game itself is not deleted: it stays in Studio and its files stay on this PC. Only this card goes.')) return false;
+    A.arcade.remove(id); delete S.games[id]; delete S.daily; save(); return true;
+  }
 
   /* ---------- levels, streaks, medals ---------- */
   const TITLES = ['Newcomer', 'Player', 'Regular', 'Challenger', 'Veteran', 'Champion', 'Master', 'Legend'];
@@ -40,7 +48,7 @@
   /* ---------- the daily challenge ---------- */
   const SCORED = ['2048', 'snake', 'breakout', 'tetris', 'pong', 'flap', 'whack', 'reaction', 'typing', 'simon', 'memory', 'mines', 'slide', 'lights', 'mastermind', 'sudoku', 'wordguess', 'hangman'];
   const daily = () => {
-    const d = today(); if (S.daily && S.daily.date === d) return S.daily;
+    const d = today(); if (S.daily && S.daily.date === d && P.games[S.daily.id]) return S.daily;
     const list = ids().filter(i => i !== 'aicommons' && i !== 'town'), id = list[(dayNo() * 7 + 3) % list.length], r = hash(d + id) % 3;
     const kind = r === 0 && SCORED.includes(id) ? 'best' : r === 1 ? 'time' : 'play'; S.daily = { date: d, id, kind, prog: 0, done: 0 }; save(); return S.daily;
   };
@@ -66,7 +74,7 @@
   const dots = n => '●'.repeat(n) + '<span style="opacity:.3">' + '●'.repeat(3 - n) + '</span>';
   const card = (id, mini) => {
     const g = P.games[id], m = meta(id), s = S.games[id] || {}, best = P.best(id), isNew = M.newIds.includes(id), md = medal(id);
-    return '<div class="gcard' + (mini ? ' gmini' : '') + '" data-g="' + id + '" tabindex="0" role="button" aria-label="Play ' + esc(g.name) + '"><div class="gcover" style="' + art(id) + '"><span class="gem">' + esc(g.icon) + '</span>' + (isNew ? '<span class="gnew">NEW</span>' : '') + '<button class="gfav' + (s.fav ? ' on' : '') + '" data-fav="' + id + '" title="' + (s.fav ? 'Remove from favourites' : 'Add to favourites') + '" aria-label="Favourite">' + (s.fav ? '★' : '☆') + '</button><span class="gdiff" title="Difficulty">' + dots(m.diff || 2) + '</span></div><div class="gbody"><b>' + esc(g.name) + '</b><div class="gtag">' + esc(m.tag || '') + '</div>' + (mini ? '' : '<div class="gchips">' + (m.tags || []).slice(0, 3).map(t => '<span>' + esc(t) + '</span>').join('') + '</div>') + '</div><div class="gfoot"><span title="Your best">' + (best !== null ? '🏅 ' + best : '·') + '</span><span title="Times played">▶ ' + (s.p || 0) + '</span><span title="Medal">' + (md ? MEDAL[md] : '') + '</span><button class="gi" data-i="' + id + '" title="Tips, facts and challenges" aria-label="Details">ⓘ</button></div></div>';
+    return '<div class="gcard' + (mini ? ' gmini' : '') + '" data-g="' + id + '" tabindex="0" role="button" aria-label="Play ' + esc(g.name) + '"><div class="gcover" style="' + art(id) + '"><span class="gem">' + esc(g.icon) + '</span>' + (isNew ? '<span class="gnew">NEW</span>' : '') + '<button class="gfav' + (s.fav ? ' on' : '') + '" data-fav="' + id + '" title="' + (s.fav ? 'Remove from favourites' : 'Add to favourites') + '" aria-label="Favourite">' + (s.fav ? '★' : '☆') + '</button><span class="gdiff" title="Difficulty">' + dots(m.diff || 2) + '</span></div><div class="gbody"><b>' + esc(g.name) + '</b><div class="gtag">' + esc(m.tag || '') + '</div>' + (mini ? '' : '<div class="gchips">' + (m.tags || []).slice(0, 3).map(t => '<span>' + esc(t) + '</span>').join('') + '</div>') + '</div><div class="gfoot"><span title="Your best">' + (best !== null ? '🏅 ' + best : '·') + '</span><span title="Times played">▶ ' + (s.p || 0) + '</span><span title="Medal">' + (md ? MEDAL[md] : '') + '</span><button class="gi" data-i="' + id + '" title="Tips, facts and challenges" aria-label="Details">ⓘ</button>' + (isPort(id) && !mini ? '<button class="gdel" data-del="' + id + '" title="Remove this game from the Arcade" aria-label="Remove from the Arcade">🗑</button>' : '') + '</div></div>';
   };
 
   /* ---------- the hub view ---------- */
@@ -103,6 +111,11 @@
     const so = b.querySelector('#gsort'); if (so) so.onchange = () => { view.sort = so.value; paint(b, onlyCyber); };
     b.onclick = e => {
       const f = e.target.closest('[data-fav]'); if (f) { e.stopPropagation(); const g = gs(f.dataset.fav); g.fav = g.fav ? 0 : 1; save(); checkAch(); paint(b, onlyCyber); return; }
+      const x = e.target.closest('[data-del]'); if (x) {
+        e.stopPropagation();
+        if (dropPort(x.dataset.del) && b.isConnected) paint(b, onlyCyber);
+        return;
+      }
       const i = e.target.closest('[data-i]'); if (i && P.games[i.dataset.i]) { e.stopPropagation(); info(i.dataset.i); return; }
       const c = e.target.closest('[data-cat]'); if (c) { view.cat = c.dataset.cat; paint(b, onlyCyber); return; }
       if (e.target.closest('[data-fav-f]')) { view.fav = !view.fav; paint(b, onlyCyber); return; }
@@ -124,9 +137,11 @@
       (h ? '<h3>How to play</h3><div>' + esc(h[0]) + '</div><ol class="gsteps">' + (h[1] || []).map(x => '<li>' + esc(x) + '</li>').join('') + '</ol>' : '') +
       (m.tips && m.tips.length ? '<h3>Tips from the pros</h3><ul class="gsteps">' + m.tips.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '') + (m.fact ? '<div class="gfact">💡 <b>Did you know?</b> ' + esc(m.fact) + '</div>' : '') +
       '<h3>Your progress</h3><div class="gprog"><div><b>' + (s.p || 0) + '</b><span class="small mute">plays</span></div><div><b>' + mins + '</b><span class="small mute">minutes</span></div><div><b>' + (P.best(id) !== null ? P.best(id) : '·') + '</b><span class="small mute">best</span></div><div><b>' + (md ? MEDAL[md] : '·') + '</b><span class="small mute">medal</span></div></div>' +
-      '<div class="small mute" style="margin-top:6px">🥉 3 plays · 🥈 10 plays and 30 minutes · 🥇 25 plays and 2 hours</div><h3>Challenges</h3>' + chal.map(c => '<div class="gchal' + (c[1] ? ' done' : '') + '"><span>' + (c[1] ? '✅' : '⬜') + ' ' + c[0] + '</span><span class="small mute">' + c[2] + '</span></div>').join('') + '</div>');
+      '<div class="small mute" style="margin-top:6px">🥉 3 plays · 🥈 10 plays and 30 minutes · 🥇 25 plays and 2 hours</div><h3>Challenges</h3>' + chal.map(c => '<div class="gchal' + (c[1] ? ' done' : '') + '"><span>' + (c[1] ? '✅' : '⬜') + ' ' + c[0] + '</span><span class="small mute">' + c[2] + '</span></div>').join('') +
+      (isPort(id) ? '<div class="gdelrow"><button class="gdelbtn" data-delm="1">🗑 Remove from the Arcade</button><span class="small mute">Made in Studio. Removing the card does not delete the game or its files.</span></div>' : '') + '</div>');
     d.querySelector('[data-play]').onclick = () => { close(); P.start(id); };
     d.querySelector('[data-favm]').onclick = e => { const x = gs(id); x.fav = x.fav ? 0 : 1; save(); checkAch(); e.target.textContent = x.fav ? '★ Favourited' : '☆ Favourite'; };
+    const dm = d.querySelector('[data-delm]'); if (dm) dm.onclick = () => { if (!dropPort(id)) return; close(); const body = document.getElementById('plbody'); if (body) paint(body, false); };
   }
   function trophies() {
     const lv = level(S.xp);
@@ -149,3 +164,4 @@
   A.playHub = { stats: () => S, level: () => level(S.xp), medal, daily, checkAch, info, trophies };
   checkAch();
 })();
+

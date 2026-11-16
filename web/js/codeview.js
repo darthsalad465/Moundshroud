@@ -21,7 +21,10 @@
   }
   /* editable: the textarea goes into a box with a number column that scrolls with it */
   function editor(ta) {
-    if (!ta || ta.dataset.cv) return; ta.dataset.cv = '1';
+    if (!ta || ta.dataset.cv) return;
+    /* code you type in now belongs to the full editor (web/js/code-ed.js): colouring, tabs, find, palette */
+    if (window.CodeEd && window.CodeEd.upgrade) { ta.dataset.cv = '1'; return window.CodeEd.upgrade(ta); }
+    ta.dataset.cv = '1';
     const box = document.createElement('div'); box.className = 'cv-ed';
     const g = document.createElement('div'); g.className = 'cv-eg'; g.setAttribute('aria-hidden', 'true');
     const cs = getComputedStyle(ta);
@@ -63,6 +66,7 @@
     if (!queued && pending.size) { queued = true; setTimeout(flush, 30); }      // a timer, so a window in the background still gets its numbers
   });
   const start = () => { scan(document.body); mo.observe(document.body, { childList: true, subtree: true, characterData: true }); };
-  if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
+  /* after the page is parsed, so web/js/code-ed.js (loaded next) is there to take the editable code */
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
   window.CodeView = { scan, editor, numberPre, count };
 })();

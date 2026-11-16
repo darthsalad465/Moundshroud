@@ -31,26 +31,26 @@
 
   /* the first few cards on the new page settle into place just after the cross-fade ends, so a page does not simply
      appear: it arrives. Only what is already on screen is touched, and only a handful of items, so big pages stay fast. */
-  const CARD = '.card, .tile, .bk, .stat, .cc, .nw-ev, .nw-card, .nw-bi, .mk-tile, .mk-card, .am-card, .am-box, .fldu';
+  const CARD = '.card, .td-card, .td-tile, .gcard, .gcell, .feat, .tile, .bk, .stat, .cc, .nw-ev, .nw-card, .nw-bi, .mk-tile, .mk-card, .am-card, .am-box, .fldu, .poC, .yt-card, .tv-tile, .cam-card, .sx-group';
   let satToken = 0;
   const settle = (panel, token) => {
     try {
       if (!panel || still() || !panel.querySelectorAll) return 0;
-      if (panel.getElementsByTagName('*').length > 4000) return 0;                                  // a huge page is not worth the extra layout
+      if (panel.getElementsByTagName('*').length > 4500) return 0;                                  // a huge page is not worth the extra layout
       const cands = panel.querySelectorAll(CARD); if (!cands.length) return 0;
       const vh = innerHeight || 800, picked = [], tk = String(token || ++satToken);
-      for (let i = 0; i < cands.length && i < 140 && picked.length < 8; i++) {
+      for (let i = 0; i < cands.length && i < 160 && picked.length < 14; i++) {
         const c = cands[i];
         if (c.dataset.sat === tk) continue;                                                          // already settled on this visit
         const r = c.getBoundingClientRect();
         if (r.height < 26 || r.width < 70) continue;
-        if (r.top > vh * .92 || r.bottom < 16) continue;                                             // only what you can actually see
+        if (r.top > vh * .94 || r.bottom < 16) continue;                                             // only what you can actually see
         picked.push(c);
       }
       picked.forEach((c, i) => {
         c.dataset.sat = tk;
-        c.classList.remove('rise'); c.style.animationDelay = (i * 22) + 'ms'; c.classList.add('rise');
-        setTimeout(() => { c.classList.remove('rise'); c.style.animationDelay = ''; }, (picked.length - 1) * 22 + 340 + i * 22);
+        c.classList.remove('rise'); c.style.animationDelay = (i * 26) + 'ms'; c.classList.add('rise');
+        setTimeout(() => { c.classList.remove('rise'); c.style.animationDelay = ''; }, (picked.length - 1) * 26 + 440 + i * 26);
       });
       return picked.length;
     } catch (e) { return 0; }
@@ -60,13 +60,18 @@
      ones already settled are left alone. */
   const settleSoon = panel => {
     const mine = ++satToken;
-    [0, 170, 430, 760, 1150].forEach(ms => setTimeout(() => {
+    [0, 140, 380, 720, 1100].forEach(ms => setTimeout(() => {
       if (mine !== satToken || still() || !panel) return;
       if (panel !== document.getElementById('p-' + A.cur)) return;                                 // the user moved on
       settle(panel, mine);
     }, ms));
   };
   A.motion.settle = panel => settle(panel || document.querySelector('.panel.on'), ++satToken);
+  document.addEventListener('click', e => {
+    if (still()) return;
+    const sub = e.target && e.target.closest && e.target.closest(':is(#tsub, #psub, #ssub, #plsub, #fasub, #actabs, #chattabs, #hbar, .am-nav) button');
+    if (sub) setTimeout(() => settleSoon(document.querySelector('.panel.on')), 30);
+  }, true);
 
   /* ---------------- 1. page changes ---------------- */
   try {
