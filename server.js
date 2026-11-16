@@ -28,6 +28,7 @@ const agent = require('./lib/agent');
 const godot = require('./lib/godot');
 const artexmod = require('./lib/artex');
 const nativeapps = require('./lib/nativeapps');
+const juiceshop = require('./lib/juiceshop');
 const ROOT = __dirname, DATA = path.join(ROOT, 'data'), WEB = path.join(ROOT, 'web'), CHEF = path.join(ROOT, 'nomad', 'cyberchef');
 const ROOT_DIR_GE = path.join(ROOT, 'engines', 'godot', 'web-editor');          // Godot's official web editor build
 fs.mkdirSync(DATA, { recursive: true });
@@ -55,6 +56,7 @@ function cleanup() {
   try { bibleLib.close(); } catch (e) {}     // and the Bible Expert's index builder, if it is running
   try { longvideo.shutdown(); } catch (e) {} // and a long video's shot (its finished shots are kept; Resume carries on)
   try { artexmod.stopAll(); } catch (e) {}   // and ARTEX with its database, if they were started
+  try { juiceshop.stopAll(); } catch (e) {}  // and the Juice Shop practice target, if it was started
 }
 try { require('./lib/chess-sf').setActive(() => Date.now() - lastPing < 90000); } catch (e) { }
 function shutdown() { if (down) return; down = true; cleanup(); setTimeout(() => process.exit(0), 200); }
@@ -237,7 +239,7 @@ const allowedPath = p => { p = path.normalize(String(p || '')); if (p.includes('
    its Host header (blocks DNS rebinding), and any Origin / Sec-Fetch-Site the browser adds must say "this same site" (blocks cross-site
    requests). The tray helper and scripts send neither header and are unaffected. */
 const SELF = new Set(['127.0.0.1:' + PORT, 'localhost:' + PORT]), SELF_ORIGIN = new Set(['http://127.0.0.1:' + PORT, 'http://localhost:' + PORT]);
-const CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: data:; worker-src 'self' blob:; frame-src 'self' blob: data: http://127.0.0.1:" + LIBPORT + " http://localhost:" + LIBPORT + " http://127.0.0.1:" + artexmod.PORT + " http://localhost:" + artexmod.PORT + " https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
+const CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: data:; worker-src 'self' blob:; frame-src 'self' blob: data: http://127.0.0.1:" + LIBPORT + " http://localhost:" + LIBPORT + " http://127.0.0.1:" + artexmod.PORT + " http://localhost:" + artexmod.PORT + " http://127.0.0.1:" + juiceshop.PORT + " http://localhost:" + juiceshop.PORT + " https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
 function allowedCaller(req) {
   const h = req.headers, host = String(h.host || '').toLowerCase(), org = h.origin, sfs = h['sec-fetch-site'];
   return SELF.has(host) && (!org || SELF_ORIGIN.has(String(org).toLowerCase())) && (!sfs || sfs === 'same-origin' || sfs === 'none');
@@ -801,6 +803,9 @@ const mainServer = http.createServer(async (req, res) => {
     if (url === '/api/autocommit' && req.method === 'GET') { const off = fs.existsSync(path.join(DATA, 'autocommit.off')); return json(res, 200, { on: !off }); }
     if (url === '/api/autocommit' && req.method === 'POST') { const b = await jbody(req, 1e3).catch(() => ({})); const f = path.join(DATA, 'autocommit.off'); try { if (b && b.on) { if (fs.existsSync(f)) fs.unlinkSync(f); } else { fs.writeFileSync(f, 'Auto-commit is off. Delete this file, or toggle it on in Settings, to resume.\n'); } } catch (e) { return json(res, 200, { ok: false, error: String(e.message || e) }); } return json(res, 200, { ok: true, on: !!(b && b.on) }); }
     /* launch a whitelisted installed native app (Cisco Packet Tracer), in its own window */
+    if (url === '/api/juiceshop/status') return json(res, 200, await juiceshop.status());
+    if (url === '/api/juiceshop/start' && req.method === 'POST') return json(res, 200, await juiceshop.start());
+    if (url === '/api/juiceshop/stop' && req.method === 'POST') return json(res, 200, await juiceshop.stop());
     if (url === '/api/cyber/apps') return json(res, 200, { packettracer: nativeapps.status('packettracer') });
     if (url === '/api/cyber/launch' && req.method === 'POST') { const b = await jbody(req, 1e3).catch(() => ({})); return json(res, 200, nativeapps.launch(String(b.app || ''))); }
     if (url === '/api/cyber/mynetwork') return json(res, 200, cybertools.myNetwork());
