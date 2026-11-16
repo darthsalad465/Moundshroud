@@ -38,6 +38,12 @@
 /data/*
 !/data/cmudict.dict
 !/data/cmudict-LICENSE.txt
+!/scripts/
+/scripts/*
+!/scripts/auto-commit.ps1
+!/.claude/
+/.claude/*
+!/.claude/settings.json
 
 # inside the allowed folders
 /web/music/

@@ -100,6 +100,7 @@
       row('Written guide', 'Searchable guide and what is new.', '<button class="ib" data-a="guide">Open the guide</button>', 'guide help what is new changelog'));
     h += sec('data', '💾', 'Backup & data',
       row('Back up everything', 'One zip with your notes, flashcards, chats, prompts, reminders and everything Moundshroud remembers (settings, progress, chess careers, scores, favourites, playlists). Choose where to save it, such as an external drive.', '<button class="pri" data-a="fullbak">Back up now</button>', 'backup export full everything save') +
+      row('Auto-commit changes to git', 'When an assistant finishes a turn, your changes to Moundshroud’s code are saved to git on this PC, so work is never lost. Turn it off to stop the automatic commits.', '<label class="chk" style="margin:0"><input type="checkbox" id="sacommit"> <span class="small mute">On</span></label>', 'auto commit git version control backup history save changes undo') +
       row('About this version', '<span id="aboutver">Moundshroud ' + A.version + ' (built ' + A.built + ')</span>. ' + (() => { const t = A.selftest && A.selftest.last(); return t ? 'Last self-test: ' + new Date(t.at).toLocaleDateString() + ', ' + t.checks + ' checks, ' + (t.bad ? t.bad + ' need attention' : 'all passed') + '.' : 'No self-test has been run yet.'; })(), '', 'about version build') +
       row('Updates', '<div id="updbox" class="small mute">Reading…</div>', '', 'update updates newer new version upgrade download install') +
       row('Run a self-test', 'Opens every tab and page in turn, and checks that the files and the local services respond. Takes about a minute. Run it after any update.', '<button class="ib" data-a="selftest">Run the test</button>', 'test check health diagnose broken errors') +
@@ -182,6 +183,7 @@
     });
     if (clBox) clBox.addEventListener('change', e => { if (e.target.id === 'cmodel') cset({ model: e.target.value }); });
     if ($$('#cweb')) $$('#cweb').addEventListener('change', e => cset({ web: e.target.checked }));
+    if ($$('#sacommit')) { A.api('/api/autocommit').then(r => { const c = $$('#sacommit'); if (c) c.checked = !!(r && r.on); }).catch(() => {}); $$('#sacommit').addEventListener('change', e => { A.api('/api/autocommit', { on: e.target.checked }).catch(() => {}); A.toast(e.target.checked ? 'Auto-commit on' : 'Auto-commit off: changes are no longer committed by themselves.'); }); }
     cget();
     if (A.privacyPage) A.privacyPage($$('#prvbox'), cset);
     if (A.remotePage) A.remotePage($$('#rmbox'));
