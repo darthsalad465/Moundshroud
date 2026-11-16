@@ -504,6 +504,7 @@ try {
     try { await require('./president-test.js')(ok); } catch (e) { ok('the president simulator loads', false, e.message); }
     try { await require('./codestamp-test.js')(ok); } catch (e) { ok('the code check loads', false, e.message); }
     try { await require('./thinking-test.js')(ok); } catch (e) { ok('the show thinking test loads', false, e.message); }
+    try { await require('./activity-test.js')(ok); } catch (e) { ok('the activity and timing test loads', false, e.message); }
     try { await require('./learn-test.js')(ok); } catch (e) { ok('the Learn test loads', false, e.message); }
     try { await require('./lessons-test.js')(ok); } catch (e) { ok('the coding lessons test loads', false, e.message); }
     try { await require('./swarm-test.js')(ok); } catch (e) { ok('the swarm modules load', false, e.message); }

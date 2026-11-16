@@ -118,6 +118,7 @@
     (async () => { const sel = $('gmm'); try { const ms = ((await (await fetch('/api/models')).json()).models || []).filter(m => !/embed/i.test(m.name)); const top = A.ai.model(), saved = ls.get('gm_model', ''); const pick = ms.some(m => m.name === saved) ? saved : top; sel.innerHTML = ms.map(m => '<option value="' + esc(m.name) + '"' + (m.name === pick ? ' selected' : '') + '>' + esc(m.label || m.name) + (m.cloud ? ' (Claude, online)' : ' (on this PC)') + '</option>').join(''); } catch (e) { sel.innerHTML = '<option value="">Top bar model</option>'; } sel.onchange = () => ls.set('gm_model', sel.value); })();
 
     function play() {
+      const eb = $('gmerr'); if (eb) { eb.innerHTML = ''; eb.dataset.same = ''; }
       const st = $('gmstage'); st.innerHTML = ''; if (!cur) return;
       frame = document.createElement('iframe'); frame.setAttribute('sandbox', 'allow-scripts'); frame.title = cur.name || 'Game'; frame.className = 'gmk-frame';
       frame.srcdoc = seal(cur.html); frame.onload = () => { try { frame.focus(); } catch (e) { } }; st.appendChild(frame);
@@ -241,8 +242,11 @@
         const l = list().filter(x => x.id !== dl.dataset.del); store(l); if (cur && cur.id === dl.dataset.del) cur.dirty = true; drawList(); show(); A.toast('Game deleted'); }
     };
     /* errors thrown inside the game: shown under it with a one-request fix */
-    const onMsg = e => { if (!frame || e.source !== frame.contentWindow || !e.data || !e.data.gmErr || busy) return; const m = String(e.data.gmErr);
-      say('err', '<b>The game hit an error:</b> ' + esc(m) + ' <button class="gmk-btn" id="gmfix">🔧 Ask the AI to fix it</button>'); $('gmfix').onclick = () => run('edit', 'Fix this error that appears when the game runs: ' + m); };
+    /* a bug in the game is shown over there, beside the game, so the game keeps running and the AI's own messages are not overwritten */
+    const onMsg = e => { if (!frame || e.source !== frame.contentWindow || !e.data || !e.data.gmErr) return; const m = String(e.data.gmErr); const box = $('gmerr'); if (!box || box.dataset.same === m) return; box.dataset.same = m;
+      box.innerHTML = '<div class="gmk-msg gmk-err"><b>The game hit an error:</b> ' + esc(m) + ' <button class="gmk-btn" id="gmfix"' + (busy ? ' disabled title="The AI is already working on it"' : '') + '>🔧 Ask the AI to fix it</button> <button class="gmk-btn" id="gmrestart">⟲ Restart it</button><span class="gmk-note">The game is still on screen: restart it or fix it, the AI works in the background.</span></div>';
+      $('gmfix').onclick = () => run('edit', 'Fix this error that appears when the game runs: ' + m);
+      $('gmrestart').onclick = () => play(); };
     window.addEventListener('message', onMsg);
     body._cleanup = () => { try { ctl && ctl.abort(); } catch (e) { } window.removeEventListener('message', onMsg); };
     drawList(); show();
