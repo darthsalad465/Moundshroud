@@ -54,7 +54,8 @@ function cleanup() {
   if (spawnedOllama && spawnedOllama.pid) { killTree(spawnedOllama.pid); spawnedOllama = null; }
   kiwix.stop(); voice.stop(); docs.close(); try { office.stop(); } catch (e) {}
   try { gateway.stop(); } catch (e) {}
-  try { harness.stop(); } catch (e) {}      // the hidden Claude Code process of the in-app agent
+  try { harnesses.claude.stop(); } catch (e) {}   // the hidden Claude Code process of the in-app agent
+  try { harnesses.jcode.stop(); jcodeLib.stopDaemon(); } catch (e) {}   // and jcode, with its background server
   try { routines.shutdown(); } catch (e) {}  // and a routine's, if one is running
   try { remote.stop(); } catch (e) {}        // and the phone server
   try { bibleLib.close(); } catch (e) {}     // and the Bible Expert's index builder, if it is running
@@ -148,7 +149,18 @@ const bibleLib = require('./lib/bible').create(DATA, path.join(WEB, 'data'));   
 /* pictures, music, voices and video: the engines live in lib/media.js; teams and swarms in lib/swarm.js */
 const media = require('./lib/media'), swarm = require('./lib/swarm'), swarmModel = require('./lib/swarm-model');
 const safeDir = require('./lib/safe-dir'), harnessLib = require('./lib/harness');
-const harnessStore = harnessLib.store(DATA), harness = harnessLib.create({ save: rec => harnessStore.save(rec) });
+const harnessStore = harnessLib.store(DATA), jcodeLib = require('./lib/harness-jcode');
+/* two agent harnesses, Claude Code (default) and jcode; Settings picks one and every /api/harness route uses it */
+const harnesses = { claude: harnessLib.create({ save: rec => harnessStore.save(rec) }), jcode: jcodeLib.create({ save: rec => harnessStore.save(rec) }) };
+const HKIND_FILE = path.join(DATA, 'harness-kind.json');
+let harnessKind = (() => { try { const k = JSON.parse(fs.readFileSync(HKIND_FILE, 'utf8')).kind; return harnesses[k] ? k : 'claude'; } catch (e) { return 'claude'; } })();
+const harness = ['start', 'send', 'answer', 'stop', 'state', 'show', 'clear'].reduce((o, k) => { o[k] = (...a) => { const r = harnesses[harnessKind][k](...a); if (k === 'state' && r && !r.harness) r.harness = 'claude'; return r; }; return o; }, {});
+function setHarnessKind(k) {
+  if (!harnesses[k]) return { ok: false, error: 'Unknown harness.' };
+  if (k === 'jcode' && !jcodeLib.installed()) return { ok: false, error: 'jcode is not installed in runtime\\jcode.' };
+  if (k !== harnessKind) { try { harnesses[harnessKind].stop(); } catch (e) { } harnessKind = k; try { fs.writeFileSync(HKIND_FILE, JSON.stringify({ kind: k })); } catch (e) { } }
+  return { ok: true, kind: k };
+}
 /* starts (or picks up) an agent session; the page's settings are checked exactly as for the terminal agent */
 function startHarness(b) {
   return new Promise(done => agent.list(async (up, models) => {
@@ -590,6 +602,8 @@ const mainServer = http.createServer(async (req, res) => {
     if (url === '/api/docs/open' && req.method === 'POST') { const b = await jbody(req, 1e5); if (!allowedPath(b.path)) return json(res, 403, { error: 'not allowed' }); cp.spawn('explorer.exe', [b.path], { detached: true, stdio: 'ignore' }).unref(); return json(res, 200, { ok: true }); }
     /* ---- the local coding agent (Gemma in Ollama): report whether it is set up, open it in its own window ---- */
     /* ---- the in-app agent: Claude Code runs hidden and the Agent tab shows the conversation (lib/harness.js) ---- */
+    if (url === '/api/harness/kind' && req.method === 'POST') { const b = await jbody(req, 1e3); return json(res, 200, setHarnessKind(String((b || {}).kind || ''))); }
+    if (url === '/api/harness/kind') return json(res, 200, { kind: harnessKind, jcode: jcodeLib.installed() });
     if (url === '/api/harness/state') return json(res, 200, harness.state(q.get('since')));
     if (url === '/api/harness/sessions') return json(res, 200, { sessions: harnessStore.list() });
     if (url === '/api/harness/record') { const rec = harnessStore.get(String(q.get('id') || '')); return json(res, 200, rec ? { ok: true, record: rec } : { ok: false, error: 'That conversation is no longer kept.' }); }
