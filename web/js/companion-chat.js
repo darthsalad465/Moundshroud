@@ -176,11 +176,14 @@
     quick(QUICK0);
   }
   function add(who, text) {
+    if (!panel) build();
     const d = document.createElement('div');
     d.className = 'm ' + who;
     d.textContent = text;
-    logEl.appendChild(d);
-    logEl.scrollTop = logEl.scrollHeight;
+    if (logEl) {
+      logEl.appendChild(d);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
     if (who !== 's') S.log.push({ role: who === 'u' ? 'user' : 'assistant', content: text });
     if (S.log.length > 24) S.log.splice(0, S.log.length - 24);
     return d;
@@ -874,5 +877,10 @@
     setTimeout(() => quick(['Walk around', 'Walk to top right', 'Do a dance', 'Click Settings', 'Follow my cursor', 'Go home']), 400);
   }
 
-  A.buddy = { open, close, toggle, send, handle, findSongs, reviewGame, analyzePage, RATED, isRated: t => RATED.test(t), get opened() { return !!S.open; } };
+  const isDirectPhysical = raw => {
+    const t = norm(raw);
+    return /^(?:(?:hey|ok|okay|please|buddy|companion|pet|hoot|fenn|inky|bolt|ember|sloane|pip|miso)\s+)*(?:walk|roam|move around|run around|zoomies|follow my cursor|follow cursor|follow me|stop following|go home|back to corner|return to corner|do a flip|do a backflip|backflip|do a dance|dance|do a trick|point at|point to|where is|highlight|click on|click the|press the|tap the|stand on|perch on|sit on)\b/i.test(t);
+  };
+
+  A.buddy = { open, close, toggle, send, handle, tryPhysicalCommand, isDirectPhysical, openTab, findSongs, reviewGame, analyzePage, RATED, isRated: t => RATED.test(t), get opened() { return !!S.open; } };
 })();
