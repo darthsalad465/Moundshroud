@@ -1,6 +1,6 @@
 // Talk to your buddy: a sleek interactive HUD panel connected to your free-roaming SVG companion. Type or press the microphone, and your buddy will physically walk
-// around Moundshroud and do what you tell it: walk to and click buttons/tabs/sub-tabs, point out controls on screen, type into search or inputs, switch themes or styles,
-// do tricks (backflip, dance, hop, roam, follow cursor), play music, read and analyze the page you are on, review your last chess game, and run assistant tools.
+// around Moundshroud and do what you tell it: walk to any part of the screen, click buttons/tabs/sub-tabs, point out controls, type into search or inputs, scroll pages,
+// switch themes or styles, do tricks (backflip, dance, spin, zoomies, hop, roam, follow cursor), play music, read and analyze the page, review chess games, and run tools.
 // House rule: it never talks about rated games. Ask, and it will tease you for it.
 (() => {
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -16,42 +16,25 @@
     'You and a rating, in the same sentence? Brave. I am not discussing it, so try a puzzle instead.'
   ];
   const roast = () => pick(ROAST);
-  const S = { open: 0, log: [], busy: 0, speak: ls.get('buddy_speak', '0') === '1', follow: 0, cursorX: 300, cursorY: 300 };
-  let ctl = null, panel = null, logEl = null, inEl = null, micEl = null, nameEl = null, subEl = null, hdrPet = null, roamBtn = null, followTm = null;
-
-  addEventListener('pointermove', e => { S.cursorX = e.clientX; S.cursorY = e.clientY; }, { passive: true });
-
-  function setFollow(on) {
-    S.follow = !!on;
-    clearInterval(followTm);
-    if (S.follow) {
-      followTm = setInterval(() => {
-        if (!S.follow || !A.companion || !A.companion.isOn()) return;
-        const p = A.companion.pos ? A.companion.pos() : { x: 18, y: innerHeight - 96 };
-        const tx = Math.max(12, Math.min(innerWidth - 90, S.cursorX - 38));
-        const ty = Math.max(54, Math.min(innerHeight - 94, S.cursorY - 26));
-        if (Math.hypot(tx - p.x, ty - p.y) > 75) {
-          A.companion.walkTo(tx, ty, { speed: 290 });
-        }
-      }, 650);
-    }
-  }
+  const S = { open: 0, log: [], busy: 0, speak: ls.get('buddy_speak', '0') === '1' };
+  let ctl = null, panel = null, logEl = null, inEl = null, micEl = null, nameEl = null, subEl = null, hdrPet = null, roamBtn = null;
 
   /* ---------- HUD panel ---------- */
   const css = `
 #cmpc{
-  position:fixed;left:16px;bottom:100px;z-index:59;width:368px;max-width:calc(100vw - 28px);height:455px;max-height:68vh;
+  position:fixed;left:16px;bottom:92px;z-index:9990;width:368px;max-width:calc(100vw - 28px);height:445px;max-height:66vh;
   background:linear-gradient(180deg,color-mix(in srgb,var(--panel2) 55%,var(--panel)),color-mix(in srgb,var(--panel) 96%,var(--bg)));
   backdrop-filter:blur(22px) saturate(1.4);-webkit-backdrop-filter:blur(22px) saturate(1.4);
   border:1px solid color-mix(in srgb,var(--acc) 42%,var(--line));border-radius:20px;
   box-shadow:0 22px 58px -12px rgba(0,0,0,.65),0 0 0 1px rgba(255,255,255,.06) inset;
   display:none;flex-direction:column;overflow:hidden;
-  transition:left .32s cubic-bezier(.22,1,.36,1),bottom .32s cubic-bezier(.22,1,.36,1);
+  transition:opacity .25s ease,transform .25s cubic-bezier(.22,1,.36,1);
 }
 #cmpc.on{display:flex;animation:cmpcIn .26s cubic-bezier(.16,1,.3,1) both}
+#cmpc.walking-thru{opacity:.28;pointer-events:none}
 @keyframes cmpcIn{from{opacity:0;transform:translateY(12px) scale(.96)}to{opacity:1;transform:none}}
 #cmpc .h{
-  display:flex;align-items:center;gap:9px;padding:10px 12px;
+  display:flex;align-items:center;gap:7px;padding:10px 11px;
   border-bottom:1px solid color-mix(in srgb,var(--line) 80%,transparent);
   background:linear-gradient(90deg,color-mix(in srgb,var(--acc) 12%,var(--panel2)),color-mix(in srgb,var(--panel2) 70%,transparent));
 }
@@ -66,8 +49,8 @@
 #cmpc .h-meta span{font-size:11px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #cmpc .h button{
   background:color-mix(in srgb,var(--panel) 55%,transparent);border:1px solid transparent;color:var(--mute);
-  cursor:pointer;font-size:14px;width:28px;height:28px;padding:0;border-radius:8px;
-  display: inline-flex;align-items:center;justify-content:center;
+  cursor:pointer;font-size:14px;width:27px;height:27px;padding:0;border-radius:8px;
+  display:inline-flex;align-items:center;justify-content:center;
   transition:background .15s,color .15s,border-color .15s,transform .15s;
 }
 #cmpc .h button:hover{background:color-mix(in srgb,var(--acc) 18%,var(--panel2));border-color:color-mix(in srgb,var(--acc) 40%,var(--line));color:var(--text);transform:translateY(-1px)}
@@ -94,16 +77,9 @@
 @media(max-width:700px){#cmpc.on{left:8px!important;right:8px!important;width:auto;max-width:none;bottom:84px!important;height:62vh;max-height:70vh}}`;
   const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
 
-  function syncDock() {
-    if (!panel || !S.open || innerWidth <= 700) return;
-    try {
-      const p = A.companion && A.companion.pos ? A.companion.pos() : { x: 18, y: innerHeight - 96 };
-      const left = Math.max(14, Math.min(innerWidth - 384, p.x));
-      const bottom = Math.max(96, Math.min(innerHeight - 475, innerHeight - p.y + 12));
-      panel.style.left = Math.round(left) + 'px';
-      panel.style.bottom = Math.round(bottom) + 'px';
-    } catch (e) { }
-  }
+  // Fade the HUD slightly while the companion is mid-walk so the user can watch it walk across the whole screen
+  addEventListener('companion-walk-start', () => { if (panel && S.open) panel.classList.add('walking-thru'); });
+  addEventListener('companion-walk-end', () => { if (panel) panel.classList.remove('walking-thru'); });
 
   function build() {
     if (panel) return;
@@ -113,7 +89,8 @@
       '<div class="h">' +
         '<span id="cch"></span>' +
         '<div class="h-meta"><b id="ccn"></b><span id="ccsub">Interactive companion</span></div>' +
-        '<button id="ccroam" title="Toggle free roaming around the screen">🐾</button>' +
+        '<button id="ccpoint" title="Click anywhere on screen to make me walk there">🎯</button>' +
+        '<button id="ccroam" title="Walk & explore the screen right now">🐾</button>' +
         '<button id="cctrick" title="Do a trick!">✨</button>' +
         '<button id="ccmem" title="Who I am and what I remember about you">🧠</button>' +
         '<button id="ccs" title="Read answers aloud">🔇</button>' +
@@ -139,31 +116,28 @@
     panel.querySelector('#ccc').onclick = close;
     panel.querySelector('#ccmem').onclick = () => { try { regBuddy(); A.chars.open(bid()); } catch (e) { } };
     panel.querySelector('#ccm').onclick = e => { e.stopPropagation(); A.companion.menu(e.currentTarget); };
+    panel.querySelector('#ccpoint').onclick = e => {
+      e.stopPropagation();
+      if (A.companion && A.companion.startPointMode) {
+        note('🎯 Click anywhere on the screen and I will walk right over!');
+        A.companion.startPointMode();
+      }
+    };
     panel.querySelector('#cctrick').onclick = () => {
       if (A.companion && A.companion.doTrick) A.companion.doTrick();
       mood('happy', 1800);
     };
     const paintRoam = () => {
       const on = A.companion ? A.companion.roaming : true;
-      if (roamBtn) {
-        roamBtn.classList.toggle('on', !!on);
-        roamBtn.title = on ? 'Free roaming is ON (click to stay in corner)' : 'Staying in corner (click to roam freely)';
-      }
+      if (roamBtn) roamBtn.classList.toggle('on', !!on);
     };
     paintRoam();
-    roamBtn.onclick = () => {
+    roamBtn.onclick = async () => {
       if (!A.companion) return;
-      const next = !A.companion.roaming;
-      A.companion.setRoaming(next);
+      A.companion.setRoaming(true);
       paintRoam();
-      if (next) {
-        note('🐾 Free roaming enabled — I will explore the screen!');
-        if (A.companion.roamOnce) A.companion.roamOnce();
-      } else {
-        setFollow(false);
-        note('🏠 Heading back to my corner perch.');
-        if (A.companion.goHome) A.companion.goHome();
-      }
+      note('🐾 Walking out to explore the screen...');
+      if (A.companion.roamOnce) await A.companion.roamOnce(true);
     };
 
     const sp = panel.querySelector('#ccs');
@@ -182,7 +156,6 @@
     micEl.onclick = mic;
     head();
     addEventListener('companion-change', () => { head(); paintRoam(); });
-    addEventListener('click', e => { if (S.open && !e.target.closest('#cmpc,#cmp,#cmpm')) { /* stays open: it is a chat window */ } });
     hello();
   }
 
@@ -190,16 +163,16 @@
     if (!panel) return;
     const i = A.companion.info();
     nameEl.textContent = i.n;
-    if (subEl) subEl.textContent = (i.role || 'Interactive companion') + (i.trait ? ' · ' + i.trait : '');
+    if (subEl) subEl.textContent = (i.role || i.title || 'Interactive companion') + ' · Alt+click to send me anywhere';
     if (window.PetAnim) PetAnim.set(hdrPet, i.e); else hdrPet.textContent = i.e;
   };
   const mood = (m, ms) => { try { A.companion.mood(m, ms); if (window.PetAnim && hdrPet) PetAnim.mood(hdrPet, m, ms); } catch (e) { } };
   const quick = list => { if (!panel) return; panel.querySelector('#ccqs').innerHTML = list.map(q => '<button data-q="' + esc(q) + '">' + esc(q) + '</button>').join(''); };
-  const QUICK0 = ['Walk around', 'Do a backflip', 'Analyze this page', 'Point at Settings', 'Play something relaxing'];
+  const QUICK0 = ['Walk around', 'Walk to top right', 'Do a backflip', 'Click Settings', 'Open Chess', 'Follow my cursor'];
   function hello() {
     if (S.log.length) return;
     const i = A.companion.info();
-    add('b', 'Hi! I am ' + i.n + ' (' + (i.role || 'your companion') + '). Tell me what to do and I will walk right over and do it: "click Settings", "point at Search", "open Chess", "walk around", "do a backflip", "switch to Jarvis style", "play chill music", or ask me anything about what is on your screen!');
+    add('b', 'Hi! I am ' + i.n + ' (' + (i.role || i.title || 'your companion') + '). Tell me where to walk or what to do and I will physically walk across the screen and do it! Try:\n• "Walk to the top right" or "Walk around"\n• "Click Settings" or "Open Chess"\n• "Follow my cursor" or "Do a backflip"\n• Or hold Alt and click anywhere on the screen!');
     quick(QUICK0);
   }
   function add(who, text) {
@@ -213,8 +186,8 @@
     return d;
   }
   const note = t => add('s', t);
-  function open() { build(); S.open = 1; syncDock(); panel.classList.add('on'); setTimeout(() => inEl.focus(), 50); mood('happy', 900); }
-  function close() { S.open = 0; if (panel) panel.classList.remove('on'); try { A.speech.stop(); } catch (e) { } if (ctl) ctl.abort(); }
+  function open() { build(); S.open = 1; panel.classList.add('on'); setTimeout(() => inEl.focus(), 50); mood('happy', 900); }
+  function close() { S.open = 0; if (panel) { panel.classList.remove('on', 'walking-thru'); } try { A.speech.stop(); } catch (e) { } if (ctl) ctl.abort(); }
   const toggle = () => (S.open ? close() : open());
 
   /* ---------- voice ---------- */
@@ -256,15 +229,16 @@
   }
 
   const SPECIAL_TARGETS = {
-    settings: '#cog', preferences: '#cog', gear: '#cog', options: '#cog',
-    search: '#gs, #tdq, #wq, #sq', 'command palette': '#gs', commands: '#gs',
-    'new chat': '#newc', 'voice mode': '#talk', talk: '#talk', microphone: '#mic, #ccmic',
-    sidebar: '#railbtn, #nav', menu: '#railbtn',
-    send: '#go', model: '#model', internet: '#net', web: '#net'
+    settings: '#cog', preferences: '#cog', gear: '#cog', options: '#cog', cog: '#cog',
+    search: '#gs, #tdq, #wq, #sq', 'command palette': '#gs', commands: '#gs', 'search bar': '#gs, #tdq, #wq, #sq',
+    'new chat': '#newc', 'voice mode': '#talk', talk: '#talk', microphone: '#mic, #talk',
+    sidebar: '#railbtn, #nav', menu: '#railbtn', navigation: '#nav',
+    header: 'body > header', 'top bar': 'body > header', logo: 'header .mark, header > b', title: 'header > b',
+    send: '#go', model: '#model', 'ai model': '#model', internet: '#net', web: '#net'
   };
 
   function findTargetOnScreen(rawQuery, wantInput) {
-    const q = norm(rawQuery).replace(/\b(the|a|an|button|tab|card|field|box|input|icon|link|section|page|on|at|to|in|for|me|please|right|now)\b/g, ' ').replace(/\s+/g, ' ').trim();
+    const q = norm(rawQuery).replace(/\b(the|a|an|button|tab|card|field|box|input|icon|link|section|page|control|area|spot|place|on|at|to|in|for|by|near|beside|over|me|please|right|now|it)\b/g, ' ').replace(/\s+/g, ' ').trim();
     if (!q) return null;
 
     if (!wantInput && SPECIAL_TARGETS[q]) {
@@ -272,9 +246,22 @@
       if (sp) return { el: sp, label: sp.getAttribute('title') || (sp.textContent || '').trim() || q };
     }
 
+    // Handle ordinal queries like "first card", "second card", "first button"
+    if (/^(first|1st|second|2nd|third|3rd|last|random)\b/.test(rawQuery.toLowerCase())) {
+      const wantBtn = /button/i.test(rawQuery);
+      const list = [...document.querySelectorAll(wantBtn ? '.panel.on button, header button' : '.panel.on .td-card, .panel.on .card, .panel.on .td-tile, .panel.on .gcard')].filter(isVisible);
+      if (list.length) {
+        const lq = rawQuery.toLowerCase();
+        const idx = /second|2nd/.test(lq) ? 1 : /third|3rd/.test(lq) ? 2 : /last/.test(lq) ? list.length - 1 : /random/.test(lq) ? Math.floor(Math.random() * list.length) : 0;
+        const chosen = list[Math.min(list.length - 1, idx)];
+        const lbl = (chosen.querySelector('h4,h3,h2,b')?.textContent || chosen.textContent || 'item').replace(/\s+/g, ' ').trim().slice(0, 36);
+        return { el: chosen, label: lbl };
+      }
+    }
+
     const sel = wantInput
       ? 'input[type="text"], input[type="search"], input:not([type]), textarea'
-      : 'button, [role="button"], a, .card[onclick], .card[data-g], .card[data-o], .td-tile, .tile, .chip, input[type="text"], input[type="search"], textarea, select';
+      : 'button, [role="button"], a, .card, .td-card, .td-tile, .tile, .feat, .gcard, .chip, input[type="text"], input[type="search"], textarea, select, h1, h2, h3, h4, summary';
     const all = [...document.querySelectorAll(sel)].filter(isVisible);
     const toks = q.split(' ').filter(Boolean);
     let best = null, bestScore = 0;
@@ -283,73 +270,198 @@
       const txt = norm(el.innerText || el.textContent || '');
       const title = norm(el.getAttribute('title') || el.getAttribute('aria-label') || '');
       const ph = norm(el.getAttribute('placeholder') || '');
-      const dt = norm((el.dataset && (el.dataset.t || el.dataset.s || el.dataset.g || el.dataset.a || el.dataset.n)) || '');
+      const d = el.dataset || {};
+      const dt = norm([d.tab, d.grp, d.t, d.s, d.g, d.a, d.n, d.m, d.l, d.o, el.id].filter(Boolean).join(' '));
       const combined = (txt + ' ' + title + ' ' + ph + ' ' + dt).trim();
       if (!combined) continue;
 
       let s = 0;
-      if (txt === q || title === q || dt === q) s += 120;
-      else if (txt.startsWith(q) || title.startsWith(q)) s += 75;
-      else if (txt.includes(q) || title.includes(q) || ph.includes(q)) s += 50;
+      if (txt === q || title === q || dt === q) s += 130;
+      else if (txt.startsWith(q) || title.startsWith(q)) s += 80;
+      else if (txt.includes(q) || title.includes(q) || ph.includes(q)) s += 55;
       toks.forEach(k => {
         if (k.length < 2) return;
-        if (txt.split(' ').includes(k)) s += 22;
+        if (txt.split(' ').includes(k)) s += 24;
         else if (txt.includes(k)) s += 12;
-        if (title.includes(k)) s += 14;
-        if (ph.includes(k)) s += 14;
-        if (dt === k) s += 25;
+        if (title.includes(k)) s += 16;
+        if (ph.includes(k)) s += 16;
+        if (dt.split(' ').includes(k)) s += 28;
       });
       if (el.closest('.panel.on, #setx, #ov.on')) s += 8;
-      if (txt.length > 90) s -= 12;
+      if (txt.length > 110) s -= 14;
       if (s > bestScore) {
         bestScore = s;
-        const cleanLabel = (el.innerText || el.textContent || el.getAttribute('title') || el.getAttribute('placeholder') || q).replace(/\s+/g, ' ').trim().slice(0, 44);
+        const h = el.querySelector ? el.querySelector('h4,h3,h2,b,.nl') : null;
+        const cleanLabel = ((h ? h.textContent : '') || el.innerText || el.textContent || el.getAttribute('title') || el.getAttribute('placeholder') || q).replace(/\s+/g, ' ').trim().slice(0, 44);
         best = { el, label: cleanLabel || q, score: s };
       }
     }
     return bestScore >= 18 ? best : null;
   }
 
-  const TABALIAS = { home: 'home', today: 'home', dashboard: 'home', chat: 'chat', assistant: 'chat', search: 'web', web: 'web', browser: 'web', library: 'lib', lib: 'lib', wikipedia: 'lib', files: 'files', 'my files': 'files', documents: 'files', notes: 'notes', notebook: 'notes', study: 'study', flashcards: 'study', quiz: 'study', quizzes: 'study', languages: 'lang', language: 'lang', studio: 'studio', writing: 'studio', tools: 'tools', calculator: 'tools', converter: 'tools', timer: 'tools', prepare: 'health', preparedness: 'health', 'first aid': 'health', survival: 'health', medical: 'health', entertainment: 'play', games: 'play', arcade: 'play', play: 'play', chess: 'play', trivia: 'play', solitaire: 'play', poker: 'play', sudoku: 'play', tetris: 'play', music: 'music', songs: 'music', radio: 'radio', stations: 'radio', tv: 'tv', video: 'tv', youtube: 'tv', spiritual: 'faith', bible: 'faith', faith: 'faith', guide: 'guide', help: 'guide', manual: 'guide' };
+  /* ---------- directional / spatial coordinate resolver ---------- */
+  async function tryWalkDirection(raw) {
+    const t = norm(raw);
+    const W = innerWidth || 1024, H = innerHeight || 768;
+    const p = A.companion && A.companion.pos ? (typeof A.companion.pos === 'function' ? A.companion.pos() : A.companion.pos) : { x: 14, y: 14 };
+
+    // Circle or figure-8 or zoomies
+    if (/\b(in a circle|in circles|around in a circle|circle around)\b/.test(t)) {
+      note('🌀 Walking in a circle around the screen...');
+      await A.companion.doTrick('circle');
+      return 'Walked a full circle around the screen!';
+    }
+    if (/\b(zoomies|run around|sprint around|lap around|pace back and forth|across the screen)\b/.test(t)) {
+      if (/across the screen/.test(t)) {
+        const destX = p.x < W * 0.5 ? W - 96 : 24;
+        note('🐾 Walking all the way across the screen...');
+        await A.companion.walkTo(destX, p.y, { say: 'Made it across!' });
+        return 'Walked all the way to the other side of the screen!';
+      }
+      note('💨 Running zoomies around the screen...');
+      await A.companion.doTrick('zoomies');
+      return 'That was a great sprint around the workspace!';
+    }
+
+    // Specific corners & regions
+    let tx = null, ty = null, desc = '';
+    if (/\b(top right|upper right)\b/.test(t)) { tx = W - 96; ty = H - 108; desc = 'the top-right corner'; }
+    else if (/\b(top left|upper left)\b/.test(t)) { tx = 24; ty = H - 108; desc = 'the top-left corner'; }
+    else if (/\b(bottom right|lower right)\b/.test(t)) { tx = W - 96; ty = 20; desc = 'the bottom-right corner'; }
+    else if (/\b(bottom left|lower left)\b/.test(t)) { tx = 16; ty = 16; desc = 'the bottom-left corner'; }
+    else if (/\b(center|middle|centre)\b/.test(t) || /^(?:please\s+)?(?:come here|walk here|come to me|walk over here|over here)$/.test(t)) {
+      tx = Math.round(W * 0.5 - 33); ty = Math.round(H * 0.48); desc = 'the center of the screen';
+    }
+    else if (/^(?:(?:hey|ok|okay|please|can you)\s+)*(?:walk|go|move|run|step|hop|head|climb|fly)\s+(?:to\s+|over\s+to\s+|towards?\s+)?(?:the\s+)?(top|up|upwards?|higher|top of the screen)$/.test(t)) {
+      tx = p.x < 80 ? Math.round(W * 0.45) : p.x;
+      ty = /top/.test(t) ? H - 105 : Math.min(H - 96, p.y + 240);
+      desc = /top/.test(t) ? 'the top of the screen' : 'higher up on the screen';
+    }
+    else if (/^(?:(?:hey|ok|okay|please|can you)\s+)*(?:walk|go|move|run|step|hop|head|fly)\s+(?:to\s+|over\s+to\s+|towards?\s+)?(?:the\s+)?(bottom|down|downwards?|lower|bottom of the screen)$/.test(t)) {
+      tx = p.x;
+      ty = /bottom/.test(t) ? 18 : Math.max(16, p.y - 240);
+      desc = /bottom/.test(t) ? 'the bottom of the screen' : 'lower down on the screen';
+    }
+    else if (/^(?:(?:hey|ok|okay|please|can you)\s+)*(?:walk|go|move|run|step|hop|head|fly)\s+(?:to\s+|over\s+to\s+|towards?\s+)?(?:the\s+)?(right|right side|far right|over there)$/.test(t)) {
+      tx = /side|far|there/.test(t) ? W - 98 : Math.min(W - 92, p.x + 280);
+      ty = p.y < 60 ? Math.round(H * 0.38) : p.y;
+      desc = 'the right side of the screen';
+    }
+    else if (/^(?:(?:hey|ok|okay|please|can you)\s+)*(?:walk|go|move|run|step|hop|head|fly)\s+(?:to\s+|over\s+to\s+|towards?\s+)?(?:the\s+)?(left|left side|far left)$/.test(t)) {
+      tx = /side|far/.test(t) ? 20 : Math.max(18, p.x - 280);
+      ty = p.y;
+      desc = 'the left side of the screen';
+    }
+
+    if (tx !== null && ty !== null && A.companion && A.companion.walkTo) {
+      note('🐾 Walking to ' + desc + '...');
+      await A.companion.walkTo(tx, ty, { say: 'Made it to ' + desc + '!' });
+      return 'Walked over to **' + desc + '**!';
+    }
+    return null;
+  }
+
+  /* ---------- full tab & sub-tab navigation with physical walking ---------- */
+  const TABALIAS = {
+    home: 'home', today: 'home', dashboard: 'home',
+    chat: 'chat', assistant: 'chat',
+    search: 'web', web: 'web', browser: 'web', internet: 'web',
+    library: 'lib', lib: 'lib', wikipedia: 'lib', encyclopedia: 'lib',
+    files: 'files', 'my files': 'files',
+    docs: 'docs', documents: 'docs',
+    offed: 'offed', 'office files': 'offed', spreadsheet: 'offed',
+    notes: 'notes', notebook: 'notes',
+    meet: 'meet', 'meeting notes': 'meet',
+    study: 'study', flashcards: 'study', quiz: 'study', quizzes: 'study',
+    practice: 'practice',
+    teach: 'teach', 'teach me': 'teach',
+    writing: 'writing',
+    lang: 'lang', languages: 'lang', language: 'lang', translate: 'lang',
+    studio: 'studio',
+    lab: 'lab',
+    tools: 'tools', converter: 'tools', timer: 'tools',
+    calc: 'calc', calculator: 'calc',
+    rem: 'rem', reminders: 'rem', timers: 'rem', alarm: 'rem',
+    clip: 'clip', clipboard: 'clip',
+    scan: 'scan', scanner: 'scan',
+    health: 'health', prepare: 'health', preparedness: 'health', 'first aid': 'health', survival: 'health', medical: 'health',
+    play: 'play', entertainment: 'play', games: 'play', arcade: 'play', chess: 'play', trivia: 'play', solitaire: 'play', poker: 'play', sudoku: 'play', tetris: 'play', '2048': 'play', minesweeper: 'play',
+    music: 'music', songs: 'music',
+    radio: 'radio', stations: 'radio',
+    tv: 'tv', television: 'tv', video: 'tv', youtube: 'tv',
+    photos: 'photos', pictures: 'photos',
+    albums: 'albums',
+    mail: 'mail', email: 'mail',
+    cal: 'cal', calendar: 'cal',
+    news: 'news', markets: 'news',
+    kitchen: 'kitchen', recipes: 'kitchen', cooking: 'kitchen',
+    garden: 'garden', plants: 'garden',
+    money: 'money', budget: 'money', finance: 'money',
+    journal: 'journal', diary: 'journal',
+    sky: 'sky', astronomy: 'sky', stars: 'sky',
+    cyber: 'cyber', security: 'cyber', passwords: 'cyber',
+    faith: 'faith', spiritual: 'faith', bible: 'faith',
+    guide: 'guide', help: 'guide', manual: 'guide',
+    map: 'map', 'app map': 'map'
+  };
+
+  async function walkToSidebarTab(id) {
+    if (!A.companion || !A.companion.walkToEl) return;
+    let navBtn = document.querySelector('#nav button[data-tab="' + id + '"], #nav button[data-t="' + id + '"]');
+    if (navBtn) {
+      const closedGroup = navBtn.closest('.ngl:not(.open)');
+      if (closedGroup && closedGroup.dataset.g) {
+        const grpBtn = document.querySelector('#nav button[data-grp="' + closedGroup.dataset.g + '"]');
+        if (grpBtn && isVisible(grpBtn)) {
+          await A.companion.walkToEl(grpBtn, { click: true, say: 'Unfolding menu...' });
+          await new Promise(r => setTimeout(r, 240));
+          navBtn = document.querySelector('#nav button[data-tab="' + id + '"]');
+        }
+      }
+      if (navBtn && isVisible(navBtn)) {
+        await A.companion.walkToEl(navBtn, { say: (A.tabs[id] && A.tabs[id].label ? A.tabs[id].label : id) + '!' });
+        return;
+      }
+    }
+    const fallbackNav = document.querySelector('#nav');
+    if (fallbackNav && isVisible(fallbackNav)) {
+      await A.companion.walkToEl(fallbackNav, { say: (A.tabs[id] && A.tabs[id].label ? A.tabs[id].label : id) + '!' });
+    }
+  }
 
   async function openTab(name) {
-    const n = norm(name).replace(/\b(the|tab|section|page|app|my|please|right|now|up)\b/g, ' ').replace(/\s+/g, ' ').trim();
+    const n = norm(name).replace(/\b(the|tab|section|page|app|my|please|right|now|up|over|to)\b/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!n) return null;
     if (n === 'settings' || n === 'preferences' || n === 'customizer') {
       const cog = document.getElementById('cog');
       if (cog && A.companion && A.companion.walkToEl) {
-        note('🐾 Walking to Settings...');
-        await A.companion.walkToEl(cog, { speech: 'Opening Settings!' });
-        syncDock();
+        note('🐾 Walking over to Settings...');
+        await A.companion.walkToEl(cog, { say: 'Opening Settings!' });
       }
       if (n === 'customizer' && A.custom) A.custom.open();
       else if (A.settings) A.settings.open();
       return 'Walked over and opened **' + (n === 'customizer' ? 'Customizer' : 'Settings') + '** for you.';
     }
     let id = TABALIAS[n];
-    if (!id) {
-      id = Object.keys(A.tabs || {}).find(k => norm(A.tabs[k].label) === n || (norm(A.tabs[k].label).includes(n) && n.length > 2));
+    if (!id && A.tabs) {
+      id = Object.keys(A.tabs).find(k => norm(A.tabs[k].label) === n || (norm(A.tabs[k].label).includes(n) && n.length > 2));
     }
-    if (!id || !A.tabs[id]) return null;
+    if (!id || !A.tabs || !A.tabs[id]) return null;
 
-    const navBtn = document.querySelector('#nav button[data-t="' + id + '"]');
-    if (navBtn && isVisible(navBtn) && A.companion && A.companion.walkToEl) {
-      note('🐾 Walking to ' + (A.tabs[id].label || id) + '...');
-      await A.companion.walkToEl(navBtn, { speech: (A.tabs[id].label || id) + '!' });
-      syncDock();
-    }
+    note('🐾 Walking to ' + (A.tabs[id].label || id) + '...');
+    await walkToSidebarTab(id);
     A.showTab(id);
 
-    if (['chess', 'trivia', 'sudoku', 'tetris', 'solitaire', 'poker'].includes(n)) {
-      setTimeout(async () => {
-        try {
-          const b = [...document.querySelectorAll('#p-play button, #p-play .card')].find(x => new RegExp(n, 'i').test(x.textContent || x.dataset.g || ''));
-          if (b) {
-            if (A.companion && A.companion.walkToEl && isVisible(b)) await A.companion.walkToEl(b, { click: true, speech: 'Let\'s play!' });
-            else b.click();
-            syncDock();
-          }
-        } catch (e) { }
-      }, 380);
+    if (['chess', 'trivia', 'sudoku', 'tetris', 'solitaire', 'poker', '2048', 'minesweeper'].includes(n)) {
+      await new Promise(r => setTimeout(r, 340));
+      try {
+        const b = [...document.querySelectorAll('#p-play button, #p-play .card, #p-play .gcard')].find(x => new RegExp(n, 'i').test(x.textContent || x.dataset.g || ''));
+        if (b && isVisible(b) && A.companion && A.companion.walkToEl) {
+          await A.companion.walkToEl(b, { click: true, say: 'Let\'s play ' + n + '!' });
+        } else if (b) {
+          b.click();
+        }
+      } catch (e) { }
     }
     return 'Walked over and opened **' + (A.tabs[id].label || id) + '**.';
   }
@@ -359,16 +471,26 @@
     const t = norm(raw);
     let m;
 
+    /* 0. Compound commands ("walk to X and click it", "open X then click Y") */
+    if ((m = /^(.+?)\s+(?:and then|then|and also)\s+(.+)$/i.exec(raw))) {
+      const r1 = await tryPhysicalCommand(m[1]) || await openTab(m[1]);
+      if (r1) {
+        await new Promise(r => setTimeout(r, 320));
+        const r2 = await tryPhysicalCommand(m[2]) || await openTab(m[2]);
+        return r2 ? r1 + ' ' + r2 : r1;
+      }
+    }
+
     /* 1. Switch companion character by name or animal */
     const BUDDY_MAP = [
       { idx: 0, keys: ['hoot', 'owl', 'night scholar'] },
-      { idx: 1, keys: ['fenn', 'fox', 'scout'] },
-      { idx: 2, keys: ['inky', 'octopus', 'squid', 'archivist'] },
-      { idx: 3, keys: ['bolt', 'robot', 'bot', 'droid', 'automaton'] },
+      { idx: 1, keys: ['fenn', 'fox', 'kitsune', 'scout'] },
+      { idx: 2, keys: ['inky', 'octopus', 'squid', 'mage'] },
+      { idx: 3, keys: ['bolt', 'robot', 'bot', 'droid', 'mecha'] },
       { idx: 4, keys: ['ember', 'dragon', 'drake', 'wyrm'] },
       { idx: 5, keys: ['sloane', 'sloth'] },
-      { idx: 6, keys: ['pip', 'penguin', 'navigator'] },
-      { idx: 7, keys: ['miso', 'cat', 'kitty', 'kitten', 'feline'] }
+      { idx: 6, keys: ['pip', 'penguin'] },
+      { idx: 7, keys: ['miso', 'cat', 'kitty', 'kitten', 'neko'] }
     ];
     if ((m = /^(?:please\s+)?(?:switch to|change to|turn into|become|be|summon|call|bring out|use)\s+(?:the\s+)?(.+?)(?:\s+buddy|\s+companion|\s+pet)?$/i.exec(raw))) {
       const want = norm(m[1]);
@@ -381,21 +503,37 @@
       }
     }
 
-    /* 2. Tricks, dances, flips, sleep, roam, follow, go home */
+    /* 2. Directional / screen-region walking ("walk to top right", "go left", "walk to center", "zoomies", "circle") */
+    const dirRes = await tryWalkDirection(raw);
+    if (dirRes) return dirRes;
+
+    /* 3. Tricks, dances, flips, spins, waves, sleep, roam, follow, go home */
     if (/\b(backflip|do a flip|flip|somersault|cartwheel)\b/.test(t)) {
-      if (A.companion && A.companion.doTrick) A.companion.doTrick('flip');
+      if (A.companion && A.companion.doTrick) await A.companion.doTrick('flip');
       return 'Alley-oop! Nailed the landing.';
     }
     if (/\b(dance|boogie|party|groove|bust a move|wiggle)\b/.test(t) && !/\b(play|music|song)\b/.test(t)) {
-      if (A.companion && A.companion.doTrick) A.companion.doTrick('dance');
+      if (A.companion && A.companion.doTrick) await A.companion.doTrick('dance');
       return 'Look at these moves! 💃';
     }
+    if (/\b(spin|twirl|pirouette|turn around)\b/.test(t)) {
+      if (A.companion && A.companion.doTrick) await A.companion.doTrick('spin');
+      return 'Wheee! Full 360° spin!';
+    }
+    if (/\b(wave|wave at me|say hi|say hello)\b/.test(t)) {
+      if (A.companion && A.companion.doTrick) await A.companion.doTrick('wave');
+      return 'Hey there! 👋 Ready to walk anywhere or click anything you ask!';
+    }
+    if (/\b(do a trick|show me a trick|do something cool|do something fun|impress me|perform a trick)\b/.test(t)) {
+      if (A.companion && A.companion.doTrick) await A.companion.doTrick();
+      return 'Ta-da! Want to see a backflip, dance, spin, or zoomies next?';
+    }
     if (/^(?:please\s+)?(jump|hop|bounce|leap|spring)(?:\s+up|\s+around)?$/.test(t)) {
-      if (A.companion && A.companion.doTrick) A.companion.doTrick('hop');
+      if (A.companion && A.companion.doTrick) await A.companion.doTrick('hop');
       return 'Boing! Higher next time?';
     }
     if (/\b(go to sleep|take a nap|sleep|nap|snooze|rest now)\b/.test(t) && !/\b(music|song|play|timer)\b/.test(t)) {
-      setFollow(false);
+      if (A.companion && A.companion.setFollow) A.companion.setFollow(false);
       mood('sleep', 12000);
       if (A.companion) A.companion.say('Zzz… 💤', 3500);
       return 'Curling up for a quick nap… Zzz. (Click me or say "wake up" anytime!)';
@@ -407,42 +545,49 @@
       return 'Wide awake and ready to help!';
     }
     if (/\b(follow me|follow my cursor|follow the mouse|follow cursor|come with me|chase the cursor|chase me)\b/.test(t)) {
-      setFollow(true);
-      if (A.companion) A.companion.say('Following you! 🐾', 2500);
+      if (A.companion && A.companion.setFollow) A.companion.setFollow(true);
       return 'I am following your cursor now! Move your mouse around and I will trot after you. Tell me "stop following" or "go home" when you want me to stop.';
     }
     if (/\b(stop following|dont follow|do not follow|stop chasing)\b/.test(t)) {
-      setFollow(false);
-      if (A.companion) A.companion.say('Staying put!', 1800);
+      if (A.companion && A.companion.setFollow) A.companion.setFollow(false);
       return 'Okay, I stopped following your cursor.';
     }
     if (/\b(go home|back to corner|return to corner|stay in corner|stop roaming|sit still|stay put|perch in corner)\b/.test(t)) {
-      setFollow(false);
+      if (A.companion && A.companion.setFollow) A.companion.setFollow(false);
       if (A.companion && A.companion.goHome) {
         note('🏠 Walking back to my corner...');
-        await A.companion.goHome();
-        syncDock();
+        await A.companion.goHome(false);
       }
       if (roamBtn) roamBtn.classList.remove('on');
       return 'Back in my cozy bottom-left corner! Tell me "walk around" whenever you want me to roam again.';
     }
-    if (/\b(walk around|roam|roam around|explore|free roam|wander|stretch your legs|move around|walk over here|come to the middle|walk to center)\b/.test(t)) {
-      setFollow(false);
+    if (/\b(walk around|roam|roam around|explore|free roam|wander|stretch your legs|move around|walk somewhere|go somewhere|patrol)\b/.test(t)) {
+      if (A.companion && A.companion.setFollow) A.companion.setFollow(false);
       if (A.companion) {
         A.companion.setRoaming(true);
         if (roamBtn) roamBtn.classList.add('on');
-        note('🐾 Exploring the screen...');
-        if (/center|middle|here/.test(t)) {
-          await A.companion.walkTo(Math.round(innerWidth * 0.48), Math.round(innerHeight * 0.48), { speech: 'Made it!' });
-        } else if (A.companion.roamOnce) {
-          await A.companion.roamOnce();
-        }
-        syncDock();
+        note('🐾 Walking out to explore the screen...');
+        const where = A.companion.roamOnce ? await A.companion.roamOnce(true) : 'the screen';
+        return 'Walked over to check out **' + where + '**! Tell me any button, card, or corner to walk to next.';
       }
-      return 'Stretching my legs and exploring the workspace! You can also drag me anywhere or tell me to click or point at any button.';
     }
 
-    /* 3. Replay opening animation */
+    /* 4. Scrolling the page */
+    if (/\b(scroll down|scroll up|scroll to the bottom|scroll to the top|page down|page up)\b/.test(t)) {
+      const sc = document.querySelector('.panel.on .scroll, .panel.on #mgrid, .panel.on [class*="scroll"]') || document.querySelector('.panel.on') || document.scrollingElement;
+      const isUp = /up|top/.test(t), isEnd = /bottom|top/.test(t);
+      if (A.companion && A.companion.walkTo) {
+        note('🐾 Walking over to scroll the page...');
+        await A.companion.walkTo(Math.round((innerWidth || 1024) * 0.55), Math.round((innerHeight || 768) * 0.45), { say: isUp ? 'Scrolling up!' : 'Scrolling down!' });
+      }
+      if (sc) {
+        const delta = isEnd ? (isUp ? -99999 : 99999) : (isUp ? -420 : 420);
+        try { sc.scrollBy({ top: delta, behavior: 'smooth' }); } catch (e) { sc.scrollTop += delta; }
+      }
+      return 'Walked over and scrolled the page **' + (isUp ? 'up' : 'down') + '** for you.';
+    }
+
+    /* 5. Replay opening animation */
     if (/\b(replay|play|show|watch|run)\b.*\b(intro|opening|boot|splash|awakening|startup animation)\b/.test(t)) {
       if (window.OA_REPLAY_BOOT) {
         setTimeout(() => window.OA_REPLAY_BOOT(), 250);
@@ -450,7 +595,7 @@
       }
     }
 
-    /* 4. Theme & Interface Style switching */
+    /* 6. Theme & Interface Style switching */
     const TH = window.OA_THEMES;
     if (TH && /\b(theme|style|mode|colour|color|palette|look)\b/.test(t)) {
       if (TH.styles) {
@@ -459,11 +604,10 @@
           const cog = document.getElementById('cog');
           if (cog && isVisible(cog) && A.companion && A.companion.walkToEl) {
             note('🐾 Walking to Settings to switch style...');
-            await A.companion.walkToEl(cog, { speech: stHit.name + ' style!' });
-            syncDock();
+            await A.companion.walkToEl(cog, { say: stHit.name + ' style!' });
           }
           TH.applyStyle(stHit.id);
-          return 'Switched the interface style to **' + stHit.name + '** (' + stHit.note + ').';
+          return 'Walked over and switched the interface style to **' + stHit.name + '** (' + stHit.note + ').';
         }
       }
       if (TH.list) {
@@ -472,11 +616,10 @@
           const cog = document.getElementById('cog');
           if (cog && isVisible(cog) && A.companion && A.companion.walkToEl) {
             note('🐾 Walking to apply ' + thHit.name + '...');
-            await A.companion.walkToEl(cog, { speech: thHit.name + '!' });
-            syncDock();
+            await A.companion.walkToEl(cog, { say: thHit.name + '!' });
           }
           TH.apply(thHit.id);
-          return 'Applied the **' + thHit.name + '** colour theme!';
+          return 'Walked over and applied the **' + thHit.name + '** colour theme!';
         }
         if (/\b(light mode|light theme|bright mode)\b/.test(t)) {
           const lt = TH.list.find(x => !x.dark) || TH.list[0];
@@ -489,15 +632,14 @@
       }
     }
 
-    /* 5. Type / Fill / Search into an input on screen */
+    /* 7. Type / Fill / Search into an input on screen */
     if ((m = /^(?:(?:hey|ok|okay|please|can you)\s+)*(?:type|write|enter|fill in|put)\s+["']?(.+?)["']?\s+(?:in|into|inside|on)\s+(?:the\s+)?(.+?)$/i.exec(raw))) {
       const val = m[1].trim(), targetName = m[2].trim();
       const found = findTargetOnScreen(targetName, true) || findTargetOnScreen(targetName, false);
-      const el = found ? (found.el.matches('input,textarea') ? found.el : found.el.querySelector('input,textarea')) : document.querySelector('.panel.on input[type="text"], .panel.on textarea, #in');
+      const el = found ? (found.el.matches('input,textarea') ? found.el : found.el.querySelector('input,textarea')) : document.querySelector('.panel.on input[type="text"], .panel.on textarea, #in, #tdq');
       if (el && isVisible(el)) {
         note('🐾 Walking over to type "' + val + '"...');
-        if (A.companion && A.companion.walkToEl) await A.companion.walkToEl(el, { speech: 'Typing!' });
-        syncDock();
+        if (A.companion && A.companion.walkToEl) await A.companion.walkToEl(el, { say: 'Typing!' });
         el.focus();
         el.value = val;
         el.dispatchEvent(new Event('input', { bubbles: true }));
@@ -505,44 +647,28 @@
         return 'Walked over to **' + (found ? found.label : 'the input box') + '** and typed `' + val + '`.';
       }
     }
-    if ((m = /^(?:(?:hey|ok|okay|please|can you)\s+)*(?:search for|find|look up)\s+["']?(.+?)["']?\s+(?:on this page|in search|in the search box)$/i.exec(raw))) {
+    if ((m = /^(?:(?:hey|ok|okay|please|can you)\s+)*(?:search for|search|find|look up)\s+["']?(.+?)["']?(?:\s+on this page|\s+in search|\s+in the search box)?$/i.exec(raw)) && !/\b(where is|button|tab)\b/i.test(m[1])) {
       const q = m[1].trim();
       const inp = [...document.querySelectorAll('.panel.on input[type="search"], .panel.on input[type="text"], #tdq, #wq, #sq')].find(isVisible);
       if (inp) {
         note('🐾 Walking to the search box...');
-        if (A.companion && A.companion.walkToEl) await A.companion.walkToEl(inp, { speech: 'Searching!' });
-        syncDock();
+        if (A.companion && A.companion.walkToEl) await A.companion.walkToEl(inp, { say: 'Searching for ' + q + '!' });
         inp.focus();
         inp.value = q;
         inp.dispatchEvent(new Event('input', { bubbles: true }));
         inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-        return 'Walked to the search box and searched for **' + q + '**.';
+        return 'Walked to the search box and entered **' + q + '**.';
       }
     }
 
-    /* 6. Point at / Show where / Highlight any UI control on screen */
-    if ((m = /^(?:(?:hey|ok|okay|please|can you)\s+)*(?:point at|point to|show me where|where is|highlight|find|walk to|go over to|stand on|perch on)\s+(?:the\s+)?(.+?)(?:\s+is)?$/i.exec(raw))) {
-      const q = m[1].replace(/\?+$/, '').trim();
-      const found = findTargetOnScreen(q, false);
-      if (found && found.el) {
-        note('🐾 Walking over to "' + found.label + '"...');
-        if (A.companion && A.companion.walkToEl) {
-          await A.companion.walkToEl(found.el, { speech: 'Right here! ✨' });
-          syncDock();
-        }
-        return 'I walked right over to **' + found.label + '** and highlighted it for you!';
-      }
-    }
-
-    /* 7. Click / Press / Tap any button, sub-tab, or card on screen */
-    if ((m = /^(?:(?:hey|ok|okay|please|can you)\s+)*(?:click|press|tap|hit|push|activate|select|toggle)\s+(?:on\s+)?(?:the\s+)?(.+?)$/i.exec(raw))) {
-      const q = m[1].trim();
+    /* 8. Click / Press / Tap / Walk-and-Click any button, tab, sub-tab, or card on screen */
+    if ((m = /^(?:(?:hey|ok|okay|please|can you|could you|go|walk over and|go over and|walk to and)\s+)*(?:click|press|tap|hit|push|activate|select|toggle|open)\s+(?:on\s+)?(?:the\s+)?(.+?)$/i.exec(raw))) {
+      const q = m[1].replace(/\s+for me$/i, '').trim();
       const found = findTargetOnScreen(q, false);
       if (found && found.el) {
         note('🐾 Walking over to click "' + found.label + '"...');
         if (A.companion && A.companion.walkToEl) {
-          await A.companion.walkToEl(found.el, { click: true, speech: 'Clicking!' });
-          syncDock();
+          await A.companion.walkToEl(found.el, { click: true, say: 'Clicking ' + found.label + '!' });
         } else {
           found.el.click();
         }
@@ -550,6 +676,31 @@
       }
       const tabRes = await openTab(q);
       if (tabRes) return tabRes;
+    }
+
+    /* 9. Walk to / Go to / Move to / Point at / Stand on / Sit on any UI control, tab, or spot on screen */
+    if ((m = /^(?:(?:hey|ok|okay|please|can you|could you)\s+)*(?:point at|point to|show me where|where is|highlight|find|walk to|walk over to|go to|go over to|move to|run to|hop to|fly to|stand on|stand by|sit on|perch on|visit|check out)\s+(?:the\s+)?(.+?)(?:\s+is|\s+for me)?$/i.exec(raw))) {
+      const q = m[1].replace(/\?+$/, '').trim();
+      const wantOpen = /^(?:go to|open|visit)\b/i.test(raw.trim());
+      const found = findTargetOnScreen(q, false);
+      if (found && found.el) {
+        note('🐾 Walking over to "' + found.label + '"...');
+        if (A.companion && A.companion.walkToEl) {
+          await A.companion.walkToEl(found.el, { click: wantOpen, say: wantOpen ? 'Opening ' + found.label + '!' : 'Right here! ✨' });
+        }
+        return wantOpen
+          ? 'Walked over to **' + found.label + '** and opened it for you!'
+          : 'I walked right over to **' + found.label + '** and highlighted it for you!';
+      }
+      const tabRes = await openTab(q);
+      if (tabRes) return tabRes;
+
+      // Guaranteed movement fallback if the user told the companion to walk/move/go/stand/perch somewhere not found by name
+      if (/\b(walk|move|run|hop|fly|stand|sit|perch|roam|explore)\b/i.test(raw) && A.companion && A.companion.roamOnce) {
+        note('🐾 Walking over...');
+        const where = await A.companion.roamOnce(true);
+        return 'I could not spot "' + q + '" on this screen, so I walked over to **' + where + '** instead! (Tip: hold Alt and click anywhere on screen to send me to an exact spot.)';
+      }
     }
 
     return null;
@@ -596,6 +747,7 @@
   }
   async function analyzePage(extra) {
     const pg = pageText(); if (pg.text.length < 30) return 'There is not much text on this page for me to analyse. Try asking about something specific.';
+    if (A.companion && A.companion.roamOnce) A.companion.roamOnce(true);
     const sys = persona() + ' The user asked you to look at the page they are on. Be concrete: say what the page is, the key points or data on it, anything that stands out, and what they could do next. Use short paragraphs or a few bullets. Under 170 words.';
     const ctrl = pg.controls && pg.controls.length ? '\nButtons and fields on it: ' + pg.controls.slice(0, 24).join(' | ') : '';
     return await ask([{ role: 'system', content: sys }, { role: 'user', content: 'Page: the "' + pg.label + '" tab of Moundshroud' + (pg.inner && pg.inner.length ? ' (' + pg.inner.join(' > ') + ')' : '') + '. Text on screen:\n"""\n' + pg.text + '\n"""' + ctrl + '\n' + (extra ? 'My request: ' + extra : 'Analyze this page for me.') }]);
@@ -646,7 +798,14 @@
     const sel = document.getElementById('model'), model = (sel && sel.value) || ''; const msgs = [{ role: 'system', content: persona() + A.actions.hint }].concat(S.log.slice(-6, -1), [{ role: 'user', content: text }]);
     const r = await fetch('/api/chat', { method: 'POST', body: JSON.stringify({ model, stream: false, think: false, keep_alive: '5m', tools: A.actions.schema, messages: msgs }) }); if (!r.ok) return null;
     const j = await r.json(), calls = (j.message && j.message.tool_calls) || []; if (!calls.length) return null;
-    const out = []; for (const c of calls.slice(0, 2)) { try { out.push(await A.actions.run(c.function.name, c.function.arguments)); } catch (e) { out.push('I could not do that: ' + e.message); } } return out.join('\n');
+    const out = [];
+    for (const c of calls.slice(0, 2)) {
+      try {
+        if (A.companion && A.companion.roamOnce) A.companion.roamOnce(true);
+        out.push(await A.actions.run(c.function.name, c.function.arguments));
+      } catch (e) { out.push('I could not do that: ' + e.message); }
+    }
+    return out.join('\n');
   }
 
   /* ---------- the brain: rated filter, physical commands, music, tabs, tools, then grounded chat ---------- */
@@ -663,7 +822,7 @@
     if (/^(please )?(next|skip)( the)?( song| track| music)?$/.test(t)) { try { A.musicLib.next(); } catch (e) { } return 'Skipped to the next one.'; }
     if ((m = /^(?:(?:hey|ok|okay|please|can you|could you|would you)\s+)*(?:play|put on|queue up|start playing|i want to hear|let me hear)\s+(.+)$/i.exec(text)) && !/\b(chess|game|games|tetris|snake|2048|sudoku|trivia|against|quiz|minesweeper|puzzle|intro|opening)\b/i.test(m[1])) return await playSong(m[1]);
 
-    /* Physical movement, tricks, clicking, pointing, typing, theme/style switching */
+    /* Physical movement, directions, tricks, clicking, pointing, typing, scrolling, theme/style switching */
     const phys = await tryPhysicalCommand(text);
     if (phys) return phys;
 
@@ -678,17 +837,25 @@
       const found = findTargetOnScreen(m[1], false);
       if (found && found.el && A.companion && A.companion.walkToEl) {
         note('🐾 Walking over to "' + found.label + '"...');
-        await A.companion.walkToEl(found.el, { click: true, speech: 'Opening!' });
-        syncDock();
+        await A.companion.walkToEl(found.el, { click: true, say: 'Opening!' });
         return 'Walked over and clicked **' + found.label + '**!';
       }
     }
 
     if (/^what can you do|^help$|^what do you do/.test(t)) {
-      return 'I can physically walk around Moundshroud and do things for you! Try telling me:\n• "Walk around", "Follow my cursor", "Go home", or "Do a backflip"\n• "Click [any button]", "Point at Settings", or "Open Chess"\n• "Type hello into the chat box" or "Use Jarvis style"\n• "Switch to Ember" (or Fenn, Inky, Bolt, Sloane, Pip, Miso, Hoot)\n• "Play chill music", "Analyze this page", or "Review my last chess game"\n(Just never ask me about rated games!)';
+      return 'I can physically walk around Moundshroud and do things for you! Try telling me:\n• "Walk to the top right", "Walk to the center", "Walk around", or "Run zoomies"\n• "Follow my cursor", "Stop following", or "Go home"\n• "Do a backflip", "Dance", "Spin", or "Wave"\n• "Click [any button]", "Point at Settings", or "Open Chess"\n• "Type hello into the chat box", "Scroll down", or "Use Jarvis style"\n• "Switch to Ember" (or Fenn, Inky, Bolt, Sloane, Pip, Miso, Hoot)\n• Or hold Alt and click anywhere on the screen to send me right there!';
     }
 
     try { if (A.actions && A.actions.looksActionable(text)) { const r = await toolCall(text); if (r) return r; } } catch (e) { }
+
+    /* If the user is asking about a visible control on screen, walk over to it while answering! */
+    try {
+      const mentioned = findTargetOnScreen(text, false);
+      if (mentioned && mentioned.score >= 36 && A.companion && A.companion.walkToEl) {
+        A.companion.walkToEl(mentioned.el, { say: mentioned.label });
+      }
+    } catch (e) { }
+
     return await ask([{ role: 'system', content: persona() + await ground(text) }].concat(S.log.slice(-10, -1), [{ role: 'user', content: text }]));
   }
 
@@ -704,7 +871,7 @@
     catch (e) { finish('Something went wrong: ' + (e.message || e)); mood('sad', 2500); }
     S.busy = 0;
     if (!ctl || !ctl.signal.aborted) mood(null);
-    setTimeout(() => quick(['Walk around', 'Do a dance', 'Analyze this page', 'Point at Settings', 'What can you do?']), 400);
+    setTimeout(() => quick(['Walk around', 'Walk to top right', 'Do a dance', 'Click Settings', 'Follow my cursor', 'Go home']), 400);
   }
 
   A.buddy = { open, close, toggle, send, handle, findSongs, reviewGame, analyzePage, RATED, isRated: t => RATED.test(t), get opened() { return !!S.open; } };
