@@ -1,7 +1,7 @@
 // Offline assistant suite - local server. Talks only to Ollama and Kiwix on this PC. No outside connections.
 // Lifecycle: started by the hotkey listener when you open the window; shuts itself (and everything it started) down when the window closes.
 const http = require('http'), fs = require('fs'), path = require('path'), cp = require('child_process'), os = require('os'), crypto = require('crypto');
-const U = require('./lib/util'), docs = require('./lib/docs'), kiwix = require('./lib/kiwix'), websearch = require('./lib/websearch'), voice = require('./lib/voice'), store = require('./lib/store'), extra = require('./lib/extra'), thesaurus = require('./lib/thesaurus'), rhyme = require('./lib/rhyme'), pcmod = require('./lib/pc'), office = require('./lib/office'), prep = require('./lib/prep'), appfiles = require('./lib/appfiles'), webpages = require('./lib/webpages'), refs = require('./lib/refs'), embed = require('./lib/embed');
+const U = require('./lib/util'), docs = require('./lib/docs'), kiwix = require('./lib/kiwix'), websearch = require('./lib/websearch'), voice = require('./lib/voice'), store = require('./lib/store'), extra = require('./lib/extra'), thesaurus = require('./lib/thesaurus'), rhyme = require('./lib/rhyme'), pcmod = require('./lib/pc'), office = require('./lib/office'), prep = require('./lib/prep'), appfiles = require('./lib/appfiles'), webpages = require('./lib/webpages'), refs = require('./lib/refs'), embed = require('./lib/embed'), cams = require('./lib/cams');
 
 const safe = require('./lib/safe');
 const problems = require('./lib/problems');
@@ -400,6 +400,7 @@ const mainServer = http.createServer(async (req, res) => {
     if (url === '/api/radio/custom' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, await radio.custom(b)); }
     /* ---- TV: live video links (see lib/tv.js) ---- */
     if (url === '/api/tv') return json(res, 200, tv.status());
+    if (url === '/api/tv/cams') return json(res, 200, { cams: cams.CAMS, cats: cams.CATS });
     if (url === '/api/tv/video') return tv.video(q.get('id') || '', req, res);
     if (url === '/api/tv/logo') return tv.logo(q.get('id') || '', res);
     if (url === '/api/tv/yt/search') return json(res, 200, await youtube.search(q.get('q') || ''));
