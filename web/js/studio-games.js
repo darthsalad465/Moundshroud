@@ -107,11 +107,16 @@
     let cur = null, ctl = null, busy = false, frame = null;
     const say = (kind, html) => { msg.innerHTML = html ? '<div class="gmk-msg gmk-' + kind + '">' + html + '</div>' : ''; };
     /* the code arriving, live: the whole reply as it streams, so you can watch the game being written */
-    let liveBuf = '', livePaint = 0, liveN = 0;
-    const liveShow = on => { const l = $('gmlive'); if (!l) return; l.hidden = !on; if (on) { liveBuf = ''; liveN = 0; $('gmlivepre').textContent = ''; } };
+    let liveBuf = '', liveDue = 0, liveAt = 0, liveN = 0;
+    const liveShow = on => { const l = $('gmlive'); if (!l) return; l.hidden = !on; if (on) { liveBuf = ''; liveN = 0; liveAt = 0; $('gmlivepre').textContent = ''; } };
+    const livePaint = () => { liveDue = 0; liveAt = Date.now(); const p = $('gmlivepre'); if (!p) return; p.textContent = liveBuf.slice(-12000); p.scrollTop = p.scrollHeight; };
+    /* repaint a few times a second, never on every token: a timer, not an animation frame, so it still shows in a window the browser has covered */
     const liveAdd = t => {
-      liveBuf += t; if (livePaint) return;
-      livePaint = requestAnimationFrame(() => { livePaint = 0; const p = $('gmlivepre'); if (!p) return; p.textContent = liveBuf.slice(-12000); p.scrollTop = p.scrollHeight; });
+      liveBuf += t;
+      const wait = 120 - (Date.now() - liveAt);
+      if (liveDue) return;
+      if (wait <= 0) return livePaint();
+      liveDue = setTimeout(livePaint, wait);
     };
 
     /* models: the same list as the top bar, starting on the top bar's choice */
@@ -186,7 +191,8 @@
         else { cur.prev = (cur.prev || []).concat([{ html: cur.html, asks: cur.asks.slice() }]).slice(-5); cur.html = out.html; cur.asks = cur.asks.concat([text]); cur.dirty = true; $('gmc').value = ''; }
         const secs = Math.round((Date.now() - t0) / 1000), st = before ? diffStat(before, out.html) : null;
         const changed = st ? ' · ' + (st.gone + st.add) + ' of ' + st.lines + ' lines changed (' + st.add + ' new, ' + st.gone + ' gone)' : '';
-        say('ok', '✓ ' + (kind === 'new' ? 'Made' : 'Changed') + ' in ' + secs + ' s' + changed + '. Click the game to give it the keyboard. Save it to keep it.');
+        if (st && !st.add && !st.gone) say('warn', '⚠ ' + secs + ' s, but the AI sent back exactly the same code, so nothing changed. Say the change in different words, or pick a bigger model.');
+        else say('ok', '✓ ' + (kind === 'new' ? 'Made' : 'Changed') + ' in ' + secs + ' s' + changed + '. Click the game to give it the keyboard. Save it to keep it.');
         if (op) op.end(true, secs + ' s' + changed);
         liveShow(false); play();
       } catch (e) {
