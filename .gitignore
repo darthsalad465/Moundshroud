@@ -54,3 +54,6 @@ __pycache__/
 
 # ARTEX runtime: PostgreSQL binaries, its data, and the ARTEX binary (installed locally, not source)
 /runtime/
+
+# fetched by the fine-tune setup (llama.cpp GGUF converter)
+/scripts/convert_hf_to_gguf.py

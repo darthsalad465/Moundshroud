@@ -139,6 +139,7 @@
     { title: 'Walkthrough: Entertainment and games', icon: '🎭', group: 'Go to', tags: 'tour games walkthrough', when: () => !!(A.walk && A.walk.start), run: () => A.walk.start('games') },
     { title: 'Walkthrough: Settings', icon: '⚙️', group: 'Go to', tags: 'tour settings walkthrough', when: () => !!(A.walk && A.walk.start), run: () => A.walk.start('settings') },
     { title: 'Open the guide', icon: '✨', group: 'Help', keys: 'F1', tags: 'guide help manual what is new', run: () => A.showTab('guide') },
+    { title: 'Open the Guide as a holographic book', icon: '📖', group: 'Help', tags: 'guide book codex hologram pages manual', when: () => !!(A.guideBook && A.guideBook.open), run: () => A.guideBook.open() },
     { title: 'Take the tour', icon: '🚏', group: 'Help', tags: 'tour guide help', when: () => !!(A.guide && A.guide.tour), run: () => A.guide.tour(0) },
     { title: 'Thesaurus', icon: '📖', group: 'Go to', tags: 'thesaurus synonyms words', when: () => !!(A.thes && A.thes.open), run: () => A.thes.open('') },
     { title: 'Rhymer', icon: '🎵', group: 'Go to', tags: 'rhyme poem words', when: () => !!(A.rhyme && A.rhyme.open), run: () => A.rhyme.open('') },
