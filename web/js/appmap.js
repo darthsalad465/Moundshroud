@@ -77,6 +77,8 @@ mark{background:rgba(242,201,76,.35);color:inherit;border-radius:3px}
       ['Keep albums of pictures and memories', 'Personal › Albums.', '', 'studio'],
       ['Explore history on a timeline', 'Office › Library › 🏛️ Timeline.', '', 'library'],
       ['Learn about cyber security', 'Cyber › Course, then the Cyber Lab guides and the Cyber games.', '', 'cyber'],
+      ['Ask about security research, payloads or bug bounty', 'My Files › Reference libraries: download PayloadsAllTheThings, HackTricks, SecLists or the Awesome lists once, then ask in Chat with "Use my files" ticked.', '', 'files'],
+      ['Ask the AI about a website with the internet off', 'My Files › Websites: give it an address once and it reads the site into your own index (Markdown, on this PC), so questions about it work offline afterwards.', '', 'files'],
       ['Learn to code', 'Cyber › 💻 Coding: lessons from beginner to advanced in 12 languages. Python and JavaScript run on the page, HTML shows a live preview.', '', 'cyber'],
       ['Read a free textbook', 'Library › 📘 Wikibooks: search or pick a subject, then open the book in the reader.', '', 'library'],
       ['Save or export a Bible Expert conversation', 'Spiritual › ✝️ Bible Expert › 📂 Saved chats: every conversation is saved by itself; reopen, copy, export or delete it.', '', 'spiritual'],

@@ -1,7 +1,7 @@
 // Offline assistant suite - local server. Talks only to Ollama and Kiwix on this PC. No outside connections.
 // Lifecycle: started by the hotkey listener when you open the window; shuts itself (and everything it started) down when the window closes.
 const http = require('http'), fs = require('fs'), path = require('path'), cp = require('child_process'), os = require('os'), crypto = require('crypto');
-const U = require('./lib/util'), docs = require('./lib/docs'), kiwix = require('./lib/kiwix'), websearch = require('./lib/websearch'), voice = require('./lib/voice'), store = require('./lib/store'), extra = require('./lib/extra'), thesaurus = require('./lib/thesaurus'), rhyme = require('./lib/rhyme'), pcmod = require('./lib/pc'), office = require('./lib/office'), prep = require('./lib/prep'), appfiles = require('./lib/appfiles');
+const U = require('./lib/util'), docs = require('./lib/docs'), kiwix = require('./lib/kiwix'), websearch = require('./lib/websearch'), voice = require('./lib/voice'), store = require('./lib/store'), extra = require('./lib/extra'), thesaurus = require('./lib/thesaurus'), rhyme = require('./lib/rhyme'), pcmod = require('./lib/pc'), office = require('./lib/office'), prep = require('./lib/prep'), appfiles = require('./lib/appfiles'), webpages = require('./lib/webpages'), refs = require('./lib/refs'), embed = require('./lib/embed');
 
 const safe = require('./lib/safe');
 const problems = require('./lib/problems');
@@ -452,7 +452,11 @@ const mainServer = http.createServer(async (req, res) => {
     }
     if (url === '/api/docs/reindex' && req.method === 'POST') { docs.reindex().catch(() => {}); return json(res, 200, { ok: true }); }
     if (url === '/api/docs/cancel' && req.method === 'POST') { docs.cancelIndex(); return json(res, 200, { ok: true }); }
-    if (url === '/api/docs/search' && req.method === 'POST') { const b = await jbody(req, 1e5); return json(res, 200, { results: docs.search(String(b.q || ''), b.n || 6, b.kinds || ['doc', 'note']) }); }
+    if (url === '/api/docs/search' && req.method === 'POST') { const b = await jbody(req, 1e5); return json(res, 200, { results: await docs.searchSmart(String(b.q || ''), b.n || 6, b.kinds || ['doc', 'note']) }); }
+    /* ---- better search: local embeddings over the same index (lib/embed.js, lib/docs.js) ---- */
+    if (url === '/api/docs/embed') return json(res, 200, { model: await embed.pickModel(true), vectors: docs.vecCount(), scan: docs.vecStatus, job: embed.status().job, preferred: embed.PREFERRED[0] });
+    if (url === '/api/docs/embed/build' && req.method === 'POST') { docs.vectorize().catch(() => {}); return json(res, 200, { ok: true }); }
+    if (url === '/api/docs/embed/pull' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, embed.pull(String(b.model || ''))); }
     /* ---- Moundshroud's own code, so the AI can answer questions about the app from the real files ---- */
     if (url === '/api/app/search' && req.method === 'POST') { const b = await jbody(req, 1e5), s = String(b.q || ''); return json(res, 200, { results: appfiles.search(s, b.n || 14), context: appfiles.context(s, b.files || 4) }); }
     if (url === '/api/app/file' && req.method === 'POST') { const b = await jbody(req, 1e5), f = appfiles.read(String(b.path || ''), b.max); return f ? json(res, 200, f) : json(res, 404, { error: 'no such file' }); }
@@ -531,6 +535,14 @@ const mainServer = http.createServer(async (req, res) => {
         json(res, 200, swarm.start({ task: b.task, dir: b.dir, workflow, team: d.teams.find(t => t.id === workflow.teamId), models, runners: swarm.runners(agent, media, models) }));
       });
     }
+    /* ---- websites read into the local index, and the reference libraries from GitHub ---- */
+    if (url === '/api/web/pages') return json(res, 200, { sites: webpages.list(), status: webpages.status, dir: webpages.DIR });
+    if (url === '/api/web/crawl' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, webpages.start(String(b.url || ''), { pages: b.pages, depth: b.depth })); }
+    if (url === '/api/web/remove' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, webpages.remove(String(b.host || ''))); }
+    if (url === '/api/refs') return json(res, 200, { refs: refs.status(), dir: refs.DIR });
+    if (url === '/api/refs/install' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, refs.install(String(b.slug || b.url || ''))); }
+    if (url === '/api/refs/update' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, refs.update(String(b.slug || ''))); }
+    if (url === '/api/refs/remove' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, refs.remove(String(b.slug || ''))); }
     if (url === '/api/docs/open' && req.method === 'POST') { const b = await jbody(req, 1e5); if (!allowedPath(b.path)) return json(res, 403, { error: 'not allowed' }); cp.spawn('explorer.exe', [b.path], { detached: true, stdio: 'ignore' }).unref(); return json(res, 200, { ok: true }); }
     /* ---- the local coding agent (Gemma in Ollama): report whether it is set up, open it in its own window ---- */
     /* ---- the in-app agent: Claude Code runs hidden and the Agent tab shows the conversation (lib/harness.js) ---- */
@@ -837,7 +849,7 @@ const mainServer = http.createServer(async (req, res) => {
     /* ---- one search for everything ---- */
     if (url === '/api/search' && req.method === 'POST') {
       const qq = String((await jbody(req, 1e5)).q || '').trim(); if (!qq) return json(res, 200, { notes: [], docs: [], chats: [], library: [] });
-      const d = docs.search(qq, 8, ['doc', 'note']);
+      const d = await docs.searchSmart(qq, 8, ['doc', 'note']);
       let lib = [];
       if (kiwix.available() && await kiwix.ensureP()) {
         const bl = kiwix.books().slice(0, 8);
@@ -849,7 +861,7 @@ const mainServer = http.createServer(async (req, res) => {
     /* ---- Search tab: one question across every library, your documents and notes ---- */
     if (url === '/api/web/search' && req.method === 'POST') {
       const b = await jbody(req, 1e5), qq = String(b.q || '').trim(); if (!qq) return json(res, 200, { items: [], counts: {}, files: { notes: [], docs: [] } });
-      const [r, fl] = await Promise.all([websearch.search(qq, { scope: b.scope, n: b.n }), Promise.resolve().then(() => { try { return docs.search(qq, 8, ['doc', 'note']); } catch (e) { return []; } })]);
+      const [r, fl] = await Promise.all([websearch.search(qq, { scope: b.scope, n: b.n }), docs.searchSmart(qq, 8, ['doc', 'note']).catch(() => [])]);
       r.panel = b.scope && b.scope !== 'all' ? null : await websearch.panel(qq, r.items || []).catch(() => null); r.files = { notes: fl.filter(x => x.kind === 'note'), docs: fl.filter(x => x.kind === 'doc') };
       return json(res, 200, r);
     }

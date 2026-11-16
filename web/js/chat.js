@@ -164,7 +164,7 @@
     const hasAtt = (cur.att || []).length > 0;       // a file is attached: answer from it, skip the wider searches
     const toClaude = A.ai && A.ai.isCloud(model());
     if (toClaude && $('usefiles').checked && !A.ai.allowed('files')) cur._kept = 'Your files and notes were not searched, because Claude is answering (Settings › Privacy to allow it).';
-    if (!hasAtt && $('usefiles').checked && !(toClaude && !A.ai.allowed('files'))) tasks.push(A.api('/api/docs/search', { q, n: 5 }).then(r => (r.results || []).forEach(x => sources.push({ title: x.title, page: x.kind === 'doc' && x.page ? x.page : 0, text: x.text.slice(0, 1400), kind: x.kind, path: x.path, where: x.path }))).catch(() => {}));
+    if (!hasAtt && $('usefiles').checked && !(toClaude && !A.ai.allowed('files'))) tasks.push(A.api('/api/docs/search', { q, n: 5 }).then(r => (r.results || []).forEach(x => sources.push({ title: x.title, page: x.kind === 'doc' && x.page ? x.page : 0, text: String(x.text || x.snippet || '').slice(0, 1400), kind: x.kind, path: x.path, where: x.path }))).catch(() => {}));
     if (!hasAtt && $('usewiki').checked && A.caps.lib) tasks.push(A.api('/api/lib/context', { q, n: 4 }).then(r => (r.sources || []).forEach(x => sources.push({ title: x.title, text: x.text, kind: 'lib', url: x.url, where: x.book, category: x.category }))).catch(() => {}));
     /* the internet, when it is switched on and the 🌐 box is ticked: the top pages are read in full, the next few come in as snippets */
     if (!hasAtt && A.net && A.net.on() && $('useweb').checked) tasks.push(A.net.lookup(q).then(r => {
@@ -193,6 +193,8 @@
       sources.forEach((x, i) => { s += '\n[' + (i + 1) + '] ' + x.title + (x.page ? ' (page ' + x.page + ')' : '') + ' - ' + (x.where || '') + '\n' + x.text + '\n'; });
       if (sources.some(x => x.category === 'Medical')) s += '\nThis involves medical information. Give the facts from the sources, and remind the user briefly that this is reference information, not a diagnosis, and to call emergency services for emergencies.';
     }
+    if (sources.some(x => x.kind === 'doc' || x.kind === 'note' || x.kind === 'attach'))
+      s += '\n\nSome sources are the user\'s own files, notes or downloaded reference libraries. Treat them as the authority: keep every specific detail (commands, flags, paths, numbers, names, versions) inside what they actually say, and name the file in the citation when an answer rests on one document, like [2 web/music/notes.md]. If they do not cover part of the question, say plainly what is missing and offer to search again - never fill the gap with a guess dressed up as fact.\n';
     if (runOn() && !voice && window.A && A.interp) s += INTERP;
     if (sources.some(x => x.kind === 'web')) s += '\n\nSome sources were fetched from the internet a moment ago. Prefer them for anything that could have changed since your training, name the site in the citation (for example [1] Wikipedia), and if they disagree with what you already know, trust them and say so.';
     if (sources.some(x => x.kind === 'news')) s += '\n\nSome sources are news articles saved by the News tab. Answer from them, name the outlet and the date, and say how recent the news is. If they do not cover the question, say the News tab has nothing on it yet and suggest refreshing News.';
