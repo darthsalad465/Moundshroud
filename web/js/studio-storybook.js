@@ -467,8 +467,8 @@
         body += '<div class="pg"><div class="kicker">' + esc(cur.title) + '</div>' + (pg.art && pg.art.src ? '<img class="art" src="' + art(pg.art.src) + '" width="600" height="360" alt="">' : '') + '<h2>' + esc(pg.title || '') + '</h2><div class="txt">' + paragraphs(pg.text || '') + '</div><div class="pnum">' + (i + 1) + '</div></div>';
       }
     });
-    const css = '@page{size:letter;margin:0}*{box-sizing:border-box}body{margin:0;color:#241a38;background:#fff;font-family:Georgia,"Times New Roman",serif}' +
-      '.pg{width:8.5in;height:11in;padding:.62in .72in;page-break-after:always;position:relative;overflow:hidden;background:#fffdf7}' +
+    const css = '@page{size:letter;margin:0}*{box-sizing:border-box}body{margin:0;color:#241a38;background:#fff;font-family:Georgia,"Times New Roman",serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}' +
+      '.pg{width:8.5in;height:11in;padding:.62in .72in;page-break-after:always;break-after:page;position:relative;overflow:hidden;background:#fffdf7}' +
       '.pg:last-child{page-break-after:auto}.cover{background:#1c1238;color:#f6efdf;text-align:center;padding-top:2.1in}' +
       '.cover .coverart{width:4.4in;height:3.3in;object-fit:cover;border:2px solid #d9b24c;margin-bottom:.35in}' +
       '.cover .ci{font-size:40pt;margin-bottom:.12in}.cover h1{font-size:34pt;margin:.06in 0 .1in;line-height:1.08;font-weight:bold}' +

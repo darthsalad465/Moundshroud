@@ -104,15 +104,15 @@
     const step = now => { inkNow(); if (now - t0 < 380) inkT = requestAnimationFrame(step); else { el.classList.remove('live'); ink(); } };
     inkT = requestAnimationFrame(step); setTimeout(() => { el.classList.remove('live'); ink(); }, 420);
   };
-  const row = (n, sub) => '<button type="button" data-tab="' + n + '"' + (sub ? ' class="nsub"' : '') + ' title="' + esc(A.tabs[n].label) + '"><span class="ni">' + (IC[n] ? svg(IC[n]) : esc(A.NAVIC[n] || '•')) + '</span><span class="nl">' + esc(A.tabs[n].label) + '</span></button>';
+  const row = (n, sub, idx) => '<button type="button" data-tab="' + n + '"' + (sub ? ' class="nsub"' : '') + ' style="--i:' + (idx || 0) + '" title="' + esc(A.tabs[n].label) + '"><span class="ni">' + (IC[n] ? svg(IC[n]) : esc(A.NAVIC[n] || '•')) + '</span><span class="nl">' + esc(A.tabs[n].label) + '</span></button>';
   const build = () => {
     const seen = {}, open = opens(), cur = A.groupOf(A.cur);
-    let h = '<i class="nink" aria-hidden="true"></i>';
+    let h = '<i class="nink" aria-hidden="true"></i>', idx = 0;
     A.order.filter(n => !A.tabs[n].hidden).forEach(n => {
-      const gid = A.groupOf(n); if (!gid) { h += row(n); return; } if (seen[gid]) return; seen[gid] = 1;
+      const gid = A.groupOf(n); if (!gid) { h += row(n, 0, idx++); return; } if (seen[gid]) return; seen[gid] = 1;
       const g = A.NAVGROUPS.find(x => x.id === gid), isOpen = open.includes(gid) || cur === gid; if (cur === gid && !open.includes(gid)) autoOpen.add(gid);
-      h += '<button type="button" class="ngh" data-grp="' + gid + '" aria-expanded="' + isOpen + '" title="' + esc(g.label) + '"><span class="ni">' + (IC[gid] ? svg(IC[gid]) : g.icon) + '</span><span class="nl">' + esc(g.label) + '</span>' + svg(IC.chev, 'nx') + '</button>' +
-        '<div class="ngl' + (isOpen ? ' open' : '') + '" data-g="' + gid + '"><div class="ngi">' + g.tabs.filter(t => A.tabs[t] && !A.tabs[t].hidden).map(t => row(t, 1)).join('') + '</div></div>';
+      h += '<button type="button" class="ngh" data-grp="' + gid + '" style="--i:' + (idx++) + '" aria-expanded="' + isOpen + '" title="' + esc(g.label) + '"><span class="ni">' + (IC[gid] ? svg(IC[gid]) : g.icon) + '</span><span class="nl">' + esc(g.label) + '</span>' + svg(IC.chev, 'nx') + '</button>' +
+        '<div class="ngl' + (isOpen ? ' open' : '') + '" data-g="' + gid + '"><div class="ngi">' + g.tabs.filter(t => A.tabs[t] && !A.tabs[t].hidden).map((t, si) => row(t, 1, si)).join('') + '</div></div>';
     });
     nav.innerHTML = h; nav.setAttribute('aria-label', 'Pages');
     nav.onclick = click; mark();
@@ -177,17 +177,41 @@
   };
   const undress = () => { Object.keys(keep).forEach(id => { const b = $(id); if (b) b.innerHTML = keep[id]; delete keep[id]; }); const f = $('shfold'); if (f) f.remove(); };
 
-  /* ---------- a soft light under the pointer on cards (one listener for the whole app) ---------- */
+  /* ---------- a soft light and subtle 3D tilt under the pointer on cards (one listener for the whole app) ---------- */
   let lit = null, raf = 0, px = 0, py = 0;
+  const clearLit = el => { if (!el) return; el.classList.remove('lit'); el.style.removeProperty('--rx'); el.style.removeProperty('--ry'); };
   document.addEventListener('pointermove', e => {
     if (!on || e.pointerType === 'touch') return; px = e.clientX; py = e.clientY; if (raf) return;
     raf = requestAnimationFrame(() => {
       raf = 0; if (A.motion && A.motion.still && A.motion.still()) return;
-      const el = document.elementFromPoint(px, py), c = el && el.closest && el.closest('.card, .td-card, .td-tile, .feat, .nw-ev, .mk-tile, .am-card');
-      if (lit && lit !== c) lit.classList.remove('lit');
-      if (c) { const r = c.getBoundingClientRect(); c.style.setProperty('--mx', (px - r.left) + 'px'); c.style.setProperty('--my', (py - r.top) + 'px'); c.classList.add('lit'); }
+      const el = document.elementFromPoint(px, py), c = el && el.closest && el.closest('.card, .td-card, .td-tile, .feat, .gcard, .nw-ev, .mk-tile, .am-card, #sst .stl, #sth .thm, .poC');
+      if (lit && lit !== c) clearLit(lit);
+      if (c) {
+        const r = c.getBoundingClientRect(), x = px - r.left, y = py - r.top;
+        c.style.setProperty('--mx', x + 'px'); c.style.setProperty('--my', y + 'px');
+        if (r.width > 30 && r.height > 24 && r.height < 420) {
+          const rx = Math.max(-1, Math.min(1, (y - r.height / 2) / (r.height / 2))), ry = Math.max(-1, Math.min(1, (x - r.width / 2) / (r.width / 2)));
+          c.style.setProperty('--rx', (-rx * 3.2).toFixed(2) + 'deg');
+          c.style.setProperty('--ry', (ry * 3.2).toFixed(2) + 'deg');
+        }
+        c.classList.add('lit');
+      }
       lit = c || null;
     });
+  }, { passive: true });
+
+  /* ---------- tactile luminous click pulse on buttons, chips and tiles (zero DOM mutation) ---------- */
+  document.addEventListener('pointerdown', e => {
+    if (!on || (A.motion && A.motion.still && A.motion.still())) return;
+    const mk = e.target && e.target.closest && e.target.closest('svg.mark');
+    if (mk) { mk.classList.remove('mk-spin'); void mk.offsetWidth; mk.classList.add('mk-spin'); setTimeout(() => mk.classList.remove('mk-spin'), 750); }
+    const b = e.target && e.target.closest && e.target.closest('.pri, .ib, .chip, #nav button, .td-tile, .stl, .thm');
+    if (!b || b.disabled) return;
+    const r = b.getBoundingClientRect();
+    b.style.setProperty('--cx', Math.round(e.clientX - r.left) + 'px');
+    b.style.setProperty('--cy', Math.round(e.clientY - r.top) + 'px');
+    b.classList.remove('sh-pulse'); void b.offsetWidth; b.classList.add('sh-pulse');
+    clearTimeout(b._shpt); b._shpt = setTimeout(() => b.classList.remove('sh-pulse'), 520);
   }, { passive: true });
 
   /* ---------- switching the look on and off ---------- */
@@ -199,11 +223,15 @@
     if (on) { fit(); dress(); } else { root.classList.remove('rail-min'); undress(); }
     if (A.order.length && nav.children.length) A.buildNav();
   };
-  A.shroud = { get on() { return on; }, set(v) { ls.set('shroud', v ? '1' : '0'); sync(); }, sync, icons: IC, fold: toggleRail };
+  const replayBoot = () => { if (window.OA_REPLAY_BOOT) window.OA_REPLAY_BOOT(); };
+  A.shroud = { get on() { return on; }, set(v) { ls.set('shroud', v ? '1' : '0'); sync(); }, sync, icons: IC, fold: toggleRail, replayBoot };
   sync();
   new MutationObserver(sync).observe(root, { attributes: true, attributeFilter: ['data-style'] });
   /* other scripts add their top-bar buttons (History, Focus) after this one runs, and Talk changes its words while listening */
-  A.ready.push(() => { dress(); setTimeout(dress, 600); });
+  A.ready.push(() => {
+    dress(); setTimeout(dress, 600);
+    if (A.cmd && A.cmd.reg) A.cmd.reg({ id: 'look:replay-boot', title: 'Replay opening animation', sub: 'Watch the Moundshroud awakening sequence again', icon: '✨', group: 'Look', tags: 'boot splash intro animation logo opening', run: replayBoot });
+  });
   setInterval(() => { if (on) { dress(); if (!document.hidden) ink(); } }, 1500);
 
   /* ---------- the first time the new look appears: say so, and offer the way back ---------- */

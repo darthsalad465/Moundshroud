@@ -2,7 +2,7 @@
 (() => {
   /* tabs in the order shown */
   ['chat', 'lib', 'files', 'notes', 'study', 'lang', 'tools', 'health', 'guide'].forEach(n => { if (!A.tabs[n]) return; });
-  const wanted = ['home', 'news', 'chat', 'web', 'cal', 'lib', 'files', 'notes', 'mail', 'docs', 'offed', 'calc', 'scan', 'meet', 'rem', 'clip', 'study', 'lang', 'writing', 'practice', 'teach', 'sky', 'lab', 'studio', 'cyber', 'tools', 'health', 'kitchen', 'garden', 'money', 'journal', 'albums', 'play', 'music', 'radio', 'tv', 'photos', 'faith', 'map', 'guide'];
+  const wanted = ['home', 'news', 'chat', 'web', 'cal', 'lib', 'files', 'notes', 'mail', 'docs', 'offed', 'calc', 'scan', 'meet', 'rem', 'clip', 'study', 'lang', 'writing', 'practice', 'teach', 'sky', 'lab', 'studio', 'cyber', 'tools', 'health', 'kitchen', 'garden', 'money', 'journal', 'albums', 'play', 'music', 'radio', 'tv', 'photos', 'faith', 'map', 'guide', 'appedit'];
   A.order = wanted.filter(n => A.tabs[n]);
   A.buildNav(); A.showTab('home');                       // Moundshroud opens on Today
   /* the logo in the top left corner goes to Today (the home page) */

@@ -595,6 +595,23 @@ pre.cv-n>code{white-space:pre!important}
 .cv-ed{display:flex;align-items:stretch;width:100%;min-width:0}
 .cv-ed>textarea{flex:1 1 auto;width:auto!important;min-width:0;border-top-left-radius:0!important;border-bottom-left-radius:0!important}
 .cv-eg{flex:none;overflow:hidden;white-space:pre;text-align:right;padding-left:8px;padding-right:8px;min-width:2.2em;box-sizing:border-box;color:var(--mute);background:var(--panel2);border:1px solid var(--line);border-right:1px solid var(--line);border-radius:8px 0 0 8px;user-select:none;-webkit-user-select:none;opacity:.85}
+/* Edit the app (web/js/appedit.js) */
+.ae-split{display:flex;gap:10px;flex:1;min-height:0;padding:0 14px 12px}
+.ae-side{width:290px;flex:none;display:flex;flex-direction:column;min-height:0;border:1px solid var(--line);border-radius:10px;background:var(--panel);overflow:hidden}
+.ae-side input{margin:8px;width:calc(100% - 16px)}
+.ae-path{display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:0 8px 6px;border-bottom:1px solid var(--line)}
+.ae-path .ib{padding:2px 6px;font-size:12px}
+.ae-side .scroll{padding:6px}
+.ae-dirs{display:flex;flex-direction:column;gap:2px;margin-bottom:6px}
+.ae-dir{border:0;background:none;text-align:left;padding:5px 7px;border-radius:7px;cursor:pointer;color:var(--fg);font:inherit}
+.ae-dir:hover{background:var(--panel2)}
+.ae-file{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:5px 8px;border-radius:7px;cursor:pointer;overflow:hidden}
+.ae-file:hover{background:var(--panel2)}
+.ae-file.on{background:var(--panel2);box-shadow:0 0 0 1px var(--acc) inset}
+.ae-file span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.ae-main{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0}
+.ae-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.ae-main textarea{flex:1;min-height:0;width:100%;font-family:ui-monospace,Consolas,monospace;font-size:13px;line-height:1.5;tab-size:2}
 /* TV: live public cameras */
 .cam-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:10px}
 .cam-card{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel);cursor:pointer;display:flex;flex-direction:column;gap:2px;padding-bottom:7px;min-width:0}
@@ -613,3 +630,117 @@ pre.cv-n>code{white-space:pre!important}
 .tv-dlopt{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;cursor:pointer}.tv-dlopt:hover{border-color:var(--acc)}
 .tv-bar{flex:0 0 160px;height:7px;border-radius:4px;background:var(--panel2);overflow:hidden}.tv-bar i{display:block;height:100%;background:var(--acc);transition:width .4s}
 .tv-dlth{width:120px;aspect-ratio:16/9;object-fit:cover;border-radius:6px;background:var(--panel2)}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   The code editor (web/js/code-ed.js) - a VS Code / VSCodium style surface used by Edit the app, the Godot file
+   editor, the Game maker and the coding lessons. It keeps its own dark editor palette whatever the app theme is,
+   the way a real IDE would, and the pages only supply the frame around it.
+--------------------------------------------------------------------------------------------------------------- */
+.ce{--ce-bg:#1e1e1e;--ce-bar:#252526;--ce-tab:#2d2d30;--ce-line:#3c3c3c;--ce-fg:#d4d4d4;--ce-blue:#0a84d8;
+  display:flex;flex-direction:column;flex:1;min-height:300px;min-width:0;position:relative;overflow:hidden;
+  border:1px solid var(--line);border-radius:10px;background:var(--ce-bg);font-family:ui-monospace,Consolas,"Cascadia Mono",monospace}
+.ce-crumb{padding:4px 12px;font-size:11.5px;color:#9a9aa8;background:#252526;border-bottom:1px solid #333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ce-crumb b{color:#e6e6f0;font-weight:600}.ce-sep{opacity:.5;margin:0 5px}
+.ce-body{display:flex;flex:1;min-height:0;position:relative}
+.ce-gut{flex:none;width:56px;overflow:hidden;background:#1e1e1e;border-right:1px solid #2b2b31;position:relative}
+.ce-gi{padding:10px 8px 40px 0;text-align:right;color:#6e7681;font-size:12.5px;line-height:1.55;will-change:transform}
+.ce-gi i{display:block;font-style:normal;height:19.375px}
+.ce-gi i.on{color:#e8e8f0;font-weight:700}
+.ce-view{position:relative;flex:1;min-width:0;overflow:hidden}
+.ce-hl{position:absolute;top:0;left:0;margin:0;padding:10px 76px 40px 12px;pointer-events:none;user-select:none;
+  color:var(--ce-fg);font:13px/1.55 ui-monospace,Consolas,"Cascadia Mono",monospace;white-space:pre;tab-size:2;will-change:transform}
+.ce .ce-ta{position:absolute!important;inset:0;width:100%!important;height:100%!important;box-sizing:border-box;margin:0!important;
+  padding:10px 76px 40px 12px!important;border:0!important;border-radius:0!important;background:transparent!important;color:transparent!important;
+  caret-color:#e8e8f0;font:13px/1.55 ui-monospace,Consolas,"Cascadia Mono",monospace!important;white-space:pre;tab-size:2;resize:none!important;
+  outline:none!important;overflow:auto;box-shadow:none!important}
+.ce .ce-ta::selection{background:rgba(90,140,255,.35);color:transparent}
+.ce .ce-ta::placeholder{color:#5f6470}
+.ce-map{position:absolute;right:0;top:0;width:68px;height:100%;opacity:.8;pointer-events:none;background:#1b1b20}
+/* token colours, the same family as VS Code's dark+ */
+.tk-k{color:#569cd6}.tk-s{color:#ce9178}.tk-c{color:#6a9955;font-style:italic}.tk-n{color:#b5cea8}
+.tk-f{color:#dcdcaa}.tk-t{color:#4ec9b0}.tk-p{color:#9cdcfe}
+/* find and replace */
+.ce-find{display:flex;align-items:center;gap:6px;padding:6px 8px;background:#252526;border-top:1px solid #333;flex-wrap:wrap}
+.ce-find input{flex:1;min-width:110px;background:#3c3c3c;border:1px solid #4a4a4a;color:#e6e6e6;border-radius:4px;padding:4px 8px;font-size:12.5px;outline:none}
+.ce-find input:focus{border-color:var(--ce-blue)}
+.ce-find .ce-fc{min-width:64px;text-align:right;color:#a0a0b0;font-size:11.5px}
+.ce-fb{border:1px solid transparent;background:transparent;color:#c8c8d4;border-radius:4px;padding:3px 7px;font-size:12px;cursor:pointer}
+.ce-fb:hover{background:#3c3c3c;color:#fff}.ce-fb.on{background:#0a84d8;color:#fff}
+.ce-frep{display:flex;gap:6px;align-items:center;flex:1;min-width:180px}
+/* status bar */
+.ce-status{display:flex;align-items:center;gap:14px;padding:3px 10px;background:var(--ce-blue);color:#fff;font-size:11.5px;white-space:nowrap}
+.ce-status .ce-sp{flex:1}.ce-s{opacity:.95}.ce-s[role=button]{cursor:pointer;padding:0 4px;border-radius:3px}
+.ce-s[role=button]:hover{background:rgba(255,255,255,.18)}.ce-s.on{background:rgba(255,255,255,.22);font-weight:600}
+/* the command palette */
+.ce-pal{position:absolute;top:8px;left:50%;transform:translateX(-50%);width:min(540px,94%);z-index:6;
+  background:#252526;border:1px solid #454545;border-radius:8px;box-shadow:0 16px 40px rgba(0,0,0,.55);overflow:hidden}
+.ce-pq{width:100%;box-sizing:border-box;border:0;border-bottom:1px solid #3a3a3a;background:#3c3c3c;color:#fff;padding:9px 12px;font-size:13px;outline:none}
+.ce-plist{max-height:320px;overflow:auto;padding:4px}
+.ce-pi{display:flex;gap:10px;align-items:center;width:100%;text-align:left;background:transparent;border:0;color:#dcdce6;padding:6px 9px;border-radius:5px;cursor:pointer;font-size:12.5px}
+.ce-pi span:first-child{flex:1}.ce-pi:hover,.ce-pi.on{background:#094771;color:#fff}
+/* the tab strip (CodeEd.tabbar) */
+.ce-tabs{display:flex;align-items:stretch;gap:0;overflow-x:auto;background:#252526;border-bottom:1px solid #1b1b1b;min-height:33px}
+.ce-tabs:empty{display:none}
+.ce-tab{display:flex;align-items:center;gap:8px;padding:0 8px 0 12px;height:33px;max-width:230px;border-right:1px solid #1b1b1b;
+  background:var(--ce-tab,#2d2d30);color:#b8b8c4;font-size:12.5px;cursor:pointer;white-space:nowrap}
+.ce-tab .ce-tn{overflow:hidden;text-overflow:ellipsis}
+.ce-tab.on{background:#1e1e1e;color:#fff;box-shadow:inset 0 2px 0 var(--ce-blue)}
+.ce-tab.dirty .ce-tn{font-style:italic}
+.ce-tab .ce-td{opacity:.55;padding:0 3px;border-radius:3px;font-size:12px}
+.ce-tab .ce-td:hover{opacity:1;background:rgba(255,255,255,.16)}
+.ce-tab.dirty .ce-td{color:#e2c08d}
+
+/* ---------- Settings & Preferences layout (base styles for all interface modes) ---------- */
+#setx{position:fixed;inset:0;z-index:150;background:rgba(6,8,16,.65);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:2vh 2vw}
+#setx .nm{display:none!important}
+.sx-modal{margin:0!important;padding:0!important;width:min(1080px,100%);height:min(88vh,880px);display:flex;flex-direction:column;overflow:hidden;border-radius:20px;background:var(--panel);border:1px solid var(--line);box-shadow:0 28px 80px rgba(0,0,0,.65)}
+.sx-head{display:flex;gap:14px;align-items:center;padding:13px 18px;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--panel2) 40%,transparent)}
+.sx-brand{display:flex;align-items:center;gap:10px}
+.sx-badge{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;background:color-mix(in srgb,var(--acc) 20%,transparent);color:var(--acc);font-size:16px}
+.sx-title{font-weight:700;font-size:17px;line-height:1.15}
+.sx-sub{font-size:11.5px;color:var(--mute)}
+.sx-search{position:relative;flex:1;max-width:440px;display:flex;align-items:center}
+.sx-search svg{position:absolute;left:12px;width:15px;height:15px;color:var(--mute);pointer-events:none}
+.sx-search #sq{width:100%;padding:8px 74px 8px 34px;border-radius:11px}
+.sx-sqmeta{position:absolute;right:8px;display:flex;align-items:center;gap:4px}
+#sqcnt{font-size:11px;color:var(--mute);padding:1px 6px;border-radius:99px;background:var(--panel)}
+#sqclr{border:0;background:var(--line);color:var(--text);width:20px;height:20px;border-radius:50%;display:none;place-items:center;font-size:11px;padding:0;cursor:pointer}
+.sx-main{display:flex;flex:1;min-height:0}
+#snav{width:224px;flex:none;border-right:1px solid var(--line);padding:10px;overflow:auto;display:flex;flex-direction:column;gap:2px}
+#snav>button{display:flex;align-items:center;gap:9px;width:100%;text-align:left;padding:7px 10px;border-radius:10px}
+#snav>button .sx-ic{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;font-size:14px}
+#sbody{flex:1;overflow:auto;padding:18px 24px 32px;min-width:0}
+.sx-sec-hd{display:flex;align-items:center;gap:9px;margin:0 0 8px}
+.sx-sec-ic{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;font-size:14px;background:var(--panel2);border:1px solid var(--line)}
+.sx-group{border:1px solid var(--line);border-radius:14px;background:color-mix(in srgb,var(--panel2) 30%,var(--panel));overflow:hidden}
+.sxrow{display:flex;gap:14px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)}
+.sxrow:last-child{border-bottom:0}
+.pv-banner{display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:12px;margin:4px 0 10px}
+.pv-row{display:flex;gap:12px;align-items:flex-start;padding:11px 2px;border-bottom:1px solid var(--line)}
+.pv-info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;margin-top:12px}
+.pv-info-card{padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--panel2)}
+.rm-opt{display:flex!important;align-items:center;gap:9px;padding:8px 11px;margin:5px 0!important;border-radius:10px;border:1px solid var(--line);background:var(--panel2)}
+.cu-sec{margin-top:12px;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:color-mix(in srgb,var(--panel2) 35%,transparent)}
+/* a panel with the hidden attribute must actually stay hidden (display:flex above would otherwise show it) */
+.ce-find[hidden], .ce-crumb[hidden], .ce-frep[hidden], .ce-s[hidden], .ce-map[hidden] { display: none !important; }
+/* the gutter must sit on exactly the same line height as the code, or the numbers drift from the lines */
+.ce-gi { font-size: 13px; line-height: 1.55; }
+.ce-gi i { height: auto; line-height: inherit; }
+.god-edwrap .ce { min-height: 420px; }
+.ae-main .ce { min-height: 320px; }
+/* a narrow window: the minimap would leave too little room for the code */
+@media (max-width: 900px) {
+  .ce-map { display: none; }
+  .ce-hl { padding-right: 12px; }
+  .ce .ce-ta { padding-right: 12px !important; }
+}
+/* AI Olympics: the four levels of pressure */
+.ollevels{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px;margin-top:6px}
+.ollev{display:flex;gap:10px;align-items:flex-start;padding:9px 11px;border:1px solid var(--line);border-radius:11px;background:var(--panel2);cursor:pointer;transition:border-color .15s,background .15s}
+.ollev:hover{border-color:color-mix(in srgb,var(--acc) 55%,var(--line))}
+.ollev input{position:absolute;opacity:0;pointer-events:none}
+.ollev.on,.ollev:has(input:checked){border-color:var(--acc);background:color-mix(in srgb,var(--acc) 12%,var(--panel2));box-shadow:0 0 0 1px var(--acc) inset}
+.ollev-i{font-size:19px;line-height:1.2}
+.ollev-t{display:flex;flex-direction:column;gap:2px;min-width:0}
+.ollev-t b{font-size:13.5px}
+.ollev-t .small{line-height:1.35}

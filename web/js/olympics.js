@@ -92,6 +92,125 @@
     { id: 'write', icon: '✍️', name: 'Writing', desc: 'A short story, scored by the judge model', need: 'chat' },
   ];
 
+  /* ---------- the levels of pressure ----------
+     The Games are not one fixed test. Pick the level that suits the models you are putting in: a 2B model at Club meet is a fair
+     fight, the same model at the Inferno final is meant to be torn apart. Each level brings harder items, more of them, a
+     tighter clock on every answer (0 = untimed) and a smaller answer budget, so waffle costs points. */
+  const LEVELS = [
+    { id: 'club', icon: '🎽', name: 'Club meet', pitch: 0, clock: 0, max: 1, n: { reason: 5, instr: 5, code: 3, know: 6, vision: 3 },
+      blurb: 'The short friendly set, untimed. Right for 2–4B models and a quick run.' },
+    { id: 'national', icon: '🏟️', name: 'National trials', pitch: 1, clock: 90, max: .85, n: { reason: 8, instr: 8, code: 5, know: 9, vision: 3 },
+      blurb: 'Harder items, more of them and a 90-second clock. The fair setting for 7–9B models.' },
+    { id: 'world', icon: '🌍', name: 'World championships', pitch: 2, clock: 45, max: .65, n: { reason: 12, instr: 12, code: 7, know: 12, vision: 4 },
+      blurb: 'Traps, strict formats, edge-case code, 45 seconds a question. For a strong 9–14B.' },
+    { id: 'inferno', icon: '🔥', name: 'Inferno final', pitch: 3, clock: 22, max: .5, n: { reason: 14, instr: 14, code: 9, know: 14, vision: 4 },
+      blurb: 'Everything at its hardest, 22 seconds a question, no room for waffle. Only the biggest models should survive.' },
+  ];
+  const lvlOf = id => LEVELS.find(l => l.id === id) || LEVELS[0];
+
+  /* ---------- the harder items, one list per level above the warm-up ---------- */
+  const HARD = {
+    reason: [
+      /* 1 — national */
+      ['A shop sells pens at 3 for $2. How many pens can you buy with $14?', t => lastNum(t) === 21, 1],
+      ['If today is Wednesday, what day of the week is it 100 days from now? Answer with the day only.', t => has(t, /friday/), 1],
+      ['What is the sum of every whole number from 1 to 100?', t => lastNum(t) === 5050, 1],
+      ['One pipe fills a tank in 6 hours, another in 4. With both open, how many hours does it take? Answer to one decimal place.', t => Math.abs(lastNum(t) - 2.4) < .05, 1],
+      ['How many times does the digit 7 appear when every number from 1 to 100 is written out?', t => lastNum(t) === 20, 1],
+      ['If 3 cats catch 3 mice in 3 minutes, how many cats catch 100 mice in 100 minutes?', t => lastNum(t) === 3, 1],
+      ['What is 12.5% of 480?', t => lastNum(t) === 60, 1],
+      ['A jacket costs $80 after a 20% discount. What was the price before the discount, in dollars?', t => lastNum(t) === 100, 1],
+      /* 2 — world */
+      ['A cube is painted on all six outside faces and then cut into 27 equal smaller cubes. How many of the small cubes have exactly two painted faces?', t => lastNum(t) === 12, 2],
+      ['In a class of 30, 18 like tea, 20 like coffee and 5 like neither. How many like both?', t => lastNum(t) === 13, 2],
+      ['What comes next: 1, 11, 21, 1211, 111221, ...?', t => lastNum(t) === 312211, 2],
+      ['What is the remainder when 3^100 is divided by 7?', t => lastNum(t) === 4, 2],
+      ['At a party every person shakes hands with every other person once, and there are 66 handshakes in all. How many people are there?', t => lastNum(t) === 12, 2],
+      ['How many whole numbers from 1 to 999 contain the digit 0?', t => lastNum(t) === 180, 2],
+      ['A clock is set correctly at 8:00 but it runs 6 minutes fast. What time does it show when the real time is 9:00? Answer as HH:MM.', t => /9[:.]06/.test(t), 2],
+      ['A rope 40 m long is cut so that one piece is 3 times the other. How long is the shorter piece, in metres?', t => lastNum(t) === 10, 2],
+      /* 3 — inferno */
+      ['A train covers 120 km at 80 km/h and then 90 km at 60 km/h. What is its average speed for the whole trip, in km/h, to one decimal place?', t => Math.abs(lastNum(t) - 70) < .06, 3],
+      ['Three friends split a bill of $87 in the ratio 2:3:4. How much does the largest share pay, in dollars, to the nearest cent?', t => Math.abs(lastNum(t) - 38.67) < .02, 3],
+      ['In three fair coin tosses, what is the probability of exactly two heads? Answer as a fraction such as 3/8.', t => /\b3\s*\/\s*8\b/.test(t), 3],
+      ['A ladder 13 m long stands with its foot 5 m from a wall. How high up the wall does the top reach, in metres?', t => lastNum(t) === 12, 3],
+      ['Seven people sit around a round table. How many different arrangements are there if turning the whole table counts as the same arrangement?', t => lastNum(t) === 720, 3],
+      ['A number is increased by 25% and the result is then decreased by 20%. By what percentage has it changed from where it started? Answer with the number only.', t => Math.abs(lastNum(t)) < .01, 3],
+      ['How many prime numbers lie strictly between 100 and 130?', t => lastNum(t) === 6, 3],
+      ['A bag holds 4 red and 6 blue balls. Two are drawn without putting any back. What is the probability that both are red? Answer as a fraction.', t => /\b2\s*\/\s*15\b/.test(t), 3],
+      ['At 4:40, what is the smaller angle between the hour and minute hands, in degrees?', t => Math.abs(lastNum(t) - 100) < .05, 3],
+      ['If x + y = 10 and x × y = 21, what is x² + y²?', t => lastNum(t) === 58, 3],
+    ],
+    instr: [
+      /* 1 */
+      ['Write exactly two sentences about winter, and use no exclamation marks.', t => { const s = t.trim(), m = s.match(/[.!?]/g) || []; return m.length === 2 && !s.includes('!') && s.length > 25; }, 1],
+      ['Reply with the three colours of the Italian flag in order, separated by commas, and nothing else.', t => /^\s*green\s*,\s*white\s*,\s*red\s*[.!]?\s*$/i.test(t.trim()), 1],
+      ['Answer with one word only: the opposite of "ancient".', t => /^\W*modern\W*$/i.test(t.trim()), 1],
+      ['List the numbers 1 to 10 in reverse order, one per line, and nothing else.', t => t.split('\n').map(x => x.trim()).filter(Boolean).join(',') === '10,9,8,7,6,5,4,3,2,1', 1],
+      ['Say the word HELLO followed by its five letters separated by hyphens, all on one line, nothing else.', t => /^\W*HELLO\W*H-E-L-L-O\W*$/i.test(t.trim()), 1],
+      /* 2 */
+      ['Reply with exactly 4 lines: ONE, TWO, THREE, FOUR in capitals, one per line, and nothing else.', t => t.split('\n').map(x => x.trim()).filter(Boolean).join('|') === 'ONE|TWO|THREE|FOUR', 2],
+      ['Write one sentence of exactly 10 words about rivers.', t => { const w = t.replace(/[^\p{L}\p{N}\s'-]/gu, ' ').trim().split(/\s+/).filter(Boolean); return w.length === 10 && /[.!?]\s*$/.test(t.trim()); }, 2],
+      ['Reply with JSON only and no other keys: {"sum": <the sum of 5 and 7>}.', t => { try { const j = JSON.parse(t.replace(/^```(?:json)?|```$/g, '').trim()); return Object.keys(j).length === 1 && j.sum === 12; } catch (e) { return false; } }, 2],
+      ['Write the word banana exactly 5 times, separated by single spaces, and nothing else.', t => /^\s*(banana\s+){4}banana\s*[.!]?\s*$/i.test(t.trim()), 2],
+      ['List exactly 3 bullet lines; each starts with "- " and has exactly 4 words after it.', t => { const l = t.split('\n').map(x => x.trim()).filter(Boolean); return l.length === 3 && l.every(x => /^-\s+\S+(\s+\S+){3}$/.test(x)); }, 2],
+      ['Answer with the number 7 written as a word in capitals, then a full stop, and nothing else.', t => /^\W*SEVEN\.?\W*$/i.test(t.trim().toUpperCase()), 2],
+      /* 3 */
+      ['Write one sentence about the sea that contains no letter "e" at all.', t => { const s = t.trim(); return s.length > 20 && !/e/i.test(s) && /[.!?]$/.test(s); }, 3],
+      ['Reply with the value of 2^10 in binary: bits only, no spaces and no explanation.', t => /^\D*1(0){10}\D*$/.test(t.trim()), 3],
+      ['Reply with one JSON object with only the keys "a" and "b", whose values are the first two primes above 100 in ascending order.', t => { try { const j = JSON.parse(t.replace(/^```(?:json)?|```$/g, '').trim()); return Object.keys(j).sort().join() === 'a,b' && j.a === 101 && j.b === 103; } catch (e) { return false; } }, 3],
+      ['Write the letters of the alphabet backwards on one line, separated by single spaces, and nothing else.', t => t.trim().toLowerCase().replace(/[^a-z\s]/g, '').replace(/\s+/g, ' ').trim() === 'z y x w v u t s r q p o n m l k j i h g f e d c b a', 3],
+      ['Reply with exactly one sentence of at most 12 words that contains the word MOUNDSHROUD in capitals.', t => { const w = t.replace(/[^\p{L}\p{N}\s'-]/gu, ' ').trim().split(/\s+/).filter(Boolean); return w.length <= 12 && t.includes('MOUNDSHROUD') && (t.match(/[.!?]/g) || []).length === 1; }, 3],
+      ['Answer with a single word: the number 17 in Roman numerals.', t => /^\W*xvii\W*$/i.test(t.trim()), 3],
+      ['Reply with exactly two lines. The first is the word LEFT, the second is the number of letters in MOUNDSHROUD. Nothing else.', t => t.split('\n').map(x => x.trim()).filter(Boolean).join('|').toUpperCase() === 'LEFT|10', 3],
+    ],
+    know: [
+      ['How many strings does a violin have?', /\b4\b|four/, 1], ['What is the capital city of Canada?', /ottawa/, 1],
+      ['Which planet is closest to the Sun?', /mercury/, 1], ['What is the chemical formula of water?', /h2o/, 1],
+      ['In which year did the Berlin Wall fall?', /\b1989\b/, 2], ['What is the atomic number of tungsten?', /\b74\b/, 2],
+      ['Who wrote "On the Origin of Species"?', /darwin/, 2], ['Which country has the most time zones?', /france/, 2],
+      ['What is the tallest building in the world as of 2024?', /burj|khalifa/, 2],
+      ['Which element has the chemical symbol W?', /tungsten|wolfram/, 2],
+      ['In which year was the Peace of Westphalia signed?', /\b1648\b/, 3], ['What is the smallest country in the world by area?', /vatican/, 3],
+      ['How many keys does a standard modern piano have?', /\b88\b/, 3], ['Which is the longest river in Asia?', /yangtze|chang jiang/, 3],
+      ['In which year was the first email sent on ARPANET?', /\b1971\b/, 3], ['What is the SI unit of pressure?', /pascal/, 3],
+      ['Which sea has no land coastline?', /sargasso/, 3], ['What is the hardest natural substance on Earth?', /diamond/, 3],
+      ['How many chambers does the human heart have?', /\b4\b|four/, 3], ['What is the longest bone in the human body?', /femur/, 3],
+    ],
+    code: [
+      { lvl: 1, d: 'sumRange(a, b): the sum of every whole number from a to b inclusive.', f: 'sumRange', t: [[[1, 10], 55], [[-3, 3], 0], [[5, 5], 5]] },
+      { lvl: 1, d: 'titleCase(s): the same words with the first letter of each word capitalised and the rest lower case.', f: 'titleCase', t: [[['hello world'], 'Hello World'], [['a tale of two cities'], 'A Tale Of Two Cities']] },
+      { lvl: 2, d: 'chunk(arr, n): the array split into arrays of length n, the last one shorter if needed.', f: 'chunk', t: [[[[1, 2, 3, 4, 5], 2], [[1, 2], [3, 4], [5]]], [[[], 3], []]] },
+      { lvl: 2, d: 'roman(n): the Roman numeral for a whole number from 1 to 3999, in capitals.', f: 'roman', t: [[[4], 'IV'], [[1994], 'MCMXCIV'], [[3999], 'MMMCMXCIX']] },
+      { lvl: 2, d: 'rle(s): run-length encode a string, so "aaab" becomes "3a1b".', f: 'rle', t: [[['aaab'], '3a1b'], [['abc'], '1a1b1c'], [[''], '']] },
+      { lvl: 2, d: 'flatten(a): a new array with every nested array flattened at any depth.', f: 'flatten', t: [[[[1, [2, [3, 4]], 5]], [1, 2, 3, 4, 5]], [[[[]]], []]] },
+      { lvl: 3, d: 'balanced(s): true when every bracket in the string is closed in the right order, ignoring other characters.', f: 'balanced', t: [[['({[]})'], true], [['(]'], false], [[''], true], [['([)]'], false]] },
+      { lvl: 3, d: 'isIsogram(s): true when no letter appears twice, ignoring case and anything that is not a letter.', f: 'isIsogram', t: [[['lumberjacks'], true], [['hello'], false], [[''], true]] },
+      { lvl: 3, d: 'binarySearch(arr, x): the index of the first occurrence of x in an ascending sorted array, or -1.', f: 'binarySearch', t: [[[[1, 2, 2, 3], 2], 1], [[[1, 3, 5], 4], -1], [[[5], 5], 0]] },
+      { lvl: 3, d: 'countPrimes(n): how many prime numbers are strictly below n. It must finish quickly for n = 100000.', f: 'countPrimes', t: [[[100000], 9592], [[10], 4]] },
+      { lvl: 3, d: 'maxGap(nums): the largest difference between two neighbours once the numbers are sorted.', f: 'maxGap', t: [[[[1, 4, 9, 10]], 5], [[[1, 2]], 1]] },
+    ],
+    search: [
+      { lvl: 1, passages: ['The Nile is about 6,650 km long and flows north into the Mediterranean.', 'The Amazon carries more water than any other river and is about 6,400 km long.', 'The Volga is the longest river in Europe, at about 3,530 km.', 'Lake Baikal holds about a fifth of the world\'s unfrozen fresh water.', 'The Danube flows through ten countries, more than any other river.', 'Mount Kilimanjaro is the highest mountain in Africa, at 5,895 m.'],
+        qs: [['Which river is the longest in Europe?', 2], ['Which river flows through the most countries?', 4], ['Which lake holds the most fresh water?', 3], ['Which is the highest mountain in Africa?', 5]] },
+      { lvl: 2, passages: ['The Golden Gate Bridge has a main span of 1,280 m.', 'The Akashi Kaikyo Bridge has a main span of 1,991 m.', 'The Humber Bridge has a main span of 1,410 m.', 'The Millau Viaduct is 2,460 m long and 343 m high.', 'The Burj Khalifa is 828 m tall.', 'The Shanghai Tower is 632 m tall.'],
+        qs: [['Which bridge has the longest main span?', 1], ['Which structure is 343 m high?', 3], ['Which bridge has a main span of exactly 1,410 m?', 2], ['Which tower is 632 m tall?', 5]] },
+      { lvl: 3, passages: ['The Peace of Westphalia was signed in 1648 and ended the Thirty Years\' War.', 'The armistice of 1918 stopped the fighting of the First World War, but the peace treaty came in 1919.', 'The Berlin Wall was opened in November 1989 and demolished over the following years.', 'The first email was sent in 1971 on ARPANET, though the word "email" came later.', 'The first web page went online in August 1991 at CERN.'],
+        qs: [['Which year ended the Thirty Years\' War?', 0], ['When did the fighting of the First World War stop, before the peace treaty?', 1], ['When did the Berlin Wall open?', 2], ['What was sent in 1971 on ARPANET?', 3], ['In which year did the first web page go online?', 4]] },
+    ],
+  };
+
+  /* the pools the Games draw from: the warm-up items (level 0) plus everything above */
+  const POOL = {
+    reason: REASON.map(x => [x[0], x[1], 0]).concat(HARD.reason),
+    instr: INSTR.map(x => [x[0], x[1], 0]).concat(HARD.instr),
+    know: KNOW.map(x => [x[0], x[1], 0]).concat(HARD.know),
+    code: CODE.map(c => ({ lvl: 0, d: c[0], f: c[1], t: c.slice(2) })).concat(HARD.code),
+    search: [{ lvl: 0, passages: SEARCH.passages, qs: SEARCH.qs }].concat(HARD.search),
+  };
+  /* the hardest items the level allows, so a higher level is never the same easy set again */
+  const take = (pool, pitch, n) => pool.filter(x => (x[2] != null ? x[2] : x.lvl) <= pitch).sort((a, b) => (b[2] != null ? b[2] : b.lvl) - (a[2] != null ? a[2] : a.lvl)).slice(0, n);
+
   /* code runs in a worker with no network and a time limit */
   function runCode(code, fname, tests) {
     return new Promise(done => {
@@ -109,36 +228,87 @@
     const mk = (draw) => { const c = document.createElement('canvas'); c.width = c.height = 384; const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, 384, 384); draw(g); return c.toDataURL('image/jpeg', .9).split(',')[1]; };
     const n = 3 + Math.floor(Math.random() * 4), word = ['TIGER', 'PLANET', 'CASTLE', 'ORANGE', 'ROCKET'][Math.floor(Math.random() * 5)];
     const colors = [['blue', '#1f5fe0'], ['red', '#e02424'], ['green', '#1fa34a'], ['yellow', '#f2c200']], col = colors[Math.floor(Math.random() * 4)], left = Math.random() < .5;
+    const reds = 2 + (n % 3), blues = 2 + ((n + 1) % 3);   /* the hardest picture: counting two kinds at once */
     return [
       { q: 'How many red circles are in this picture? Answer with a number only.', img: mk(g => { for (let i = 0; i < n; i++) { g.fillStyle = '#e02424'; g.beginPath(); g.arc(50 + (i % 3) * 120, 90 + Math.floor(i / 3) * 150, 38, 0, 7); g.fill(); } g.fillStyle = '#1f5fe0'; g.fillRect(300, 300, 50, 50); }), ok: t => lastNum(t) === n },
       { q: 'What word is written in this picture? Answer with the word only.', img: mk(g => { g.fillStyle = '#111'; g.font = 'bold 72px Arial'; g.textAlign = 'center'; g.fillText(word, 192, 210); }), ok: t => t.toUpperCase().includes(word) },
       { q: 'What colour is the big square? Answer with one word.', img: mk(g => { g.fillStyle = col[1]; g.fillRect(80, 80, 224, 224); }), ok: t => t.toLowerCase().includes(col[0]) },
       { q: 'There is a circle and a triangle. Which shape is on the left? Answer with one word.', img: mk(g => { g.fillStyle = '#333'; const cx = left ? 96 : 288, tx = left ? 288 : 96; g.beginPath(); g.arc(cx, 192, 60, 0, 7); g.fill(); g.beginPath(); g.moveTo(tx, 130); g.lineTo(tx - 65, 250); g.lineTo(tx + 65, 250); g.closePath(); g.fill(); }), ok: t => has(t, left ? /circle/ : /triangle/) && !has(t, left ? /triangle/ : /circle/) },
+      { q: 'Are there more red circles than blue squares in this picture? Answer YES or NO only.', img: mk(g => { for (let i = 0; i < reds; i++) { g.fillStyle = '#e02424'; g.beginPath(); g.arc(40 + (i % 3) * 130, 80 + Math.floor(i / 3) * 140, 34, 0, 7); g.fill(); } for (let i = 0; i < blues; i++) { g.fillStyle = '#1f5fe0'; g.fillRect(300 + (i % 2) * 20, 40 + i * 70, 60, 60); } }), ok: t => { const y = /\byes\b/i.test(t), no = /\bno\b/i.test(t); return reds > blues ? (y && !no) : (no && !y); } },
     ];
   }
   const cos = (a, b) => { let d = 0, x = 0, y = 0; for (let i = 0; i < a.length; i++) { d += a[i] * b[i]; x += a[i] * a[i]; y += b[i] * b[i]; } return d / (Math.sqrt(x * y) || 1); };
 
   /* one model, one event: {score 0..1, raw, notes[], ms} */
   async function runEvent(ev, m, J) {
-    const S = J.signal, quick = J.quick, sys = { role: 'system', content: 'Answer briefly and exactly as asked.' };
-    const tally = async (items, fn) => { let ok = 0; const notes = []; for (const it of items) { if (S.aborted) throw new Error('stopped'); const r = await fn(it); if (r.ok) ok++; notes.push((r.ok ? '✓ ' : '✗ ') + r.note); J.tick(); } return { score: ok / items.length, raw: ok + '/' + items.length, notes }; };
-    if (ev === 'reason') return tally(REASON.slice(0, quick ? 5 : 10), async ([q, chk]) => { const r = await ask(m.name, [sys, { role: 'user', content: q + ' Give the final answer on the last line.' }], { signal: S, max: 350 }); return { ok: chk(r.text), note: q.slice(0, 50) + ' → ' + r.text.split('\n').pop().slice(0, 60) }; });
-    if (ev === 'instr') return tally(INSTR.slice(0, quick ? 5 : 8), async ([q, chk]) => { const r = await ask(m.name, [{ role: 'user', content: q }], { signal: S, max: 200 }); return { ok: chk(r.text), note: q.slice(0, 50) + ' → ' + r.text.replace(/\s+/g, ' ').slice(0, 60) }; });
-    if (ev === 'know') return tally(KNOW.slice(0, quick ? 6 : 10), async ([q, re]) => { const r = await ask(m.name, [sys, { role: 'user', content: q + ' Answer in a few words.' }], { signal: S, max: 80 }); return { ok: re.test(r.text.toLowerCase()), note: q.slice(0, 45) + ' → ' + r.text.slice(0, 50) }; });
-    if (ev === 'code') return tally(CODE.slice(0, quick ? 3 : 6), async ([q, fname, ...tests]) => { const r = await ask(m.name, [{ role: 'system', content: 'You write correct, plain JavaScript. Reply with one ```javascript code block containing only the function, no explanation, no imports, no console output.' }, { role: 'user', content: 'Write the JavaScript function ' + q }], { signal: S, max: 700 }); const res = await runCode(codeOf(r.text), fname, tests), pass = res.filter(Boolean).length; return { ok: pass === tests.length, note: fname + ': ' + pass + '/' + tests.length + ' tests pass' }; });
-    if (ev === 'speed') { const r = await ask(m.name, [{ role: 'user', content: SPEED }], { signal: S, max: 160 }); J.tick(); return { score: r.tps, raw: r.tps.toFixed(1) + ' tok/s', notes: ['first word after ' + (r.ttft / 1000).toFixed(1) + ' s', r.tokens + ' tokens in ' + (r.ms / 1000).toFixed(1) + ' s'], higherIsRaw: true }; }
-    if (ev === 'vision') return tally(visionTasks().slice(0, quick ? 3 : 4), async t => { const r = await ask(m.name, [{ role: 'user', content: t.q, images: [t.img] }], { signal: S, max: 60 }); return { ok: t.ok(r.text), note: t.q.slice(0, 40) + ' → ' + r.text.slice(0, 40) }; });
+    const S = J.signal, L = J.level || LEVELS[0], N = L.n || {}, sys = { role: 'system', content: 'Answer briefly and exactly as asked.' };
+    /* the clock: how many seconds one answer gets at this level (0 = untimed, the Club meet) */
+    const CLOCK = { reason: 1, instr: 1, know: .8, vision: 1.5, code: 3, write: 4, speed: 2 };
+    const clock = Math.round(L.clock * (CLOCK[ev] || 1));
+    /* the answer budget shrinks with the pressure, so a model that waffles runs out of room */
+    const cap = n => Math.max(40, Math.round(n * (L.max || 1)));
+    const timed = fn => {
+      if (!clock) return fn(S);
+      const c = new AbortController(), onAbort = () => c.abort();
+      S.addEventListener('abort', onAbort);
+      const t = setTimeout(() => c.abort(), clock * 1000);
+      return fn(c.signal)
+        .catch(e => { if (S.aborted) throw e; throw Object.assign(new Error('out of time'), { timeout: true }); })
+        .finally(() => { clearTimeout(t); S.removeEventListener('abort', onAbort); });
+    };
+    const tally = async (items, fn) => {
+      let ok = 0; const notes = [];
+      for (const it of items) {
+        if (S.aborted) throw new Error('stopped');
+        try { const r = await fn(it); if (r.ok) ok++; notes.push((r.ok ? '✓ ' : '✗ ') + r.note); }
+        catch (e) { if (S.aborted) throw e; notes.push('✗ ' + (e.timeout ? 'no answer inside ' + clock + ' s' : String(e.message || e).slice(0, 70))); }
+        J.tick();
+      }
+      return { score: items.length ? ok / items.length : 0, raw: ok + '/' + items.length, notes };
+    };
+    if (ev === 'reason') return tally(take(POOL.reason, L.pitch, N.reason || 5), async ([q, chk]) => {
+      const r = await timed(sig => ask(m.name, [sys, { role: 'user', content: q + ' Give the final answer on the last line.' }], { signal: sig, max: cap(350) }));
+      return { ok: chk(r.text), note: (r.ms / 1000).toFixed(0) + ' s · ' + q.slice(0, 46) + ' → ' + r.text.split('\n').pop().slice(0, 60) };
+    });
+    if (ev === 'instr') return tally(take(POOL.instr, L.pitch, N.instr || 5), async ([q, chk]) => {
+      const r = await timed(sig => ask(m.name, [{ role: 'user', content: q }], { signal: sig, max: cap(200) }));
+      return { ok: chk(r.text), note: (r.ms / 1000).toFixed(0) + ' s · ' + q.slice(0, 46) + ' → ' + r.text.replace(/\s+/g, ' ').slice(0, 60) };
+    });
+    if (ev === 'know') return tally(take(POOL.know, L.pitch, N.know || 6), async ([q, re]) => {
+      const r = await timed(sig => ask(m.name, [sys, { role: 'user', content: q + ' Answer in a few words.' }], { signal: sig, max: cap(80) }));
+      return { ok: re.test(r.text.toLowerCase()), note: (r.ms / 1000).toFixed(0) + ' s · ' + q.slice(0, 42) + ' → ' + r.text.slice(0, 50) };
+    });
+    if (ev === 'code') return tally(take(POOL.code, L.pitch, N.code || 3), async c => {
+      const r = await timed(sig => ask(m.name, [{ role: 'system', content: 'You write correct, plain JavaScript. Reply with one ```javascript code block containing only the function, no explanation, no imports, no console output.' }, { role: 'user', content: 'Write the JavaScript function ' + c.d }], { signal: sig, max: cap(700) }));
+      const res = await runCode(codeOf(r.text), c.f, c.t), pass = res.filter(Boolean).length;
+      return { ok: pass === c.t.length, note: c.f + ': ' + pass + '/' + c.t.length + ' tests · ' + (r.ms / 1000).toFixed(0) + ' s' };
+    });
+    if (ev === 'speed') {
+      const r = await timed(sig => ask(m.name, [{ role: 'user', content: SPEED }], { signal: sig, max: cap(160) })); J.tick();
+      return { score: r.tps, raw: r.tps.toFixed(1) + ' tok/s', notes: ['first word after ' + (r.ttft / 1000).toFixed(1) + ' s', r.tokens + ' tokens in ' + (r.ms / 1000).toFixed(1) + ' s'], higherIsRaw: true };
+    }
+    if (ev === 'vision') return tally(visionTasks().slice(0, N.vision || 3), async t => {
+      const r = await timed(sig => ask(m.name, [{ role: 'user', content: t.q, images: [t.img] }], { signal: sig, max: cap(60) }));
+      return { ok: t.ok(r.text), note: t.q.slice(0, 40) + ' → ' + r.text.slice(0, 40) };
+    });
     if (ev === 'search') {
+      const set = take(POOL.search, L.pitch, 1)[0] || POOL.search[0];
       const emb = async input => { const r = await fetch('/api/embed', { method: 'POST', signal: S, body: JSON.stringify({ model: m.name, input }) }); const j = await r.json(); if (!r.ok || !j.embeddings || !j.embeddings.length) throw new Error(j.error || 'no embeddings'); return j.embeddings; };
-      const P = await emb(SEARCH.passages), Q = await emb(SEARCH.qs.map(x => x[0])); J.tick();
-      let ok = 0; const notes = SEARCH.qs.map(([q, want], i) => { const best = P.map((p, k) => [cos(Q[i], p), k]).sort((a, b) => b[0] - a[0])[0][1]; if (best === want) ok++; return (best === want ? '✓ ' : '✗ ') + q; });
-      return { score: ok / SEARCH.qs.length, raw: ok + '/' + SEARCH.qs.length, notes };
+      const P = await emb(set.passages), Q = await emb(set.qs.map(x => x[0])); J.tick();
+      let ok = 0; const notes = set.qs.map(([q, want], i) => { const best = P.map((p, k) => [cos(Q[i], p), k]).sort((a, b) => b[0] - a[0])[0][1]; if (best === want) ok++; return (best === want ? '✓ ' : '✗ ') + q; });
+      return { score: ok / set.qs.length, raw: ok + '/' + set.qs.length, notes: ['level: ' + (set.lvl || 0)].concat(notes) };
     }
     if (ev === 'write') {
-      const r = await ask(m.name, [{ role: 'user', content: WRITE }], { signal: S, max: 400, temp: .8 }); J.tick();
+      /* a brief with a hard word window at the higher levels: the judge scores it, the word count is checked by code */
+      const win = L.pitch >= 3 ? [110, 130] : L.pitch >= 2 ? [100, 140] : L.pitch >= 1 ? [90, 150] : [0, 999];
+      const brief = win[0] ? 'Write a story of between ' + win[0] + ' and ' + win[1] + ' words about ' + WRITE.slice(WRITE.indexOf('about') + 6) : WRITE;
+      const r = await timed(sig => ask(m.name, [{ role: 'user', content: brief }], { signal: sig, max: cap(400), temp: .8 })); J.tick();
+      const wc = r.text.trim().split(/\s+/).filter(Boolean).length;
       let sc = 0, why = '';
-      try { const jr = await ask(J.judge, [{ role: 'system', content: 'You are a strict, fair writing judge. Reply with JSON only: {"creativity":0-10,"coherence":0-10,"brief":0-10,"why":"one sentence"}' }, { role: 'user', content: 'The brief: ' + WRITE + '\n\nThe story:\n' + r.text.slice(0, 2500) }], { signal: S, max: 200 }); const j = A.ai.json(jr.text) || {}; sc = ((+j.creativity || 0) + (+j.coherence || 0) + (+j.brief || 0)) / 30; why = String(j.why || ''); } catch (e) { if (S.aborted) throw e; why = 'The judge could not score it.'; }
-      J.tick(); return { score: sc, raw: Math.round(sc * 100) + '/100', notes: [why, r.text.slice(0, 600)] };
+      try { const jr = await ask(J.judge, [{ role: 'system', content: 'You are a strict, fair writing judge. Reply with JSON only: {"creativity":0-10,"coherence":0-10,"brief":0-10,"why":"one sentence"}' }, { role: 'user', content: 'The brief: ' + brief + '\n\nThe story:\n' + r.text.slice(0, 2500) }], { signal: S, max: 200 }); const j = A.ai.json(jr.text) || {}; sc = ((+j.creativity || 0) + (+j.coherence || 0) + (+j.brief || 0)) / 30; why = String(j.why || ''); } catch (e) { if (S.aborted) throw e; why = 'The judge could not score it.'; }
+      const inWindow = wc >= win[0] && wc <= win[1];
+      if (!inWindow) sc = sc * .5;
+      J.tick(); return { score: sc, raw: Math.round(sc * 100) + '/100', notes: [(inWindow ? '✓ ' : '✗ ') + wc + ' words (the brief asked ' + (win[0] ? win[0] + '–' + win[1] : 'any length') + ')', why, r.text.slice(0, 600)] };
     }
     throw new Error('unknown event');
   }
@@ -163,11 +333,11 @@
   let JOB = null, DB = null;
   async function db() { if (DB) return DB; try { DB = await A.api('/api/kv?name=olympics'); } catch (e) { DB = []; } if (!Array.isArray(DB)) DB = []; return DB; }
   async function save(rec) { const d = await db(); d.unshift(rec); DB = d.slice(0, 60); try { await A.api('/api/kv?name=olympics', DB); } catch (e) { } }
-  async function startGames(sel, events, quick, judge) {
-    if (JOB && JOB.running) return; const ctl = new AbortController();
+  async function startGames(sel, events, level, judge) {
+    if (JOB && JOB.running) return; const ctl = new AbortController(); const L = lvlOf(level && level.id ? level.id : level);
     const plan = []; sel.forEach(m => events.forEach(e => { if (can(m, EVENTS.find(x => x.id === e).need)) plan.push([m, e]); }));
-    JOB = { running: true, ctl, quick, judge, at: Date.now(), plan, done: 0, steps: 0, now: '', results: {}, models: sel.map(m => m.name), events, err: {} };
-    const J = { signal: ctl.signal, quick, judge, tick: () => { JOB.steps++; paint(); } };
+    JOB = { running: true, ctl, level: L, judge, at: Date.now(), plan, done: 0, steps: 0, now: '', results: {}, models: sel.map(m => m.name), events, err: {} };
+    const J = { signal: ctl.signal, level: L, judge, tick: () => { JOB.steps++; paint(); } };
     for (const [m, e] of plan) {      /* model by model, so each model loads only once */
       if (ctl.signal.aborted) break;
       JOB.now = bare(m.name) + ' · ' + EVENTS.find(x => x.id === e).name; paint();
@@ -176,7 +346,7 @@
       JOB.done++; paint();
     }
     JOB.running = false; JOB.now = ctl.signal.aborted ? 'Stopped.' : 'Finished.';
-    if (JOB.done) await save({ type: 'games', at: JOB.at, quick, judge, models: JOB.models, events, results: JOB.results, err: JOB.err, stopped: ctl.signal.aborted });
+    if (JOB.done) await save({ type: 'games', at: JOB.at, level: L.id, levelName: L.name, judge, models: JOB.models, events, results: JOB.results, err: JOB.err, stopped: ctl.signal.aborted });
     paint();
   }
 
@@ -228,7 +398,8 @@
   function tableHtml(deb) {
     const g = lastGames(), M = medals(g ? g.results : {}, deb), EV = EVENTS.concat([{ id: 'debate', icon: '🗣', name: 'Debate' }]);
     if (!g && !(deb || []).length) return '<div class="card"><h3 style="margin-top:0">No Games yet</h3><p>Press <b>▶ Run the Games</b>: every model on this PC competes in the events it can do. Results with right answers are scored automatically; the story is scored by a judge model. Debates from the Debate page count too, and the Build-off is judged by you.</p></div>';
-    let h = '<div class="small mute" style="margin-bottom:8px">' + (g ? 'From the Games on ' + new Date(g.at).toLocaleString() + (g.quick ? ' (quick)' : ' (full)') + (g.stopped ? ', stopped early' : '') : 'No Games run yet') + ' · debates: ' + (deb || []).length + '</div>';
+    const lv = g && g.level ? lvlOf(g.level) : null;
+    let h = '<div class="small mute" style="margin-bottom:8px">' + (g ? 'From the Games on ' + new Date(g.at).toLocaleString() + (lv ? ' · ' + lv.icon + ' ' + lv.name : g.quick ? ' (quick)' : '') + (g.stopped ? ', stopped early' : '') : 'No Games run yet') + ' · debates: ' + (deb || []).length + '</div>';
     h += '<table class="oltab"><tr><th>#</th><th>Model</th><th>🥇</th><th>🥈</th><th>🥉</th><th>Points</th><th>Best at</th></tr>' + M.map(([n, t], i) => '<tr><td>' + (i < 3 ? MEDAL[i] : i + 1) + '</td><td><b>' + esc(bare(n)) + '</b></td><td>' + t.g + '</td><td>' + t.s + '</td><td>' + t.b + '</td><td>' + t.pts + '</td><td class="small">' + t.best.map(e => { const x = EV.find(y => y.id === e); return x ? x.icon + ' ' + x.name : e; }).join(', ') + '</td></tr>').join('') + '</table>';
     if (g) {
       h += '<h3>Event by event</h3><div class="olgrid">' + EVENTS.filter(e => g.results[e.id]).map(e => { const per = Object.entries(g.results[e.id]).sort((a, b) => b[1].score - a[1].score); return '<div class="card"><b>' + e.icon + ' ' + e.name + '</b><div class="small mute">' + esc(e.desc) + '</div>' + per.map(([n, r], i) => '<details><summary>' + (i < 3 && r.score > 0 ? MEDAL[i] + ' ' : '') + esc(bare(n)) + ' <span class="mute">' + esc(r.raw) + '</span></summary><div class="small" style="white-space:pre-wrap">' + esc((r.notes || []).join('\n')) + '</div></details>').join('') + '</div>'; }).join('') + '</div>';
@@ -240,7 +411,7 @@
     if (JOB && (JOB.running || Date.now() - JOB.at < 6e5)) {
       const pct = JOB.plan.length ? Math.round(100 * JOB.done / JOB.plan.length) : 0;
       let h = '<div class="card"><div class="row" style="align-items:center;gap:8px"><b style="flex:1">' + (JOB.running ? '⏳ The Games are on' : '🏁 ' + esc(JOB.now)) + '</b>' + (JOB.running ? '<button class="ib dang" data-a="stop">■ Stop</button>' : '<button class="ib" data-a="new">New Games</button><button class="pri" data-a="seetable">See the medals</button>') + '</div>' +
-        '<div class="bar" style="margin:8px 0"><i style="width:' + pct + '%"></i></div><div class="small mute">' + JOB.done + ' of ' + JOB.plan.length + ' events done · ' + esc(JOB.now) + ' · you can switch to other pages, it keeps going</div></div>';
+        '<div class="bar" style="margin:8px 0"><i style="width:' + pct + '%"></i></div><div class="small mute">' + JOB.level.icon + ' ' + esc(JOB.level.name) + ' · ' + JOB.done + ' of ' + JOB.plan.length + ' events done · ' + esc(JOB.now) + (JOB.level.clock ? ' · ' + JOB.level.clock + ' s a question' : ' · untimed') + ' · you can switch to other pages, it keeps going</div></div>';
       h += '<table class="oltab"><tr><th>Model</th>' + JOB.events.map(e => '<th>' + EVENTS.find(x => x.id === e).icon + '</th>').join('') + '</tr>' + JOB.models.map(n => '<tr><td>' + esc(bare(n)) + '</td>' + JOB.events.map(e => { const r = (JOB.results[e] || {})[n], er = (JOB.err[e] || {})[n]; return '<td class="small">' + (r ? esc(r.raw) : er ? '<span class="bad" title="' + esc(er) + '">✗</span>' : JOB.plan.some(([m, x]) => m.name === n && x === e) ? '·' : '<span class="mute">n/a</span>') + '</td>'; }).join('') + '</tr>').join('') + '</table>';
       return h;
     }
@@ -248,13 +419,14 @@
     return '<div class="card"><b>Who competes</b><div class="small mute" style="margin:2px 0 8px">Every model gets the events it can do: 👁 can see pictures, 🔎 can make embeddings for search, ☁ a guest on Claude (costs a little; only test questions are sent, never your files).</div><div class="olms">' +
       ms.map(m => '<label class="chk"><input type="checkbox" data-m="' + esc(m.name) + '"' + (m.cloud ? '' : ' checked') + '> ' + esc(m.label) + ' <span class="small mute">' + (m.size ? (m.size / 1e9).toFixed(1) + ' GB ' : '') + (m.vision ? '👁' : '') + (m.embed ? '🔎' : '') + (m.cloud ? '☁' : '') + (m.embedOnly ? ' search only' : '') + '</span></label>').join('') + '</div></div>' +
       '<div class="card"><b>Events</b><div class="olms">' + EVENTS.map(e => { const none = !ms.some(m => can(m, e.need)); return '<label class="chk"><input type="checkbox" data-e="' + e.id + '"' + (none ? ' disabled' : ' checked') + '> ' + e.icon + ' ' + e.name + ' <span class="small mute">' + esc(none && e.id === 'search' ? 'No search model yet: get nomic-embed-text (about 0.3 GB) in Prepare › Stock up › AI models, by name' : none ? 'No model here can do this' : e.desc) + '</span></label>'; }).join('') + '</div>' +
-      '<div class="row" style="gap:10px;margin-top:10px;flex-wrap:wrap;align-items:center"><label class="small">Length <select id="olq"><option value="1">Quick (about 2 to 4 minutes per model)</option><option value="0">Full (twice as long)</option></select></label><label class="small">Writing judge <select id="olj">' + ms.filter(m => m.chat).map(m => '<option value="' + esc(m.name) + '"' + (m.name === judgeDef ? ' selected' : '') + '>' + esc(m.label) + '</option>').join('') + '</select></label></div>' +
+      '<div style="margin-top:12px"><b>How much pressure</b><div class="small mute" style="margin:2px 0 6px">Pick the level that fits the models you are entering. A small model at the Inferno final is meant to be torn apart; a big one at the Club meet is only warming up.</div>' + levelPicker() + '</div>' +
+      '<div class="row" style="gap:10px;margin-top:10px;flex-wrap:wrap;align-items:center"><label class="small">Writing judge <select id="olj">' + ms.filter(m => m.chat).map(m => '<option value="' + esc(m.name) + '"' + (m.name === judgeDef ? ' selected' : '') + '>' + esc(m.label) + '</option>').join('') + '</select></label></div>' +
       '<div class="row" style="gap:8px;margin-top:12px"><button class="pri" data-a="start">🏁 Start the Games</button><span class="small mute">Models run one at a time; each loads once.</span></div></div>' +
       '<div class="card small mute">The Debate page (Chat › 🗣 Debate) hands out debate medals. The Build-off and the Picture duel are judged by you.</div>';
   }
   function histHtml() {
     const d = DB || []; if (!d.length) return '<div class="mute">Nothing yet.</div>';
-    return d.map(r => '<div class="card"><b>' + (r.type === 'games' ? '🏅 Games' : r.type === 'build' ? '🏗 Build-off: ' + esc(r.challenge) : '🖼 Picture duel: ' + esc(r.prompt)) + '</b> <span class="small mute">' + new Date(r.at).toLocaleString() + '</span>' +
+    return d.map(r => '<div class="card"><b>' + (r.type === 'games' ? '🏅 Games' : r.type === 'build' ? '🏗 Build-off: ' + esc(r.challenge) : '🖼 Picture duel: ' + esc(r.prompt)) + '</b> <span class="small mute">' + (r.type === 'games' && r.level ? lvlOf(r.level).icon + ' ' + lvlOf(r.level).name + ' · ' : '') + new Date(r.at).toLocaleString() + '</span>' +
       (r.type === 'games' ? '<div class="small">' + medals(r.results).slice(0, 3).map(([n], i) => MEDAL[i] + ' ' + esc(bare(n))).join(' · ') + '</div>' : r.type === 'build' ? '<div class="small">' + (r.ranking || []).map((n, i) => (MEDAL[i] || (i + 1) + '.') + ' ' + esc(bare(n))).join(' · ') + '</div>' : '<div class="small">Your pick: ' + esc(r.winner || '-') + '</div>') + '</div>').join('');
   }
 
@@ -330,8 +502,9 @@
     if (d.a === 'start') {
       const sel = (MODELS || []).filter(m => root.querySelector('[data-m="' + CSS.escape(m.name) + '"]').checked), evs = EVENTS.map(x => x.id).filter(id => root.querySelector('[data-e="' + id + '"]').checked);
       if (!sel.length || !evs.length) return A.toast('Pick at least one model and one event.');
-      const judge = root.querySelector('#olj').value, quick = root.querySelector('#olq').value === '1';
-      startGames(sel, evs, quick, judge); draw();
+      const judge = root.querySelector('#olj').value;
+      const picked = root.querySelector('input[name="ollv"]:checked');
+      startGames(sel, evs, picked ? picked.value : 'club', judge); draw();
     }
     else if (d.a === 'stop') { if (JOB) JOB.ctl.abort(); }
     else if (d.a === 'new') { JOB = null; draw(); }
@@ -349,5 +522,10 @@
     else if (d.a === 'dnew') { DUEL = null; draw(); }
   }
 
-  A.olympics = { render, EVENTS, ask, models, medals, runCode, _t: { REASON, INSTR, CODE, KNOW, SEARCH } };
+  /* the level cards the Run page shows */
+  function levelPicker() {
+    return '<div class="ollevels">' + LEVELS.map((l, i) => '<label class="ollev' + (i === 0 ? ' on' : '') + '" data-lv="' + l.id + '"><input type="radio" name="ollv" value="' + l.id + '"' + (i === 0 ? ' checked' : '') + '><span class="ollv-i">' + l.icon + '</span><span class="ollv-t"><b>' + esc(l.name) + '</b><span class="small mute">' + esc(l.blurb) + '</span><span class="small">' + (l.clock ? l.clock + ' s a question' : 'untimed') + ' · up to ' + Math.max(...Object.values(l.n)) + ' items an event</span></span></label>').join('') + '</div>';
+  }
+
+  A.olympics = { render, EVENTS, LEVELS, ask, models, medals, runCode, _t: { REASON, INSTR, CODE, KNOW, SEARCH, POOL, HARD, take, LEVELS } };
 })();
