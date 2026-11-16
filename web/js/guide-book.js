@@ -75,13 +75,30 @@
     const cut = text.slice(0, 220), at = cut.lastIndexOf(' ');
     return cut.slice(0, at > 130 ? at : 220).replace(/[,;:.\s]+$/, '') + '…';
   }
-  function threads(html) {
-    const out = [], re = /<li[^>]*>([\s\S]*?)<\/li>/gi;
+  /* An opener is the short summary and up to three "threads" shown on the left page. The first paragraph
+     is the summary when there is one; otherwise the first list item is. Threads never repeat the summary. */
+  function opener(html) {
+    const lis = [], re = /<li[^>]*>([\s\S]*?)<\/li>/gi;
     let m;
-    while ((m = re.exec(html)) && out.length < 3) { const t = plain(m[1]); if (t.length > 28) out.push(clip(t, 142)); }
-    if (out.length) return out;
-    const sents = plain(html).split(/(?<=[.!?])\s+/).filter(s => s.length > 55);
-    return (sents.length > 1 ? sents.slice(1, 4) : sents.slice(0, 2)).map(s => clip(s, 142));
+    while ((m = re.exec(html))) { const t = plain(m[1]); if (t.length > 28) lis.push(t); }
+    const pm = /<p[^>]*>([\s\S]*?)<\/p>/i.exec(html);
+    const lead = pm ? plain(pm[1]) : '';
+    const summary = summarize(lead.length > 40 ? lead : (lis[0] || plain(html)));
+    const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    const ns = norm(summary).slice(0, 80);
+    const dup = t => { const nt = norm(t); return !!ns && (nt.startsWith(ns.slice(0, 40)) || ns.startsWith(nt.slice(0, 40))); };
+    const out = [];
+    for (const t of lis) {
+      if (dup(t) || out.some(x => norm(x) === norm(t))) continue;
+      out.push(clip(t, 142));
+      if (out.length >= 3) break;
+    }
+    if (!out.length) {
+      const sents = plain(html).split(/(?<=[.!?])\s+/).filter(s => s.length > 55);
+      const rest = sents.filter(s => !dup(s));
+      (rest.length ? rest : sents).slice(0, 2).forEach(s => out.push(clip(s, 142)));
+    }
+    return { summary, threads: out };
   }
   const words = t => (String(t || '').match(/\b[\w'’\-]+\b/g) || []).length;
   const fmtMins = n => n >= 60 ? Math.floor(n / 60) + ' hr ' + (n % 60 ? (n % 60) + ' min' : '') : n + ' min';
@@ -114,9 +131,9 @@
       p.chapters = p.ids.map(id => secs.find(s => s.id === id)).filter(Boolean).map(sec => {
         n++;
         const text = plain(sec.html);
-        const w = words(text);
+        const w = words(text), op = opener(sec.html);
         return { id: sec.id, icon: sec.icon || '•', title: sec.title, html: sec.html, text, part: p, n,
-          words: w, mins: Math.max(1, Math.round(w / 200)), summary: summarize(text), threads: threads(sec.html) };
+          words: w, mins: Math.max(1, Math.round(w / 200)), summary: op.summary, threads: op.threads };
       });
       p.chapters.forEach((c, ci) => { c.inPart = ci + 1; });
       return p;
@@ -323,11 +340,12 @@
     if (!root) return;
     const ch = chapters[ix];
     const here = root.querySelector('#gbkHere');
-    if (here) here.innerHTML = ch ? '<b>' + esc(ch.title) + '</b> · Part ' + roman(ch.part.num) : '';
+    if (here) here.innerHTML = (opened && ch) ? '<b>' + esc(ch.title) + '</b> · Part ' + roman(ch.part.num) : '<b>The cover</b> · ' + chapters.length + ' chapters';
     const bar = root.querySelector('#gbkBar');
-    if (bar) bar.style.width = chapters.length ? Math.round((ix + 1) / chapters.length * 100) + '%' : '0';
+    if (bar) bar.style.width = (opened && chapters.length) ? Math.round((ix + 1) / chapters.length * 100) + '%' : '0%';
     const meta = root.querySelector('#gbkMeta');
-    if (meta) meta.innerHTML = ch ? 'Chapter <b>' + (ix + 1) + '</b> of ' + chapters.length + ' · ' + esc(ch.part.title) + ' · ' + seen.size + ' read' : '';
+    if (meta) meta.innerHTML = (opened && ch) ? 'Chapter <b>' + (ix + 1) + '</b> of ' + chapters.length + ' · ' + esc(ch.part.title) + ' · ' + seen.size + ' read'
+      : 'The cover · <b>' + chapters.length + '</b> chapters in ' + parts.length + ' parts · ' + seen.size + ' read';
     const dots = root.querySelector('#gbkDots');
     if (dots) dots.innerHTML = parts.map(p => '<i' + (ch && p.num === ch.part.num ? ' class="on"' : '') + ' title="' + esc(p.title) + '"></i>').join('');
     root.querySelectorAll('[data-a="prev"]').forEach(b => { b.disabled = !opened || ix <= 0; });

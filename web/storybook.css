@@ -164,8 +164,8 @@
 .sb-rbar i{display:block;height:100%;background:linear-gradient(90deg,#d9b24c,#f0d894);width:0;transition:width .3s}
 .sb-rpage.turn-next{animation:sbrn .34s ease both}
 .sb-rpage.turn-prev{animation:sbrp .34s ease both}
-@keyframes sbrn{from{transform:rotateY(0);transform-origin:left center;opacity:1}to{transform:rotateY(-9deg);transform-origin:left center;opacity:.35}}
-@keyframes sbrp{from{transform:rotateY(0);transform-origin:right center;opacity:1}to{transform:rotateY(9deg);transform-origin:right center;opacity:.35}}
+@keyframes sbrn{from{transform:perspective(1400px) rotateY(-10deg);transform-origin:left center;opacity:.35}to{transform:none;transform-origin:left center;opacity:1}}
+@keyframes sbrp{from{transform:perspective(1400px) rotateY(10deg);transform-origin:right center;opacity:.35}to{transform:none;transform-origin:right center;opacity:1}}
 
 @media (max-width:1180px){.sb-ed{grid-template-columns:160px minmax(0,1fr) 300px}}
 @media (max-width:980px){
