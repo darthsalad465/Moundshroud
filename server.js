@@ -492,6 +492,13 @@ const mainServer = http.createServer(async (req, res) => {
     if (url === '/api/docs/reindex' && req.method === 'POST') { docs.reindex().catch(() => {}); return json(res, 200, { ok: true }); }
     if (url === '/api/docs/cancel' && req.method === 'POST') { docs.cancelIndex(); return json(res, 200, { ok: true }); }
     if (url === '/api/docs/search' && req.method === 'POST') { const b = await jbody(req, 1e5); return json(res, 200, { results: await docs.searchSmart(String(b.q || ''), b.n || 6, b.kinds || ['doc', 'note']) }); }
+    /* ---- 3D PC File Brain (lib/pc-brain.js) ---- */
+    if (url === '/api/brain/graph') {
+      const b = req.method === 'POST' ? await jbody(req, 1e4) : {};
+      return json(res, 200, require('./lib/pc-brain').scanGraph({ scope: b.scope || q.get('scope') || 'all', path: b.path || q.get('path') || '', maxNodes: b.maxNodes || q.get('maxNodes') || 480, sources: docs.sources() }));
+    }
+    if (url === '/api/brain/inspect' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, require('./lib/pc-brain').inspectFile(b.path)); }
+    if (url === '/api/brain/reveal' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, require('./lib/pc-brain').revealInExplorer(b.path, !!b.open)); }
     /* ---- better search: local embeddings over the same index (lib/embed.js, lib/docs.js) ---- */
     if (url === '/api/docs/embed') return json(res, 200, { model: await embed.pickModel(true), vectors: docs.vecCount(), scan: docs.vecStatus, job: embed.status().job, preferred: embed.PREFERRED[0] });
     if (url === '/api/docs/embed/build' && req.method === 'POST') { docs.vectorize().catch(() => {}); return json(res, 200, { ok: true }); }
