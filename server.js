@@ -27,6 +27,7 @@ const update = require('./lib/update');
 const agent = require('./lib/agent');
 const godot = require('./lib/godot');
 const artexmod = require('./lib/artex');
+const nativeapps = require('./lib/nativeapps');
 const ROOT = __dirname, DATA = path.join(ROOT, 'data'), WEB = path.join(ROOT, 'web'), CHEF = path.join(ROOT, 'nomad', 'cyberchef');
 const ROOT_DIR_GE = path.join(ROOT, 'engines', 'godot', 'web-editor');          // Godot's official web editor build
 fs.mkdirSync(DATA, { recursive: true });
@@ -799,6 +800,9 @@ const mainServer = http.createServer(async (req, res) => {
     /* Auto-commit on/off: a flag file (data/autocommit.off) the Stop hook's scripts/auto-commit.ps1 reads. */
     if (url === '/api/autocommit' && req.method === 'GET') { const off = fs.existsSync(path.join(DATA, 'autocommit.off')); return json(res, 200, { on: !off }); }
     if (url === '/api/autocommit' && req.method === 'POST') { const b = await jbody(req, 1e3).catch(() => ({})); const f = path.join(DATA, 'autocommit.off'); try { if (b && b.on) { if (fs.existsSync(f)) fs.unlinkSync(f); } else { fs.writeFileSync(f, 'Auto-commit is off. Delete this file, or toggle it on in Settings, to resume.\n'); } } catch (e) { return json(res, 200, { ok: false, error: String(e.message || e) }); } return json(res, 200, { ok: true, on: !!(b && b.on) }); }
+    /* launch a whitelisted installed native app (Cisco Packet Tracer), in its own window */
+    if (url === '/api/cyber/apps') return json(res, 200, { packettracer: nativeapps.status('packettracer') });
+    if (url === '/api/cyber/launch' && req.method === 'POST') { const b = await jbody(req, 1e3).catch(() => ({})); return json(res, 200, nativeapps.launch(String(b.app || ''))); }
     if (url === '/api/cyber/mynetwork') return json(res, 200, cybertools.myNetwork());
     if (url === '/api/cyber/wifi') return json(res, 200, cybertools.wifi());
     if (url === '/api/cyber/connections') return json(res, 200, cybertools.connections());
