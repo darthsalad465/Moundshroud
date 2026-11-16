@@ -61,7 +61,7 @@
     if (!hits.length) return 'I could not find anything for "' + q + '" in your Music library. Try an artist, a composer, a mood like "chill", or a genre.';
     const t = hits.length > 1 ? pick(hits.slice(0, 8)) : hits[0]; A.musicLib.play(t.i); mood('happy', 2500); return 'Playing **' + t.t + '** by ' + t.a + (t.al ? ' (' + t.al + ')' : '') + '.';
   }
-  const TABALIAS = { home: 'home', today: 'home', chat: 'chat', search: 'web', web: 'web', browser: 'web', library: 'lib', lib: 'lib', files: 'files', 'my files': 'files', notes: 'notes', study: 'study', languages: 'lang', language: 'lang', studio: 'studio', tools: 'tools', prepare: 'health', preparedness: 'health', 'first aid': 'health', entertainment: 'play', games: 'play', play: 'play', chess: 'play', music: 'music', spiritual: 'faith', guide: 'guide', help: 'guide' };
+  const TABALIAS = { home: 'home', today: 'home', chat: 'chat', search: 'web', web: 'web', browser: 'web', library: 'lib', lib: 'lib', files: 'files', 'my files': 'files', notes: 'notes', study: 'study', languages: 'lang', language: 'lang', studio: 'studio', tools: 'tools', prepare: 'health', preparedness: 'health', 'first aid': 'health', entertainment: 'play', games: 'play', play: 'play', chess: 'play', music: 'music', radio: 'radio', tv: 'tv', youtube: 'tv', spiritual: 'faith', guide: 'guide', help: 'guide' };
   function openTab(name) {
     const n = norm(name).replace(/\b(the|tab|section|page|app|my|please)\b/g, ' ').replace(/\s+/g, ' ').trim(); let id = TABALIAS[n];
     if (!id) { id = Object.keys(A.tabs || {}).find(k => norm(A.tabs[k].label) === n || norm(A.tabs[k].label).includes(n) && n.length > 2); }

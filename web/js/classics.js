@@ -1,4 +1,4 @@
-// Classics shelf: browse, search and open every book in the Literature collections, with covers. Lives inside the Library tab.
+// Classics shelf: browse, search and open every book in every installed Project Gutenberg collection (literature and the other subjects), with covers. Lives inside the Library tab.
 (() => {
   const root = $('p-lib'); let data = null, loading = null, built = false, list = [], shown = 0, mode = 'books';
   const st = { q: '', sort: ls.get('clssort', 'pop'), shelf: '', author: '', fav: false, recent: false };
@@ -79,7 +79,7 @@
   let authors = [];
   function refresh() {
     chips(); azbar(); const b = $('clsb'); b.scrollTop = 0;
-    if (!data.items.length) { b.innerHTML = '<div style="max-width:520px;margin:40px auto;text-align:center"><div style="font-size:42px">📚</div><h3>No classics here yet</h3><p class="mute">The classic literature collections are not installed, or the library has not been restarted since they were added. Close and reopen Moundshroud, or get them from Prepare &rarr; Stock up &rarr; Classics.</p></div>'; $('clsn').textContent = ''; return; }
+    if (!data.items.length) { b.innerHTML = '<div style="max-width:520px;margin:40px auto;text-align:center"><div style="font-size:42px">📚</div><h3>No Gutenberg books here yet</h3><p class="mute">No Project Gutenberg collection is installed, or the library has not been restarted since they were added. Close and reopen Moundshroud, or get them from Prepare &rarr; Stock up &rarr; Classics.</p></div>'; $('clsn').textContent = ''; return; }
     if (mode === 'authors') {
       const m = {}; data.items.forEach(x => { if (!st.shelf || x.s === st.shelf) m[x.a] = (m[x.a] || 0) + 1; }); const w = norm(st.q);
       authors = Object.entries(m).filter(x => !w || norm(x[0]).includes(w)).sort((p, q) => norm(surname(p[0])).localeCompare(norm(surname(q[0]))));
@@ -102,7 +102,7 @@
     close(); A.library.read(url(it), it.t);
   }
   async function open() {
-    A.showTab('lib'); build(); const ov = $('cls'); ov.style.display = 'flex'; $('clsb').innerHTML = '<p class="mute" style="text-align:center;margin-top:40px">Loading the shelves...</p>';
+    A.showTab('lib'); build(); try { A.wikibooks && A.wikibooks.close(); } catch (e) { } const ov = $('cls'); ov.style.display = 'flex'; $('clsb').innerHTML = '<p class="mute" style="text-align:center;margin-top:40px">Loading the shelves...</p>';
     await load(); refresh(); setTimeout(() => $('clsq').focus(), 50);
   }
   function close() { const ov = $('cls'); if (ov) ov.style.display = 'none'; }

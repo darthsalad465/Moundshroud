@@ -9,6 +9,12 @@ const cloud = require('./lib/cloud');
 const gateway = require('./lib/gateway');
 const net = require('./lib/net');
 const news = require('./lib/news');
+const radio = require('./lib/radio');
+const tv = require('./lib/tv');
+const youtube = require('./lib/youtube');
+const convlib = require('./lib/convlib');
+const ytdl = require('./lib/ytdl');
+const cybertools = require('./lib/cybertools');
 const privacy = require('./lib/privacy');
 const markets = require('./lib/markets');
 const inventory = require('./lib/inventory');
@@ -19,7 +25,9 @@ const lichess = require('./lib/lichess');
 const appmap = require('./lib/appmap');
 const update = require('./lib/update');
 const agent = require('./lib/agent');
+const godot = require('./lib/godot');
 const ROOT = __dirname, DATA = path.join(ROOT, 'data'), WEB = path.join(ROOT, 'web'), CHEF = path.join(ROOT, 'nomad', 'cyberchef');
+const ROOT_DIR_GE = path.join(ROOT, 'engines', 'godot', 'web-editor');          // Godot's official web editor build
 fs.mkdirSync(DATA, { recursive: true });
 const PORT = +process.env.MOUNDSHROUD_PORT || +process.env.ATLAS_PORT || 47231, OLLAMA = { host: '127.0.0.1', port: 11434 };
 const LIBPORT = PORT + 9;                       // the offline library's own address (see the end of this file); the window works it out the same way
@@ -27,6 +35,11 @@ try { require('./lib/migrate').run(); } catch (e) { }                      // on
 const OLLAMA_EXE =path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Ollama', 'ollama.exe');
 const CHATS = path.join(DATA, 'chats.json');
 const started = Date.now();
+/* Is the code on the disk newer than this running copy? With phone access on, the server used to stay up through every
+   close of the window, so new parts (long videos, FLUX pictures) answered "not found" until Quit. An out-of-date server
+   now tells the page, and stops staying up for the phone once nothing is being made; the tray helper starts the new code. */
+const code = require('./lib/codestamp').create(__dirname);
+const outdated = every => { try { return code.changed(every) && !media.busy.image && !media.busy.video && !media.busy.music && !harness.state(1e12).busy; } catch (e) { return false; } };
 let kiwixWarm = false, incoming = null, spawnedOllama = null, lastPing = 0, seen = false, closingAt = 0, down = false;
 
 function killTree(pid) { try { cp.spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true }); } catch (e) {} }
@@ -37,6 +50,7 @@ function cleanup() {
   try { harness.stop(); } catch (e) {}      // the hidden Claude Code process of the in-app agent
   try { routines.shutdown(); } catch (e) {}  // and a routine's, if one is running
   try { remote.stop(); } catch (e) {}        // and the phone server
+  try { bibleLib.close(); } catch (e) {}     // and the Bible Expert's index builder, if it is running
   try { longvideo.shutdown(); } catch (e) {} // and a long video's shot (its finished shots are kept; Resume carries on)
 }
 try { require('./lib/chess-sf').setActive(() => Date.now() - lastPing < 90000); } catch (e) { }
@@ -117,7 +131,7 @@ const jbody = async (req, limit) => { const t = await body(req, limit); return t
 function json(res, code, obj) { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); }
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff': 'font/woff', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.wasm': 'application/wasm', '.txt': 'text/plain; charset=utf-8', '.map': 'application/json', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.ogg': 'audio/ogg', '.mp3': 'audio/mpeg', '.zip': 'application/zip', '.whl': 'application/zip', '.tar': 'application/x-tar', '.mp4': 'video/mp4', '.webm': 'video/webm' };      /* .zip/.whl: the Python sandbox's standard library and packages (web/vendor/pyodide) */
 const CHESSBOOKS = path.join(__dirname, 'nomad', 'chessbooks');
-const bibleLib = require('./lib/bible').create(DATA, path.join(WEB, 'data'));      /* Chat > Bible: passage search over data\bible\*.txt */
+const bibleLib = require('./lib/bible').create(DATA, path.join(WEB, 'data'));      /* Spiritual > Bible Expert: passage search (SQLite full-text index data\bible-index.db) over the built-in texts, data\christian-texts\ and data\bible\ */
 /* the picture model: the compact ready-made q8 copy (3.9 GB) when it is there, else the original (6.5 GB, made compact in memory each time) */
 /* pictures, music, voices and video: the engines live in lib/media.js; teams and swarms in lib/swarm.js */
 const media = require('./lib/media'), swarm = require('./lib/swarm'), swarmModel = require('./lib/swarm-model');
@@ -147,6 +161,7 @@ const routines = require('./lib/routines').create({ dataDir: DATA, harnessLib, s
   }))) });
 /* long videos (lib/longvideo.js): any length, shot by shot, joined with ffmpeg; jobs run here on the server */
 const longvideo = require('./lib/longvideo').create({ dataDir: DATA, media });
+const mediaconv = require('./lib/mediaconv');
 /* phone access (lib/remote.js): off until switched on in Settings; these are the only things a phone can do */
 const remote = require('./lib/remote').create({ dataDir: DATA, webDir: WEB, mainPort: PORT, deferStart: true, loopback: process.env.MOUNDSHROUD_REMOTE_LOOPBACK === '1', routes: {
   'GET /api/status': async x => x.send(200, { ok: true, models: await localModels(), agent: (s => ({ running: s.running, busy: s.busy, title: s.title }))(harness.state(1e12)), routines: (r => ({ unread: r.unread, running: r.running }))(routines.list()) }),
@@ -219,7 +234,7 @@ const allowedPath = p => { p = path.normalize(String(p || '')); if (p.includes('
    its Host header (blocks DNS rebinding), and any Origin / Sec-Fetch-Site the browser adds must say "this same site" (blocks cross-site
    requests). The tray helper and scripts send neither header and are unaffected. */
 const SELF = new Set(['127.0.0.1:' + PORT, 'localhost:' + PORT]), SELF_ORIGIN = new Set(['http://127.0.0.1:' + PORT, 'http://localhost:' + PORT]);
-const CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: data:; worker-src 'self' blob:; frame-src 'self' blob: data: http://127.0.0.1:" + LIBPORT + " http://localhost:" + LIBPORT + "; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
+const CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: data:; worker-src 'self' blob:; frame-src 'self' blob: data: http://127.0.0.1:" + LIBPORT + " http://localhost:" + LIBPORT + " https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
 function allowedCaller(req) {
   const h = req.headers, host = String(h.host || '').toLowerCase(), org = h.origin, sfs = h['sec-fetch-site'];
   return SELF.has(host) && (!org || SELF_ORIGIN.has(String(org).toLowerCase())) && (!sfs || sfs === 'same-origin' || sfs === 'none');
@@ -251,10 +266,10 @@ const mainServer = http.createServer(async (req, res) => {
     }
     /* ---- lifecycle ---- */
     if (url === '/api/status') return ollamaUp(up => json(res, 200, { ok: true, ollama: up, lib: kiwix.available(), voice: voice.available(), chef: fs.existsSync(CHEF) }));
-    if (url === '/api/ping') { lastPing = Date.now(); seen = true; closingAt = 0; if (!kiwixWarm && kiwix.available()) { kiwixWarm = true; setTimeout(() => kiwix.ensureP().catch(() => {}), 2500); } return json(res, 200, { ok: true }); }     // start the library in the background so the first lookup is instant
+    if (url === '/api/ping') { lastPing = Date.now(); seen = true; closingAt = 0; if (!kiwixWarm && kiwix.available()) { kiwixWarm = true; setTimeout(() => kiwix.ensureP().catch(() => {}), 2500); } return json(res, 200, { ok: true, stale: code.changed() }); }     // start the library in the background so the first lookup is instant; stale: this copy is older than the code on the disk
     if (url === '/api/closing') { closingAt = Date.now() + 6000; return json(res, 200, { ok: true }); }
     /* the tray helper says {why:'closed'} when the window was closed: a routine that is running finishes first (Quit stops everything) */
-    if (url === '/api/shutdown') { let b = {}; try { b = req.method === 'POST' ? await jbody(req, 1e3) : {}; } catch (e) { } json(res, 200, { ok: true }); if (b && b.why === 'closed' && (routines.busy() || remote.on() || longvideo.busy())) { seen = false; return; } return setTimeout(shutdown, 50); }
+    if (url === '/api/shutdown') { let b = {}; try { b = req.method === 'POST' ? await jbody(req, 1e3) : {}; } catch (e) { } json(res, 200, { ok: true }); if (b && b.why === 'closed' && (routines.busy() || longvideo.busy() || (remote.on() && !outdated(0)))) { seen = false; return; } return setTimeout(shutdown, 50); }
     if (url === '/api/warm' && req.method === 'POST') {
       const m = (await jbody(req, 1e5)).model || ''; json(res, 200, { ok: true }); if (!m) return;
       return ensureOllama(up => { if (!up) return; const p = JSON.stringify({ model: m, prompt: '', stream: false, keep_alive: '3m' });
@@ -262,6 +277,42 @@ const mainServer = http.createServer(async (req, res) => {
     }
     /* ---- AI ---- */
     /* the model list the picker shows: Claude models first when a key is saved, then the local ones */
+    /* ---- Studio > Godot engine: the AI writes the project, this writes it to the disk and starts the engine ---- */
+    if (url === '/api/godot') return json(res, 200, godot.status());
+    if (url === '/api/godot/projects') return json(res, 200, { projects: godot.list(), home: godot.HOME, engine: godot.findEngine() });
+    if (url === '/api/godot/tree') return json(res, 200, godot.tree(q.get('name') || ''));
+    if (url === '/api/godot/file') return json(res, 200, godot.read(q.get('name') || '', q.get('file') || ''));
+    if (url === '/api/godot/save' && req.method === 'POST') { const b = await jbody(req, 8e6); return json(res, 200, godot.save(b.name, b.files)); }
+    if (url === '/api/godot/launch' && req.method === 'POST') { const b = await jbody(req, 4e3); return json(res, 200, godot.launch(b.name, !!b.play)); }
+    if (url === '/api/godot/delete' && req.method === 'POST') { const b = await jbody(req, 4e3); return json(res, 200, godot.remove(b.name)); }
+    if (url === '/api/godot/export' && req.method === 'POST') { const b = await jbody(req, 4e3); return json(res, 200, godot.exportWeb(b.name)); }
+    /* the Godot editor inside the Moundshroud window: our page (web/godot-editor.html) plus Godot's official web editor
+       files (engines/godot/web-editor). Its threads need SharedArrayBuffer, which only a cross-origin isolated page
+       gets, so this page alone carries the COOP/COEP headers. */
+    if (req.method === 'GET' && (url === '/godot-editor' || url.startsWith('/godot-editor/'))) {
+      if (url === '/godot-editor') { res.writeHead(302, { Location: '/godot-editor/' + (u.search || '') }); return res.end(); }
+      const rel = url.slice('/godot-editor/'.length) || 'index.html';
+      const GE = { 'index.html': [path.join(WEB, 'godot-editor.html'), 'text/html; charset=utf-8'], 'godot.editor.js': 0, 'godot.editor.wasm': 0, 'godot.editor.audio.worklet.js': 0, 'godot.editor.audio.position.worklet.js': 0, 'logo.svg': 0, 'favicon.png': 0, 'inter-regular.woff2': 0, 'inter-bold.woff2': 0 };
+      if (!(rel in GE)) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('not found'); }
+      const TY = { '.js': 'text/javascript; charset=utf-8', '.wasm': 'application/wasm', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2' };
+      const [file, type] = GE[rel] || [path.join(ROOT_DIR_GE, rel), TY[path.extname(rel)] || 'application/octet-stream'];
+      if (!fs.existsSync(file)) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end(rel === 'index.html' ? 'missing page' : 'The Godot web editor is not installed (engines\\godot\\web-editor).'); }
+      res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; connect-src 'self' blob: data:; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; media-src 'self' blob:; object-src 'none'; base-uri 'self'");
+      res.setHeader('Cross-Origin-Opener-Policy', 'same-origin'); res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+      res.writeHead(200, { 'Content-Type': type, 'Content-Length': fs.statSync(file).size, 'Cache-Control': rel === 'index.html' ? 'no-store' : 'private, max-age=86400' });
+      return fs.createReadStream(file).pipe(res);
+    }
+    /* a Godot game ported to the Arcade: its Web export, served from this game's own folder */
+    if (url.startsWith('/api/godot/web/')) {
+      const rest = decodeURIComponent(url.slice('/api/godot/web/'.length));
+      const i = rest.indexOf('/'), nm = i < 0 ? rest : rest.slice(0, i), fl = i < 0 ? 'index.html' : (rest.slice(i + 1) || 'index.html');
+      const f = godot.webFile(nm, fl);
+      if (!f) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('not found'); }
+      const GT = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.wasm': 'application/wasm', '.pck': 'application/octet-stream', '.png': 'image/png', '.svg': 'image/svg+xml', '.css': 'text/css', '.json': 'application/json', '.ico': 'image/x-icon' };
+      res.setHeader('Content-Security-Policy', "default-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: data:; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; connect-src 'self' blob: data:");
+      res.writeHead(200, { 'Content-Type': GT[path.extname(f).toLowerCase()] || 'application/octet-stream', 'Content-Length': fs.statSync(f).size, 'Cache-Control': 'no-store' });
+      return fs.createReadStream(f).pipe(res);
+    }
     if (url === '/api/models') {
       const cs = cloud.status();
       const cloudList = cs.on ? cs.models.map(m => ({ name: m.id, size: 0, cloud: true, label: '☁ ' + m.name + (m.note ? ' - ' + m.note : '') })) : [];
@@ -337,6 +388,35 @@ const mainServer = http.createServer(async (req, res) => {
     if (url === '/api/news/search') return json(res, 200, news.search(q.get('q') || ''));
     if (url === '/api/news/img') return news.image(new URL(req.url, 'http://x').searchParams.get('u') || '', res);
     if (url === '/api/news/refresh' && req.method === 'POST') { const b = await jbody(req, 1e4); const r = await news.refresh(!!b.force); return json(res, 200, r); }
+    /* ---- Radio: live stations, fetched here and passed to the page (see lib/radio.js) ---- */
+    if (url === '/api/radio') return json(res, 200, radio.status());
+    if (url === '/api/radio/search') return json(res, 200, await radio.search({ q: q.get('q') || '', cat: q.get('cat') || '', cc: q.get('cc') || '', n: +q.get('n') || 0 }));
+    if (url === '/api/radio/stream') return radio.stream(q.get('id') || '', req, res);
+    if (url === '/api/radio/now') return json(res, 200, radio.now(q.get('id') || ''));
+    if (url === '/api/radio/fav' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, await radio.fav(b.id, !!b.on)); }
+    if (url === '/api/radio/recent' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, await radio.recent(b.id)); }
+    if (url === '/api/radio/custom' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, await radio.custom(b)); }
+    /* ---- TV: live video links (see lib/tv.js) ---- */
+    if (url === '/api/tv') return json(res, 200, tv.status());
+    if (url === '/api/tv/video') return tv.video(q.get('id') || '', req, res);
+    if (url === '/api/tv/logo') return tv.logo(q.get('id') || '', res);
+    if (url === '/api/tv/yt/search') return json(res, 200, await youtube.search(q.get('q') || ''));
+    if (url === '/api/tv/yt/thumb') return youtube.thumb(q.get('id') || '', res);
+    /* TV > YouTube downloads with the user's yt-dlp (lib/ytdl.js) */
+    if (url === '/api/tv/dl') return json(res, 200, ytdl.status());
+    if (url === '/api/tv/dl/file') return ytdl.send(q.get('id') || '', q.get('n') || 0, q.get('dl') === '1', req, res);
+    if (req.method === 'POST' && /^\/api\/tv\/dl\/(start|cancel|folder|move|rename|remove)$/.test(url)) {
+      const b = await jbody(req, 1e4), k = url.slice(11);
+      return json(res, 200, k === 'start' ? ytdl.start(b) : k === 'cancel' ? ytdl.cancel(b.id) : k === 'folder' ? ytdl.folder(b) : k === 'move' ? ytdl.move(b.id, b.folder) : k === 'rename' ? ytdl.rename(b.id, b.title) : ytdl.remove(b.id));
+    }
+    if (url === '/api/tv/yt/live') return json(res, 200, await tv.ytLive(q.get('id') || ''));
+    if (url === '/api/tv/find') return json(res, 200, tv.findChannels(q.get('q') || ''));
+    if (url === '/api/tv/sources') return json(res, 200, { sources: tv.sources() });
+    if (url === '/api/tv/sources/add' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, tv.addSource(String(b.id || ''))); }
+    if (req.method === 'POST' && /^\/api\/tv\/(import|add|remove|rename|names|open)$/.test(url)) {
+      const b = await jbody(req, 1e4), k = url.slice(8);
+      return json(res, 200, k === 'import' ? await tv.importVlc() : k === 'add' ? await tv.add(b) : k === 'remove' ? tv.remove(b.id) : k === 'rename' ? tv.rename(b.id, b.name) : k === 'names' ? await tv.names() : await tv.open(b.id));
+    }
     if (url === '/api/news/sources' && req.method === 'POST') { const b = await jbody(req, 2e5); news.savePrefs(b || {}); return json(res, 200, news.snapshot()); }
     if (url === '/api/net/lookup' && req.method === 'POST') { const b = await jbody(req, 1e5); return json(res, 200, await net.lookup(b.q, b.n)); }
     if (url === '/api/chats') {
@@ -349,6 +429,7 @@ const mainServer = http.createServer(async (req, res) => {
     }
     /* ---- offline library ---- */
     if (url === '/api/lib/classics') return kiwix.classics().then(d => json(res, 200, d)).catch(e => json(res, 200, { shelves: [], items: [], error: String(e.message || e) }));
+    if (url === '/api/lib/wikibooks') return kiwix.wikibooks(q.get('q') || '').then(d => json(res, 200, d)).catch(e => json(res, 200, { books: [], error: String(e.message || e) }));
     if (url === '/api/lib/books') return json(res, 200, { available: kiwix.available(), books: kiwix.books() });
     if (url === '/api/lib/context' && req.method === 'POST') {
       const { q: qq, only, n } = await jbody(req, 1e5);
@@ -361,7 +442,7 @@ const mainServer = http.createServer(async (req, res) => {
     }
     /* ---- Bible Expert (Chat > Bible): passages from the texts in data\bible, read-only ---- */
     if (url === '/api/bible/status') return json(res, 200, bibleLib.status());
-    if (url === '/api/bible/search' && req.method === 'POST') { const b = await jbody(req, 1e5); return json(res, 200, { results: bibleLib.search(String(b.q || ''), Math.min(12, +b.n || 6)) }); }
+    if (url === '/api/bible/search' && req.method === 'POST') { const b = await jbody(req, 1e5); return json(res, 200, { results: bibleLib.search(String(b.q || ''), Math.min(30, +b.n || 6)) }); }
     /* ---- your documents ---- */
     if (url === '/api/docs/sources') {
       if (req.method === 'POST') { const b = await jbody(req, 1e5); if (b.add) docs.addSource(String(b.add)); if (b.remove) docs.removeSource(String(b.remove)); }
@@ -666,6 +747,30 @@ const mainServer = http.createServer(async (req, res) => {
     if (url === '/api/office/status') return json(res, 200, { available: office.available(), outDir: office.OUT });
     if (url === '/api/office/list') return json(res, 200, { files: office.list() });
     if (url === '/api/office/create' && req.method === 'POST') { const b = await jbody(req, 4e6); return json(res, 200, await office.create({ kind: b.kind, title: b.title, content: b.content })); }
+    /* Converter: sound, video, pictures, archives and song-to-MIDI (lib/mediaconv.js) */
+    if (url === '/api/convert/status') return json(res, 200, mediaconv.status());
+    if (url === '/api/convert/media' && req.method === 'POST') return json(res, 200, await mediaconv.convertUpload(req, q));
+    if (url === '/api/convert/file') { const f = mediaconv.resultFile(q.get('path')); if (!f) return json(res, 404, { error: 'not found' }); res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': fs.statSync(f).size, 'Cache-Control': 'no-store' }); return fs.createReadStream(f).pipe(res); }
+    /* ---- Cyber > Toolkit: security and networking tools (lib/cybertools.js). GET for the local-only ones, POST for the
+       ones that reach another computer, so nothing runs them by loading an image or following a link. ---- */
+    if (url === '/api/cyber/mynetwork') return json(res, 200, cybertools.myNetwork());
+    if (url === '/api/cyber/wifi') return json(res, 200, cybertools.wifi());
+    if (url === '/api/cyber/connections') return json(res, 200, cybertools.connections());
+    if (url === '/api/cyber/interfaces') return json(res, 200, cybertools.interfaces());
+    if (url === '/api/cyber/capture' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, cybertools.capture(b)); }
+    if (req.method === 'POST' && /^\/api\/cyber\/(dns|reverse|portscan|tlscert|headers|fingerprint|whois|subdomains|ipinfo|hashid|hashmake|hashcrack|traceroute)$/.test(url)) {
+      const b = await jbody(req, 2e5), k = url.slice(11);
+      const M = { dns: 'dnslookup', reverse: 'reverse', portscan: 'portscan', tlscert: 'tlscert', headers: 'httpheaders', fingerprint: 'fingerprint', whois: 'whois', subdomains: 'subdomains', ipinfo: 'ipinfo', hashid: 'hashId', hashmake: 'hashMake', hashcrack: 'hashCrack', traceroute: 'traceroute' };
+      return json(res, 200, await cybertools[M[k]](b));
+    }
+    /* ---- Converter > My converted files (lib/convlib.js) ---- */
+    if (url === '/api/convlib') return json(res, 200, convlib.list());
+    if (url === '/api/convlib/file') return convlib.send(q.get('id') || '', q.get('part') || 'out', q.get('dl') === '1', res);
+    if (url === '/api/convlib/put' && req.method === 'POST') { let buf; try { buf = await bodyBuf(req, convlib.MAX_ITEM); } catch (e) { return json(res, 413, { error: 'That file is too big to keep.' }); } return json(res, 200, convlib.put(q.get('id') || '', q.get('part') || '', buf)); }
+    if (req.method === 'POST' && /^\/api\/convlib\/(new|from|rename|move|remove|folder)$/.test(url)) {
+      const b = await jbody(req, 1e5), k = url.slice(13);
+      return json(res, 200, k === 'new' ? convlib.create(b) : k === 'from' ? convlib.putFrom(b.id, b.path) : k === 'rename' ? convlib.rename(b.id, b.name) : k === 'move' ? convlib.move(b.ids, b.folder) : k === 'remove' ? convlib.remove(b.ids) : convlib.folder(b));
+    }
     if (url === '/api/office/convert' && req.method === 'POST') return json(res, 200, await office.convertUpload(q.get('name') || 'file', await bodyBuf(req, 80e6), q.get('to') || 'pdf'));
     /* ---- edit documents, spreadsheets and presentations through LibreOffice ---- */
     if (url === '/api/office/files') return json(res, 200, { available: officeEdit.available(), files: officeEdit.list(q.get('force') === '1'), roots: officeEdit.roots(), sources: docs.sources() });
@@ -801,7 +906,7 @@ setInterval(() => {
   const now = Date.now();
   if (routines.busy()) return;                 // a routine is running: stay up until it ends, then idle out as usual
   if (longvideo.busy()) return;                // a long video is being made: stay up until it is done
-  if (remote.on()) return;                     // phone access is on: stay up for the phone (Quit in the tray still stops everything)
+  if (remote.on() && !outdated()) return;      // phone access is on: stay up for the phone (Quit in the tray still stops everything), unless this copy is out of date and no window is using it
   if (closingAt && now > closingAt) shutdown();
   else if (seen && now - lastPing > 180000) shutdown();
   else if (!seen && now - started > 120000) shutdown();

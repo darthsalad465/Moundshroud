@@ -1,8 +1,10 @@
 // Cyber games for the Entertainment tab. Everything here is a harmless sandbox: fake files, a fake database, made-up emails and logs. Nothing touches the network or this PC.
 (() => {
   const P = A.play, L = P.logic = P.logic || {};
-  const $ = id => document.querySelector('#plstage #' + id);      // game ids are looked up inside the game stage only, so they cannot clash with ids elsewhere in the app
-  const reg = (id, name, icon, desc, mount) => { P.games[id] = { name, icon, desc, mount, cat: 'cyber' }; };
+  /* game ids are looked up inside the element the game was mounted in (Games tab #plstage or Cyber tab #cygstage), so they cannot clash with ids elsewhere in the app */
+  let stage = null;
+  const $ = id => stage && stage.querySelector('#' + id);
+  const reg = (id, name, icon, desc, mount) => { P.games[id] = { name, icon, desc, mount: (el, api) => { stage = el; return mount(el, api); }, cat: 'cyber' }; };
   const rnd = n => Math.random() * n | 0, pick = a => a[rnd(a.length)], shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   const num = (k, d) => +ls.get(k, String(d));
   const btn = (id, t, cls) => '<button class="' + (cls || 'ib') + '" id="' + id + '">' + t + '</button>';

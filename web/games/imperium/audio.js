@@ -440,6 +440,9 @@ window.ImpAudio = (() => {
   const unlock = () => { if (muted) return; if (!ctx()) return; if (wanted && (!cur || cur.dead)) music(wanted); };
   ['pointerdown', 'mousedown', 'keydown', 'touchstart'].forEach(ev => window.addEventListener(ev, unlock, { capture: true, passive: true }));
   document.addEventListener('visibilitychange', () => { if (!document.hidden && ac && !muted) { ctx(); pump(); } });
+  /* a song from Moundshroud's Music tab outranks the game's music: the music bus goes silent while it plays */
+  const songOn = () => { try { return window.parent !== window && typeof window.parent.msSongOn === 'function' && window.parent.msSongOn(); } catch (e) { return false; } };
+  setInterval(() => { if (!B || muted) return; const want = songOn() ? 0 : volM; if (Math.abs(B.mus.gain.value - want) > .01) B.mus.gain.setTargetAtTime(want, ac.currentTime, .15); }, 700);
   function enable(on) {
     muted = !on; SET('imperium.sound', on ? '1' : '0');
     if (B) { const t = ac.currentTime; [[B.mus, volM], [B.sfxG, volS]].forEach(([n, v]) => { n.gain.cancelScheduledValues(t); n.gain.setTargetAtTime(on ? v : 0, t, .05); }); }

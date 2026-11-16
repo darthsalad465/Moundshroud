@@ -48,7 +48,9 @@
   /* ---------- playback ---------- */
   const au = new Audio(); au.preload = 'metadata'; au.volume = Math.max(0, Math.min(1, +ls.get('mlvol', '70') / 100));
   let cur = null, ctx = { ids: [], name: '', order: [], pos: -1 }, uq = [], shuffle = ls.get('mlshuf', '0') === '1', rep = ls.get('mlrep', 'all'), tok = 0, sleepAt = 0, sleepEnd = false, sleepT = 0, view = { t: 'home' }, hist = [], reg = {}, lid = 0, showQ = false;
-  const stopGame = () => { try { if (A.music && A.music.playing && A.music.playing()) A.music.stop(true); } catch (e) { } };
+  /* A song from the Music tab outranks a game's music. gameArgs remembers the game's music while a song plays, so it comes back once the song is paused. */
+  let gameArgs = null, innerStop = false;
+  const stopGame = () => { try { if (A.music && A.music.stop) { innerStop = true; A.music.stop(true); } } catch (e) { } innerStop = false; };
   let curUrl = '';
   const srcOf = t => t.my ? MLMine.blob(t.i).then(bl => { if (!bl) throw new Error('missing'); if (curUrl) { try { URL.revokeObjectURL(curUrl); } catch (e) { } } curUrl = URL.createObjectURL(bl); return curUrl; }) : Promise.resolve('/web/music/' + t.i);
   const mkOrder = (n, keep) => { const a = Array.from({ length: n }, (_, i) => i); if (!shuffle) return a; const r = shuf(a.filter(i => i !== keep)); return keep >= 0 ? [keep].concat(r) : r; };
@@ -72,7 +74,15 @@
   const fadeStop = () => { const v0 = au.volume, t0 = Date.now(); const iv = setInterval(() => { const k = (Date.now() - t0) / 3000; au.volume = Math.max(0, v0 * (1 - k)); if (k >= 1) { clearInterval(iv); au.pause(); au.volume = v0; paintBar(); A.toast('Sleep timer: music stopped.'); } }, 100); };
   function meta() { try { if ('mediaSession' in navigator && cur) { navigator.mediaSession.metadata = new MediaMetadata({ title: cur.t, artist: cur.a, album: cur.al || cur.g }); navigator.mediaSession.setActionHandler('play', toggle); navigator.mediaSession.setActionHandler('pause', toggle); navigator.mediaSession.setActionHandler('nexttrack', () => nextTrack(1)); navigator.mediaSession.setActionHandler('previoustrack', () => prevTrack()); } } catch (e) { } }
   const prevTrack = () => { if (au.currentTime > 4) au.currentTime = 0; else nextTrack(-1); };
-  try { if (A.music && A.music.play) { const op = A.music.play; A.music.play = function () { if (!au.paused) au.pause(); return op.apply(this, arguments); }; } } catch (e) { }
+  try {
+    if (A.music && A.music.play) {
+      const op = A.music.play, os = A.music.stop;
+      A.music.play = function () { gameArgs = [...arguments]; if (!au.paused) return; return op.apply(this, arguments); };   // a song is playing: the game stays quiet
+      A.music.stop = function () { if (!innerStop) gameArgs = null; return os.apply(this, arguments); };                   // the game closed: forget its music
+      window.msSongOn = () => !au.paused;   // games in a frame (Middlewatch, Rome) ask this and keep their music silent while a song plays
+      au.addEventListener('pause', () => setTimeout(() => { if (au.paused && gameArgs && !sleepEnd) { try { op.apply(A.music, gameArgs); } catch (e) { } } }, 1500));
+    }
+  } catch (e) { }
 
   /* ---------- building blocks ---------- */
   const L = (ids, name) => { const k = 'l' + (++lid); reg[k] = { ids: ids.map(t => typeof t === 'string' ? t : t.i), name }; return k; };
@@ -139,7 +149,7 @@
     mine() {
       const l = mine.slice().reverse();
       return hero({ kind: 'Your library', title: 'My songs', icon: '📁', sub: ns(l.length) + (l.length ? ' · ' + fmtLong(dur(l)) : '') }) +
-        '<div class="card" id="mldrop" style="margin:0 0 14px;max-width:780px;border-style:dashed"><div class="row" style="gap:10px;flex-wrap:wrap;align-items:center"><div style="flex:1;min-width:230px"><b>Add your own music</b><div class="small mute" style="line-height:1.5">Drop audio files or a whole folder here (MP3, M4A, FLAC, OGG, OPUS, WAV). Moundshroud reads the title, artist, album, year and cover art from each file. Songs are copied into Moundshroud\'s storage on this PC and never uploaded.</div></div><button class="pri" id="mlimpf">＋ Add songs</button><button class="ib" id="mlimpd">📁 Add a folder</button><button class="ib" data-go="record">🎙️ Record</button></div><div class="small" id="mlimpst" style="margin-top:8px"></div></div>' +
+        '<div class="card" id="mldrop" style="margin:0 0 14px;max-width:780px;border-style:dashed"><div class="row" style="gap:10px;flex-wrap:wrap;align-items:center"><div style="flex:1;min-width:230px"><b>Add your own music</b><div class="small mute" style="line-height:1.5">Drop audio files or a whole folder here (MP3, M4A, FLAC, OGG, OPUS, WAV). Moundshroud reads the title, artist, album, year and cover art from each file. Songs are copied into Moundshroud\'s storage on this PC and never uploaded.</div></div><button class="pri" id="mlimpf">＋ Add songs</button><button class="ib" id="mlimpd">📁 Add a folder</button><button class="ib" id="mltvimp">📥 From TV downloads</button><button class="ib" data-go="record">🎙️ Record</button></div><div class="small" id="mlimpst" style="margin-top:8px"></div></div>' +
         (l.length ? actions(l, 'My songs') + rows(l, 'My songs') + '<div class="small mute" style="margin-top:14px" id="mlstore"></div><div style="margin-top:6px"><button class="ib dang" data-clrmine="1">Remove all my music</button></div>' : '<div class="mute" style="padding:14px 4px">Nothing here yet. Add songs you own, or record something.</div>');
     },
     record() {
@@ -167,6 +177,70 @@
     for (let k = 0; k < files.length; k++) { st('Importing ' + (k + 1) + ' of ' + files.length + ': ' + files[k].name); try { const r = await MLMine.add(files[k], have); if (r.dup) dup++; else if (r.bad) bad++; else ok++; } catch (e) { bad++; } }
     await refreshMine(); const msg = 'Added ' + ok + (ok === 1 ? ' song' : ' songs') + (dup ? ', skipped ' + dup + ' already in your library' : '') + (bad ? ', ' + bad + ' could not be read' : '') + '.'; A.toast(msg, 5000);
     if (view.t === 'mine' || view.t === 'home') { view.keepScroll = true; render(); } else paintSide(); st(msg); return { ok, dup, bad };
+  };
+  /* ---------- bringing the sound files over from TV > Downloads ---------- */
+  const TV_AUDIO = /\.(mp3|m4a|aac|flac|ogg|oga|opus|wav|weba|webm)$/i;
+  const tvAudio = async () => {
+    const r = await fetch('/api/tv/dl').then(x => x.json()).catch(() => null);
+    if (!r) return null;
+    const folds = {}; (r.folders || []).forEach(f => { folds[f.id] = f.name; });
+    const out = [];
+    (r.items || []).forEach(it => (it.files || []).forEach(f => { if (f.there && TV_AUDIO.test(f.name)) out.push({ id: it.id, n: f.n, name: f.name, size: f.size || 0, title: it.title, channel: it.channel || '', folder: folds[it.folder] || '', at: it.at || 0 }); }));
+    out.sort((a, b) => b.at - a.at);
+    return { home: r.home || 'the TV downloads folder', files: out };
+  };
+  const importTv = async sel => {
+    MLMine.persist(); const have = new Set(mine.map(t => t.sig)); let ok = 0, dup = 0, bad = 0;
+    for (let k = 0; k < sel.length; k++) {
+      const f = sel[k], st = document.getElementById('mltvst');
+      if (st) st.textContent = 'Copying ' + (k + 1) + ' of ' + sel.length + ': ' + f.name;
+      try {
+        const r = await fetch('/api/tv/dl/file?id=' + encodeURIComponent(f.id) + '&n=' + f.n);
+        if (!r.ok) { bad++; continue; }
+        const bl = await r.blob(), file = new File([bl], f.name, { type: bl.type || 'audio/mpeg' }), res = await MLMine.add(file, have);
+        if (res.dup) { dup++; continue; } if (res.bad) { bad++; continue; }
+        /* a folder you made in TV becomes the album, so the same folder keeps its songs together in Music */
+        if (res.meta) {
+          const patch = { c: 'Copied from TV downloads' + (f.folder ? ' (' + f.folder + ')' : '') };
+          const tidy = String(res.meta.t || '').replace(/\s*\[[A-Za-z0-9_-]{11}\]\s*/g, ' ').replace(/\s+/g, ' ').trim();   // drop the [youtube id] left in the file name
+          if (tidy && tidy !== res.meta.t) patch.t = tidy;
+          const chan = String(f.channel || '').replace(/\s*[-–]\s*Topic\s*$/i, '').replace(/VEVO$/i, '').trim();
+          if (chan && (!res.meta.a || res.meta.a === 'Unknown artist')) patch.a = chan.slice(0, 80);   /* the TV item knows the channel */
+          if (f.folder && !res.meta.al) patch.al = f.folder;                          /* a TV folder becomes the album */
+          await MLMine.update(res.meta.i, patch);
+        }
+        ok++;
+      } catch (e) { bad++; }
+    }
+    await refreshMine(); if (view.t === 'mine' || view.t === 'home') { view.keepScroll = true; render(); } else paintSide();
+    return { ok, dup, bad };
+  };
+  const openTvImport = async () => {
+    A.dlg('<h3 style="margin-top:0">📥 From TV › Downloads</h3><div class="small mute" style="padding:14px 0">Looking in the TV downloads folder…</div>', true);
+    const d = await tvAudio(), box = document.getElementById('dlg'); if (!box) return;
+    const head = '<h3 style="margin-top:0">📥 From TV › Downloads</h3>', shut = '<div class="row" style="margin-top:12px;justify-content:flex-end"><button class="ib" onclick="A.closeDlg()">Close</button></div>';
+    if (!d) return void (box.innerHTML = head + '<div class="small" style="color:var(--bad);padding:6px 0">The TV downloads list could not be read. Open Entertainment › TV once, then try again.</div>' + shut);
+    const intro = '<div class="small mute" style="line-height:1.5;margin-bottom:10px">Pick the sound files to copy into <b>My songs</b>. They are copied, so the originals stay in <b>' + esc2(d.home) + '</b>. A TV folder becomes the album here, so your folders stay together.</div>';
+    if (!d.files.length) return void (box.innerHTML = head + intro + '<div class="small mute">Nothing to bring over yet. In TV › ▶ YouTube press ⬇ on a video and choose <b>Sound only (MP3)</b>; that file will be waiting here.</div>' + shut);
+    const mb = n => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB', byFold = {};
+    d.files.forEach(f => { const g = f.folder || ''; (byFold[g] = byFold[g] || []).push(f); });
+    let list = '';
+    Object.keys(byFold).sort((a, b) => (a ? 1 : 0) - (b ? 1 : 0) || a.localeCompare(b)).forEach(g => {
+      list += '<div class="small" style="margin:10px 0 2px;font-weight:600">' + (g ? '📁 ' + esc2(g) : '📥 Downloads (no folder)') + ' <span class="mute">' + byFold[g].length + '</span></div>';
+      list += byFold[g].map(f => '<label class="row small" style="gap:8px;padding:5px 0;cursor:pointer;align-items:flex-start"><input type="checkbox" data-tvf="' + esc2(f.id) + '|' + f.n + '" checked style="margin-top:3px"><span style="min-width:0;flex:1"><b>' + esc2(f.title || f.name) + '</b><br><span class="mute">' + esc2(f.name) + ' · ' + mb(f.size) + (f.channel ? ' · ' + esc2(f.channel) : '') + '</span></span></label>').join('');
+    });
+    box.innerHTML = head + intro + '<div style="max-height:44vh;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:6px 12px">' + list + '</div>' +
+      '<div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center"><button class="ib" id="mltvall">Select all</button><button class="ib" id="mltvnil">Select none</button><span class="sp"></span><button class="pri" id="mltvgo">Add to my music</button><button class="ib" onclick="A.closeDlg()">Close</button></div><div class="small mute" id="mltvst" style="margin-top:8px"></div>';
+    const q2 = s => box.querySelector(s), all = () => [...box.querySelectorAll('[data-tvf]')];
+    q2('#mltvall').onclick = () => all().forEach(c => { c.checked = true; });
+    q2('#mltvnil').onclick = () => all().forEach(c => { c.checked = false; });
+    q2('#mltvgo').onclick = async () => {
+      const sel = all().filter(c => c.checked).map(c => { const p = c.dataset.tvf.split('|'); return d.files.find(f => f.id === p[0] && f.n === +p[1]); }).filter(Boolean);
+      if (!sel.length) return void A.toast('Tick at least one file first.');
+      const go = q2('#mltvgo'); go.disabled = true; go.textContent = 'Adding…';
+      const r = await importTv(sel), msg = 'Added ' + r.ok + (r.ok === 1 ? ' song' : ' songs') + (r.dup ? ', skipped ' + r.dup + ' already in your music' : '') + (r.bad ? ', ' + r.bad + ' could not be read' : '') + '.';
+      go.disabled = false; go.textContent = 'Add to my music'; q2('#mltvst').textContent = msg; A.toast(msg, 6000);
+    };
   };
   const delMine = async ids => {
     for (const id of ids) { if (cur && cur.i === id) { au.pause(); cur = null; ++tok; } await MLMine.remove(id); likes.delete(id); uq = uq.filter(x => x !== id); recent = recent.filter(x => x !== id); delete stats[id]; pls.forEach(p => { p.ids = p.ids.filter(x => x !== id); }); }
@@ -243,7 +317,7 @@
       if ((el = c('[data-go]'))) { goStr(el.dataset.go); return; }
       if ((el = c('.ml-row[data-l]'))) { const l = reg[el.dataset.l]; if (l) { const n = +el.dataset.n; if (cur && cur.i === l.ids[n] && ctx.name === l.name) { toggle(); return; } playCtx(l.ids, n, l.name); } return; }
       const id = T.closest('button') && T.closest('button').id;
-      if (id === 'mlimpf') pickFiles(false); else if (id === 'mlimpd') pickFiles(true); else if (id === 'mlrecgo' || id === 'mlrecagain') { au.pause(); stopGame(); if (id === 'mlrecagain') rec.discard(); rec.start(); } else if (id === 'mlrecstop') rec.stop(); else if (id === 'mlrecdis') rec.discard(); else if (id === 'mlrecsave') saveRec(); else if (id === 'mlrecdl') dlRec();
+      if (id === 'mlimpf') pickFiles(false); else if (id === 'mlimpd') pickFiles(true); else if (id === 'mltvimp') openTvImport(); else if (id === 'mlrecgo' || id === 'mlrecagain') { au.pause(); stopGame(); if (id === 'mlrecagain') rec.discard(); rec.start(); } else if (id === 'mlrecstop') rec.stop(); else if (id === 'mlrecdis') rec.discard(); else if (id === 'mlrecsave') saveRec(); else if (id === 'mlrecdl') dlRec();
       else if (id === 'mlplay') toggle(); else if (id === 'mlnext') nextTrack(1); else if (id === 'mlprev') prevTrack(); else if (id === 'mlshuf') { shuffle = !shuffle; ls.set('mlshuf', shuffle ? '1' : '0'); if (ctx.ids.length) { const keep = ctx.order[ctx.pos]; ctx.order = mkOrder(ctx.ids.length, keep); ctx.pos = shuffle ? 0 : keep; } paintBar(); if (showQ) paintQ(); } else if (id === 'mlrep') { rep = rep === 'all' ? 'one' : rep === 'one' ? 'off' : 'all'; ls.set('mlrep', rep); paintBar(); }
       else if (id === 'mlq-btn') { showQ = !showQ; paintQ(); paintBar(); } else if (id === 'mlsleep') { const r = T.closest('button').getBoundingClientRect(); sleepMenu(r.left - 100, r.top - 190); e.stopPropagation(); }
     };

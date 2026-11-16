@@ -166,3 +166,9 @@ body.lowpower #loadbar { box-shadow: none; }
   #loadbar, #totop { display: none !important; }
   ::view-transition-old(content), ::view-transition-new(content) { animation: none !important; }
 }
+
+/* pages with a lot of content: the browser skips laying out sections that are off screen (Guide about 520 ms a visit before) */
+.gsec { content-visibility: auto; contain-intrinsic-size: auto 700px; }
+.gshelf { content-visibility: auto; contain-intrinsic-size: auto 280px; }
+/* the logo shine and the companion bob stop while Moundshroud is in the background or not focused */
+html.idle .mark *, html.idle #cmp .cb { animation-play-state: paused !important; }

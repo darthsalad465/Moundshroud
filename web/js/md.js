@@ -5,7 +5,9 @@ function mdInline(s) {
 function md(t) {
   const parts = t.split(/```/); let out = '';
   parts.forEach((p, i) => {
-    if (i % 2) { const nl = p.indexOf('\n'), hasLang = nl >= 0 && /^[\w+#.-]*$/.test(p.slice(0, nl).trim()), code = hasLang ? p.slice(nl + 1) : p, lang = hasLang ? p.slice(0, nl).trim().toLowerCase() : ''; out += '<pre' + (lang ? ' data-lang="' + esc(lang) + '"' : '') + '><button class="cp">Copy</button><code>' + esc(code.replace(/\n$/, '')) + '</code></pre>'; return; }      /* data-lang: the chat's code interpreter adds ▶ Run to Python and JavaScript blocks */
+    if (i % 2) { const nl = p.indexOf('\n'), hasLang = nl >= 0 && /^[\w+#.-]*$/.test(p.slice(0, nl).trim()), code = hasLang ? p.slice(nl + 1) : p, lang = hasLang ? p.slice(0, nl).trim().toLowerCase() : ''; const src = code.replace(/\n$/, ''), n = src.split('\n').length; let ns = ''; for (let k = 1; k <= n; k++) ns += k + (k < n ? '\n' : '');
+      /* the line numbers are drawn with the code: added afterwards, the code jumped sideways on every repaint while a reply streamed in */
+      out += '<pre class="cv-n"' + (lang ? ' data-lang="' + esc(lang) + '"' : '') + '><span class="cv-g" aria-hidden="true" data-n="' + n + '">' + ns + '</span><button class="cp">Copy</button><code>' + esc(src) + '</code></pre>'; return; }      /* data-lang: the chat's code interpreter adds ▶ Run to Python and JavaScript blocks */
     const lines = p.split('\n'); let list = null, html = '';
     const close = () => { if (list) { html += '</' + list + '>'; list = null; } };
     for (const ln of lines) {
