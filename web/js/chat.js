@@ -246,6 +246,11 @@
       if (th) { local('user', text); local('assistant', await A.thes.chatAnswer(th.kind, th.word)); cur.updated = Date.now(); persist(); return; }
       const c = A.calc.try(text);
       if (c) { local('user', text); local('assistant', '**' + c.label + '**'); cur.updated = Date.now(); persist(); return; }
+      if (A.buddy && A.buddy.isDirectPhysical && A.buddy.isDirectPhysical(text)) {
+        const stripped = text.replace(/^\s*(?:(?:hey|ok|okay|please|buddy|companion|pet|hoot|fenn|inky|bolt|ember|sloane|pip|miso)[,\s]+)+/i, '');
+        const bRes = await A.buddy.tryPhysicalCommand(stripped || text);
+        if (bRes) { local('user', text); local('assistant', bRes); cur.updated = Date.now(); persist(); return; }
+      }
     }
     const um = { role: 'user', content: text }; cur.msgs.push(um); msgsEl.appendChild(render(um, cur.msgs.length - 1));
     const am = { role: 'assistant', content: '', thinking: '', sources: [] }; cur.msgs.push(am);
