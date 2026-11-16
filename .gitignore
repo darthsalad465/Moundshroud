@@ -45,3 +45,6 @@ __pycache__/
 *.pyc
 *.log
 *.bak*
+
+# ARTEX runtime: PostgreSQL binaries, its data, and the ARTEX binary (installed locally, not source)
+/runtime/
