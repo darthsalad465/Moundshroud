@@ -5,14 +5,14 @@
   const root = $('p-tools');
   let sub = 'sys', chefLoaded = false;
   root.innerHTML = '<div class="row" style="padding:8px 12px;gap:6px;border-bottom:1px solid var(--line);flex-wrap:wrap" id="tsub"></div><div id="tbody" style="flex:1;min-height:0;display:flex;flex-direction:column"></div>';
-  const SUBS = [['sys', 'System'], ['conv', '🔄 Converter'], ['opt', '✨ Prompt optimizer']];   // the Agent moved to Chat > Agent (web/js/agent.js)
+  const SUBS = [['sys', 'System'], ['conv', '🔄 Converter'], ['repos', '📦 Repositories'], ['opt', '✨ Prompt optimizer']];   // the Agent moved to Chat > Agent (web/js/agent.js)
   /* a tool is still running only while the page it was opened in is the one on screen */
   const live = b => !!(b && b.isConnected && b.closest('.panel.on'));
   function tabs() { $('tsub').innerHTML = SUBS.filter(s => s[0] !== 'chef' || A.caps.chef).map(s => '<button class="ib' + (sub === s[0] ? ' on' : '') + '" data-s="' + s[0] + '">' + s[1] + '</button>').join(''); }
   $('tsub').onclick = e => { const b = e.target.closest('[data-s]'); if (b) go(b.dataset.s); };
   let tok = 0;
   /* the one list of pages: the Tools buttons (go) and the other tabs (A.tools.show) both read it, so a page added here works in both */
-  const RENDER = () => ({ docs: (x, my) => A.docs.render(x, my), office: x => A.officeEdit.render(x), sys, calc, rem, trans, clip, prm, cyber: x => A.cyber.render(x), codes: x => A.cbLab.render(x), course: x => A.cybercourse.render(x), conv: x => A.converter.render(x), opt: x => A.promptOpt.render(x), agent: x => A.agent.render(x), scan: x => A.scanner.render(x), meet: x => A.meetings.render(x), vault: x => A.vault.render(x), puzz: x => A.puzzlemaker.render(x), journal: x => A.journal.render(x), storage: x => A.storage.render(x), chef });
+  const RENDER = () => ({ docs: (x, my) => A.docs.render(x, my), office: x => A.officeEdit.render(x), sys, repos, calc, rem, trans, clip, prm, cyber: x => A.cyber.render(x), codes: x => A.cbLab.render(x), course: x => A.cybercourse.render(x), conv: x => A.converter.render(x), opt: x => A.promptOpt.render(x), agent: x => A.agent.render(x), scan: x => A.scanner.render(x), meet: x => A.meetings.render(x), vault: x => A.vault.render(x), puzz: x => A.puzzlemaker.render(x), journal: x => A.journal.render(x), storage: x => A.storage.render(x), chef });
   function go(s) { if (s === 'agent' && A.agent && A.agent.open) return A.agent.open(); if (!SUBS.some(x => x[0] === s)) s = 'sys'; sub = s; tabs(); const b = $('tbody'); const f = RENDER()[s] || sys; A.keep(b, s, el => f(el, ++tok)); }
 
   /* ---- system dashboard ---- */
@@ -31,6 +31,44 @@
     };
     upd(); const t = setInterval(() => { if (my !== tok || !live(b)) return clearInterval(t); upd(); }, 2000);
   }
+  /* ---- repositories: paste a GitHub link, download it once, index every page ---- */
+  function repos(b, my) {
+    b.innerHTML = '<div class="scroll pad" style="flex:1"><h2>📦 Repositories</h2>' +
+      '<div class="mute small" style="max-width:760px;line-height:1.5">Paste any GitHub link and Moundshroud downloads it once (a shallow copy, in <b>data\\refs</b>) and reads every page into your files index. After that, ask about it in Chat with <b>Use my files</b> ticked, or search it in My Files. The download needs internet; after that it all works offline.</div>' +
+      '<div class="row" style="margin:12px 0;gap:8px;flex-wrap:wrap"><input id="rpin" type="text" placeholder="https://github.com/owner/repo   (or just owner/repo)" style="flex:2;min-width:240px"><button class="pri" id="rpgo">Download &amp; index</button></div>' +
+      '<div class="small" id="rpst"></div><div id="rplist" style="margin-top:10px;max-width:900px"></div></div>';
+    const kb = n => n >= 1073741824 ? (n / 1073741824).toFixed(1) + ' GB' : n >= 1048576 ? Math.round(n / 1048576) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+    let timer = null;
+    const paint = async () => {
+      if (my !== tok) return;
+      const r = await A.api('/api/refs').catch(() => ({ refs: [] }));
+      const list = r.refs || [], busy = list.some(x => x.job && (x.job.state === 'running' || x.job.state === 'refreshing'));
+      const box = document.getElementById('rplist'); if (!box) return;
+      box.innerHTML = list.map(x => '<div class="card" style="padding:10px;margin-bottom:8px"><div class="row" style="align-items:flex-start;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:220px"><b>' + esc(x.name) + '</b> <span class="small mute">' + [x.size, x.lic, x.installed && x.files + ' files', x.installed && kb(x.bytes) + ' on this PC'].filter(Boolean).join(' · ') + '</span>' +
+        '<div class="small mute" style="margin-top:2px">' + esc(x.about || '') + ' <span class="mute">' + esc(x.repo) + '</span></div>' +
+        (x.job && (x.job.state === 'running' || x.job.state === 'refreshing') ? '<div class="small" style="margin-top:4px">' + (x.job.state === 'refreshing' ? 'Refreshing' : 'Downloading') + '… ' + x.job.pct + '% <span class="mute">' + esc(x.job.said || '') + '</span></div>' : x.job && x.job.state === 'failed' ? '<div class="small warn" style="margin-top:4px">' + esc(x.job.said || 'It failed.') + '</div>' : '') + '</div>' +
+        (x.installed ? '<button class="ib" data-rf="' + esc(x.slug) + '"' + (busy ? ' disabled' : '') + '>Refresh</button><button class="ib dang" data-rm="' + esc(x.slug) + '">Remove</button>' : '<button class="pri" data-dl="' + esc(x.slug) + '"' + (busy ? ' disabled' : '') + '>Download</button>') + '</div></div>').join('');
+      if (busy && !timer) timer = setInterval(paint, 1500);
+      if (!busy && timer) { clearInterval(timer); timer = null; }
+    };
+    document.getElementById('rpgo').onclick = async () => {
+      const v = document.getElementById('rpin').value.trim(), st = document.getElementById('rpst');
+      if (!v) return A.toast('Paste a GitHub link first.');
+      st.textContent = 'Starting…';
+      const r = await A.api('/api/refs/install', { url: v });
+      if (r.error) { st.textContent = ''; return A.toast(r.error, 7000); }
+      document.getElementById('rpin').value = ''; st.textContent = 'Downloading in the background. The list shows progress; it is indexed when it finishes.';
+      paint();
+    };
+    b.onclick = async e => {
+      const d = e.target.closest('[data-dl]'), f = e.target.closest('[data-rf]'), rm = e.target.closest('[data-rm]');
+      if (d) { const r = await A.api('/api/refs/install', { slug: d.dataset.dl }); if (r.error) A.toast(r.error, 6000); paint(); }
+      else if (f) { const r = await A.api('/api/refs/update', { slug: f.dataset.rf }); if (r.error) A.toast(r.error, 6000); paint(); }
+      else if (rm) { if (!confirm('Delete this repository from this PC? You can download it again later.')) return; const r = await A.api('/api/refs/remove', { slug: rm.dataset.rm }); if (r.error) A.toast(r.error, 6000); paint(); }
+    };
+    paint();
+  }
+
   /* ---- translate (the local model does the work) ---- */
   const LANGS = ['English', 'Spanish', 'French', 'German', 'Italian', 'Portuguese', 'Dutch', 'Russian', 'Ukrainian', 'Polish', 'Turkish', 'Arabic', 'Hebrew', 'Hindi', 'Bengali', 'Urdu', 'Chinese (Simplified)', 'Chinese (Traditional)', 'Japanese', 'Korean', 'Vietnamese', 'Thai', 'Indonesian', 'Swahili', 'Greek', 'Swedish', 'Norwegian', 'Danish', 'Finnish', 'Czech'];
   function trans(b, my) {
