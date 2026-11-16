@@ -380,7 +380,7 @@
     teach: 'teach', 'teach me': 'teach',
     writing: 'writing',
     lang: 'lang', languages: 'lang', language: 'lang', translate: 'lang',
-    studio: 'studio',
+    studio: 'studio', hotbox: 'studio', 'ai hotbox': 'studio',
     lab: 'lab',
     tools: 'tools', converter: 'tools', timer: 'tools',
     calc: 'calc', calculator: 'calc',
@@ -455,6 +455,10 @@
     await walkToSidebarTab(id);
     A.showTab(id);
 
+    if (n === 'hotbox' || n === 'ai hotbox') {
+      if (A.studio && A.studio.go) A.studio.go('hotbox');
+      return 'Walked over and opened **Studio › AI Hotbox**!';
+    }
     if (['chess', 'trivia', 'sudoku', 'tetris', 'solitaire', 'poker', '2048', 'minesweeper'].includes(n)) {
       await new Promise(r => setTimeout(r, 340));
       try {
