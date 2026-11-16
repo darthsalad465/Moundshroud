@@ -992,8 +992,12 @@ const mainServer = http.createServer(async (req, res) => {
     /* ---- Search tab: one question across every library, your documents and notes ---- */
     if (url === '/api/web/search' && req.method === 'POST') {
       const b = await jbody(req, 1e5), qq = String(b.q || '').trim(); if (!qq) return json(res, 200, { items: [], counts: {}, files: { notes: [], docs: [] } });
-      const [r, fl] = await Promise.all([websearch.search(qq, { scope: b.scope, n: b.n }), docs.searchSmart(qq, 8, ['doc', 'note']).catch(() => [])]);
-      r.panel = b.scope && b.scope !== 'all' ? null : await websearch.panel(qq, r.items || []).catch(() => null); r.files = { notes: fl.filter(x => x.kind === 'note'), docs: fl.filter(x => x.kind === 'doc') };
+      /* every part has a time limit, so the Browser never waits forever: a cold library (indexes still loading from disk)
+         or a busy Ollama (document search needs its embeddings) used to leave the page spinning for a minute or more */
+      const budget = (p, ms, fb) => Promise.race([p.catch(() => fb), new Promise(rs => setTimeout(() => rs(fb), ms))]);
+      const [r, fl] = await Promise.all([budget(websearch.search(qq, { scope: b.scope, n: b.n }), 25000, { items: [], counts: {}, slow: true }), budget(docs.searchSmart(qq, 8, ['doc', 'note']), 6000, [])]);
+      if (r.slow) r.note = 'The offline libraries are still waking up: the first search reads their indexes from disk. Try again in a moment.';
+      r.panel = b.scope && b.scope !== 'all' ? null : await budget(websearch.panel(qq, r.items || []), 5000, null); r.files = { notes: fl.filter(x => x.kind === 'note'), docs: fl.filter(x => x.kind === 'doc') };
       return json(res, 200, r);
     }
     if (url === '/api/web/passages' && req.method === 'POST') { const b = await jbody(req, 2e5); return json(res, 200, { sources: await websearch.passages(Array.isArray(b.links) ? b.links : [], b.max || 1800) }); }
@@ -1003,6 +1007,8 @@ const mainServer = http.createServer(async (req, res) => {
 }).listen(PORT, '127.0.0.1', () => {
   console.log('assistant on http://127.0.0.1:' + PORT);
   update.start();                                 // the once-a-day update question (only with internet access on)
+  /* a minute after start, wake the offline libraries with one quiet search so their indexes are read from disk before you search */
+  setTimeout(() => { try { if (kiwix.available()) websearch.search('history', { scope: 'all', n: 5 }).catch(() => { }); } catch (e) { } }, 60000);
   try { const r = privacy.edgePrefs(); if (r.note) console.log('privacy: ' + r.note); } catch (e) { }   // lock the window's own settings down, while it is closed
   setTimeout(() => { try { store.notesSync(); } catch (e) {} }, 1500);
   /* a copy of the user's progress in Documents, once a day, a little after start-up so nothing is delayed.
