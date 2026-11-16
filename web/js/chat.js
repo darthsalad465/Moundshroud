@@ -28,8 +28,9 @@
     if (window.A && A.interp) d.querySelectorAll('.bd pre[data-lang]').forEach(p => { if (A.interp.LANG(p.dataset.lang)) p.insertAdjacentHTML('afterbegin', '<button class="cp runbtn" title="Run this code in the sealed-off sandbox on this PC">▶ Run</button>'); });
   }
   /* how long a reply took, and how long it thought before the first word: kept with the chat, so it survives a reload */
-  function timeHtml(m) { if (!m || !m.ms) return ''; return '<div class="mtime" title="From pressing Send to the last word">⏱ ' + A.act.fmt(m.ms) + ' in all' + (m.thinkMs ? ' · thinking ' + A.act.fmt(m.thinkMs) : '') + '</div>'; }
-  function lastTime(m) { const el = $('lasttime'); if (!el || !m || !m.ms) return; el.textContent = 'last reply ' + A.act.fmt(m.ms) + (m.thinkMs ? ' (thinking ' + A.act.fmt(m.thinkMs) + ')' : ''); el.title = 'How long the previous reply took, from pressing Send to the last word'; }
+  const fmtMs = ms => A.act ? A.act.fmt(ms) : Math.round((+ms || 0) / 1000) + ' s';
+  function timeHtml(m) { if (!m || !m.ms) return ''; return '<div class="mtime" title="From pressing Send to the last word">⏱ ' + fmtMs(m.ms) + ' in all' + (m.thinkMs ? ' · thinking ' + fmtMs(m.thinkMs) : '') + '</div>'; }
+  function lastTime(m) { const el = $('lasttime'); if (!el || !m || !m.ms) return; el.textContent = 'last reply ' + fmtMs(m.ms) + (m.thinkMs ? ' (thinking ' + fmtMs(m.thinkMs) + ')' : ''); el.title = 'How long the previous reply took, from pressing Send to the last word'; }
   /* what the code interpreter ran, what it printed, and its charts */
   function runsHtml(m) {
     if (!m.runs || !m.runs.length) return '';
@@ -267,7 +268,7 @@
     /* the waiting words count the seconds, so you can see how long it has been thinking */
     const liveT = setInterval(() => {
       if (!busy) return;
-      const s = A.act.fmt(Date.now() - t0);
+      const s = fmtMs(Date.now() - t0);
       if (am.content) setStatus('writing… ' + s, 'busy');
       else { const bd = el.querySelector('.bd'); if (bd) bd.innerHTML = waitHtml(curWait + ' ' + s); }
     }, 500);
@@ -385,7 +386,7 @@
     if (cur._kept) { am.content = (am.content || '').trim() + '\n\n_🔒 ' + cur._kept + '_'; delete cur._kept; }
     setBusy(false); ctl = null; clearInterval(liveT);
     am.ms = Date.now() - t0; if (tFirst) am.thinkMs = tFirst - t0;
-    if (op) op.end(ok, stopped ? 'stopped' : A.act.fmt(am.ms));
+    if (op) op.end(ok, stopped ? 'stopped' : fmtMs(am.ms));
     if (am.ms) lastTime(am);
     if (ok) setStatus('ready'); else if (stopped) setStatus('stopped'); else setStatus('that did not work - press Try again', 'err');
     el.classList.remove('pending'); fill(el, am); cur.updated = Date.now(); persist(); msgsEl.scrollTop = msgsEl.scrollHeight;

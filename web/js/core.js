@@ -89,8 +89,13 @@ A.showTab = name => {
   /* one page failing to open must never take the rest of the app with it: it gets a "try again" card instead */
   const fail = e => { try { A.problems && A.problems.push('page', 'Opening ' + name + ': ' + (e && e.message || e), (e && e.stack || '').split('\n')[1] || ''); } catch (x) { } const p = $('p-' + name); if (p && !p.textContent.trim()) { p.innerHTML = '<div class="pad" style="margin:auto;max-width:460px;text-align:center"><h3>This page hit a problem</h3><p class="mute small">The rest of Moundshroud still works. The details were saved for Settings › Problems.</p><button class="pri" onclick="A.showTab(\'' + name + '\')">Try again</button></div>'; } };
   if (A.tabs[name].onShow) { try { const r = A.tabs[name].onShow(); if (r && r.catch) r.catch(fail); } catch (e) { fail(e); } }
-  /* how long the page took to be on screen: measured after the browser has painted it twice */
-  if (A.act) requestAnimationFrame(() => requestAnimationFrame(() => { try { A.act.mark('page', 'Opened ' + ((A.tabs[name] && A.tabs[name].label) || name), nowMs() - _t0, { tab: name }); } catch (e) { } }));
+  /* how long the page took to be on screen: the work and the paint after it. The timer stops early in a window that is
+     hidden or covered (a browser may pause animation frames for minutes), so the number always means something. */
+  if (A.act) {
+    let done = false;
+    const fin = () => { if (done) return; done = true; try { A.act.mark('page', 'Opened ' + ((A.tabs[name] && A.tabs[name].label) || name), nowMs() - _t0, { tab: name }); } catch (e) { } };
+    requestAnimationFrame(() => setTimeout(fin, 0)); setTimeout(fin, 1200);
+  }
 };
 /* alphabetical order for lists and contents (switch: Settings > Appearance > Alphabetical order); the key ignores emoji and symbols */
 A.az = (list, key) => { if (ls.get('alpha', '1') === '0') return list; const k = x => String(key ? key(x) : x).replace(/<[^>]*>/g, '').replace(/^[^\p{L}\p{N}]+/u, '').toLowerCase(); return list.slice().sort((a, b) => k(a).localeCompare(k(b), undefined, { numeric: true, sensitivity: 'base' })); };
