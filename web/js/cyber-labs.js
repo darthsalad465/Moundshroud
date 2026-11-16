@@ -16,7 +16,9 @@
 .lab .mono{font-family:Consolas,"Cascadia Mono",monospace}
 .lab .note{font-size:12px;color:var(--mute);margin-top:8px;line-height:1.5}
 .lab .hit{background:var(--acc,#7c5cff);color:#fff;border-radius:3px;padding:0 1px}
-.lab .bad{color:var(--bad,#e5484d)}.lab .ok{color:var(--ok,#30a46c)}`;
+.lab .bad{color:var(--bad,#e5484d)}.lab .ok{color:var(--ok,#30a46c)}
+.lab pre{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;overflow:auto;font-size:12.5px;white-space:pre-wrap;word-break:break-word;margin:4px 0 10px}
+.lab select.ib2{padding:5px 8px}`;
   if (!document.getElementById('cyberlabs-css')) { const s = document.createElement('style'); s.id = 'cyberlabs-css'; s.textContent = css; document.head.appendChild(s); }
   const wrap = (el, inner) => { el.innerHTML = '<div class="lab"><div class="lab-wrap">' + inner + '</div></div>'; return el.querySelector('.lab-wrap'); };
 
@@ -135,5 +137,71 @@
     A.api('/api/juiceshop/status').then(show).catch(() => { body.innerHTML = '<div class="bad">Could not reach the server.</div>'; });
   }
 
-  A.cyberLabs = { ptracer, sqllab, subnet, regex, juice };
+  /* ---------- JWT decoder ---------- */
+  function jwt(el) {
+    const w = wrap(el, '<h2>🔑 JWT decoder</h2><div class="sub">Paste a JSON Web Token to read its header and payload. The signature is shown but not checked, so never trust a token just by reading it.</div><textarea id="jwtin" rows="4" spellcheck="false" placeholder="eyJhbGci..."></textarea><div id="jwtout" style="margin-top:10px"></div>');
+    const b64 = s => { s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; try { return decodeURIComponent(atob(s).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')); } catch (e) { try { return atob(s); } catch (e2) { return null; } } };
+    const go = () => {
+      const t = w.querySelector('#jwtin').value.trim(), o = w.querySelector('#jwtout'), p = t.split('.');
+      if (p.length < 2) { o.innerHTML = t ? '<div class="bad">Not a JWT: it needs header.payload.signature.</div>' : ''; return; }
+      const dec = i => { const r = b64(p[i]); try { return JSON.stringify(JSON.parse(r), null, 2); } catch (e) { return r || '(could not decode)'; } };
+      let times = ''; try { const o2 = JSON.parse(b64(p[1])); ['iat', 'nbf', 'exp'].forEach(k => { if (o2[k]) times += k + ': ' + new Date(o2[k] * 1000).toLocaleString() + (k === 'exp' && o2[k] * 1000 < Date.now() ? ' (expired)' : '') + '\n'; }); } catch (e) { }
+      o.innerHTML = '<b>Header</b><pre>' + esc(dec(0)) + '</pre><b>Payload</b><pre>' + esc(dec(1)) + '</pre>' + (times ? '<div class="kv"><b>Times</b><span class="mono" style="white-space:pre">' + esc(times) + '</span></div>' : '') + '<div class="note">Signature: <span class="mono">' + esc(p[2] || '(none)') + '</span>, not verified here.</div>';
+    };
+    w.querySelector('#jwtin').addEventListener('input', go);
+  }
+
+  /* ---------- Cipher workshop: Caesar and Vigenere ---------- */
+  function cipher(el) {
+    const w = wrap(el, '<h2>🔐 Cipher workshop</h2><div class="sub">Caesar and Vigenère ciphers. Type text, pick a cipher and key, and watch it change. Letters shift; spaces and punctuation stay.</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px"><select id="cptype" class="ib2"><option value="caesar">Caesar (number shift)</option><option value="vig">Vigenère (keyword)</option></select><input id="cpkey" class="ib2" style="max-width:160px" value="3" spellcheck="false"><button class="ib2" id="cpswap">Mode: Encode</button></div>' +
+      '<textarea id="cptext" rows="3" spellcheck="false">Attack at dawn</textarea><div class="note">Result</div><div id="cpout" class="mono" style="border:1px solid var(--line);border-radius:8px;padding:10px;white-space:pre-wrap"></div>');
+    let dec = false;
+    const sh = (c, n) => { const base = c >= 'a' && c <= 'z' ? 97 : c >= 'A' && c <= 'Z' ? 65 : -1; if (base < 0) return c; return String.fromCharCode((c.charCodeAt(0) - base + ((n % 26) + 26) % 26) % 26 + base); };
+    const go = () => {
+      const type = w.querySelector('#cptype').value, key = w.querySelector('#cpkey').value, text = w.querySelector('#cptext').value; let out = '';
+      if (type === 'caesar') { let n = parseInt(key) || 0; if (dec) n = -n; out = [...text].map(c => sh(c, n)).join(''); }
+      else { const k = (key || 'a').replace(/[^a-zA-Z]/g, '') || 'a'; let ki = 0; out = [...text].map(c => { if (!/[a-zA-Z]/.test(c)) return c; let n = k[ki % k.length].toLowerCase().charCodeAt(0) - 97; if (dec) n = -n; ki++; return sh(c, n); }).join(''); }
+      w.querySelector('#cpout').textContent = out;
+    };
+    w.querySelector('#cpswap').onclick = e => { dec = !dec; e.target.textContent = 'Mode: ' + (dec ? 'Decode' : 'Encode'); go(); };
+    w.querySelectorAll('#cptype,#cpkey,#cptext').forEach(i => i.addEventListener('input', go)); go();
+  }
+
+  /* ---------- Hash & entropy lab ---------- */
+  function hashlab(el) {
+    const w = wrap(el, '<h2>#️⃣ Hash & entropy lab</h2><div class="sub">Hash text with SHA-1, SHA-256 and SHA-512 on this PC, and see how strong a password is by its entropy in bits.</div>' +
+      '<textarea id="hltext" rows="2" spellcheck="false">correct horse battery staple</textarea><div id="hlhash" class="kv" style="margin-top:10px"></div><div class="note" style="margin-top:12px">Password strength (entropy)</div><div id="hlent" class="kv"></div>');
+    const hex = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+    const entropy = s => { let sets = 0; if (/[a-z]/.test(s)) sets += 26; if (/[A-Z]/.test(s)) sets += 26; if (/[0-9]/.test(s)) sets += 10; if (/[^a-zA-Z0-9]/.test(s)) sets += 33; return { bits: Math.round(s.length * Math.log2(sets || 1)), sets }; };
+    const go = async () => {
+      const t = w.querySelector('#hltext').value, enc = new TextEncoder().encode(t);
+      const rows = await Promise.all(['SHA-1', 'SHA-256', 'SHA-512'].map(async a => '<b>' + a + '</b><span class="mono" style="word-break:break-all">' + hex(await crypto.subtle.digest(a, enc)) + '</span>'));
+      w.querySelector('#hlhash').innerHTML = rows.join('');
+      const e = entropy(t), label = e.bits < 40 ? '<span class="bad">weak</span>' : e.bits < 60 ? 'fair' : e.bits < 80 ? '<span class="ok">strong</span>' : '<span class="ok">very strong</span>';
+      w.querySelector('#hlent').innerHTML = '<b>Length</b><span>' + t.length + ' characters</span><b>Character sets</b><span>' + e.sets + ' possible per spot</span><b>Entropy</b><span class="mono">' + e.bits + ' bits (' + label + ')</span>';
+    };
+    w.querySelector('#hltext').addEventListener('input', go); go();
+  }
+
+  /* ---------- JSON & Base64 workbench ---------- */
+  function jsonlab(el) {
+    const w = wrap(el, '<h2>{ } JSON & Base64 workbench</h2><div class="sub">Pretty-print and check JSON, and convert text to and from Base64 and URL encoding. All offline.</div>' +
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px"><button class="ib2" data-a="json">Format JSON</button><button class="ib2" data-a="min">Minify JSON</button><button class="ib2" data-a="b64e">Text → Base64</button><button class="ib2" data-a="b64d">Base64 → Text</button><button class="ib2" data-a="urle">URL-encode</button><button class="ib2" data-a="urld">URL-decode</button></div>' +
+      '<textarea id="jlin" rows="5" spellcheck="false">{"name":"Alice","roles":["admin","user"]}</textarea><div class="note" id="jlmsg"></div><textarea id="jlout" rows="5" spellcheck="false" readonly></textarea>');
+    const run = a => {
+      const v = w.querySelector('#jlin').value, out = w.querySelector('#jlout'), msg = w.querySelector('#jlmsg'); msg.textContent = '';
+      try {
+        if (a === 'json') { out.value = JSON.stringify(JSON.parse(v), null, 2); msg.innerHTML = '<span class="ok">Valid JSON.</span>'; }
+        else if (a === 'min') { out.value = JSON.stringify(JSON.parse(v)); }
+        else if (a === 'b64e') { out.value = btoa(unescape(encodeURIComponent(v))); }
+        else if (a === 'b64d') { out.value = decodeURIComponent(escape(atob(v.trim()))); }
+        else if (a === 'urle') { out.value = encodeURIComponent(v); }
+        else if (a === 'urld') { out.value = decodeURIComponent(v); }
+      } catch (e) { msg.innerHTML = '<span class="bad">' + esc(e.message) + '</span>'; }
+    };
+    w.querySelectorAll('[data-a]').forEach(b => b.onclick = () => run(b.dataset.a));
+  }
+
+  A.cyberLabs = { ptracer, sqllab, subnet, regex, juice, jwt, cipher, hashlab, jsonlab };
 })();
