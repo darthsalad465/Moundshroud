@@ -368,6 +368,7 @@
   const TABALIAS = {
     home: 'home', today: 'home', dashboard: 'home',
     chat: 'chat', assistant: 'chat',
+    brain: 'brain', '3d brain': 'brain', 'file brain': 'brain', 'pc brain': 'brain',
     search: 'web', web: 'web', browser: 'web', internet: 'web',
     library: 'lib', lib: 'lib', wikipedia: 'lib', encyclopedia: 'lib',
     files: 'files', 'my files': 'files',
