@@ -411,33 +411,55 @@
     return existing;
   }
 
-  function updateStatsSubtitle() {
+  function updateStatsSubtitle(streaming) {
     const stEl = root.querySelector('#brn-sub');
     if (stEl && S.stats) {
-      stEl.textContent = (S.stats.totalFiles || 0).toLocaleString() + ' files · ' +
-        (S.stats.totalFolders || 0).toLocaleString() + ' folder nuclei · ' +
+      stEl.textContent = (streaming ? '⚡ Indexing every file: ' : '✓ All ') +
+        (S.stats.totalFiles || 0).toLocaleString() + ' files · ' +
+        (S.stats.totalFolders || 0).toLocaleString() + ' folders · ' +
         S.links.length.toLocaleString() + ' synapses · ' +
-        fmtBytes(S.stats.totalBytes || 0);
+        fmtBytes(S.stats.totalBytes || 0) +
+        (streaming ? ' (populating live...)' : '');
     }
   }
 
-  async function loadGraph() {
+  let streamTok = 0;
+  async function loadGraph(force) {
+    const myTok = ++streamTok;
     const stEl = root.querySelector('#brn-sub');
-    if (stEl) stEl.textContent = 'Scanning PC neural pathways...';
+    if (stEl) stEl.textContent = 'Scanning every file & folder on your PC...';
+    S.nodes = [];
+    S.links = [];
+    let fromNode = 0, fromLink = 0;
     try {
-      const r = await A.api('/api/brain/graph', {
-        scope: S.scope,
-        path: S.customPath,
-        maxNodes: S.maxNodes
-      });
-      if (!r || !r.nodes) return;
-      S.nodes = r.nodes;
-      S.stats = r.stats || {};
-      S.links = r.links || [];
-      rebuildAdjacency();
-      computeLayouts();
-      paintLobeBar();
-      updateStatsSubtitle();
+      while (myTok === streamTok) {
+        const r = await A.api('/api/brain/graph', {
+          scope: S.scope,
+          path: S.customPath,
+          fromNode,
+          fromLink,
+          batchLimit: 10000,
+          force: force && fromNode === 0
+        });
+        if (myTok !== streamTok || !r || !r.nodes) break;
+        if (r.nodes.length) {
+          S.nodes.push(...r.nodes);
+        }
+        if (r.links && r.links.length) {
+          S.links.push(...r.links);
+        }
+        S.stats = r.stats || S.stats || {};
+        fromNode = r.nextNodeOffset || S.nodes.length;
+        fromLink = r.nextLinkOffset || S.links.length;
+
+        rebuildAdjacency();
+        computeLayouts();
+        paintLobeBar();
+        updateStatsSubtitle(!r.done);
+
+        if (r.done) break;
+        await new Promise(res => setTimeout(res, 260));
+      }
     } catch (e) {
       if (stEl) stEl.textContent = 'Could not scan files: ' + (e.message || e);
     }
@@ -888,14 +910,18 @@
       projNodes.push(n);
     }
 
-    // 4. Draw 3D Synaptic Axons
+    // 4. Draw 3D Synaptic Axons (adaptive LOD so 50,000+ links stay 60fps)
     ctx.lineCap = 'round';
-    for (const l of S.links) {
+    const denseLinks = S.links.length > 3500;
+    const linkStride = denseLinks ? Math.max(1, Math.floor(S.links.length / 2800)) : 1;
+    for (let li = 0; li < S.links.length; li++) {
+      const l = S.links[li];
       const a = l.sourceNode, b = l.targetNode;
       if (!a || !b || !a._proj || !b._proj) continue;
+      const isHi = selNode && (a === selNode || b === selNode);
+      if (!isHi && denseLinks && (li % linkStride !== 0) && l.kind === 'tree' && !b.isDir) continue;
       if (!a._vis && !b._vis) continue;
 
-      const isHi = selNode && (a === selNode || b === selNode);
       const isDim = (selNode && !isHi) || (S.lobeFilter && (!a._vis || !b._vis)) || (qLow && (!a._qHit && !b._qHit));
       if (isDim && l.kind !== 'tree') continue;
 
@@ -914,9 +940,9 @@
       } else {
         ctx.lineTo(b._proj.sx, b._proj.sy);
         const rgb = (LOBES[b.cat] || LOBES.data).rgb;
-        const alpha = isHi ? 0.85 : isDim ? 0.04 : 0.22;
+        const alpha = isHi ? 0.85 : isDim ? 0.04 : (denseLinks ? 0.14 : 0.22);
         ctx.strokeStyle = 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',' + alpha + ')';
-        ctx.lineWidth = isHi ? 2.2 : 1.05;
+        ctx.lineWidth = isHi ? 2.2 : 0.95;
       }
       ctx.stroke();
     }
@@ -961,8 +987,9 @@
       ctx.stroke();
     }
 
-    // 7. Sort neurons back-to-front and render
-    projNodes.sort((a, b) => b._proj.depth - a._proj.depth);
+    // 7. Sort neurons back-to-front and render every single file with adaptive LOD
+    const highDensity = projNodes.length > 2200;
+    if (!highDensity) projNodes.sort((a, b) => b._proj.depth - a._proj.depth);
 
     for (const n of projNodes) {
       const p = n._proj;
@@ -979,10 +1006,18 @@
         : n.isDir
           ? 7.2 + Math.min(4.5, Math.sqrt(n.deg || 1) * 0.8)
           : 3.4 + Math.min(4.8, Math.log10((n.size || 1024) + 10) * 0.75);
-      const r = Math.max(1.8, baseR * p.scale * (isSel ? 1.45 : n._qHit ? 1.3 : 1) * birthPulse);
+      const r = Math.max(1.6, baseR * p.scale * (isSel ? 1.45 : n._qHit ? 1.3 : 1) * birthPulse);
       const alpha = isDim ? 0.12 : Math.min(1, Math.max(0.3, 1.15 - p.depth / 1500));
 
-      if (!isDim && (n.isDir || isSel || n._qHit || isNewlyBorn || r > 5.5)) {
+      // Fast point-cloud path for distant background neurons when thousands of files are loaded
+      if (highDensity && !isSel && !isNb && !n._qHit && !isNewlyBorn && !n.isDir && r < 3.4) {
+        ctx.fillStyle = 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',' + alpha + ')';
+        const d = r * 1.75;
+        ctx.fillRect(p.sx - r * 0.85, p.sy - r * 0.85, d, d);
+        continue;
+      }
+
+      if (!isDim && (n.isDir || isSel || n._qHit || isNewlyBorn || (!highDensity && r > 5.5))) {
         const haloR = r * (isSel || n._qHit || isNewlyBorn ? 3.8 : 2.3);
         const grad = ctx.createRadialGradient(p.sx, p.sy, r * 0.2, p.sx, p.sy, haloR);
         const hCol = (n._qHit || isNewlyBorn) ? '250, 204, 21' : (rgb[0] + ',' + rgb[1] + ',' + rgb[2]);
@@ -1001,14 +1036,14 @@
       ctx.arc(p.sx, p.sy, r, 0, Math.PI * 2);
       ctx.fill();
 
-      if (!isDim && r > 3.2) {
+      if (!isDim && r > 3.4) {
         ctx.fillStyle = 'rgba(255,255,255,' + (alpha * 0.75) + ')';
         ctx.beginPath();
         ctx.arc(p.sx - r * 0.28, p.sy - r * 0.28, Math.max(0.9, r * 0.32), 0, Math.PI * 2);
         ctx.fill();
       }
 
-      if (S.labelsOn && !isDim && (isSel || isNewlyBorn || n._qHit || n.cat === 'core' || (n.isDir && p.scale > 0.68) || (isNb && selNode) || p.scale > 1.45)) {
+      if (S.labelsOn && !isDim && (isSel || isNewlyBorn || n._qHit || n.cat === 'core' || (n.isDir && p.scale > 0.72) || (isNb && selNode) || p.scale > 1.55)) {
         ctx.font = (isSel || isNewlyBorn || n.isDir ? '600 ' : '500 ') + Math.round(Math.max(10, Math.min(14, 11.5 * p.scale))) + 'px sans-serif';
         const lbl = (isNewlyBorn ? '✨ ' : '') + (n.name.length > 26 ? n.name.slice(0, 24) + '…' : n.name);
         ctx.fillStyle = isSel || isNewlyBorn || n._qHit ? '#ffffff' : 'rgba(226, 232, 240, 0.88)';
@@ -1058,13 +1093,14 @@
 
           '<div class="brn-glass brn-bar">' +
             '<select class="brn-sel" id="brn-scope" title="Choose which parts of your PC to map into the 3D Brain">' +
-              '<option value="all">🌐 Full PC Brain (User + Workspace)</option>' +
-              '<option value="user">🏠 Personal PC Folders (Desktop, Docs, Media)</option>' +
-              '<option value="indexed">📚 Indexed My Files &amp; Notes</option>' +
-              '<option value="workspace">⚙️ Moundshroud Workspace</option>' +
+              '<option value="all">🌐 All My PC Files (Every Folder &amp; File)</option>' +
+              '<option value="drives">💿 Entire PC Drives (C:\\, D:\\...)</option>' +
+              '<option value="indexed">📚 My Indexed Files &amp; Notes</option>' +
+              '<option value="workspace">⚙️ Moundshroud App Code</option>' +
               '<option value="custom">📁 Custom Folder on PC...</option>' +
             '</select>' +
             '<button type="button" class="brn-btn" id="brn-pick" title="Pick any folder or drive on your PC to map in 3D">📁 Pick Folder</button>' +
+            '<button type="button" class="brn-btn" id="brn-rescan" title="Re-scan every file from disk">↻ Re-scan</button>' +
           '</div>' +
 
           '<div class="brn-glass brn-bar" id="brn-modes">' +
@@ -1349,7 +1385,11 @@
       S.customPath = p.path;
       root.querySelector('#brn-scope').value = 'custom';
       selectNode(null);
-      loadGraph();
+      loadGraph(true);
+    };
+    root.querySelector('#brn-rescan').onclick = () => {
+      selectNode(null);
+      loadGraph(true);
     };
 
     root.querySelector('#brn-modes').onclick = e => {
