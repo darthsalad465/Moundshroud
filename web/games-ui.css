@@ -51,6 +51,11 @@
 .gfoot span:nth-child(3) { flex: 1; text-align: left; }
 .gi { border: 0; background: transparent; color: var(--mute); font-size: 16px; padding: 0 2px; border-radius: 50%; transition: color .2s, transform .15s; }
 .gi:hover { color: var(--acc); transform: scale(1.2); }
+.gdel { border: 0; background: transparent; color: var(--mute); font-size: 13px; padding: 0 2px; border-radius: 50%; opacity: .7; transition: color .2s, transform .15s, opacity .2s; }
+.gdel:hover { color: var(--bad, #e5484d); opacity: 1; transform: scale(1.15); }
+.gdelrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.gdelbtn { padding: 6px 12px; border-radius: 9px; border: 1px solid color-mix(in srgb, var(--bad, #e5484d) 55%, var(--line)); background: color-mix(in srgb, var(--bad, #e5484d) 12%, var(--panel)); color: var(--text); cursor: pointer; font-size: 13px; }
+.gdelbtn:hover { background: color-mix(in srgb, var(--bad, #e5484d) 24%, var(--panel)); }
 
 /* ---------- detail sheet and trophies ---------- */
 .gmodal { position: fixed; inset: 0; z-index: 250; background: rgba(0, 0, 0, .62); backdrop-filter: blur(5px); display: flex; align-items: center; justify-content: center; padding: 14px; animation: fadeIn .18s ease-out; }

@@ -24,4 +24,14 @@ module.exports = async ok => {
   ok('olympics: a score of 0 wins no medal', row('d').g + row('d').s + row('d').b === 0);
   ok('olympics: debate wins hand out medals too', row('b').g >= 1 && row('b').best.includes('debate'));
   ok('olympics: the table is sorted by golds first', M[0][0] === 'a');
+  /* the levels of pressure: harder items, more of them, a tighter clock */
+  const LV = T.LEVELS;
+  ok('olympics: there are four levels of pressure, each tighter than the last', LV.length === 4 && LV[0].clock === 0 && LV.every((l, i) => i <= 1 || l.clock < LV[i - 1].clock));
+  ok('olympics: every level asks for more items than the one below it', LV.every((l, i) => i === 0 || ['reason', 'instr', 'code', 'know'].every(e => l.n[e] >= LV[i - 1].n[e])));
+  const r0 = T.take(T.POOL.reason, 0, 99), r3 = T.take(T.POOL.reason, 3, 5);
+  ok('olympics: the Club meet only draws the warm-up items', r0.length === 10 && r0.every(x => x[2] === 0));
+  ok('olympics: the Inferno final draws the hardest items first', r3.length === 5 && r3.every(x => x[2] === 3));
+  ok('olympics: the pools are deep enough for the biggest level', ['reason', 'instr', 'code', 'know'].every(e => T.POOL[e].filter(x => (x[2] != null ? x[2] : x.lvl) <= 3).length >= 14 || e === 'code') && T.POOL.code.length >= 9);
+  ok('olympics: every hard code task has a function name and tests', T.POOL.code.every(c => typeof c.f === 'string' && c.f.length > 2 && c.t.length >= 2));
+  ok('olympics: every search set points at a real passage', T.POOL.search.every(s => s.qs.every(([, i]) => i >= 0 && i < s.passages.length)));
 };

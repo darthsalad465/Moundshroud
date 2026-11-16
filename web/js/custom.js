@@ -85,37 +85,39 @@ window.addEventListener('DOMContentLoaded', () => {
     const monos = [['', 'Default'], ['Consolas,"Cascadia Mono",monospace', 'Consolas'], ['"Cascadia Code","Cascadia Mono",monospace', 'Cascadia Code'], ['"Courier New",monospace', 'Courier New'], ['"Lucida Console",monospace', 'Lucida Console']];
     const bf = [['', 'Same as the app']].concat(fl.slice(1));
     const pct = v => v + '%', lhf = v => +v ? (+v).toFixed(2) : 'Auto', lsf = v => (+v ? (+v).toFixed(2) + 'em' : 'Normal');
-    A.dlg('<div class="hd"><b>🎨 Customize appearance</b></div><div class="bd" style="max-height:min(560px,58vh);overflow:auto">' +
-      '<div class="small mute">Changes apply instantly and are remembered. They work with every colour theme and interface style. Pick one of these as a starting point, then tweak anything below.</div>' +
-      '<div class="row" style="gap:6px;flex-wrap:wrap;margin-top:8px" id="cpre">' + C.PRESETS.map((p, i) => '<button class="chip" data-i="' + i + '" title="' + esc(p[1]) + '">' + esc(p[0]) + '</button>').join('') + '</div>' +
-      h('Text') +
-      '<div class="small mute">Font for the whole app</div>' + sel('cfont', fl, c.fontOwn ? '__own' : c.font) +
-      '<div class="row" style="margin-top:6px;gap:8px"><span class="small mute" style="flex:none">or type any font installed on this PC:</span><input type="text" id="cown" placeholder="e.g. Lexend, Fira Sans, Comic Sans MS" value="' + esc(c.fontOwn) + '"></div>' +
-      '<div id="cprev" style="margin:10px 0;padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)">The quick brown fox jumps over the lazy dog. <b>Bold text</b>, <i>italic text</i>, and numbers 0123456789. <code>code looks like this</code></div>' +
-      '<div class="small mute">Code and monospace font</div>' + sel('cmono', monos, c.mono) +
+    A.dlg('<div class="hd"><b>🎨 Customize appearance</b><span class="sp"></span><button class="ib" id="crst" style="font-size:12px">↺ Reset to default</button></div><div class="bd" style="max-height:min(640px,68vh);overflow:auto">' +
+      '<div class="small mute">Changes apply instantly and are remembered. They work with every colour theme and interface style. Pick one of these presets as a starting point, then fine-tune anything below.</div>' +
+      '<div class="row" style="gap:6px;flex-wrap:wrap;margin-top:10px" id="cpre">' + C.PRESETS.map((p, i) => '<button class="chip" data-i="' + i + '" title="' + esc(p[1]) + '">' + esc(p[0]) + '</button>').join('') + '</div>' +
+      '<div class="cu-sec">' + h('🔤 Typography &amp; Text') +
+      '<div class="small mute" style="margin-bottom:4px">Font for the whole app</div>' + sel('cfont', fl, c.fontOwn ? '__own' : c.font) +
+      '<div class="row" style="margin-top:8px;gap:8px"><span class="small mute" style="flex:none">or type any font installed on this PC:</span><input type="text" id="cown" placeholder="e.g. Lexend, Fira Sans, Inter" value="' + esc(c.fontOwn) + '"></div>' +
+      '<div id="cprev" style="margin:12px 0;padding:12px 16px;border:1px solid var(--line);border-radius:12px;background:var(--panel)">The quick brown fox jumps over the lazy dog. <b>Bold text</b>, <i>italic text</i>, and numbers 0123456789. <code>code looks like this</code></div>' +
+      '<div class="small mute" style="margin-bottom:4px">Code and monospace font</div>' + sel('cmono', monos, c.mono) +
+      '<div style="margin-top:10px">' +
       slider('csize', 'Interface size', 70, 170, 5, c.size, pct) +
       slider('cchat', 'Chat text size', 70, 200, 5, c.chat, pct) +
       slider('clh', 'Line spacing', 0, 2.2, 0.05, c.lh, lhf) +
       slider('cls', 'Letter spacing', -0.02, 0.12, 0.01, c.ls, lsf) +
-      '<label class="chk" style="margin-top:4px"><input type="checkbox" id="cbold"' + (c.bold ? ' checked' : '') + '> Heavier text (easier to read on some screens)</label>' +
-      h('Shape and spacing') +
-      '<div class="small mute">Corners</div>' + seg('cround', [['sharp', 'Sharp'], ['', 'Style default'], ['normal', 'Gentle'], ['round', 'Very round']], c.round) +
-      '<div class="small mute" style="margin-top:8px">Density</div>' + seg('cdens', [['compact', 'Compact'], ['', 'Normal'], ['roomy', 'Roomy']], c.dens) +
-      '<div class="small mute" style="margin-top:8px">Chat bubble width</div>' + seg('cwidth', [['narrow', 'Narrow'], ['', 'Normal'], ['wide', 'Full width']], c.width) +
-      h('Colour') +
-      '<div class="row" style="gap:10px;flex-wrap:wrap"><label class="row" style="gap:6px">Accent <input type="color" id="cacc" value="' + (c.acc || '#8b7cff') + '"></label><label class="row" style="gap:6px">Second accent <input type="color" id="cacc2" value="' + (c.acc2 || '#46d7c8') + '"></label><button class="ib" id="caccx">Use the theme\'s colours</button></div>' +
-      '<div class="small mute" style="margin-top:8px">Text contrast</div>' + seg('ccon', [['soft', 'Soft'], ['', 'Normal'], ['high', 'High']], c.contrast) +
-      h('Motion and performance') +
-      '<div class="small mute">When you switch tabs</div>' + seg('ctx', [['slide', 'Slide'], ['fade', 'Fade'], ['zoom', 'Zoom'], ['rise', 'Rise'], ['drop', 'Drop'], ['flip', 'Flip'], ['none', 'None']], c.tx) +
-      '<div class="small mute" style="margin-top:8px">Effects</div>' + seg('cperf', [['', 'Full (blur and glow)'], ['cool', 'Cool &amp; quiet']], c.perf) + '<div class="small mute">Cool &amp; quiet removes blur, glass and endless background motion so the fan stays calm. Moundshroud always pauses its animations when it is hidden or in the background.</div>' +
-      '<label class="chk" style="margin-top:8px"><input type="checkbox" id="canim"' + (c.anim ? ' checked' : '') + '> Animations (turn off for a perfectly still app)</label>' +
-      h('Library books') +
-      '<div class="small mute">Font for books you read in the Library</div>' + sel('cbook', bf, c.book) +
-      slider('cbs', 'Book text size', 70, 200, 5, c.bookSize, pct) +
-      '<div class="small mute">Applies to books you open next.</div>' +
-      h('Share or back up your look') +
-      '<div class="row" style="gap:8px"><button class="ib" id="cexp">Copy my settings</button><button class="ib" id="cimp">Paste settings</button><span class="sp"></span><button class="ib dang" id="crst">Reset everything</button></div>' +
-      '<div class="row" style="margin-top:14px"><span class="small mute">Interface style and colour theme are in Settings.</span><span class="sp"></span><button class="pri" id="cx">Done</button></div></div>', true);
+      '</div>' +
+      '<label class="chk" style="margin-top:8px;gap:8px"><input type="checkbox" id="cbold"' + (c.bold ? ' checked' : '') + '> <span>Heavier text <span class="small mute">(easier to read on some screens)</span></span></label></div>' +
+      '<div class="cu-sec">' + h('📐 Shape &amp; Spacing') +
+      '<div class="small mute" style="margin-bottom:4px">Corners</div>' + seg('cround', [['sharp', 'Sharp'], ['', 'Style default'], ['normal', 'Gentle'], ['round', 'Very round']], c.round) +
+      '<div class="small mute" style="margin:10px 0 4px">Density</div>' + seg('cdens', [['compact', 'Compact'], ['', 'Normal'], ['roomy', 'Roomy']], c.dens) +
+      '<div class="small mute" style="margin:10px 0 4px">Chat bubble width</div>' + seg('cwidth', [['narrow', 'Narrow'], ['', 'Normal'], ['wide', 'Full width']], c.width) + '</div>' +
+      '<div class="cu-sec">' + h('🎨 Accent Colours &amp; Contrast') +
+      '<div class="row" style="gap:12px;flex-wrap:wrap"><label class="row" style="gap:8px">Accent <input type="color" id="cacc" value="' + (c.acc || '#8b7cff') + '"></label><label class="row" style="gap:8px">Second accent <input type="color" id="cacc2" value="' + (c.acc2 || '#46d7c8') + '"></label><button class="ib" id="caccx">Use the theme\'s colours</button></div>' +
+      '<div class="small mute" style="margin:10px 0 4px">Text contrast</div>' + seg('ccon', [['soft', 'Soft'], ['', 'Normal'], ['high', 'High']], c.contrast) + '</div>' +
+      '<div class="cu-sec">' + h('✨ Motion &amp; Performance') +
+      '<div class="small mute" style="margin-bottom:4px">When you switch tabs</div>' + seg('ctx', [['slide', 'Slide'], ['fade', 'Fade'], ['zoom', 'Zoom'], ['rise', 'Rise'], ['drop', 'Drop'], ['flip', 'Flip'], ['none', 'None']], c.tx) +
+      '<div class="small mute" style="margin:10px 0 4px">Effects</div>' + seg('cperf', [['', 'Full (blur and glow)'], ['cool', 'Cool &amp; quiet']], c.perf) + '<div class="small mute" style="margin-top:4px">Cool &amp; quiet removes blur, glass and endless background motion so the fan stays calm. Moundshroud always pauses its animations when it is hidden or in the background.</div>' +
+      '<label class="chk" style="margin-top:10px;gap:8px"><input type="checkbox" id="canim"' + (c.anim ? ' checked' : '') + '> <span>Animations <span class="small mute">(turn off for a perfectly still app)</span></span></label></div>' +
+      '<div class="cu-sec">' + h('📚 Library Books') +
+      '<div class="small mute" style="margin-bottom:4px">Font for books you read in the Library</div>' + sel('cbook', bf, c.book) +
+      '<div style="margin-top:8px">' + slider('cbs', 'Book text size', 70, 200, 5, c.bookSize, pct) + '</div>' +
+      '<div class="small mute">Applies to books you open next.</div></div>' +
+      '<div class="cu-sec">' + h('💾 Share or Back Up Your Look') +
+      '<div class="row" style="gap:8px;flex-wrap:wrap"><button class="ib" id="cexp">Copy my settings</button><button class="ib" id="cimp">Paste settings</button></div></div>' +
+      '<div class="row" style="margin-top:16px"><span class="small mute">Interface style and colour theme are in Settings.</span><span class="sp"></span><button class="pri" id="cx">Done</button></div></div>', true);
 
     const refresh = () => { const ev = C.cfg(); $('cprev').style.fontFamily = ''; };
     const sl = (id, key, fmt) => { const e = $(id); e.oninput = () => { C.set(key, +e.value); $(id + 'v').textContent = fmt(+e.value); }; };

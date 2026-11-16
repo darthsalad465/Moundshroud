@@ -102,7 +102,7 @@ html.god-filled body{overflow:hidden}html.god-filled body>*:not(main){visibility
       '<div class="god-card"><div class="god-h">My Godot games <span class="god-count" id="gdn"></span></div><div id="gdlist"></div></div>' +
       '</div><div class="god-main"><div class="god-bar"><input id="gdname" class="god-name" placeholder="Untitled game" spellcheck="false" disabled><span class="god-sp"></span>' +
       '<button class="god-btn" id="gdplay" disabled>▶ Play</button><button class="god-btn god-pri" id="gdopen" disabled>🛠 Open in Godot</button><button class="god-btn" id="gdport" disabled title="Export it for the web and add it to Games > Arcade">🎮 Send to Arcade</button><button class="god-btn" id="gddel" disabled>🗑</button></div>' +
-      '<div id="gdgame"></div><div class="god-split"><div class="god-tree" id="gdtree"><div class="god-note">Files of the game appear here.</div></div><div class="god-edwrap"><div class="god-edbar"><b id="gdfname" class="god-note">Pick a file to read or change it.</b><span class="god-sp"></span><button class="god-btn" id="gdfsave" disabled title="Write this file back to the game’s folder (Ctrl+S)">💾 Save file</button><button class="god-btn" id="gdfundo" disabled title="Throw away the changes since the file was opened">↶ Undo changes</button></div><textarea class="god-ed" id="gdcode" data-code spellcheck="false" autocomplete="off" autocapitalize="off" readonly placeholder="Pick a file on the left."></textarea></div></div>' +
+      '<div id="gdgame"></div><div class="god-split"><div class="god-tree" id="gdtree"><div class="god-note">Files of the game appear here.</div></div><div class="god-edwrap"><div class="god-edbar"><b id="gdfname" class="god-note">Pick a file to read or change it.</b><span class="god-sp"></span><button class="god-btn" id="gdfsave" disabled title="Write every changed file back to the game’s folder (Ctrl+S)">💾 Save file</button><button class="god-btn" id="gdfundo" disabled title="Throw away the changes since the file was opened">↶ Undo changes</button></div><div class="ce-tabs" id="gdtabs"></div><textarea class="god-ed" id="gdcode" data-code data-save="gdfsave" spellcheck="false" autocomplete="off" autocapitalize="off" readonly placeholder="Pick a file on the left."></textarea></div></div>' +
       '<div id="gdmsg"></div></div></div>';
     const $ = id => root.querySelector('#' + id), msg = $('gdmsg');
     let cur = null, busy = false, ctl = null, engine = null, home = '';
@@ -145,39 +145,77 @@ html.god-filled body{overflow:hidden}html.god-filled body>*:not(main){visibility
         const j = await (await fetch('/api/godot/tree?name=' + encodeURIComponent(name))).json();
         if (!j.ok) return say('err', '<b>Could not open it.</b> ' + esc(j.error || ''));
         cur = { name: j.name || name, files: j.files }; say('', ''); drawTree(j.files); show();
+        ftabs = []; fpath = null; $('gdcode').value = ''; $('gdcode').readOnly = true; fileBar();
         const first = (j.files || []).find(f => /project\.godot$/i.test(f.path)) || (j.files || []).find(f => !f.dir);
         if (first) readFile(first.path);
-        file = null; $('gdcode').value = ''; $('gdcode').readOnly = true; fileBar();
         load(false);
       } catch (e) { say('err', 'Could not open it: ' + esc(e.message)); }
     }
-    /* the open file: you can change it and 💾 Save file writes it back (only the text files a Godot project is made of) */
-    let file = null;            // { path, text } as it was read
+    /* the open files, one tab each (like VS Code): you can change them and 💾 Save writes every changed file back at once.
+       Only the text files a Godot project is made of can be edited; the binary ones open read-only. */
+    let ftabs = [], fpath = null;              // [{ path, text, orig, dirty, readOnly, scroll }]
     const EDITABLE = /\.(godot|gd|tscn|tres|cfg|json|txt|md|gdshader|csv|svg|import)$/i;
-    const dirtyFile = () => !!file && $('gdcode').value !== file.text;
-    function fileBar() { const d = dirtyFile(); $('gdfsave').disabled = !file || !d || $('gdcode').readOnly; $('gdfundo').disabled = !d; $('gdfname').textContent = file ? file.path + (d ? ' • changed' : '') + ($('gdcode').readOnly ? ' (read only)' : '') : 'Pick a file to read or change it.'; }
-    async function readFile(path) {
-      if (!cur) return; if (dirtyFile() && !confirm('Leave ' + file.path + ' without saving your changes?')) return;
-      const ta = $('gdcode'); ta.readOnly = true; ta.value = '...'; file = null; fileBar();
-      try {
-        const j = await (await fetch('/api/godot/file?name=' + encodeURIComponent(cur.name) + '&file=' + encodeURIComponent(path))).json();
-        if (j.ok) { file = { path, text: j.text }; ta.value = j.text; ta.readOnly = !EDITABLE.test(path); } else ta.value = 'Could not read ' + path + ': ' + (j.error || '');
-        root.querySelectorAll('.god-file').forEach(b => b.classList.toggle('god-on', b.dataset.file === path));
-      } catch (e) { ta.value = 'Could not read that file: ' + e.message; }
+    const fTab = p => ftabs.find(t => t.path === p) || null;
+    const anyDirty = () => ftabs.filter(t => t.dirty).length;
+    const fbar = window.CodeEd ? CodeEd.tabbar($('gdtabs'), { onselect: p => activateFile(p), onclose: p => closeFile(p) }) : null;
+    const ficon = p => /\.gd$/.test(p) ? '🧩' : /\.tscn$/.test(p) ? '🎬' : /project\.godot$/.test(p) ? '⚙' : /\.json$/.test(p) ? '{}' : '📄';
+    function fileBar() {
+      const t = fTab(fpath), ta = $('gdcode'), n = anyDirty();
+      if (fbar) fbar.render(ftabs.map(x => ({ id: x.path, name: x.path.split('/').pop(), dirty: x.dirty, title: x.path, icon: ficon(x.path) })), fpath);
+      $('gdfsave').disabled = !n;
+      $('gdfsave').textContent = n > 1 ? '💾 Save ' + n + ' files' : '💾 Save file';
+      $('gdfundo').disabled = !(t && t.dirty);
+      $('gdfname').textContent = t ? t.path + (t.dirty ? ' • changed' : '') + (ta.readOnly ? ' (read only)' : '') : 'Pick a file to read or change it.';
+      root.querySelectorAll('.god-file').forEach(b => b.classList.toggle('god-on', b.dataset.file === fpath));
+    }
+    function activateFile(p) {
+      const t = fTab(p); if (!t) return;
+      const ta = $('gdcode'), was = fTab(fpath);
+      if (was) was.scroll = ta.scrollTop;
+      fpath = p; ta.value = t.text; ta.readOnly = t.readOnly; ta.scrollTop = t.scroll || 0; ta.setSelectionRange(0, 0);
+      const e = window.CodeEd && CodeEd.of(ta); if (e) { e.setName(p); e.refresh(); }
       fileBar();
     }
-    async function saveFile() {
-      if (!cur || !file || !dirtyFile()) return; const text = $('gdcode').value;
-      try {
-        const r = await (await fetch('/api/godot/save', { method: 'POST', body: JSON.stringify({ name: cur.name, files: [{ path: file.path, content: text }] }) })).json();
-        if (!r.ok) return say('err', esc(r.error || 'Could not save the file.'));
-        file.text = text; fileBar(); say('ok', '✓ Saved ' + esc(file.path) + '. ▶ Play or Open in Godot to see it.');
-      } catch (e) { say('err', 'Could not save the file: ' + esc(e.message)); }
+    function closeFile(p) {
+      const i = ftabs.findIndex(t => t.path === p); if (i < 0) return;
+      if (ftabs[i].dirty && !confirm('“' + p + '” has unsaved changes. Close it and lose them?')) return;
+      ftabs.splice(i, 1);
+      if (fpath !== p) return fileBar();
+      const next = ftabs[i] || ftabs[i - 1] || null; fpath = null;
+      if (next) return activateFile(next.path);
+      const ta = $('gdcode'); ta.value = ''; ta.readOnly = true; const e = window.CodeEd && CodeEd.of(ta); if (e) { e.setName(''); e.refresh(); }
+      fileBar();
     }
-    $('gdcode').addEventListener('input', fileBar);
-    $('gdcode').addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) { e.preventDefault(); saveFile(); } });
+    async function readFile(path) {
+      if (!cur) return;
+      if (fTab(path)) return activateFile(path);
+      const ta = $('gdcode');
+      try {
+        const j = await (await fetch('/api/godot/file?name=' + encodeURIComponent(cur.name) + '&file=' + encodeURIComponent(path))).json();
+        if (!j.ok) { ta.value = 'Could not read ' + path + ': ' + (j.error || ''); ta.readOnly = true; fileBar(); return; }
+        ftabs.push({ path, text: j.text, orig: j.text, dirty: false, readOnly: !EDITABLE.test(path), scroll: 0 });
+        activateFile(path);
+      } catch (e) { ta.value = 'Could not read that file: ' + e.message; ta.readOnly = true; fileBar(); }
+    }
+    async function saveFile() {
+      if (!cur) return;
+      const dirty = ftabs.filter(t => t.dirty && !t.readOnly);
+      if (!dirty.length) return;
+      try {
+        const r = await (await fetch('/api/godot/save', { method: 'POST', body: JSON.stringify({ name: cur.name, files: dirty.map(t => ({ path: t.path, content: t.text })) }) })).json();
+        if (!r.ok) return say('err', esc(r.error || 'Could not save the file.'));
+        dirty.forEach(t => { t.orig = t.text; t.dirty = false; });
+        fileBar();
+        say('ok', '✓ Saved ' + dirty.length + ' file' + (dirty.length === 1 ? ' (' + esc(dirty[0].path) + ')' : 's') + '. ▶ Play or Open in Godot to see them.');
+      } catch (e) { say('err', 'Could not save: ' + esc(e.message)); }
+    }
+    $('gdcode').addEventListener('input', () => {
+      const t = fTab(fpath); if (t && !t.readOnly) { t.text = $('gdcode').value; t.dirty = t.text !== t.orig; }
+      fileBar();
+    });
     $('gdfsave').onclick = saveFile;
-    $('gdfundo').onclick = () => { if (file) { $('gdcode').value = file.text; fileBar(); } };
+    $('gdfundo').onclick = () => { const t = fTab(fpath); if (!t) return; t.text = t.orig; t.dirty = false; $('gdcode').value = t.text; const e = window.CodeEd && CodeEd.of($('gdcode')); if (e) e.refresh(); fileBar(); };
+    $('gdcode').addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'w' && fpath) { e.preventDefault(); closeFile(fpath); } });
     /* the same bounded request Studio > Game maker makes, through the local engine */
     async function ask(messages, cap, onLen) {
       const model = $('gdm').value || A.ai.model(); if (!model) throw new Error('No AI model is chosen. Pick one in the "Made by" list.');

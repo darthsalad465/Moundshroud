@@ -1,7 +1,7 @@
 // Offline assistant suite - local server. Talks only to Ollama and Kiwix on this PC. No outside connections.
 // Lifecycle: started by the hotkey listener when you open the window; shuts itself (and everything it started) down when the window closes.
 const http = require('http'), fs = require('fs'), path = require('path'), cp = require('child_process'), os = require('os'), crypto = require('crypto');
-const U = require('./lib/util'), docs = require('./lib/docs'), kiwix = require('./lib/kiwix'), websearch = require('./lib/websearch'), voice = require('./lib/voice'), store = require('./lib/store'), extra = require('./lib/extra'), thesaurus = require('./lib/thesaurus'), rhyme = require('./lib/rhyme'), pcmod = require('./lib/pc'), office = require('./lib/office'), prep = require('./lib/prep'), appfiles = require('./lib/appfiles'), webpages = require('./lib/webpages'), refs = require('./lib/refs'), embed = require('./lib/embed'), cams = require('./lib/cams'), safety = require('./lib/safety');
+const U = require('./lib/util'), docs = require('./lib/docs'), kiwix = require('./lib/kiwix'), websearch = require('./lib/websearch'), voice = require('./lib/voice'), store = require('./lib/store'), extra = require('./lib/extra'), thesaurus = require('./lib/thesaurus'), rhyme = require('./lib/rhyme'), pcmod = require('./lib/pc'), office = require('./lib/office'), prep = require('./lib/prep'), appfiles = require('./lib/appfiles'), webpages = require('./lib/webpages'), refs = require('./lib/refs'), embed = require('./lib/embed'), cams = require('./lib/cams'), safety = require('./lib/safety'), appedit = require('./lib/appedit');
 
 const safe = require('./lib/safe');
 const problems = require('./lib/problems');
@@ -484,6 +484,14 @@ const mainServer = http.createServer(async (req, res) => {
     if (url === '/api/app/search' && req.method === 'POST') { const b = await jbody(req, 1e5), s = String(b.q || ''); return json(res, 200, { results: appfiles.search(s, b.n || 14), context: appfiles.context(s, b.files || 4) }); }
     if (url === '/api/app/file' && req.method === 'POST') { const b = await jbody(req, 1e5), f = appfiles.read(String(b.path || ''), b.max); return f ? json(res, 200, f) : json(res, 404, { error: 'no such file' }); }
     if (url === '/api/app/list') return json(res, 200, { files: appfiles.list(q.get('dir') || '') });
+    /* ---- editing the app's own files from inside it: every save keeps the old version (lib/appedit.js) ---- */
+    if (url === '/api/appedit/list') return json(res, 200, appedit.list(q.get('dir') || ''));
+    if (url === '/api/appedit/edited') return json(res, 200, { edited: appedit.edited() });
+    if (url === '/api/appedit/read' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, appedit.read(String(b.path || ''))); }
+    if (url === '/api/appedit/check' && req.method === 'POST') { const b = await jbody(req, 2e6); return json(res, 200, appedit.check(String(b.path || ''), b.text)); }
+    if (url === '/api/appedit/save' && req.method === 'POST') { const b = await jbody(req, 2e6); const r = appedit.save(String(b.path || ''), b.text); return json(res, r.error ? 400 : 200, r); }
+    if (url === '/api/appedit/versions' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, { versions: appedit.versions(String(b.path || '')) }); }
+    if (url === '/api/appedit/revert' && req.method === 'POST') { const b = await jbody(req, 2e4); const r = appedit.revert(String(b.path || ''), b.at); return json(res, r.error ? 400 : 200, r); }
     /* offline picture making: stable-diffusion.cpp with the SD-Turbo model, both kept in the imggen folder */
     /* ---- offline media: each engine writes a file (lib/media.js), the route sends it and removes it ---- */
     /* only the named fields of a request reach an engine: where the file is written is never the page's choice */
