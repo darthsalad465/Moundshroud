@@ -11,8 +11,8 @@
     ['🐧', 'Pip', 'Frost-Crown Penguin', '#7da0ff', 'cheerful, dapper, and adventurous'],
     ['🐱', 'Miso', 'Lucky Starlight Neko', '#f2c75c', 'cozy, mischievous, and affectionate']
   ];
-  const S = Object.assign({ on: 1, b: 0, roam: 1 }, (() => { try { return JSON.parse(ls.get('companion', '{}')); } catch (e) { return {}; } })());
-  if (S.roam === undefined) S.roam = 1;
+  const S = Object.assign({ on: 1, b: 0, roam: 0 }, (() => { try { return JSON.parse(ls.get('companion', '{}')); } catch (e) { return {}; } })());
+  S.roam = 0; // Only move when explicitly told to
   const save = () => ls.set('companion', JSON.stringify({ on: S.on, b: S.b, roam: S.roam }));
   const LINES = {
     cheer: ['Nice work!', 'Look at you go!', 'That was great!', 'You did it!', 'Another one done!', 'Keep it up!'],
@@ -413,18 +413,9 @@
   cb.addEventListener('dblclick', e => { e.stopPropagation(); if (!isAtHome()) goHome(false); else doTrick('flip'); });
   bub.onclick = e => { e.stopPropagation(); if (A.buddy) A.buddy.open(); };
 
-  /* Idle sleep & autonomous roaming loop */
-  setInterval(() => {
-    if (!S.on || document.hidden) return;
-    const idleMs = Date.now() - lastAct;
-    if (!asleep && idleMs > 6 * 60e3) { asleep = true; mood('sleep'); return; }
-    if (!asleep && S.roam && !followCursor && !walkRaf && Math.random() < 0.65) {
-      roamOnce(false);
-    }
-  }, 15000);
-
+  /* Stay calm and still until told to act */
   ['mousemove', 'keydown', 'click'].forEach(ev => addEventListener(ev, () => {
-    if (asleep) { wake(); say(pick(LINES.hi), 2500); hop(); } else lastAct = Date.now();
+    if (asleep) wake(); else lastAct = Date.now();
   }, { passive: true }));
 
   const showMenu = anchor => {
@@ -433,8 +424,7 @@
       '<div class="cm-hd"><span>' + b[0] + ' ' + b[1] + ' · ' + b[2] + '</span></div>' +
       '<div data-a="chat">💬 Talk &amp; give commands</div>' +
       '<div data-a="point">🎯 Click anywhere to send me there</div>' +
-      '<div data-a="roamnow">🧭 Walk &amp; explore this page</div>' +
-      '<div data-a="roamtog">' + (S.roam ? '🐾 Free roaming: On' : '📌 Stay in place: On') + '</div>' +
+      '<div data-a="roamnow">🧭 Walk to a card on this page</div>' +
       '<div data-a="follow">' + (followCursor ? '🧲 Stop following cursor' : '🧲 Follow my cursor') + '</div>' +
       (!isAtHome() ? '<div data-a="home">🏠 Return to corner</div>' : '') +
       '<hr>' +
@@ -458,7 +448,6 @@
     if (act === 'chat') { if (A.buddy) A.buddy.open(); }
     else if (act === 'point') { pointMode = true; document.body.style.cursor = 'crosshair'; say('Click anywhere on the screen and I will walk right over!', 4000); }
     else if (act === 'roamnow') roamOnce(true);
-    else if (act === 'roamtog') { S.roam = S.roam ? 0 : 1; save(); say(S.roam ? 'Free roaming is on! I will explore around.' : 'Got it, I will stay put where you place me.', 3200); }
     else if (act === 'follow') setFollow(!followCursor);
     else if (act === 'home') goHome(false);
     else if (act === 'flip') doTrick('flip');
@@ -473,32 +462,6 @@
 
   applyPos(homeCoords().x, homeCoords().y);
   face();
-
-  // Greeting once a day
-  try {
-    const k = new Date().toDateString();
-    if (ls.get('companion_day', '') !== k) {
-      ls.set('companion_day', k);
-      setTimeout(() => {
-        const l = A.lang && A.lang.summary && A.lang.summary();
-        say(pick(LINES.hi) + (l && l.words ? ' ' + l.words + ' words in your language course so far.' : ''), 5000);
-        hop();
-      }, 2500);
-    }
-  } catch (e) { }
-
-  // Cheer when a chess game ends in a win
-  setTimeout(() => {
-    try {
-      if (window.ChessAch && !ChessAch.__cmp) {
-        const o = ChessAch.event; ChessAch.__cmp = 1;
-        ChessAch.event = function (n, d) {
-          try { if (n === 'game' && d && d.result === 'win') { react('win'); doTrick('flip'); } } catch (e) { }
-          return o.apply(this, arguments);
-        };
-      }
-    } catch (e) { }
-  }, 3000);
 
   // Make pos callable AND readable as an object so A.companion.pos() and A.companion.pos.x both work
   const posHybrid = () => ({ x: pos.x, y: pos.y, clientX: pos.x + 33, clientY: (innerHeight || 768) - pos.y - 33 });

@@ -116,6 +116,7 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
 <path class="mk-ml" pathLength="1" d="M30 103V47h13.5L64 76l20.5-29H98v56H85V69L67.5 94h-7L43 69v34z" fill="none" stroke="#fff3c2" stroke-width="1.6" stroke-linejoin="round"/>
 <g clip-path="url(#mkMc)"><rect class="mk-sh" x="-44" y="40" width="26" height="70" fill="url(#mkS)"/></g></g>
 <g class="mk-cr"><path d="M45 40l-3-15 11.5 7.5L64 20l10.5 12.5L86 25l-3 15z" fill="url(#mkG)" stroke="#4a2f04" stroke-opacity=".7" stroke-width=".6" stroke-linejoin="round"/><rect x="45" y="40" width="38" height="3.6" rx="1.2" fill="url(#mkG)" stroke="#4a2f04" stroke-opacity=".7" stroke-width=".5"/><circle class="mk-j" cx="64" cy="20" r="2.6" fill="#fff8d8"/><circle class="mk-j" cx="42" cy="25" r="2.1" fill="#fff8d8"/><circle class="mk-j" cx="86" cy="25" r="2.1" fill="#fff8d8"/></g></svg><b style="font-size:14px;letter-spacing:.3px">Moundshroud</b><span class="sp"></span>
+  <button class="ib" id="act" type="button" title="What the app has been doing, and how long everything took">⏱</button>
   <button class="ib" id="gs" title="Search everything, or run a command (Ctrl+K)">&#128269;</button>
   <select id="model" title="Model"></select>
   <button class="ib" id="newc" title="New chat (Ctrl+N)">&#9998; New</button>
@@ -148,7 +149,7 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
         <label class="chk" id="ufl" title="Search your own files and notes first"><input type="checkbox" id="usefiles" checked> Use my files</label>
         <label class="chk" id="uwb" style="display:none" title="Search the internet for this question and cite what it finds (turn internet access on in Settings)"><input type="checkbox" id="useweb"> &#127760; Web</label>
         <button class="ib" id="methelp" type="button" title="What these boxes do" aria-label="What these boxes do">?</button>
-        <span class="sp"></span><span id="status" role="status" aria-live="polite">connecting...</span>
+        <span class="sp"></span><span id="lasttime" class="small mute"></span><span id="status" role="status" aria-live="polite">connecting...</span>
       </div>
     </div>
   </section>
@@ -211,6 +212,7 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
 <script defer src="/web/js/styles.js"></script>
 <script defer src="/web/js/custom.js"></script>
 <script defer src="/web/js/core.js"></script>
+<script defer src="/web/js/activity.js"></script>
 <script defer src="/web/js/codeview.js"></script>
 <script defer src="/web/js/code-ed.js"></script>
 <script defer src="/web/js/commands.js"></script>

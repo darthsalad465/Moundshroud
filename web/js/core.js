@@ -7,9 +7,14 @@ const ls = {
 };
 const A = { caps: {}, tabs: {}, order: [], cur: 'home', ready: [], version: '1.1.0', built: '2026-10-27' };
 
+const nowMs = () => (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
 A.api = async (path, body) => {
   const o = body === undefined ? {} : { method: 'POST', body: JSON.stringify(body) };
-  const r = await fetch(path, o); return r.json();
+  const t0 = nowMs();
+  const r = await fetch(path, o); const j = await r.json();
+  /* anything that took a noticeable time is worth seeing in the ⏱ list: it is the shape of why the app feels slow */
+  try { const ms = nowMs() - t0; if (A.act && ms >= 100) A.act.mark('net', (o.method || 'GET') + ' ' + path.replace(/^\/api\//, ''), ms, { ok: r.ok, note: r.ok ? '' : 'HTTP ' + r.status }); } catch (e) { }
+  return j;
 };
 /* Notifications: a quiet stack in the bottom corner. A.toast(message) works exactly as it always has, and
    A.notify(kind, message, ms) is for when the kind matters (info, ok, warn, err): it picks the colour, the
@@ -75,6 +80,7 @@ A.pageAwake = name => A.cur === name || A.hold.has(name);
 A.every = (name, ms, fn) => setInterval(() => { if (A.pageAwake(name)) { try { fn(); } catch (e) { } } }, ms);
 A.showTab = name => {
   if (!A.tabs[name]) return;
+  const _t0 = nowMs();
   const prev = A.cur; A.cur = name; try { A.closePop(); } catch (e) { }
   if (prev !== name) { try { A.emit('tab:hide', prev); } catch (e) { } } try { A.emit('tab:show', name); } catch (e) { }
   for (const n of A.order) { const p = $('p-' + n); if (p) p.classList.toggle('on', n === name); }      // a missing page must not stop the others being hidden
@@ -83,6 +89,8 @@ A.showTab = name => {
   /* one page failing to open must never take the rest of the app with it: it gets a "try again" card instead */
   const fail = e => { try { A.problems && A.problems.push('page', 'Opening ' + name + ': ' + (e && e.message || e), (e && e.stack || '').split('\n')[1] || ''); } catch (x) { } const p = $('p-' + name); if (p && !p.textContent.trim()) { p.innerHTML = '<div class="pad" style="margin:auto;max-width:460px;text-align:center"><h3>This page hit a problem</h3><p class="mute small">The rest of Moundshroud still works. The details were saved for Settings › Problems.</p><button class="pri" onclick="A.showTab(\'' + name + '\')">Try again</button></div>'; } };
   if (A.tabs[name].onShow) { try { const r = A.tabs[name].onShow(); if (r && r.catch) r.catch(fail); } catch (e) { fail(e); } }
+  /* how long the page took to be on screen: measured after the browser has painted it twice */
+  if (A.act) requestAnimationFrame(() => requestAnimationFrame(() => { try { A.act.mark('page', 'Opened ' + ((A.tabs[name] && A.tabs[name].label) || name), nowMs() - _t0, { tab: name }); } catch (e) { } }));
 };
 /* alphabetical order for lists and contents (switch: Settings > Appearance > Alphabetical order); the key ignores emoji and symbols */
 A.az = (list, key) => { if (ls.get('alpha', '1') === '0') return list; const k = x => String(key ? key(x) : x).replace(/<[^>]*>/g, '').replace(/^[^\p{L}\p{N}]+/u, '').toLowerCase(); return list.slice().sort((a, b) => k(a).localeCompare(k(b), undefined, { numeric: true, sensitivity: 'base' })); };
