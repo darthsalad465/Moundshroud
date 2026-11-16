@@ -3,7 +3,7 @@
 // (3) add a hotkey to KEYS if it has one, and (4) add a STEPS entry if it deserves a mention in the tour. Bump GUIDE_UPDATED.
 (() => {
   const root = $('p-guide');
-  const GUIDE_UPDATED = '2026-11-15';
+  const GUIDE_UPDATED = '2026-11-16';
 
   const KEYS = [
     ['Ctrl + Alt + A', 'Open or hide Moundshroud, from anywhere'],
@@ -27,6 +27,7 @@
   /* newest first */
   const CHANGELOG = [
     ['2026-11-16', [
+      '<b>📖 The Guide is now a book you can open.</b> Press <b>📖 Open the book</b> at the top of the Guide (or ask for it in the command palette) and the manual unfolds as a holographic book: a cover that swings open, two-page spreads, a contents drawer with search and highlights, page-turn sounds, read-aloud, full screen, and an <b>Open</b> button on every chapter that takes you to the real tab. It is built from the same sections as the written guide, so it can never fall behind. <b>Studio › 📖 Storybook &amp; comic</b> is new too: write and illustrate a picture book or a comic, hear it read aloud, then print it or save a real PDF. See <i>Storybook &amp; comic</i> below.',
       '<b>🧰 A Security Toolkit in the Cyber tab.</b> <b>Cyber &rsaquo; 🧰 Toolkit</b> adds 17 easy security and networking tools, the kind found on Kali Linux, running on this PC: DNS and reverse DNS, IP and WHOIS lookups, a subdomain finder, a port scanner, a certificate inspector, a security-header grader, a tech fingerprint, traceroute, your local network, nearby Wi-Fi, four hash tools, live connections, and a real <b>packet capture</b> that uses Wireshark (tshark). Each tool has a plain result, a “What it is / How to use it” tutorial, and a legal note. They only look and read; none attacks. Press <b>💬 Ask the AI to explain this</b> on any result for a plain-words explanation, or ask the AI in Chat (“scan the open ports on localhost”).',
       '<b>🏰 The logo goes back to the crown,</b> and clicking the logo in the top left corner goes to Today. The Today page keeps its large logo.',
       '<b>📺 Faster YouTube.</b> YouTube search now uses YouTube’s own data feed, so it answers in about a second instead of timing out.',
@@ -718,6 +719,17 @@
 <li><b>🦉 Companion (your buddy):</b> the animated character in the bottom-left corner. <b>Click it to chat</b>, by typing or with the 🎤 button (🔊 reads answers aloud). <b>It can see the page you are on</b>, so <i>what does this mean?</i>, <i>what should I press here?</i> or <i>explain this page</i> are answered about the screen in front of you, and it can look inside <b>Moundshroud's own source files</b> (ask <i>how does the chess trainer work?</i> and it names the real file). Try: <i>play something by Bach</i>, <i>play chill music</i>, <i>pause</i>, <i>open the library</i>, <i>analyze this page</i>, <i>review my last chess game</i> (the engine checks every move, then it explains the turning points), <i>remind me to stretch at 3pm</i>, <i>make a quiz on volcanoes</i>. It runs the same actions as the main chat and searches your notes, files and the offline library when you ask about them. The <b>⋯</b> button changes buddy or hides it; right-click the character for the same menu. It never talks about rated games, and will gently make fun of you if you ask.</li>
 </ul>
 <p><b>Moved:</b> <b>✍️ Writing coach</b> and <b>🎤 Practice</b> are now in the <b>Prepare</b> tab, and <b>🎲 Tabletop</b> is in <b>Entertainment</b>.</p>` },
+    { id: 'storybook', icon: '📖', title: 'Storybook & comic (Studio)', html: `
+<p><b>Studio › 📖 Storybook &amp; comic</b> makes a real picture book or comic on this PC, then prints it or saves it as a PDF. Your shelf, every page and every picture stay in this browser profile; nothing is uploaded.</p>
+<ul>
+<li><b>Two kinds of book, one shelf.</b> A <b>picture book</b> has one illustration and one piece of story on each page. A <b>comic</b> has a page of panels, each with its own picture, a yellow caption and a speech bubble. Start from a blank book, from one of the three ready-made ideas (they show how a book is laid out), or import a <code>.json</code> book file. Every book autosaves as you type.</li>
+<li><b>Write it yourself or with the local AI.</b> <b>✨ Write with AI</b> takes a one-line idea, a page count and a reading age and writes the whole book, including a picture idea for every page. <b>✨ Write this page</b> continues from the pages before it. Change every word afterwards; the AI is a first draft, not the author.</li>
+<li><b>Illustrate it here.</b> Press <b>🎨 Illustrate this page</b> (or <b>Draw panel</b>) and the local image model paints it in your chosen style: watercolour, cartoon, oil painting, anime, pencil sketch, fantasy, 3D or photo. If the image model is not installed, Qwen draws a simpler vector picture instead, so a book always has art. Install the image model in <b>Prepare › Stock up</b> for full illustrations.</li>
+<li><b>Comics:</b> choose a <b>2 × 2 grid</b>, a <b>single strip</b> or a <b>big first panel</b>, add up to twelve panels, and give each one a picture idea, a caption and a speech bubble. Panels can be moved, removed and redrawn one at a time. Switch a book between picture book and comic at any time: the text becomes panels, or the panels become story text.</li>
+<li><b>Read it like a book.</b> <b>▶ Read</b> opens the reader: a cover, two-page spreads and page-turn animations. <b>🔊 Read to me</b> narrates with the offline voice, turning the pages as it goes. Arrow keys, Page Up/Down, Space and Home/End work, and <b>Esc</b> leaves the reader.</li>
+<li><b>Print, PDF and files.</b> <b>🖨 Print</b> opens a print-ready copy (Letter pages, one page per sheet). <b>📄 PDF</b> sends the same pages and pictures to LibreOffice and saves a real PDF in <code>Documents\\Moundshroud Documents</code>, with a preview and Open / Show in folder buttons. <b>⬇</b> exports the whole book as a <code>.json</code> file you can import on another PC.</li>
+<li><b>Good to know:</b> pictures are stored inside the book, so a book with many large illustrations takes a little longer to open and export. The reader and the printed page use the same layout, so what you see on screen is what you get on paper.</li>
+</ul>` },
     { id: 'languages', icon: '🌍', title: 'Languages: learn Spanish, French, German, Italian or Portuguese', html: `
 <p>The <b>🌍 Languages</b> tab is a complete course meant to take you from zero to comfortable conversation in about <b>six months</b> of daily practice. It runs on this PC: about 1 MB of course data per language and the local AI for conversation. Your progress is saved on this PC (and included when you Export settings and progress in Tools &rarr; Storage).</p>
 <h3>How it works</h3>
@@ -1406,11 +1418,11 @@
   const toc = A.az(SECTIONS, s => s.title).map(s => '<span class="chip" data-g="' + s.id + '">' + s.icon + ' ' + s.title.replace(/ - .*$|:.*$| \(.*$/, '') + '</span>').join('');
   root.innerHTML = '<div class="scroll pad guide" style="flex:1;max-width:820px" id="gscroll">' +
     '<h2>Welcome</h2><p>Meet <b>Moundshroud</b>, your own private assistant. It runs entirely on this PC: no account, no subscription, no internet needed. Nothing you type, say or open is sent anywhere.</p>' +
-    '<div class="row" style="margin:8px 0 4px;flex-wrap:wrap"><button class="pri" id="gtour">Take the 1-minute tour</button><button class="pri" id="gpres" style="margin-left:6px">🎬 Full presentation</button><span class="small mute">Guide updated ' + GUIDE_UPDATED + '</span></div>' +
+    '<div class="row" style="margin:8px 0 4px;flex-wrap:wrap"><button class="pri" id="gtour">Take the 1-minute tour</button><button class="pri" id="gpres" style="margin-left:6px">🎬 Full presentation</button><button class="pri" id="gbook" style="margin-left:6px">📖 Open the book</button><span class="small mute">Guide updated ' + GUIDE_UPDATED + '</span></div>' +
     '<input id="gq" type="text" placeholder="Search this guide..." style="margin:10px 0 6px"><div class="chips" id="gtoc" style="margin-bottom:6px">' + toc + '</div><div id="gnone" class="mute small" style="display:none;margin:8px 0">Nothing in the guide matches that.</div>' +
     '<div id="gnew">' + whatsNew + '</div>' +
     A.az(SECTIONS, s => s.title).map(s => '<section class="gsec" id="g-' + s.id + '"><h2>' + s.icon + ' ' + s.title + '</h2>' + s.html + '</section>').join('') + '</div>';
-  $('gtour').onclick = () => tour(); $('gpres').onclick = () => A.tutorial.resume();
+  $('gtour').onclick = () => tour(); $('gpres').onclick = () => A.tutorial.resume(); $('gbook').onclick = () => A.guideBook && A.guideBook.open();
   $('gtoc').onclick = e => { const c = e.target.closest('[data-g]'); if (!c) return; $('gq').value = ''; filter(); const el = $('g-' + c.dataset.g); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
   function filter() {
     const q = ($('gq').value || '').trim().toLowerCase(); let shown = 0;
@@ -1445,7 +1457,7 @@
     ['radio', 'Radio', 'Live internet radio: news, talk, music, weather and the few public police and fire scanner feeds. Press ▶ to listen and ☆ to keep a station. It needs internet access on.'],
     ['tv', 'TV', 'Live TV channels (your VLC links and channel lists, by category, with real names and logos) and YouTube, watched inside the app with ⛶ Full screen. It needs internet access on.'],
     ['faith', 'Spiritual', 'A Catholic Bible in two translations (an easy modern one and the traditional Douay-Rheims), prayers, a guided Rosary, the liturgical calendar, devotional classics — and five devotional pages: a holy hour, the Stations of the Cross, the Divine Mercy chaplet, a simplified Liturgy of the Hours and a saints calendar with a novena tracker.'],
-    ['guide', 'Want every detail?', 'The <b>🎬 Full presentation</b> in the Guide walks through every tab and every sub-page, switching the real app as it explains. Press <kbd>F1</kbd> any time for the written guide.'],
+    ['guide', 'Want every detail?', 'The <b>📖 Open the book</b> button turns the Guide into a holographic book: page-by-page spreads, a searchable contents drawer and an Open button on every chapter. The <b>🎬 Full presentation</b> walks through every tab and every sub-page, switching the real app as it explains. Press <kbd>F1</kbd> any time for the written guide.'],
     ['guide', 'Help is always here', 'Press <kbd>F1</kbd> any time for this guide. It has a search box and a "What\'s new" list that grows with every update.'],
   ];
   function tour(i = 0) {
@@ -1458,6 +1470,6 @@
     if (i) $('tback').onclick = () => tour(i - 1);
     $('tnext').onclick = () => { if (i === STEPS.length - 1) reset(); tour(i + 1); };
   }
-  A.guide = { tour, sections: SECTIONS.map(s => s.id), list: () => SECTIONS.map(s => ({ id: s.id, icon: s.icon, title: s.title, text: String(s.html || '').replace(/<[^>]+>/g, ' ').replace(/&[a-z]+;/g, ' ').replace(/\s+/g, ' ').trim() })), keys: () => KEYS, firstRun() { if (ls.get('toured', '') !== '1') setTimeout(() => tour(0), 800); }, changelog: () => CHANGELOG };
+  A.guide = { tour, sections: SECTIONS.map(s => s.id), full: () => SECTIONS, steps: () => STEPS, list: () => SECTIONS.map(s => ({ id: s.id, icon: s.icon, title: s.title, text: String(s.html || '').replace(/<[^>]+>/g, ' ').replace(/&[a-z]+;/g, ' ').replace(/\s+/g, ' ').trim() })), keys: () => KEYS, firstRun() { if (ls.get('toured', '') !== '1') setTimeout(() => tour(0), 800); }, changelog: () => CHANGELOG };
   A.registerTab('guide', 'Guide', () => {});
 })();
