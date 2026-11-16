@@ -750,7 +750,6 @@
   }
   async function analyzePage(extra) {
     const pg = pageText(); if (pg.text.length < 30) return 'There is not much text on this page for me to analyse. Try asking about something specific.';
-    if (A.companion && A.companion.roamOnce) A.companion.roamOnce(true);
     const sys = persona() + ' The user asked you to look at the page they are on. Be concrete: say what the page is, the key points or data on it, anything that stands out, and what they could do next. Use short paragraphs or a few bullets. Under 170 words.';
     const ctrl = pg.controls && pg.controls.length ? '\nButtons and fields on it: ' + pg.controls.slice(0, 24).join(' | ') : '';
     return await ask([{ role: 'system', content: sys }, { role: 'user', content: 'Page: the "' + pg.label + '" tab of Moundshroud' + (pg.inner && pg.inner.length ? ' (' + pg.inner.join(' > ') + ')' : '') + '. Text on screen:\n"""\n' + pg.text + '\n"""' + ctrl + '\n' + (extra ? 'My request: ' + extra : 'Analyze this page for me.') }]);
@@ -804,7 +803,6 @@
     const out = [];
     for (const c of calls.slice(0, 2)) {
       try {
-        if (A.companion && A.companion.roamOnce) A.companion.roamOnce(true);
         out.push(await A.actions.run(c.function.name, c.function.arguments));
       } catch (e) { out.push('I could not do that: ' + e.message); }
     }
@@ -850,14 +848,6 @@
     }
 
     try { if (A.actions && A.actions.looksActionable(text)) { const r = await toolCall(text); if (r) return r; } } catch (e) { }
-
-    /* If the user is asking about a visible control on screen, walk over to it while answering! */
-    try {
-      const mentioned = findTargetOnScreen(text, false);
-      if (mentioned && mentioned.score >= 36 && A.companion && A.companion.walkToEl) {
-        A.companion.walkToEl(mentioned.el, { say: mentioned.label });
-      }
-    } catch (e) { }
 
     return await ask([{ role: 'system', content: persona() + await ground(text) }].concat(S.log.slice(-10, -1), [{ role: 'user', content: text }]));
   }

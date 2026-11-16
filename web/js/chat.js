@@ -3,7 +3,7 @@
   let chats = [], cur = null, busy = false, ctl = null, saveT = null;
   const msgsEl = $('msgs'), inEl = $('in');
   const newChat = () => ({ id: Date.now().toString(36), title: 'New chat', msgs: [], updated: Date.now() });
-  const persist = () => { clearTimeout(saveT); saveT = setTimeout(() => { fetch('/api/chats', { method: 'POST', body: JSON.stringify(chats.filter(c => c.msgs.length).map(c => ({ id: c.id, title: c.title, updated: c.updated, messages: c.msgs.map(m => ({ role: m.role, content: m.content, thinking: m.thinking, local: m.local, img: m.img, runs: m.runs, sources: (m.sources || []).map(s => ({ title: s.title, page: s.page, kind: s.kind, path: s.path, url: s.url, where: s.where, text: s.kind === 'attach' ? '' : (s.text || '').slice(0, 700) })) })) }))) }).catch(() => {}); }, 600); };
+  const persist = () => { clearTimeout(saveT); saveT = setTimeout(() => { fetch('/api/chats', { method: 'POST', body: JSON.stringify(chats.filter(c => c.msgs.length).map(c => ({ id: c.id, title: c.title, updated: c.updated, messages: c.msgs.map(m => ({ role: m.role, content: m.content, thinking: m.thinking, local: m.local, img: m.img, runs: m.runs, ms: m.ms, thinkMs: m.thinkMs, sources: (m.sources || []).map(s => ({ title: s.title, page: s.page, kind: s.kind, path: s.path, url: s.url, where: s.where, text: s.kind === 'attach' ? '' : (s.text || '').slice(0, 700) })) })) }))) }).catch(() => {}); }, 600); };
   const model = () => $('model').value;
 
   /* ---------- rendering ---------- */
@@ -22,11 +22,14 @@
   }
   function fill(d, m) {
     if (m.role === 'user') { d.innerHTML = '<div class="bd">' + esc(m.content) + '</div>' + toolsHtml('user'); return; }
-    d.innerHTML = (m.thinking ? '<details><summary>Thinking</summary><div>' + esc(m.thinking) + '</div></details>' : '') + '<div class="bd">' + (m.content ? md(m.content) : waitHtml('Thinking…')) + '</div>' + runsHtml(m) + imgHtml(m) + srcChips(m.sources) +
+    d.innerHTML = (m.thinking ? '<details><summary>Thinking</summary><div>' + esc(m.thinking) + '</div></details>' : '') + '<div class="bd">' + (m.content ? md(m.content) : waitHtml('Thinking…')) + '</div>' + timeHtml(m) + runsHtml(m) + imgHtml(m) + srcChips(m.sources) +
       (m.err ? '<div class="errbar"><button class="ib" data-t="redo">↻ Try again</button><span class="small mute">Nothing was lost. Your question is still above.</span></div>' : '') + (m.local ? '' : toolsHtml('assistant'));
     /* ▶ Run on every Python and JavaScript block: it runs in the sealed-off sandbox and the output shows under it */
     if (window.A && A.interp) d.querySelectorAll('.bd pre[data-lang]').forEach(p => { if (A.interp.LANG(p.dataset.lang)) p.insertAdjacentHTML('afterbegin', '<button class="cp runbtn" title="Run this code in the sealed-off sandbox on this PC">▶ Run</button>'); });
   }
+  /* how long a reply took, and how long it thought before the first word: kept with the chat, so it survives a reload */
+  function timeHtml(m) { if (!m || !m.ms) return ''; return '<div class="mtime" title="From pressing Send to the last word">⏱ ' + A.act.fmt(m.ms) + ' in all' + (m.thinkMs ? ' · thinking ' + A.act.fmt(m.thinkMs) : '') + '</div>'; }
+  function lastTime(m) { const el = $('lasttime'); if (!el || !m || !m.ms) return; el.textContent = 'last reply ' + A.act.fmt(m.ms) + (m.thinkMs ? ' (thinking ' + A.act.fmt(m.thinkMs) + ')' : ''); el.title = 'How long the previous reply took, from pressing Send to the last word'; }
   /* what the code interpreter ran, what it printed, and its charts */
   function runsHtml(m) {
     if (!m.runs || !m.runs.length) return '';
@@ -255,9 +258,19 @@
     const um = { role: 'user', content: text }; cur.msgs.push(um); msgsEl.appendChild(render(um, cur.msgs.length - 1));
     const am = { role: 'assistant', content: '', thinking: '', sources: [] }; cur.msgs.push(am);
     const el = render(am, cur.msgs.length - 1); el.classList.add('pending'); msgsEl.appendChild(el); msgsEl.scrollTop = msgsEl.scrollHeight;      // .pending hides Copy, Redo and the rest until the reply is finished
+    /* the clock starts now: the ⏱ button in the top bar shows it, and the reply keeps its own time */
+    const t0 = Date.now(), op = A.act ? A.act.begin('Answering in Chat', { tab: 'chat', kind: 'chat', phase: 'thinking' }) : null;
+    let tFirst = 0, curWait = 'Thinking…';
     setBusy(true); setStatus('searching...', 'busy');
     let ok = true, stopped = false;
-    const wait = label => { const bd = el.querySelector('.bd'); if (bd && !am.content) bd.innerHTML = waitHtml(label); };
+    const wait = label => { curWait = label; if (op) op.say(label.replace(/…$/, '')); const bd = el.querySelector('.bd'); if (bd && !am.content) bd.innerHTML = waitHtml(label); };
+    /* the waiting words count the seconds, so you can see how long it has been thinking */
+    const liveT = setInterval(() => {
+      if (!busy) return;
+      const s = A.act.fmt(Date.now() - t0);
+      if (am.content) setStatus('writing… ' + s, 'busy');
+      else { const bd = el.querySelector('.bd'); if (bd) bd.innerHTML = waitHtml(curWait + ' ' + s); }
+    }, 500);
     wait('Looking through your files and libraries…');
     try {
       /* the code interpreter, code first: a question that needs working out gets a program written and run before the answer,
@@ -299,6 +312,7 @@
         if (mm.tool_calls && mm.tool_calls.length) calls.push(...mm.tool_calls);
         if (mm.thinking) am.thinking += mm.thinking;
         if (mm.content) am.content += mm.content;
+        if (!tFirst && (mm.content || mm.thinking)) tFirst = Date.now();      // how long it thought before the first word
         setStatus(am.content ? 'writing...' : 'thinking...', 'busy');
         if (!paintT) paintT = setTimeout(paint, 60);      // repaint at most ~16 times a second: re-parsing the whole reply on every token made long answers lag and run hot
       };
@@ -369,7 +383,10 @@
       else { am.err = true; am.content = (am.content ? am.content + '\n\n' : '') + '**Something went wrong:** ' + e.message + '\n\nIf the model is still loading, wait a few seconds and press Try again.'; }
     }
     if (cur._kept) { am.content = (am.content || '').trim() + '\n\n_🔒 ' + cur._kept + '_'; delete cur._kept; }
-    setBusy(false); ctl = null;
+    setBusy(false); ctl = null; clearInterval(liveT);
+    am.ms = Date.now() - t0; if (tFirst) am.thinkMs = tFirst - t0;
+    if (op) op.end(ok, stopped ? 'stopped' : A.act.fmt(am.ms));
+    if (am.ms) lastTime(am);
     if (ok) setStatus('ready'); else if (stopped) setStatus('stopped'); else setStatus('that did not work - press Try again', 'err');
     el.classList.remove('pending'); fill(el, am); cur.updated = Date.now(); persist(); msgsEl.scrollTop = msgsEl.scrollHeight;
   }
@@ -586,8 +603,10 @@
   A.registerTab('chat', 'Chat', () => inEl.focus());
   A.ready.push(async () => {
     try { chats = await A.api('/api/chats'); if (!Array.isArray(chats)) chats = []; } catch (e) { chats = []; }
-    chats = chats.map(c => ({ id: c.id, title: c.title || 'Chat', updated: c.updated || 0, msgs: (c.messages || c.msgs || []).map(m => ({ role: m.role, content: m.content || m.display || '', thinking: m.thinking || '', local: m.local, img: m.img, runs: m.runs, sources: m.sources || [] })) }));
+    chats = chats.map(c => ({ id: c.id, title: c.title || 'Chat', updated: c.updated || 0, msgs: (c.messages || c.msgs || []).map(m => ({ role: m.role, content: m.content || m.display || '', thinking: m.thinking || '', local: m.local, img: m.img, runs: m.runs, ms: m.ms, thinkMs: m.thinkMs, sources: m.sources || [] })) }));
     cur = newChat(); chats.unshift(cur); renderAll(); loadModels();
+    /* the last reply's time is still on screen after a reload */
+    const prev = chats.map(c => (c.msgs || []).filter(m => m.role === 'assistant' && m.ms).pop()).filter(Boolean).pop(); if (prev) lastTime(prev);
   });
 })();
 

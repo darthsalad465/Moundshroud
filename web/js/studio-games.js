@@ -40,6 +40,14 @@
     if (!/<\/html>\s*$/i.test(h) && !/<\/body>\s*$/i.test(h)) return { cut: true, err: 'The game was still unfinished after ' + MAX_PARTS + ' parts. Press Make again, or describe it in fewer words.' };
     return { html: h };
   }
+  /* how much of the game really changed: lines that went away, and lines that appeared */
+  function diffStat(a, b) {
+    const count = s => { const m = new Map(); String(s || '').split('\n').forEach(l => { const k = l.trim(); if (k) m.set(k, (m.get(k) || 0) + 1); }); return m; };
+    const o = count(a), n = count(b); let gone = 0, add = 0;
+    for (const [k, v] of o) { const w = n.get(k) || 0; if (v > w) gone += v - w; }
+    for (const [k, v] of n) { const w = o.get(k) || 0; if (v > w) add += v - w; }
+    return { gone, add, lines: String(a || '').split('\n').length };
+  }
   /* styles live here so the feature is one file; every class starts with gmk- so app-wide classes cannot override it */
   if (!document.getElementById('gmk-css')) { const st = document.createElement('style'); st.id = 'gmk-css'; st.textContent = `
 .gmk{--g1:var(--acc,#7c5cff);--g2:var(--acc2,#22d3ee)}
@@ -94,10 +102,17 @@
       '</div><div class="gmk-main"><div class="gmk-bar"><input id="gmname" class="gmk-name" placeholder="Untitled game" spellcheck="false" disabled><span class="gmk-sp"></span>' +
       '<button class="gmk-btn" id="gmre" disabled>⟲ Restart</button><button class="gmk-btn" id="gmfs" disabled>⛶ Full screen</button><button class="gmk-btn" id="gmcode" disabled>&lt;/&gt; Code</button><button class="gmk-btn" id="gmport" disabled title="Add it to Games > Arcade">🎮 Arcade</button><button class="gmk-btn gmk-pri" id="gmsave" disabled>💾 Save</button></div>' +
       '<div class="gmk-stage" id="gmstage"><div class="gmk-empty"><div class="gmk-empty-i">🕹️</div><b>No game yet</b><div>Describe one on the left, tap an idea, or open a saved game.</div></div></div>' +
-      '<div id="gmmsg"></div><div id="gmcodebox" hidden><div class="gmk-codebar"><b>&lt;/&gt; The game’s code</b><span class="gmk-note">Change anything, then ▶ Run my code (Ctrl+Enter). Ctrl+S saves. ↶ Undo goes back.</span><span class="gmk-sp"></span><button class="gmk-btn" id="gmrun">▶ Run my code</button></div><textarea class="gmk-src" id="gmsrc" data-code spellcheck="false" autocomplete="off" autocapitalize="off"></textarea></div></div></div>';
+      '<div id="gmmsg"></div><div id="gmerr"></div><div id="gmlive" hidden><div class="gmk-codebar"><b>▶ The AI is writing this now</b><span class="gmk-note">live, as it types · the game you already have keeps playing</span></div><pre class="gmk-live" id="gmlivepre"></pre></div><div id="gmcodebox" hidden><div class="gmk-codebar"><b>&lt;/&gt; The game’s code</b><span class="gmk-note">Change anything, then ▶ Run my code (Ctrl+Enter). Ctrl+S saves. ↶ Undo goes back.</span><span class="gmk-sp"></span><button class="gmk-btn" id="gmrun">▶ Run my code</button></div><textarea class="gmk-src" id="gmsrc" data-code spellcheck="false" autocomplete="off" autocapitalize="off"></textarea></div></div></div>';
     const $ = id => root.querySelector('#' + id), msg = $('gmmsg');
     let cur = null, ctl = null, busy = false, frame = null;
     const say = (kind, html) => { msg.innerHTML = html ? '<div class="gmk-msg gmk-' + kind + '">' + html + '</div>' : ''; };
+    /* the code arriving, live: the whole reply as it streams, so you can watch the game being written */
+    let liveBuf = '', livePaint = 0, liveN = 0;
+    const liveShow = on => { const l = $('gmlive'); if (!l) return; l.hidden = !on; if (on) { liveBuf = ''; liveN = 0; $('gmlivepre').textContent = ''; } };
+    const liveAdd = t => {
+      liveBuf += t; if (livePaint) return;
+      livePaint = requestAnimationFrame(() => { livePaint = 0; const p = $('gmlivepre'); if (!p) return; p.textContent = liveBuf.slice(-12000); p.scrollTop = p.scrollHeight; });
+    };
 
     /* models: the same list as the top bar, starting on the top bar's choice */
     (async () => { const sel = $('gmm'); try { const ms = ((await (await fetch('/api/models')).json()).models || []).filter(m => !/embed/i.test(m.name)); const top = A.ai.model(), saved = ls.get('gm_model', ''); const pick = ms.some(m => m.name === saved) ? saved : top; sel.innerHTML = ms.map(m => '<option value="' + esc(m.name) + '"' + (m.name === pick ? ' selected' : '') + '>' + esc(m.label || m.name) + (m.cloud ? ' (Claude, online)' : ' (on this PC)') + '</option>').join(''); } catch (e) { sel.innerHTML = '<option value="">Top bar model</option>'; } sel.onchange = () => ls.set('gm_model', sel.value); })();
@@ -109,11 +124,12 @@
       $('gmsrc').value = cur.html; setTimeout(() => $('gmsrc').dispatchEvent(new Event('input')), 0);   // the code box grows to fit the new code
     }
     function show() {
-      const has = !!cur; ['gmre', 'gmfs', 'gmcode', 'gmsave', 'gmport', 'gmname'].forEach(id => $(id).disabled = !has || busy); $('gmedit').hidden = !has;
+      /* playing, restarting, full screen, the code and saving all keep working while the AI writes: the game never stops */
+      const has = !!cur; ['gmre', 'gmfs', 'gmcode', 'gmsave', 'gmport', 'gmname'].forEach(id => $(id).disabled = !has); $('gmedit').hidden = !has;
       $('gmname').value = has ? cur.name || '' : ''; $('gmundo').disabled = !has || !(cur.prev && cur.prev.length) || busy;
       $('gmsave').textContent = has && cur.dirty === false ? '✓ Saved' : '💾 Save';
       $('gmhist').innerHTML = has && cur.asks && cur.asks.length ? '<div class="gmk-note">Asked so far</div>' + cur.asks.slice(-6).map(a => '<div class="gmk-ask">' + esc(a) + '</div>').join('') : '';
-      $('gmnew').disabled = $('gmchg').disabled = busy; $('gmnew').textContent = busy ? '⏳ Writing the game...' : '✨ Make this game';
+      $('gmnew').disabled = $('gmchg').disabled = busy; $('gmnew').textContent = busy ? '⏳ Writing… (you can keep playing)' : '✨ Make this game';
     }
     function drawList() {
       const l = list(); $('gmn').textContent = l.length ? l.length : '';
