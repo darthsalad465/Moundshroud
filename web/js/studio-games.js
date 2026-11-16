@@ -40,6 +40,13 @@
     if (!/<\/html>\s*$/i.test(h) && !/<\/body>\s*$/i.test(h)) return { cut: true, err: 'The game was still unfinished after ' + MAX_PARTS + ' parts. Press Make again, or describe it in fewer words.' };
     return { html: h };
   }
+  /* a fix is an edit to the game the AI already wrote: this asks for the smallest change, in a form the app can apply
+     exactly, instead of a new copy of the whole game */
+  const PATCH_SYS = 'You are debugging an existing HTML5 game. The whole file is in the message. Do NOT rewrite it, do NOT repeat it, do NOT write a new game.\n' +
+    'Reply with JSON only, in exactly this shape: {"edits":[{"find":"a short exact copy of the code that is wrong","replace":"the corrected code"}]}\n' +
+    'Rules:\n- "find" must be copied character for character from the file, indentation included, and must appear once only.\n' +
+    '- Keep each find to the few lines that have to change.\n- Change the least that fixes the problem and nothing else.\n' +
+    '- If the file needs no change, reply {"edits":[]}.\n- No explanation, no markdown, no code fences.';
   /* how much of the game really changed: lines that went away, and lines that appeared */
   function diffStat(a, b) {
     const count = s => { const m = new Map(); String(s || '').split('\n').forEach(l => { const k = l.trim(); if (k) m.set(k, (m.get(k) || 0) + 1); }); return m; };
@@ -171,6 +178,16 @@
         if (p) p.textContent = line; if (b) b.style.width = Math.min(96, n / (cap * 3.4 * part) * 100) + '%';
         if (op) op.say('part ' + part + ' · ' + kb + ' kB · ' + secs + ' s');
       };
+      /* a change or a bug fix goes through the patcher first: it is a debug of the code it wrote, not a new game. Only
+         when its edits cannot be applied does the file get written out again. */
+      let triedPatch = false;
+      if (kind === 'edit' && A.patch && cur) {
+        triedPatch = true;
+        let ok = false;
+        try { ok = await patchFix(text, t0, op); } catch (e) { if (e.name === 'AbortError') throw e; }   // the patcher failed: the rewrite below is the fallback
+        if (ok) { busy = false; ctl = null; show(); return; }
+        liveN = 0;
+      }
       const msgs = [{ role: 'system', content: SYS }];
       if (kind === 'new') msgs.push({ role: 'user', content: 'Make this game: ' + text });
       else msgs.push({ role: 'user', content: 'Here is my current game:\n```html\n' + cur.html + '\n```\n' + (cur.asks.length ? 'Earlier requests, already done: ' + cur.asks.slice(-5).join(' | ') + '\n' : '') + 'Change it like this: ' + text + '\n' +
@@ -192,7 +209,7 @@
         const secs = Math.round((Date.now() - t0) / 1000), st = before ? diffStat(before, out.html) : null;
         const changed = st ? ' · ' + (st.gone + st.add) + ' of ' + st.lines + ' lines changed (' + st.add + ' new, ' + st.gone + ' gone)' : '';
         if (st && !st.add && !st.gone) say('warn', '⚠ ' + secs + ' s, but the AI sent back exactly the same code, so nothing changed. Say the change in different words, or pick a bigger model.');
-        else say('ok', '✓ ' + (kind === 'new' ? 'Made' : 'Changed') + ' in ' + secs + ' s' + changed + '. Click the game to give it the keyboard. Save it to keep it.');
+        else say('ok', '✓ ' + (kind === 'new' ? 'Made' : 'Changed') + ' in ' + secs + ' s' + changed + '. Click the game to give it the keyboard. Save it to keep it.' + (triedPatch ? '<br><span class="gmk-note">The AI rewrote the file instead of patching it: its small edit did not fit the code.</span>' : ''));
         if (op) op.end(true, secs + ' s' + changed);
         liveShow(false); play();
       } catch (e) {
@@ -202,6 +219,33 @@
         liveShow(false);
       }
       busy = false; ctl = null; show();
+    }
+    /* the smallest fix: find/replace edits against the game it already wrote, applied only if they fit exactly */
+    async function patchFix(text, t0, op) {
+      const bug = /^fix this error/i.test(text);
+      if (op) op.say(bug ? 'looking for the bug' : 'looking for the smallest change');
+      const msgs = [
+        { role: 'system', content: PATCH_SYS },
+        { role: 'user', content: 'The whole game file:\n```html\n' + cur.html + '\n```\n\n' + (bug ? 'It fails at run time with: ' + text.replace(/^Fix this error that appears when the game runs:\s*/i, '') + '\nFind the cause in that code and fix it.' : 'What to change: ' + text) + '\n\nReply with the JSON edits only.' }
+      ];
+      const reply = await ask(msgs, 900, (n, txt) => {
+        if (txt && txt.length > liveN) { liveAdd(txt.slice(liveN)); liveN = txt.length; }
+        const p = $('gmprog'), b = $('gmbar'), secs = Math.round((Date.now() - t0) / 1000);
+        if (p) p.textContent = 'Finding the fix: ' + Math.round(n / 1000 * 10) / 10 + ' kB, ' + secs + ' s';
+        if (b) b.style.width = Math.min(60, n / 900 * 100) + '%';
+        if (op) op.say('writing a small edit · ' + secs + ' s');
+      });
+      const edits = A.patch.parse(reply); if (!edits) return false;
+      const res = A.patch.apply(cur.html, edits); if (!res.applied) return false;
+      const before = cur.html;
+      cur.prev = (cur.prev || []).concat([{ html: before, asks: cur.asks.slice() }]).slice(-5);
+      cur.html = res.text; cur.asks = cur.asks.concat([text]); cur.dirty = true; $('gmc').value = '';
+      const st = diffStat(before, cur.html), secs = Math.round((Date.now() - t0) / 1000), n = res.applied;
+      say('ok', '✓ ' + (n === 1 ? 'One small fix' : n + ' small fixes') + ' in ' + secs + ' s · ' + st.add + ' lines new, ' + st.gone + ' gone · the rest of the game was left exactly as it was.' +
+        (res.missed.length ? ' (' + res.missed.length + ' edit' + (res.missed.length === 1 ? '' : 's') + ' from the AI did not fit the code and were skipped.)' : ''));
+      if (op) op.end(true, secs + ' s · ' + n + ' edit' + (n === 1 ? '' : 's'));
+      liveShow(false); play();
+      return true;
     }
     function save() {
       if (!cur) return; if ($('gmsrc').value && $('gmsrc').value !== cur.html) { applyCode(); play(); }
