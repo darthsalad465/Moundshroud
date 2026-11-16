@@ -114,5 +114,26 @@
     w.querySelectorAll('#rxp,#rxf,#rxt').forEach(i => i.addEventListener('input', go)); go();
   }
 
-  A.cyberLabs = { ptracer, sqllab, subnet, regex };
+  /* ---------- OWASP Juice Shop: a local, legal practice target, shown in a frame ---------- */
+  let jpoll = 0;
+  function juice(el) {
+    const w = wrap(el, '<h2>🧃 OWASP Juice Shop</h2><div class="sub">A deliberately vulnerable web shop, run on this PC as a safe and legal target. Practise the Toolkit, ARTEX and your own skills against it. Nothing here touches the real internet.</div><div id="jbody">Checking…</div>');
+    const body = w.querySelector('#jbody');
+    const show = st => {
+      if (st.up) { if (!body.querySelector('#jframe')) body.innerHTML = '<div class="row" style="display:flex;gap:10px;align-items:center;margin-bottom:6px"><span class="note" style="margin:0">Running at <span class="mono">' + esc(st.url) + '</span></span><span style="flex:1"></span><button class="ib2" id="jstop">■ Stop</button></div><iframe id="jframe" src="' + esc(st.url) + '" style="flex:1;width:100%;height:68vh;border:1px solid var(--line);border-radius:10px;background:#fff"></iframe>'; const s = body.querySelector('#jstop'); if (s) s.onclick = async () => { await A.api('/api/juiceshop/stop', {}); idle(await A.api('/api/juiceshop/status').catch(() => ({}))); }; return; }
+      if (st.starting) { body.innerHTML = '<div class="note">Starting Juice Shop… the first launch builds its database, up to a minute.</div>'; clearTimeout(jpoll); jpoll = setTimeout(async () => show(await A.api('/api/juiceshop/status').catch(() => ({}))), 1500); return; }
+      idle(st);
+    };
+    const idle = st => {
+      body.innerHTML = (st.installed === false ? '<div class="bad">Juice Shop is not installed in the runtime folder.</div>' : '<button class="btn" id="jgo">▶ Start Juice Shop</button>') +
+        '<div class="note"><b>⚠ For practice only.</b> Juice Shop is built to be broken into. Attack this one freely; never use these techniques on sites you do not own or have written permission to test.</div>';
+      const go = w.querySelector('#jgo'); if (go) go.onclick = async () => { body.innerHTML = '<div class="note">Starting Juice Shop… up to a minute on the first run.</div>'; try { await A.api('/api/juiceshop/start', {}); } catch (e) { } poll(40); };
+    };
+    const poll = async n => { clearTimeout(jpoll); const st = await A.api('/api/juiceshop/status').catch(() => ({})); if (st.up) return show(st); if (n <= 0) { idle(st); A.toast('Juice Shop did not come up in time.'); return; } jpoll = setTimeout(() => poll(n - 1), 1500); };
+    el._onShow = () => { if (!body.querySelector('#jframe')) A.api('/api/juiceshop/status').then(show).catch(() => { }); };
+    el._cleanup = () => clearTimeout(jpoll);
+    A.api('/api/juiceshop/status').then(show).catch(() => { body.innerHTML = '<div class="bad">Could not reach the server.</div>'; });
+  }
+
+  A.cyberLabs = { ptracer, sqllab, subnet, regex, juice };
 })();
