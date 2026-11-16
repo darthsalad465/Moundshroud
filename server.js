@@ -593,6 +593,8 @@ const mainServer = http.createServer(async (req, res) => {
     if (url === '/api/web/pages') return json(res, 200, { sites: webpages.list(), status: webpages.status, dir: webpages.DIR });
     if (url === '/api/web/crawl' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, webpages.start(String(b.url || ''), { pages: b.pages, depth: b.depth })); }
     if (url === '/api/web/remove' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, webpages.remove(String(b.host || ''))); }
+    if (url === '/api/apis/list') return json(res, 200, require('./lib/apis').list());
+    if (url === '/api/apis/call' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, await require('./lib/apis').call(String((b || {}).url || ''))); }
     if (url === '/api/refs') return json(res, 200, { refs: refs.status(), dir: refs.DIR });
     if (url === '/api/refs/install' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, refs.install(String(b.slug || b.url || ''))); }
     if (url === '/api/refs/update' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, refs.update(String(b.slug || ''))); }

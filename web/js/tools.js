@@ -5,14 +5,14 @@
   const root = $('p-tools');
   let sub = 'sys', chefLoaded = false;
   root.innerHTML = '<div class="row" style="padding:8px 12px;gap:6px;border-bottom:1px solid var(--line);flex-wrap:wrap" id="tsub"></div><div id="tbody" style="flex:1;min-height:0;display:flex;flex-direction:column"></div>';
-  const SUBS = [['sys', 'System'], ['conv', '🔄 Converter'], ['repos', '📦 Repositories'], ['safe', '🛡 File safety'], ['opt', '✨ Prompt optimizer']];   // the Agent moved to Chat > Agent (web/js/agent.js)
+  const SUBS = [['sys', 'System'], ['conv', '🔄 Converter'], ['repos', '📦 Repositories'], ['apis', '🌐 API Explorer'], ['safe', '🛡 File safety'], ['opt', '✨ Prompt optimizer']];   // the Agent moved to Chat > Agent (web/js/agent.js)
   /* a tool is still running only while the page it was opened in is the one on screen */
   const live = b => !!(b && b.isConnected && b.closest('.panel.on'));
   function tabs() { $('tsub').innerHTML = SUBS.filter(s => s[0] !== 'chef' || A.caps.chef).map(s => '<button class="ib' + (sub === s[0] ? ' on' : '') + '" data-s="' + s[0] + '">' + s[1] + '</button>').join(''); }
   $('tsub').onclick = e => { const b = e.target.closest('[data-s]'); if (b) go(b.dataset.s); };
   let tok = 0;
   /* the one list of pages: the Tools buttons (go) and the other tabs (A.tools.show) both read it, so a page added here works in both */
-  const RENDER = () => ({ docs: (x, my) => A.docs.render(x, my), office: x => A.officeEdit.render(x), sys, repos, safe, calc, rem, trans, clip, prm, cyber: x => A.cyber.render(x), codes: x => A.cbLab.render(x), course: x => A.cybercourse.render(x), conv: x => A.converter.render(x), opt: x => A.promptOpt.render(x), agent: x => A.agent.render(x), scan: x => A.scanner.render(x), meet: x => A.meetings.render(x), vault: x => A.vault.render(x), puzz: x => A.puzzlemaker.render(x), journal: x => A.journal.render(x), storage: x => A.storage.render(x), chef });
+  const RENDER = () => ({ docs: (x, my) => A.docs.render(x, my), office: x => A.officeEdit.render(x), sys, repos, apis: x => A.apiExplorer.render(x), safe, calc, rem, trans, clip, prm, cyber: x => A.cyber.render(x), codes: x => A.cbLab.render(x), course: x => A.cybercourse.render(x), conv: x => A.converter.render(x), opt: x => A.promptOpt.render(x), agent: x => A.agent.render(x), scan: x => A.scanner.render(x), meet: x => A.meetings.render(x), vault: x => A.vault.render(x), puzz: x => A.puzzlemaker.render(x), journal: x => A.journal.render(x), storage: x => A.storage.render(x), chef });
   function go(s) { if (s === 'agent' && A.agent && A.agent.open) return A.agent.open(); if (!SUBS.some(x => x[0] === s)) s = 'sys'; sub = s; tabs(); const b = $('tbody'); const f = RENDER()[s] || sys; A.keep(b, s, el => f(el, ++tok)); }
 
   /* ---- system dashboard ---- */
