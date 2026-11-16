@@ -18,6 +18,13 @@
     '- A start screen, a score, a game over screen and restart with the R key. Keep it small: at most 4 files and about 400 lines of GDScript in total.\n' +
     '- Every file must be complete and syntactically valid. No placeholders, no "...", no explanation before or after the blocks.';
 
+  /* a change or a fix edits the files the AI already wrote: it is asked for the smallest edit it can, not for the project again */
+  const PATCH_SYS = 'You are debugging an existing Godot 4 project. Its files are in the message. Do NOT rewrite the project and do NOT repeat whole files.\n' +
+    'Reply with JSON only, in exactly this shape: {"edits":[{"file":"player.gd","find":"a short exact copy of the code that is wrong","replace":"the corrected code"}]}\n' +
+    'Rules:\n- "file" must be one of the project files listed, written exactly as listed.\n- "find" must be copied character for character from that file, indentation included, and must appear once only.\n' +
+    '- Keep each find to the few lines that have to change.\n- Change the least that fixes the problem and nothing else.\n' +
+    '- If nothing needs changing, reply {"edits":[]}.\n- No explanation, no markdown, no code fences.';
+
   // styles are prefixed god- so nothing in the app can override them
   if (!document.getElementById('god-css')) {
     const st = document.createElement('style'); st.id = 'god-css'; st.textContent = `
@@ -227,28 +234,49 @@ html.god-filled body{overflow:hidden}html.god-filled body>*:not(main){visibility
       if (err) throw new Error(err); if (!r.ok) throw new Error('The AI engine answered with error ' + r.status + '.'); if (!all.trim()) throw new Error('The AI sent back nothing. Check that the model is installed, or try another one.');
       return all;
     }
+    /* the smallest change: find/replace edits against the project files, saved only for the files that really changed */
+    async function patchFix(text, files, t0) {
+      const body = Object.keys(files).map(p => '=== FILE: ' + p + ' ===\n' + files[p]).join('\n');
+      const msgs = [{ role: 'system', content: PATCH_SYS }, { role: 'user', content: 'The project:\n' + body + '\n\n' + (/^fix/i.test(text) ? text : 'Change it like this: ' + text) + '\n\nReply with the JSON edits only.' }];
+      const reply = await ask(msgs, 1200, n => { const p = $('gdprog'), b = $('gdbar'); if (p) p.textContent = 'Finding the smallest fix: ' + Math.round(n / 1000 * 10) / 10 + ' kB, ' + Math.round((Date.now() - t0) / 1000) + ' s'; if (b) b.style.width = Math.min(60, n / 1200 * 100) + '%'; });
+      const edits = A.patch.parse(reply); if (!edits) return false;
+      const res = A.patch.applyFiles(files, edits); if (!res.changed.length) return false;
+      const j = await (await fetch('/api/godot/save', { method: 'POST', body: JSON.stringify({ name: cur.name, files: res.changed.map(p => ({ path: p, content: res.files[p] })) }) })).json();
+      if (!j.ok) return false;
+      await openProject(j.name);
+      const secs = Math.round((Date.now() - t0) / 1000);
+      say('ok', '✓ ' + (res.changed.length === 1 ? 'One file edited' : res.changed.length + ' files edited') + ' in ' + secs + ' s: ' + esc(res.changed.join(', ')) + ' · the rest of the project was not touched.' + (res.missed.length ? ' (' + res.missed.length + ' edit' + (res.missed.length === 1 ? '' : 's') + ' that did not fit were skipped.)' : '') + (engine ? '' : ' — install Godot to play it (the box above has the command)'));
+      return true;
+    }
     async function run(kind, text) {
       if (busy) return; busy = true; ctl = new AbortController(); show(); const t0 = Date.now(), cap = kind === 'new' ? 9000 : 9000;
       say('busy', '<span class="god-spin"></span><span id="gdprog">Asking the AI...</span><button class="god-btn" id="gdstop">■ Stop</button><div class="god-track"><div id="gdbar"></div></div>');
       $('gdstop').onclick = () => { try { ctl.abort(); } catch (e) { } };
       const wait = setInterval(() => { const p = $('gdprog'); if (!busy || !p) return clearInterval(wait); if (/^Asking|^Waiting/.test(p.textContent)) p.textContent = 'Waiting for the AI engine, ' + Math.round((Date.now() - t0) / 1000) + ' s. It may be loading the model.'; }, 1000);
       const onLen = n => { const p = $('gdprog'), b = $('gdbar'); if (p) p.textContent = 'Writing the project: ' + Math.round(n / 1000 * 10) / 10 + ' kB, ' + Math.round((Date.now() - t0) / 1000) + ' s'; if (b) b.style.width = Math.min(96, n / (cap * 3.4) * 100) + '%'; };
-      const msgs = [{ role: 'system', content: SYS }];
+      const msgs = [{ role: 'system', content: SYS }], files = {};
       if (kind === 'new') msgs.push({ role: 'user', content: 'Make this game: ' + text });
       else {
         let used = 0, pack = '';
         for (const f of cur.files.filter(f => !f.dir)) {
-          try { const j = await (await fetch('/api/godot/file?name=' + encodeURIComponent(cur.name) + '&file=' + encodeURIComponent(f.path))).json(); if (!j.ok) continue; const body = j.text.slice(0, 18000); if (used + body.length > KEEP_CHARS) { pack += '=== FILE: ' + f.path + ' ===\n(file left out to stay inside the length limit)\n'; continue; } used += body.length; pack += '=== FILE: ' + f.path + ' ===\n' + body + '\n'; } catch (e) { }
+          try { const j = await (await fetch('/api/godot/file?name=' + encodeURIComponent(cur.name) + '&file=' + encodeURIComponent(f.path))).json(); if (!j.ok) continue; const body = j.text.slice(0, 18000); if (used + body.length > KEEP_CHARS) { pack += '=== FILE: ' + f.path + ' ===\n(file left out to stay inside the length limit)\n'; continue; } used += body.length; files[f.path] = body; pack += '=== FILE: ' + f.path + ' ===\n' + body + '\n'; } catch (e) { }
         }
         msgs.push({ role: 'user', content: 'Here is my current Godot project:\n' + pack + '\nChange it like this: ' + text + '\nKeep everything else working. Reply with every file of the project again, complete, in the same format.' });
       }
       try {
+        /* a change is a debug of the files it wrote: the smallest edit first, the rewrite only if that cannot be applied */
+        let patched = false, triedPatch = false;
+        if (kind === 'edit' && A.patch && Object.keys(files).length) {
+          triedPatch = true;
+          try { patched = await patchFix(text, files, t0); } catch (e) { if (e.name === 'AbortError') throw e; }
+          if (patched) { busy = false; ctl = null; show(); load(false); return; }
+        }
         const out = extract(await ask(msgs, cap, onLen)); if (out.err) throw new Error(out.err);
         const nm = nameOf(out.files) || (kind === 'new' ? text.replace(/[^a-z0-9 ]/gi, ' ').trim().split(/\s+/).slice(0, 5).join(' ') : cur.name);
         const j = await (await fetch('/api/godot/save', { method: 'POST', body: JSON.stringify({ name: nm, files: out.files }) })).json();
         if (!j.ok) throw new Error(j.error || 'Could not save the project.');
         await openProject(j.name);
-        say('ok', '✓ ' + (kind === 'new' ? 'Wrote' : 'Changed') + ' ' + j.count + ' file' + (j.count === 1 ? '' : 's') + ' in ' + Math.round((Date.now() - t0) / 1000) + ' s' + (engine ? '' : ' — install Godot to play it (the box above has the command)') + '. Read any file on the right.');
+        say('ok', '✓ ' + (kind === 'new' ? 'Wrote' : 'Changed') + ' ' + j.count + ' file' + (j.count === 1 ? '' : 's') + ' in ' + Math.round((Date.now() - t0) / 1000) + ' s' + (engine ? '' : ' — install Godot to play it (the box above has the command)') + '. Read any file on the right.' + (triedPatch ? '<div class="god-note">The AI rewrote the project instead of patching it: its small edit did not fit the files.</div>' : ''));
       } catch (e) { if (e.name === 'AbortError') say('warn', 'Stopped. Nothing was saved.'); else say('err', '<b>The game could not be written.</b> ' + esc(e.message)); }
       busy = false; ctl = null; show(); load(false);
     }
