@@ -9,6 +9,8 @@
   const q$ = s => root.querySelector(s);
   const TOPICS = [['🔴 Live news', 'live news'], ['🌍 World news', 'world news today'], ['🛰 NASA live', 'nasa live'], ['🎵 Music', 'music playlist'], ['🏅 Sports highlights', 'sports highlights'], ['🎬 Movie trailers', 'official trailer'], ['📚 Documentaries', 'full documentary'], ['😂 Comedy', 'stand up comedy'], ['🍳 Cooking', 'cooking recipes'], ['✝ Mass and prayer', 'catholic mass today'], ['🧒 Kids', 'kids cartoons'], ['🌲 Nature', 'nature 4k relaxing'], ['🔧 How to', 'how to fix']];
   let S = null, view = ls.get('tv_view', 'mine'), more = false, found = null, findT = 0, list = null, cat = '', filter = '', yt = { q: '', res: null, busy: false, err: '', seq: 0 }, busy = '', addOpen = false;
+  /* 🌍 Cameras: a hand-checked list of public 24/7 webcams (lib/cams.js), with YouTube search for fresh ones */
+  let CAM = null, camCat = ls.get('tv_camcat', ''), camFound = null, camBusy = '', camList = [], camShown = 90;
   const P = { kind: '', item: null, state: '', why: '', seq: 0 };          // what the player shows: '' | 'video' | 'yt'
 
   /* ---------- the player ---------- */
@@ -19,10 +21,13 @@
     b.style.display = '';
     const line = P.kind === 'yt' ? (P.item.channel || 'YouTube') : P.state === 'connecting' ? (P.item.file ? 'Opening…' : 'Connecting… live TV takes a few seconds to start.') : P.state === 'error' ? P.why : P.item.file ? '📥 From your downloads' : 'Live';
     if (!b.querySelector('.tv-stage')) {
-      b.innerHTML = '<div class="tv-phead"><b id="tvpn"></b><span id="tvpl" class="small"></span><span style="flex:1"></span><button class="ib" data-a="dlcur" id="tvdlb" title="Save this video on this PC">⬇ Download</button><button class="ib" data-a="fs" title="Full screen (F)">⛶ Full screen</button><button class="ib" data-a="close" title="Stop and close">✕ Close</button></div><div class="tv-stage" id="tvstage"></div>';
+      b.innerHTML = '<div class="tv-phead"><b id="tvpn"></b><span id="tvpl" class="small"></span><span style="flex:1"></span><button class="ib" data-a="prev" id="tvpvp" title="Previous camera (←)">◀</button><button class="ib" data-a="next" id="tvpvn" title="Next camera (→)">▶</button><button class="ib" data-a="dlcur" id="tvdlb" title="Save this video on this PC">⬇ Download</button><button class="ib" data-a="fs" title="Full screen (F)">⛶ Full screen</button><button class="ib" data-a="close" title="Stop and close">✕ Close</button></div><div class="tv-stage" id="tvstage"></div>';
     }
     b.querySelector('#tvpn').textContent = P.kind === 'yt' ? P.item.title : P.item.name;
     const db = b.querySelector('#tvdlb'); if (db) db.style.display = P.kind === 'yt' && S && S.dl && S.dl.tool.found ? '' : 'none';
+    /* ◀ ▶ only make sense while you are flipping through the cameras */
+    const flipping = view === 'cams' && P.kind === 'yt' && camList.length > 1;
+    for (const id of ['#tvpvp', '#tvpvn']) { const bb = b.querySelector(id); if (bb) bb.style.display = flipping ? '' : 'none'; }
     const l = b.querySelector('#tvpl'); l.textContent = line; l.className = 'small ' + (P.state === 'error' ? 'rd-bad' : 'mute');
   }
   function stop() {
@@ -83,7 +88,12 @@
     if (b.requestFullscreen) b.requestFullscreen().then(() => { realFs = true; }, () => { realFs = false; });
   }
   document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && realFs) { realFs = false; setFill(false); } });
-  document.addEventListener('keydown', e => { if (A.cur !== 'tv' || !P.kind || /^(INPUT|TEXTAREA|SELECT)$/.test((e.target || {}).tagName || '')) return; if (e.key === 'f' || e.key === 'F') { e.preventDefault(); toggleFs(); } });
+  document.addEventListener('keydown', e => {
+    if (A.cur !== 'tv' || /^(INPUT|TEXTAREA|SELECT)$/.test((e.target || {}).tagName || '')) return;
+    if (!P.kind) return;
+    if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && view === 'cams' && P.kind === 'yt') { e.preventDefault(); return flip(e.key === 'ArrowRight' ? 1 : -1); }
+    if (e.key === 'f' || e.key === 'F') { e.preventDefault(); toggleFs(); }
+  });
 
   /* ---------- data ---------- */
   async function load() { const keep = S && S.dl; try { S = await A.api('/api/tv'); S.dl = keep; await loadDl(); pollDl(); return; } catch (e) { S = S || { internet: false, video: false, vlc: {}, links: [], index: {} }; } }
@@ -96,27 +106,30 @@
     return '<div class="tv-tile' + (on ? ' on' : '') + '" data-id="' + esc(c.id) + '" data-a="play" title="Play ' + esc(c.name) + '"><div class="tv-logo">' + logo(c) + '</div><div class="tv-tm"><b>' + esc(c.name) + '</b><span class="small mute">' + esc(sub(c) || c.host || 'Channel') + (c.guess ? ' · name read from its address' : '') + '</span></div>' +
       '<div class="tv-acts">' + (opts.save ? '<button class="ib" data-a="save" title="Save to My channels">☆</button>' : '') + (opts.edit ? '<button class="ib" data-a="ren" title="Rename">✎</button><button class="ib" data-a="rm" title="Remove">✕</button>' : '') + '</div></div>';
   }
-  const mark = () => root.querySelectorAll('.tv-tile[data-id], .yt-card[data-id]').forEach(t => t.classList.toggle('on', !!P.item && P.item.id === t.dataset.id));
+  const mark = () => {
+    root.querySelectorAll('.tv-tile[data-id], .yt-card[data-id]').forEach(t => t.classList.toggle('on', !!P.item && P.item.id === t.dataset.id));
+    root.querySelectorAll('.cam-card[data-cam]').forEach(t => t.classList.toggle('on', !!P.item && P.item.id === t.dataset.cam));
+  };
 
   /* ---------- drawing ---------- */
   function shell() {
-    root.innerHTML = '<div class="rd-top"><h2>📺 TV</h2><div class="tv-seg"><button class="ib" data-v="mine">📡 My channels</button><button class="ib" data-v="yt">▶ YouTube</button><button class="ib" data-v="dl">📥 Downloads</button></div>' +
+    root.innerHTML = '<div class="rd-top"><h2>📺 TV</h2><div class="tv-seg"><button class="ib" data-v="mine">📡 My channels</button><button class="ib" data-v="cams">🌍 Cameras</button><button class="ib" data-v="yt">▶ YouTube</button><button class="ib" data-v="dl">📥 Downloads</button></div>' +
       '<input id="tvq" type="search" autocomplete="off"></div><div id="tvban"></div><div class="tv-player" id="tvp" style="display:none"></div><div class="scroll pad" id="tvbody" style="flex:1;min-height:0"></div>';
     root.onclick = onClick;
-    q$('#tvq').addEventListener('input', e => { if (view === 'dl') { dlq = e.target.value.trim(); return drawBody(); } if (view !== 'yt') { filter = e.target.value.trim(); found = null; drawBody(); clearTimeout(findT); if (!list && !more && filter.length > 1) findT = setTimeout(findAll, 350); } });
+    q$('#tvq').addEventListener('input', e => { if (view === 'dl') { dlq = e.target.value.trim(); return drawBody(); } if (view !== 'yt') { filter = e.target.value.trim(); found = null; camShown = 90; drawBody(); clearTimeout(findT); if (!list && !more && filter.length > 1) findT = setTimeout(findAll, 350); } });
     root.addEventListener('change', async e => { const m = e.target.closest('[data-dmv]'); if (!m) return; const r = await post('/api/tv/dl/move', { id: m.dataset.dmv, folder: m.value }); if (r) { S.dl = r; drawBody(); } });
     q$('#tvq').addEventListener('keydown', e => { if (e.key === 'Enter' && view === 'yt') ytSearch(e.target.value); });
   }
   function drawTop() {
     root.querySelectorAll('[data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === view));
-    const qi = q$('#tvq'); qi.placeholder = view === 'dl' ? 'Find a download by name...' : view === 'yt' ? 'Search YouTube, or paste a YouTube link, then press Enter' : list ? 'Filter these channels: a name, news, sports...' : 'Find a channel by name or kind...';
+    const qi = q$('#tvq');     qi.placeholder = view === 'dl' ? 'Find a download by name...' : view === 'cams' ? 'Filter the cameras: a place, a kind...  (← and → flip through them)' : view === 'yt' ? 'Search YouTube, or paste a YouTube link, then press Enter' : list ? 'Filter these channels: a name, news, sports...' : 'Find a channel by name or kind...';
     qi.value = view === 'dl' ? dlq : view === 'yt' ? yt.q : filter;
     q$('#tvban').innerHTML = S.internet ? '' : '<div class="rd-banner"><span style="flex:1;min-width:200px">🔌 <b>Internet access is off.</b> TV and YouTube come over the internet, so nothing can play until it is on.</span><button class="pri" data-a="neton">Turn on internet access</button></div>';
   }
   function drawBody() {
     const el = q$('#tvbody'); if (!el) return;
     if (busy) { el.innerHTML = '<div class="rd-empty">⏳ ' + esc(busy) + '</div>'; return; }
-    el.innerHTML = view === 'dl' ? drawDl() : view === 'yt' ? drawYt() : list ? drawList() : more ? drawMore() : drawMine();
+    el.innerHTML = view === 'dl' ? drawDl() : view === 'cams' ? drawCams() : view === 'yt' ? drawYt() : list ? drawList() : more ? drawMore() : drawMine();
     mark();
   }
   function drawMine() {
@@ -145,6 +158,53 @@
       '<div class="small mute" style="margin-bottom:10px">Free channel lists, checked by hand on 15 November 2026. Each one opens into its channels, grouped by kind, with a filter box. Most channels are free, ad-supported services (Pluto TV, Samsung TV Plus, public broadcasters). Some stop working over time; the lists are kept up to date by their volunteers.</div>' +
       '<div class="tv-lists">' + src.map(x => '<div class="tv-list" data-src="' + esc(x.id) + '"><div class="tv-tm"><b>' + esc(x.name) + '</b><span class="small mute" style="white-space:normal">' + esc(x.about) + '</span></div><div class="tv-acts">' + (x.added ? '<span class="small" style="color:var(--ok)">✓ Added</span>' : '<button class="ib" data-a="srcadd">＋ Add</button>') + '</div></div>').join('') + '</div>' +
       '<div class="small mute" style="margin:12px 2px">Sources: iptv-org (github.com/iptv-org/iptv) and Free-TV (github.com/Free-TV/IPTV), both open lists of publicly available streams.</div>';
+  }
+  /* ---------- 🌍 Cameras: public 24/7 webcams, one shelf at a time, flipped with ← and → ---------- */
+  async function loadCams() { if (CAM) return CAM; try { CAM = await A.api('/api/tv/cams'); } catch (e) { CAM = { cams: [], cats: [] }; } if (!CAM || !CAM.cams) CAM = { cams: [], cats: [] }; return CAM; }
+  const camCard = c => {
+    const on = P.kind === 'yt' && P.item && P.item.id === c.id;
+    return '<div class="cam-card' + (on ? ' on' : '') + '" data-cam="' + esc(c.id) + '" data-a="camplay" title="Watch ' + esc(c.name) + '"><div class="cam-th"><img loading="lazy" src="/api/tv/yt/thumb?id=' + encodeURIComponent(c.id) + '" alt="" onerror="this.style.display=\'none\'"><span class="yt-live">LIVE</span></div><b>' + esc(c.name) + '</b><span class="small mute">' + esc(c.ch) + '</span></div>';
+  };
+  function drawCams() {
+    if (!CAM) return '<div class="rd-empty">⏳ Loading the cameras…</div>';
+    const cats = CAM.cats || [], f = filter.toLowerCase();
+    const all = CAM.cams.filter(c => (!camCat || c.cat === camCat) && (!f || (c.name + ' ' + c.ch).toLowerCase().includes(f)));
+    /* all 317 pictures at once would hammer the machine: ninety at a time, with a button for the rest */
+    camList = all.slice(0, camShown);
+    let h = '<div class="row" style="flex-wrap:wrap;margin-bottom:8px"><b style="flex:1;min-width:180px">🌍 Live cameras <span class="small mute">· ' + CAM.cams.length.toLocaleString() + ' public webcams, always on</span></b><button class="ib" data-a="camfind"' + (camBusy ? ' disabled' : '') + '>🔎 Find more on YouTube</button></div>' +
+      '<div class="small mute" style="margin-bottom:8px">Public 24/7 streams, found on YouTube and checked on 16 November 2026. Press a camera to watch it, then flip with ← and → (or ◀ ▶ in the player). A stream stops when its owner stops sending; 🔎 finds new ones.</div>' +
+      '<div class="rd-cats" style="padding:0 0 10px"><button class="ib' + (!camCat ? ' on' : '') + '" data-camcat="">All <span class="mute">' + CAM.cams.length + '</span></button>' + cats.map(c => { const n = CAM.cams.filter(x => x.cat === c[0]).length; return n ? '<button class="ib' + (camCat === c[0] ? ' on' : '') + '" data-camcat="' + esc(c[0]) + '">' + esc(c[1]) + ' <span class="mute">' + n + '</span></button>' : ''; }).join('') + '</div>';
+    if (camBusy) return h + '<div class="rd-empty">⏳ ' + esc(camBusy) + '</div>';
+    if (camFound && camFound.length) h += '<h3 class="tv-h">🔎 Found just now <span class="small mute">' + camFound.length + '</span></h3><div class="cam-grid">' + camFound.map(camCard).join('') + '</div><h3 class="tv-h">📷 The shelves</h3>';
+    if (!camList.length) return h + '<div class="rd-empty">' + (f ? 'No camera matches “' + esc(filter) + '”.' : 'Nothing here yet.') + '</div>';
+    return h + '<div class="cam-grid">' + camList.map(camCard).join('') + '</div>' +
+      (all.length > camList.length ? '<div class="row" style="justify-content:center;margin:12px 0"><button class="ib" data-a="cammore">Show more cameras <span class="mute">' + (all.length - camList.length) + '</span></button></div>' : '');
+  }
+  function playCam(c) {
+    if (!c) return;
+    if (S && !S.internet) return A.notify('warn', 'Internet access is off. Turn it on at the top of the TV tab.');
+    playYt({ id: c.id, title: c.name, channel: c.ch, cam: 1 });
+  }
+  /* flipping: the next (or previous) camera on the shelf you are looking at, wrapping round at the end */
+  function flip(d) {
+    if (!camList.length) return;
+    const at = P.item ? camList.findIndex(c => c.id === P.item.id) : -1;
+    playCam(camList[at < 0 ? 0 : (at + d + camList.length) % camList.length]);
+  }
+  /* fresh cameras from YouTube's live results, for when a stream has gone quiet */
+  async function findCams() {
+    if (S && !S.internet) return A.notify('warn', 'Internet access is off. Turn it on at the top of the TV tab.');
+    const label = (CAM.cats.find(c => c[0] === camCat) || [])[1] || '';
+    const q = ((filter || label.replace(/[^\p{L}\p{N} ]/gu, '')).trim() || 'world') + ' live webcam';
+    camBusy = 'Asking YouTube for live cameras matching “' + q + '”…'; drawBody();
+    let r = null; try { r = await A.api('/api/tv/yt/search?q=' + encodeURIComponent(q)); } catch (e) { }
+    camBusy = '';
+    if (r && r.error) A.notify('warn', r.error);
+    const have = new Set((CAM.cams || []).concat(camFound || []).map(c => c.id));
+    const fresh = ((r && r.videos) || []).filter(v => v.live && !have.has(v.id)).map(v => ({ id: v.id, name: v.title.replace(/\s+/g, ' ').slice(0, 80), ch: v.channel || 'YouTube', cat: camCat || 'found' }));
+    if (!fresh.length) A.notify('warn', 'No new live cameras came back for that. Try another shelf or another word.');
+    else { camFound = (camFound || []).concat(fresh).slice(0, 60); A.notify('ok', 'Found ' + fresh.length + ' more live camera' + (fresh.length === 1 ? '' : 's') + '.'); }
+    drawBody();
   }
   function drawList() {
     const counts = {}; list.channels.forEach(c => { const g = c.group || 'Other'; counts[g] = (counts[g] || 0) + 1; });
@@ -234,7 +294,8 @@
   /* ---------- clicks ---------- */
   async function post(path, body) { try { const r = await A.api(path, body); if (r && r.error) { A.notify('err', r.error); return null; } return r; } catch (e) { A.notify('err', 'That did not work: ' + e.message); return null; } }
   async function onClick(e) {
-    const v = e.target.closest('[data-v]'); if (v) { view = v.dataset.v; ls.set('tv_view', view); filter = ''; if (view === 'dl') { await loadDl(); pollDl(); } return draw(); }
+    const v = e.target.closest('[data-v]'); if (v) { view = v.dataset.v; ls.set('tv_view', view); filter = ''; found = null; if (view === 'dl') { await loadDl(); pollDl(); } if (view === 'cams') await loadCams(); return draw(); }
+    const cc = e.target.closest('[data-camcat]'); if (cc) { camCat = cc.dataset.camcat; ls.set('tv_camcat', camCat); filter = ''; camShown = 90; return draw(); }
     const tp = e.target.closest('[data-yt]'); if (tp) return ytSearch(tp.dataset.yt);
     const df = e.target.closest('[data-dlf]'); if (df) { dlF = df.dataset.dlf; ls.set('tv_dlf', dlF); return drawBody(); }
     const db0 = e.target.closest('[data-a]'); if (db0 && /^dl(?!cur)/.test(db0.dataset.a)) return dlClick(db0.dataset.a, db0);
@@ -244,6 +305,11 @@
     const b = e.target.closest('[data-a]'); if (!b) return;
     const a = b.dataset.a, holder = b.closest('[data-id]'), id = holder ? holder.dataset.id : '';
     const item = id ? ((list && list.channels.find(c => c.id === id)) || (found && found.channels.find(c => c.id === id)) || S.links.find(x => x.id === id) || (yt.res || []).find(x => x.id === id)) : null;
+    if (a === 'prev') return flip(-1);
+    if (a === 'next') return flip(1);
+    if (a === 'camfind') return findCams();
+    if (a === 'cammore') { camShown += 90; return drawBody(); }
+    if (a === 'camplay') { const cid = b.closest('[data-cam]'); if (!cid) return; const id2 = cid.dataset.cam; return playCam((CAM && CAM.cams.find(x => x.id === id2)) || (camFound || []).find(x => x.id === id2)); }
     if (a === 'fs') return toggleFs();
     if (a === 'close') return stop();
     if (a === 'neton') { if (await post('/api/cloud', { web: true })) { if (A.net) A.net.refresh(); await load(); draw(); } return; }
@@ -280,6 +346,7 @@
   A.registerTab('tv', 'TV', async () => {
     const first = !q$('#tvbody'); if (first) shell();
     more = false;
+    if (view === 'cams') await loadCams();
     await load(); draw();
   });
   A.tv = { stop, escape: () => { if (filled()) { exitFs(); return true; } if (P.kind) { stop(); return true; } return false; }, playing: () => P.kind ? { kind: P.kind, name: P.kind === 'yt' ? P.item.title : P.item.name } : null, search: q => { A.showTab('tv'); view = 'yt'; setTimeout(() => { draw(); ytSearch(q); }, 100); } };
