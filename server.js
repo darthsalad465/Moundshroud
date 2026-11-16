@@ -31,6 +31,7 @@ const nativeapps = require('./lib/nativeapps');
 const juiceshop = require('./lib/juiceshop');
 const modellab = require('./lib/modellab');
 const finetune = require('./lib/finetune');
+const practice = require('./lib/practice');
 const ROOT = __dirname, DATA = path.join(ROOT, 'data'), WEB = path.join(ROOT, 'web'), CHEF = path.join(ROOT, 'nomad', 'cyberchef');
 const ROOT_DIR_GE = path.join(ROOT, 'engines', 'godot', 'web-editor');          // Godot's official web editor build
 fs.mkdirSync(DATA, { recursive: true });
@@ -60,6 +61,7 @@ function cleanup() {
   try { artexmod.stopAll(); } catch (e) {}   // and ARTEX with its database, if they were started
   try { juiceshop.stopAll(); } catch (e) {}  // and the Juice Shop practice target, if it was started
   try { finetune.stopAll(); } catch (e) {}   // and any fine-tune setup or training run
+  try { practice.stop(); } catch (e) {}      // and a practice-gym run
 }
 try { require('./lib/chess-sf').setActive(() => Date.now() - lastPing < 90000); } catch (e) { }
 function shutdown() { if (down) return; down = true; cleanup(); setTimeout(() => process.exit(0), 200); }
@@ -817,6 +819,12 @@ const mainServer = http.createServer(async (req, res) => {
     if (url === '/api/autocommit' && req.method === 'GET') { const off = fs.existsSync(path.join(DATA, 'autocommit.off')); return json(res, 200, { on: !off }); }
     if (url === '/api/autocommit' && req.method === 'POST') { const b = await jbody(req, 1e3).catch(() => ({})); const f = path.join(DATA, 'autocommit.off'); try { if (b && b.on) { if (fs.existsSync(f)) fs.unlinkSync(f); } else { fs.writeFileSync(f, 'Auto-commit is off. Delete this file, or toggle it on in Settings, to resume.\n'); } } catch (e) { return json(res, 200, { ok: false, error: String(e.message || e) }); } return json(res, 200, { ok: true, on: !!(b && b.on) }); }
     /* launch a whitelisted installed native app (Cisco Packet Tracer), in its own window */
+    /* Practice gym: a model solves graded coding exercises in a sandbox (lib/practice.js) */
+    if (url === '/api/practice/status') return json(res, 200, practice.status());
+    if (url === '/api/practice/runs') return json(res, 200, { runs: practice.runs(), count: practice.count });
+    if (url === '/api/practice/start' && req.method === 'POST') { const b = await jbody(req, 1e3); return json(res, 200, practice.start(b || {})); }
+    if (url === '/api/practice/stop' && req.method === 'POST') return json(res, 200, practice.stop());
+    if (url === '/api/practice/examples' && req.method === 'POST') { const b = await jbody(req, 1e3); return json(res, 200, { examples: practice.runExamples((b || {}).id) }); }
     /* Fine-tune: real QLoRA training on the GPU (lib/finetune.js) */
     if (url === '/api/finetune/status') return json(res, 200, finetune.status());
     if (url === '/api/finetune/installlog') return json(res, 200, { log: finetune.installLog() });
