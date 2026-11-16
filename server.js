@@ -231,6 +231,7 @@ const ocrImage = buf => new Promise(resolve => {
   });
 });
 const officeEdit = require('./lib/office-edit');
+const storybook = require('./lib/storybook');
 const within = (p, r) => { const a = path.normalize(p).toLowerCase(), b = path.normalize(r).replace(/[\\/]+$/, '').toLowerCase(); return a === b || a.startsWith(b + path.sep); };   // inside the folder, not merely sharing its first letters
 const allowedPath = p => { p = path.normalize(String(p || '')); if (p.includes('\0')) return false; const roots = [...docs.sources(), store.NOTES, office.OUT, office.PREV]; return (roots.some(r => within(p, r)) || officeEdit.allowed(p)) && fs.existsSync(p); };
 
@@ -239,7 +240,7 @@ const allowedPath = p => { p = path.normalize(String(p || '')); if (p.includes('
    its Host header (blocks DNS rebinding), and any Origin / Sec-Fetch-Site the browser adds must say "this same site" (blocks cross-site
    requests). The tray helper and scripts send neither header and are unaffected. */
 const SELF = new Set(['127.0.0.1:' + PORT, 'localhost:' + PORT]), SELF_ORIGIN = new Set(['http://127.0.0.1:' + PORT, 'http://localhost:' + PORT]);
-const CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: data:; worker-src 'self' blob:; frame-src 'self' blob: data: http://127.0.0.1:" + LIBPORT + " http://localhost:" + LIBPORT + " http://127.0.0.1:" + artexmod.PORT + " http://localhost:" + artexmod.PORT + " http://127.0.0.1:" + juiceshop.PORT + " http://localhost:" + juiceshop.PORT + " https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
+const CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: data:; worker-src 'self' blob:; frame-src 'self' blob: data: http://127.0.0.1:" + LIBPORT + " http://localhost:" + LIBPORT + " http://127.0.0.1:" + artexmod.PORT + " http://localhost:" + artexmod.PORT + " http://127.0.0.1:" + juiceshop.FRAME + " http://localhost:" + juiceshop.FRAME + " https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
 function allowedCaller(req) {
   const h = req.headers, host = String(h.host || '').toLowerCase(), org = h.origin, sfs = h['sec-fetch-site'];
   return SELF.has(host) && (!org || SELF_ORIGIN.has(String(org).toLowerCase())) && (!sfs || sfs === 'same-origin' || sfs === 'none');
@@ -785,6 +786,8 @@ const mainServer = http.createServer(async (req, res) => {
       cp.spawnSync('taskkill', ['/IM', 'llama-server.exe', '/F'], { stdio: 'ignore', windowsHide: true }); cp.spawnSync('taskkill', ['/IM', 'ollama.exe', '/F'], { stdio: 'ignore', windowsHide: true });
       return json(res, 200, { ok: true });
     }
+    /* ---- Storybook & comic PDF (lib/storybook.js): print-ready HTML and pictures from Studio ---- */
+    if (url === '/api/storybook/pdf' && req.method === 'POST') { const b = await jbody(req, 60e6); return json(res, 200, await storybook.pdf({ title: b.title, html: b.html, assets: b.assets })); }
     /* ---- LibreOffice documents ---- */
     if (url === '/api/office/status') return json(res, 200, { available: office.available(), outDir: office.OUT });
     if (url === '/api/office/list') return json(res, 200, { files: office.list() });
