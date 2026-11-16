@@ -116,7 +116,7 @@
      Wrapped around fetch rather than added to 200 call sites. Quiet requests (the constant polling) and long
      AI jobs are left out: the first would leave the bar on forever, the second already has its own spinner. */
   try {
-    const QUIET = /\/api\/(ping|incoming|closing|warm|verse\/status|status|sys)\b/;
+    const QUIET = /\/api\/(ping|incoming|closing|warm|verse\/status|status|sys|brain\/poll)\b/;
     const SLOWJOB = /\/api\/(chat|tts|transcribe|music\/gen|music\/status|imggen|img\/gen|pull|prep\/stock|prep\/pull|study|sf\/|wallpaper)/;
     const track = u => { try { const s = String(u); return /\/api\//.test(s) && !QUIET.test(s) && !SLOWJOB.test(s); } catch (e) { return false; } };
     let bar = null, pend = 0, pct = 0, trick = 0, hideT = 0;
