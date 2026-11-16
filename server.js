@@ -1,7 +1,7 @@
 // Offline assistant suite - local server. Talks only to Ollama and Kiwix on this PC. No outside connections.
 // Lifecycle: started by the hotkey listener when you open the window; shuts itself (and everything it started) down when the window closes.
 const http = require('http'), fs = require('fs'), path = require('path'), cp = require('child_process'), os = require('os'), crypto = require('crypto');
-const U = require('./lib/util'), docs = require('./lib/docs'), kiwix = require('./lib/kiwix'), websearch = require('./lib/websearch'), voice = require('./lib/voice'), store = require('./lib/store'), extra = require('./lib/extra'), thesaurus = require('./lib/thesaurus'), rhyme = require('./lib/rhyme'), pcmod = require('./lib/pc'), office = require('./lib/office'), prep = require('./lib/prep'), appfiles = require('./lib/appfiles'), webpages = require('./lib/webpages'), refs = require('./lib/refs'), embed = require('./lib/embed'), cams = require('./lib/cams');
+const U = require('./lib/util'), docs = require('./lib/docs'), kiwix = require('./lib/kiwix'), websearch = require('./lib/websearch'), voice = require('./lib/voice'), store = require('./lib/store'), extra = require('./lib/extra'), thesaurus = require('./lib/thesaurus'), rhyme = require('./lib/rhyme'), pcmod = require('./lib/pc'), office = require('./lib/office'), prep = require('./lib/prep'), appfiles = require('./lib/appfiles'), webpages = require('./lib/webpages'), refs = require('./lib/refs'), embed = require('./lib/embed'), cams = require('./lib/cams'), safety = require('./lib/safety');
 
 const safe = require('./lib/safe');
 const problems = require('./lib/problems');
@@ -400,7 +400,22 @@ const mainServer = http.createServer(async (req, res) => {
     if (url === '/api/radio/custom' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, await radio.custom(b)); }
     /* ---- TV: live video links (see lib/tv.js) ---- */
     if (url === '/api/tv') return json(res, 200, tv.status());
-    if (url === '/api/tv/cams') return json(res, 200, { cams: cams.CAMS, cats: cams.CATS });
+    if (url === '/api/tv/cams') return json(res, 200, cams.catalog());
+    if (url === '/api/tv/cams/add' && req.method === 'POST') { const b = await jbody(req, 2e5); const list = cams.addAll(b.cams); return json(res, 200, { ok: true, added: list.length, cams: list }); }
+    if (url === '/api/tv/cams/forget' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, { ok: true, cams: cams.forget(String(b.id || '')) }); }
+    /* is each camera still broadcasting? YouTube's player endpoint is asked one id at a time, a few at once */
+    if (url === '/api/tv/cams/check' && req.method === 'POST') {
+      const b = await jbody(req, 2e5), ids = (Array.isArray(b.ids) ? b.ids : []).filter(id => /^[A-Za-z0-9_-]{11}$/.test(String(id))).slice(0, 80);
+      if (!ids.length) return json(res, 400, { error: 'No cameras to check.' });
+      if (!net.on()) return json(res, 400, { error: 'Checking needs internet access. Turn it on in Settings, AI & power.' });
+      const results = [];
+      for (let i = 0; i < ids.length; i += 4) {
+        const part = await Promise.all(ids.slice(i, i + 4).map(async id => { try { const r = await youtube.liveNow(id); return { id, live: !!r.live, reason: r.error || '' }; } catch (e) { return { id, live: false, reason: String(e.message).slice(0, 80) }; } }));
+        part.forEach(r => results.push(r));
+      }
+      cams.markLive(results);
+      return json(res, 200, { ok: true, results, live: results.filter(r => r.live).length, dead: results.filter(r => !r.live).length });
+    }
     if (url === '/api/tv/video') return tv.video(q.get('id') || '', req, res);
     if (url === '/api/tv/logo') return tv.logo(q.get('id') || '', res);
     if (url === '/api/tv/yt/search') return json(res, 200, await youtube.search(q.get('q') || ''));
@@ -543,6 +558,15 @@ const mainServer = http.createServer(async (req, res) => {
     if (url === '/api/refs') return json(res, 200, { refs: refs.status(), dir: refs.DIR });
     if (url === '/api/refs/install' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, refs.install(String(b.slug || b.url || ''))); }
     if (url === '/api/refs/update' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, refs.update(String(b.slug || ''))); }
+    if (url === '/api/refs/check' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, await refs.check(String(b.slug || ''))); }
+    /* ---- file safety: what is risky about this file or folder (lib/safety.js) ---- */
+    if (url === '/api/safety/info') return json(res, 200, { engines: safety.engines(), summary: safety.summary() });
+    if (url === '/api/safety/scan' && req.method === 'POST') {
+      const b = await jbody(req, 1e4), p = String(b.path || '').trim();
+      if (!p) return json(res, 400, { error: 'Give the path of a file or folder.' });
+      const r = await safety.scanTree(p);
+      return json(res, r.error ? 400 : 200, r);
+    }
     if (url === '/api/refs/remove' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, refs.remove(String(b.slug || ''))); }
     if (url === '/api/docs/open' && req.method === 'POST') { const b = await jbody(req, 1e5); if (!allowedPath(b.path)) return json(res, 403, { error: 'not allowed' }); cp.spawn('explorer.exe', [b.path], { detached: true, stdio: 'ignore' }).unref(); return json(res, 200, { ok: true }); }
     /* ---- the local coding agent (Gemma in Ollama): report whether it is set up, open it in its own window ---- */
@@ -772,6 +796,9 @@ const mainServer = http.createServer(async (req, res) => {
     if (url === '/api/artex/status') return json(res, 200, await artexmod.status());
     if (url === '/api/artex/start' && req.method === 'POST') { const b = await jbody(req, 1e3).catch(() => ({})); return json(res, 200, await artexmod.start(b || {})); }
     if (url === '/api/artex/stop' && req.method === 'POST') return json(res, 200, await artexmod.stop());
+    /* Auto-commit on/off: a flag file (data/autocommit.off) the Stop hook's scripts/auto-commit.ps1 reads. */
+    if (url === '/api/autocommit' && req.method === 'GET') { const off = fs.existsSync(path.join(DATA, 'autocommit.off')); return json(res, 200, { on: !off }); }
+    if (url === '/api/autocommit' && req.method === 'POST') { const b = await jbody(req, 1e3).catch(() => ({})); const f = path.join(DATA, 'autocommit.off'); try { if (b && b.on) { if (fs.existsSync(f)) fs.unlinkSync(f); } else { fs.writeFileSync(f, 'Auto-commit is off. Delete this file, or toggle it on in Settings, to resume.\n'); } } catch (e) { return json(res, 200, { ok: false, error: String(e.message || e) }); } return json(res, 200, { ok: true, on: !!(b && b.on) }); }
     if (url === '/api/cyber/mynetwork') return json(res, 200, cybertools.myNetwork());
     if (url === '/api/cyber/wifi') return json(res, 200, cybertools.wifi());
     if (url === '/api/cyber/connections') return json(res, 200, cybertools.connections());
