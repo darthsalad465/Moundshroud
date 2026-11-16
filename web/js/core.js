@@ -65,9 +65,18 @@ A.keep = (host, key, render, opts) => {
 /* forget every kept page of a host (its pages' _cleanup runs); the next A.keep makes them fresh */
 A.keepReset = host => { if (!host || !host._kp) return; for (const el of Object.values(host._kp)) { if (el._cleanup) { try { el._cleanup(); } catch (e) { } } } host._kpGone = true; };
 A.registerTab = (name, label, onShow, opts = {}) => { A.tabs[name] = { label, onShow, hidden: !!opts.hidden }; A.order.push(name); };
+/* A page only needs to keep working while you are on it or an AI is working on it. A.aiBusy(tab,on) marks a page
+   whose AI job must keep running when you switch away; A.pageAwake(tab) is true for the open tab and those pages.
+   A.every(tab,ms,fn) is a timer that skips its work while the tab is asleep, so hidden pages stop polling and drawing. */
+A.awake = () => !document.hidden && (document.hasFocus ? document.hasFocus() : true);   // the app is in front and in use, not minimised or behind another window
+A.hold = new Set();
+A.aiBusy = (name, on) => { if (on) A.hold.add(name); else A.hold.delete(name); };
+A.pageAwake = name => A.cur === name || A.hold.has(name);
+A.every = (name, ms, fn) => setInterval(() => { if (A.pageAwake(name)) { try { fn(); } catch (e) { } } }, ms);
 A.showTab = name => {
   if (!A.tabs[name]) return;
-  A.cur = name; try { A.closePop(); } catch (e) { }
+  const prev = A.cur; A.cur = name; try { A.closePop(); } catch (e) { }
+  if (prev !== name) { try { A.emit('tab:hide', prev); } catch (e) { } } try { A.emit('tab:show', name); } catch (e) { }
   for (const n of A.order) { const p = $('p-' + n); if (p) p.classList.toggle('on', n === name); }      // a missing page must not stop the others being hidden
   try { A.navMark(); } catch (e) { }
   requestAnimationFrame(() => { const ab = document.querySelector('#nav button.on'); if (ab && ab.scrollIntoView) ab.scrollIntoView({ block: 'nearest', inline: 'center' }); });   // in the next frame: done here it forced a second full layout of the new page       // keep the active tab visible in a narrow window
