@@ -495,8 +495,19 @@ const mainServer = http.createServer(async (req, res) => {
     /* ---- 3D PC File Brain (lib/pc-brain.js) ---- */
     if (url === '/api/brain/graph') {
       const b = req.method === 'POST' ? await jbody(req, 1e4) : {};
-      return json(res, 200, require('./lib/pc-brain').scanGraph({ scope: b.scope || q.get('scope') || 'all', path: b.path || q.get('path') || '', maxNodes: b.maxNodes || q.get('maxNodes') || 480, sources: docs.sources() }));
+      return json(res, 200, require('./lib/pc-brain').scanGraph({
+        scope: b.scope || q.get('scope') || 'all',
+        path: b.path || q.get('path') || '',
+        fromNode: b.fromNode != null ? b.fromNode : q.get('fromNode'),
+        fromLink: b.fromLink != null ? b.fromLink : q.get('fromLink'),
+        batchLimit: b.batchLimit != null ? b.batchLimit : q.get('batchLimit'),
+        force: !!(b.force || q.get('force') === '1'),
+        sources: docs.sources()
+      }));
     }
+    if (url === '/api/brain/poll') return json(res, 200, require('./lib/pc-brain').pollStatus());
+    if (url === '/api/brain/search' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, require('./lib/pc-brain').searchAllIndexed(b.q, b.limit || 50)); }
+    if (url === '/api/brain/expand' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, require('./lib/pc-brain').expandFolder(b.path)); }
     if (url === '/api/brain/inspect' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, require('./lib/pc-brain').inspectFile(b.path)); }
     if (url === '/api/brain/reveal' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, require('./lib/pc-brain').revealInExplorer(b.path, !!b.open)); }
     if (url === '/api/brain/write' && req.method === 'POST') { const b = await jbody(req, 5e5); return json(res, 200, require('./lib/pc-brain').writeFileNode(b)); }
@@ -594,6 +605,10 @@ const mainServer = http.createServer(async (req, res) => {
     if (url === '/api/web/pages') return json(res, 200, { sites: webpages.list(), status: webpages.status, dir: webpages.DIR });
     if (url === '/api/web/crawl' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, webpages.start(String(b.url || ''), { pages: b.pages, depth: b.depth })); }
     if (url === '/api/web/remove' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, webpages.remove(String(b.host || ''))); }
+    /* private web: DuckDuckGo search and clean reader pages, all fetched by this server (lib/privweb.js) */
+    if (url === '/api/privweb/search' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, await require('./lib/privweb').search((b || {}).q)); }
+    if (url === '/api/privweb/read' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, await require('./lib/privweb').read((b || {}).url)); }
+    if (url === '/api/privweb/img') return require('./lib/privweb').img(q.get('u'), res);
     if (url === '/api/apis/list') return json(res, 200, require('./lib/apis').list());
     if (url === '/api/apis/call' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, await require('./lib/apis').call(String((b || {}).url || ''))); }
     if (url === '/api/refs') return json(res, 200, { refs: refs.status(), dir: refs.DIR });
