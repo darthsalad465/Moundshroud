@@ -96,7 +96,9 @@
     const b = $('wsbody'), my = ++seq; if (ctl) { try { ctl.abort(); } catch (e) { } } ctl = null;
     b.innerHTML = '<div class="mute" style="padding:30px 4px">Searching your libraries...</div>';
     let r; try { r = await A.api('/api/web/search', { q: v, scope, n: 40 }); } catch (e) { b.innerHTML = '<div class="mute" style="padding:30px 4px">Search is not available right now (' + esc2(e.message) + ').</div>'; return; }
-    if (my !== seq) return; res = r; lastItems = r.items || []; lastFiles = r.files || { notes: [], docs: [] }; paint(my);
+    if (my !== seq) return;
+    if (r.slow && !(r.items || []).length) { b.innerHTML = '<div class="mute" style="padding:30px 4px">' + esc2(r.note || 'The libraries are slow to answer right now.') + ' <button class="ib" id="wsretry">Try again</button></div>'; const rb = $('wsretry'); if (rb) rb.onclick = () => run(v, true); return; }
+    res = r; lastItems = r.items || []; lastFiles = r.files || { notes: [], docs: [] }; paint(my);
   }
   function paint(my) {
     const r = res, b = $('wsbody'); const items = lastItems, f = lastFiles, nf = f.notes.length + f.docs.length;
