@@ -499,6 +499,7 @@ const mainServer = http.createServer(async (req, res) => {
     }
     if (url === '/api/brain/inspect' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, require('./lib/pc-brain').inspectFile(b.path)); }
     if (url === '/api/brain/reveal' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, require('./lib/pc-brain').revealInExplorer(b.path, !!b.open)); }
+    if (url === '/api/brain/write' && req.method === 'POST') { const b = await jbody(req, 5e5); return json(res, 200, require('./lib/pc-brain').writeFileNode(b)); }
     /* ---- better search: local embeddings over the same index (lib/embed.js, lib/docs.js) ---- */
     if (url === '/api/docs/embed') return json(res, 200, { model: await embed.pickModel(true), vectors: docs.vecCount(), scan: docs.vecStatus, job: embed.status().job, preferred: embed.PREFERRED[0] });
     if (url === '/api/docs/embed/build' && req.method === 'POST') { docs.vectorize().catch(() => {}); return json(res, 200, { ok: true }); }
