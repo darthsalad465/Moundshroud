@@ -27,6 +27,7 @@
 !/install-music-model.ps1
 !/install-video-model.ps1
 !/install-gateway.ps1
+!/install-song-tools.ps1
 !/requirements.txt
 !/lib/
 !/agent/

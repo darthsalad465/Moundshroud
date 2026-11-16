@@ -227,7 +227,8 @@ console.log('chess rules');
   {
     const fs2 = require('fs'), rd = f => fs2.readFileSync(path.join(__dirname, '..', f), 'utf8'), srv = rd('server.js');
     ok('library: pages are served from their own address, with only that address reachable', /const LIBPORT = PORT \+ 9/.test(srv) && /connect-src 'self'; frame-src 'self'/.test(srv) && /frame-ancestors " \+ app/.test(srv));
-    ok('library: the app lets that address be shown in a frame (and nothing else new)', /frame-src 'self' blob: data: http:\/\/127\.0\.0\.1:" \+ LIBPORT \+ " http:\/\/localhost:" \+ LIBPORT \+ ";/.test(srv));
+    /* the only outside page allowed in a frame is YouTube's privacy-enhanced player (the TV tab) */
+    ok('library: the app lets that address be shown in a frame (and nothing else new)', /frame-src 'self' blob: data: http:\/\/127\.0\.0\.1:" \+ LIBPORT \+ " http:\/\/localhost:" \+ LIBPORT \+ " https:\/\/www\.youtube-nocookie\.com;/.test(srv));
     ok('library: a library page opened on the app’s own address is walled off without scripts', /hd\['content-security-policy'\] = "sandbox; default-src 'none'/.test(srv));
     const lib = rd('web/js/lib.js'), br = rd('web/lib-bridge.js');
     ok('library: the Browser tab never reaches into a page directly', !/contentDocument|contentWindow/.test(lib) && /A\.libframe\.attach\(fr/.test(lib));
@@ -500,10 +501,23 @@ try {
     try { await require('./remote-test.js')(ok); } catch (e) { ok('the phone access module loads', false, e.message); }
     try { await require('./olympics-test.js')(ok); } catch (e) { ok('the AI Olympics loads', false, e.message); }
     try { await require('./longvideo-test.js')(ok); } catch (e) { ok('the long video module loads', false, e.message); }
+    try { await require('./president-test.js')(ok); } catch (e) { ok('the president simulator loads', false, e.message); }
+    try { await require('./codestamp-test.js')(ok); } catch (e) { ok('the code check loads', false, e.message); }
+    try { await require('./thinking-test.js')(ok); } catch (e) { ok('the show thinking test loads', false, e.message); }
+    try { await require('./learn-test.js')(ok); } catch (e) { ok('the Learn test loads', false, e.message); }
+    try { await require('./lessons-test.js')(ok); } catch (e) { ok('the coding lessons test loads', false, e.message); }
     try { await require('./swarm-test.js')(ok); } catch (e) { ok('the swarm modules load', false, e.message); }
     try { await require('./agent-modes-test.js')(ok); } catch (e) { ok('the agent modes module loads', false, e.message); }
     try { await require('./bible-test.js')(ok); } catch (e) { ok('the bible expert test loads', false, e.message); }
     try { await require('./checker-test.js')(ok); } catch (e) { ok('the page checker test loads', false, e.message); }
+    try { await require('./pages-test.js')(ok); } catch (e) { ok('the Tools and Cyber games pages test loads', false, e.message); }
+    try { await require('./radio-test.js')(ok); } catch (e) { ok('the radio test loads', false, e.message); }
+    try { await require('./tv-test.js')(ok); } catch (e) { ok('the TV test loads', false, e.message); }
+    try { await require('./godot-inapp-test.js')(ok); } catch (e) { ok('the Godot in-app test loads', false, e.message); }
+    try { await require('./more3-test.js')(ok); } catch (e) { ok('the logo, converter and TV channels test loads', false, e.message); }
+    try { await require('./more4-test.js')(ok); } catch (e) { ok('the code editor and downloads test loads', false, e.message); }
+    try { await require('./cyber-test.js')(ok); } catch (e) { ok('the cyber toolkit test loads', false, e.message); }
+    try { await require('./calc-test.js')(ok); } catch (e) { ok('the calculator test loads', false, e.message); }
     try { const MT = require(path.join(__dirname, '..', 'lib', 'mail.js'))._t, pw = 'tést "pw" ✓', blob = await MT.protectPw(pw); ok('mail: Windows keeps the password protected and gives it back', !blob.includes('pw') && await MT.unprotectPw(blob) === pw); } catch (e) { ok('mail: Windows keeps the password protected', false, e.message); }
     console.log('\n' + pass + ' passed, ' + fail + ' failed');
     process.exit(fail ? 1 : 0);

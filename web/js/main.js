@@ -2,9 +2,13 @@
 (() => {
   /* tabs in the order shown */
   ['chat', 'lib', 'files', 'notes', 'study', 'lang', 'tools', 'health', 'guide'].forEach(n => { if (!A.tabs[n]) return; });
-  const wanted = ['home', 'news', 'chat', 'web', 'cal', 'lib', 'files', 'notes', 'mail', 'docs', 'offed', 'calc', 'scan', 'meet', 'rem', 'clip', 'study', 'lang', 'writing', 'practice', 'teach', 'sky', 'lab', 'studio', 'cyber', 'tools', 'health', 'kitchen', 'garden', 'money', 'journal', 'albums', 'play', 'music', 'photos', 'faith', 'map', 'guide'];
+  const wanted = ['home', 'news', 'chat', 'web', 'cal', 'lib', 'files', 'notes', 'mail', 'docs', 'offed', 'calc', 'scan', 'meet', 'rem', 'clip', 'study', 'lang', 'writing', 'practice', 'teach', 'sky', 'lab', 'studio', 'cyber', 'tools', 'health', 'kitchen', 'garden', 'money', 'journal', 'albums', 'play', 'music', 'radio', 'tv', 'photos', 'faith', 'map', 'guide'];
   A.order = wanted.filter(n => A.tabs[n]);
   A.buildNav(); A.showTab('home');                       // Moundshroud opens on Today
+  /* the logo in the top left corner goes to Today (the home page) */
+  const logoMark = document.querySelector('header svg.mark'); if (logoMark) { logoMark.style.cursor = 'pointer'; logoMark.setAttribute('role', 'button'); logoMark.setAttribute('tabindex', '0'); logoMark.setAttribute('title', 'Go to Today'); logoMark.addEventListener('click', () => A.showTab('home')); logoMark.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); A.showTab('home'); } }); }
+  /* coming back from the Godot editor page (web/godot-editor.html): straight to Studio with that game open */
+  try { const gp = new URLSearchParams(location.search); if (gp.get('go') === 'studio-godot' && A.studio) { A.studio.reopenGodot = (gp.get('p') || '').slice(0, 80); history.replaceState(null, '', '/'); A.studio.go('godot'); } } catch (e) { }
 
   /* history popover */
   const hb = document.createElement('button'); hb.className = 'ib'; hb.id = 'hist'; hb.innerHTML = '&#128340;'; hb.title = 'Chat history'; hb.dataset.pop = '1';
@@ -41,6 +45,8 @@
   /* keys */
   A.escape = () => {
     if (A.vm && A.vm.on) return A.vm.end();
+    if (A.tv && A.cur === 'tv' && A.tv.escape && A.tv.escape()) return;          // TV: leave full screen, then close the player
+    if (A.godotPlayer && A.cur === 'studio' && A.godotPlayer.escape()) return;    // a Godot game playing in Studio: leave full screen, then close it
     if (A.play && A.cur === 'play' && A.play.active()) return A.play.exit();
     if (A.library && A.cur === 'lib' && A.library.reading()) return A.library.home();
     if (A.classics && A.cur === 'lib' && A.classics.isOpen()) return A.classics.close();
@@ -61,7 +67,8 @@
 
   /* lifetime: tell the server we are alive; tell it when we go */
   let pingFails = 0;           // if the server went away (for example after a long sleep), the tray helper restarts it and this page reloads itself
-  const ping = () => fetch('/api/ping').then(() => { if (pingFails >= 2) location.reload(); pingFails = 0; }).catch(() => { if (++pingFails === 2) A.toast('Reconnecting...', 4000); });
+  let staleTold = false;       // the server says when the code on the disk is newer than the copy that is running: new parts answer "not found" until it is restarted
+  const ping = () => fetch('/api/ping').then(r => r.json().catch(() => ({}))).then(j => { if (pingFails >= 2) location.reload(); pingFails = 0; if (j && j.stale && !staleTold) { staleTold = true; A.notify('info', 'Moundshroud was updated while it was open. Close it and open it again so the new parts work.', 20000); } }).catch(() => { if (++pingFails === 2) A.toast('Reconnecting...', 4000); });
   ping(); setInterval(ping, 4000);
   addEventListener('pagehide', () => { try { navigator.sendBeacon('/api/closing', new Blob(['{}'], { type: 'application/json' })); } catch (e) {} });
 

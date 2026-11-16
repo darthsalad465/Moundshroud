@@ -5,14 +5,21 @@
 (() => {
   const root = document.getElementById('p-news'); if (!root) return;
   const LEAN = { L: ['Left', '#3b6fd8'], LL: ['Leans left', '#86a8f5'], C: ['Centre', '#c4c2d4'], LR: ['Leans right', '#f2a08f'], R: ['Right', '#dc4f48'] };
-  const KIND = { factcheck: 'Fact-checker', investigative: 'Investigative', specialist: 'Specialist', primary: 'Official source', wire: 'Wire service', public: 'Public broadcaster', paper: 'Newspaper', tv: 'TV news', digital: 'Digital news', magazine: 'Magazine', intl: 'International', opinion: 'Mostly opinion', special: 'Specialist', custom: 'Your feed' };
-  const CATS = [['front', '⭐ Front page'], ['top', '🔥 Top stories'], ['desk', '🔎 Expert desk'], ['official', '🏛 Official'], ['fact', '✅ Fact checks'], ['opinion', '💬 Opinion'], ['beats', '🎯 Beats'], ['saved', '🔖 Saved'], ['us', '🇺🇸 U.S.'], ['world', '🌍 World'], ['politics', '🏛 Politics'], ['business', '📈 Business'], ['tech', '💻 Tech'], ['science', '🔬 Science'], ['health', '🩺 Health'], ['sports', '🏅 Sports'], ['culture', '🎭 Culture'], ['follow', '★ Following'], ['more', '📄 Single-source']];
-  const CATNAME = { us: 'U.S.', world: 'World', politics: 'Politics', business: 'Business', tech: 'Tech', science: 'Science', health: 'Health', sports: 'Sports', culture: 'Culture' };
+  const KIND = { factcheck: 'Fact-checker', investigative: 'Investigative', specialist: 'Specialist', primary: 'Official source', wire: 'Wire service', public: 'Public broadcaster', paper: 'Newspaper', tv: 'TV news', digital: 'Digital news', magazine: 'Magazine', intl: 'International', opinion: 'Mostly opinion', special: 'Specialist', custom: 'Your feed', faith: 'Christian news' };
+  const FAITHN = { vatican: 'Vatican', catholic: 'Catholic', orthodox: 'Orthodox', protestant: 'Protestant & Anglican', ecumenical: 'Ecumenical' };
+  /* Christian news: the filters on the Christian page (all, by tradition, opinion) */
+  const FZ = [['all', '✝ All Christian news'], ['vatican', '🕊 Vatican & Pope'], ['catholic', 'Catholic'], ['orthodox', 'Orthodox'], ['protestant', 'Protestant, evangelical & Anglican'], ['ecumenical', 'Ecumenical & world church'], ['opinion', '💬 Opinion & commentary']];
+  const PAPAL = /(pope|popes|papal|vatican|holy see|curia|conclave|cardinals?|apostolic|synod)|Leo XIV/i;
+  const CATS = [['front', '⭐ Front page'], ['top', '🔥 Top stories'], ['christian', '✝ Christian'], ['desk', '🔎 Expert desk'], ['official', '🏛 Official'], ['fact', '✅ Fact checks'], ['opinion', '💬 Opinion'], ['beats', '🎯 Beats'], ['saved', '🔖 Saved'], ['us', '🇺🇸 U.S.'], ['world', '🌍 World'], ['politics', '🏛 Politics'], ['business', '📈 Business'], ['tech', '💻 Tech'], ['science', '🔬 Science'], ['health', '🩺 Health'], ['sports', '🏅 Sports'], ['culture', '🎭 Culture'], ['follow', '★ Following'], ['more', '📄 Single-source']];
+  const CATNAME = { vatican: 'Vatican', us: 'U.S.', world: 'World', politics: 'Politics', business: 'Business', tech: 'Tech', science: 'Science', health: 'Health', sports: 'Sports', culture: 'Culture' };
   const J = (k, d) => { try { return JSON.parse(ls.get(k, '')) || d; } catch (e) { return d; } };
   let D = null, st = { cat: 'front', q: '', sort: 'top', wide: false, view: 'list', sel: null, tab: 'news' }, loading = false, timer = 0, aiCtl = null;
   let follows = J('news_follow', []), seen = new Set(J('news_seen', [])), aiCache = J('news_ai', {});
   const saveSeen = () => ls.set('news_seen', JSON.stringify([...seen].slice(-3000)));
   const SRC = () => Object.fromEntries(((D && D.sources) || []).map(s => [s.id, s]));
+  /* general events and Christian events are two lists; an event is found in either */
+  const allEvents = () => D ? D.events.concat((D.faith && D.faith.events) || []) : [];
+  const evById = id => allEvents().find(e => e.id === id);
 
   const css = `.nw{display:flex;flex-direction:column;flex:1;height:100%;min-height:0;overflow:hidden}
 .nw-top{padding:12px 16px 8px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
@@ -67,6 +74,8 @@
 .nw-at:hover{text-decoration:underline}
 .nw-ad{font-size:12.5px;color:var(--mute);line-height:1.45}
 .nw-acts{display:flex;gap:6px;margin-top:5px}
+.nw-list .nw-acts{flex-wrap:wrap}
+.nw-hint{color:var(--mute);padding:30px 10px;text-align:center;line-height:1.6}
 .nw-empty{padding:40px 20px;color:var(--mute);text-align:center;line-height:1.6}
 .nw-tabs{display:flex;gap:6px;margin-bottom:6px}
 .nw-read{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:80;display:flex;justify-content:center;padding:30px 12px}
@@ -122,8 +131,8 @@
   function list() {
     if (!D) return [];
     let ev = D.events.slice();
-    if (st.cat === 'follow') ev = ev.filter(e => follows.some(f => matchesFollow(e, f)));
-    else if (['more', 'desk', 'official', 'beats', 'front', 'fact', 'opinion', 'saved'].includes(st.cat)) return [];
+    if (st.cat === 'follow') ev = allEvents().filter(e => follows.some(f => matchesFollow(e, f)));
+    else if (['more', 'desk', 'official', 'beats', 'front', 'fact', 'opinion', 'saved', 'christian'].includes(st.cat)) return [];
     else if (st.cat !== 'top') ev = ev.filter(e => e.cat === st.cat);
     if (st.wide) ev = ev.filter(e => e.outlets.length >= 4);
     if (st.q) { const w = words(st.q); ev = ev.filter(e => { const t = (e.title + ' ' + e.summary + ' ' + e.articles.map(a => a.title).join(' ')).toLowerCase(); return w.every(x => t.includes(x)); }); }
@@ -147,10 +156,10 @@
     const t = root.querySelector('#nwtop'); if (!t) return;
     const n = D ? D.events.length : 0, outs = D ? D.sources.filter(s => s.on && s.ok).length : 0;
     const counts = {}; (D ? D.events : []).forEach(e => { counts[e.cat] = (counts[e.cat] || 0) + 1; });
-    const fol = D ? D.events.filter(e => follows.some(f => matchesFollow(e, f))).length : 0;
+    const fol = D ? allEvents().filter(e => follows.some(f => matchesFollow(e, f))).length : 0;
     t.innerHTML = '<div class="nw-row"><h2 class="nw-h">📰 News</h2><span class="nw-stat">' + (loading ? 'Updating from ' + (D ? D.sources.filter(s => s.on).length : '') + ' outlets…' : D && D.at ? n + ' events from ' + outs + ' outlets · updated ' + ago(D.at) : 'No news downloaded yet') + '</span><span style="flex:1"></span>' +
       '<button class="ib" data-a="research" title="Any topic, person, company or event: the AI searches the news and the web, reads the articles and writes an overview with its sources. Or paste an article’s address to read and summarise it.">🔍 Research</button><button class="ib" data-a="markets" title="Quotes, charts, company filings, rates and trade tools">📈 Markets</button><button class="ib" data-a="brief" title="The top stories, ready to read or listen to">🎧 Briefing</button><button class="ib" data-a="sources" title="Choose outlets, see their status, add your own feeds">⚙ Sources</button><button class="ib" data-a="refresh"' + (loading ? ' disabled' : '') + ' title="Fetch the latest from every outlet">' + (loading ? '⏳' : '↻') + ' Refresh</button></div>' +
-      (st.view === 'list' ? '<div class="nw-chips">' + CATS.map(([k, l]) => '<button class="nw-chip' + (st.cat === k ? ' on' : '') + '" data-c="' + k + '">' + l + (k === 'follow' ? (fol ? '<i>' + fol + '</i>' : '') : k === 'desk' ? (D && D.niche ? '<i>' + D.niche.length + '</i>' : '') : k === 'official' ? (D ? '<i>' + officials().length + '</i>' : '') : k === 'beats' ? ((bn => bn ? '<i style="font-weight:700">' + bn + ' new</i>' : '')(D ? beatNew() : 0)) : k === 'more' ? '' : k !== 'top' && counts[k] ? '<i>' + counts[k] + '</i>' : '') + '</button>').join('') + '</div>' +
+      (st.view === 'list' ? '<div class="nw-chips">' + CATS.map(([k, l]) => '<button class="nw-chip' + (st.cat === k ? ' on' : '') + '" data-c="' + k + '">' + l + (k === 'follow' ? (fol ? '<i>' + fol + '</i>' : '') : k === 'desk' ? (D && D.niche ? '<i>' + D.niche.length + '</i>' : '') : k === 'official' ? (D ? '<i>' + officials().length + '</i>' : '') : k === 'christian' ? (D && D.faith && D.faith.n ? '<i>' + D.faith.n + '</i>' : '') : k === 'beats' ? ((bn => bn ? '<i style="font-weight:700">' + bn + ' new</i>' : '')(D ? beatNew() : 0)) : k === 'more' ? '' : k !== 'top' && counts[k] ? '<i>' + counts[k] + '</i>' : '') + '</button>').join('') + '</div>' +
         '<div class="nw-row"><input id="nwq" class="nw-q" placeholder="Search the news…" value="' + esc(st.q) + '"><select id="nwsort"><option value="top"' + (st.sort === 'top' ? ' selected' : '') + '>Most important</option><option value="latest"' + (st.sort === 'latest' ? ' selected' : '') + '>Latest</option><option value="most"' + (st.sort === 'most' ? ' selected' : '') + '>Most outlets</option></select><label class="small" style="display:flex;gap:5px;align-items:center"><input type="checkbox" id="nwwide"' + (st.wide ? ' checked' : '') + '> Only widely reported (4+ outlets)</label></div>'
         : '<div class="nw-row"><button class="ib" data-a="back">← Back to the news</button></div>');
     const q = t.querySelector('#nwq'); if (q && document.activeElement !== q && paintTop.focusQ) { q.focus(); paintTop.focusQ = false; }
@@ -190,6 +199,7 @@
     if (st.cat === 'more') return drawSingles(b);
     if (st.cat === 'desk') return drawArticles(b, (D.niche || []).filter(qMatch), 'The expert desk: single reports worth a specialist’s time, ranked by the kind of outlet (investigative newsrooms, official sources and beat specialists first) and by signs of real reporting (documents, courts, charges, audits, leaks, recalls, deaths). Stories already covered by four or more outlets are in the main list instead. Treat anything only one outlet has as unconfirmed.');
     if (st.cat === 'official') return drawArticles(b, officials().filter(qMatch), 'What the institutions themselves published in the last two days: central banks, regulators, prosecutors, budget and audit offices, statistics agencies, the UN and the EU, security advisories, hurricane and earthquake bulletins. These are primary sources, the claims of the body that issued them: check them against the reporting.');
+    if (st.cat === 'christian') return drawChristian(b);
     if (st.cat === 'beats') return drawBeats(b);
     if (st.cat === 'front') return drawFront(b);
     if (st.cat === 'fact') return drawArticles(b, factChecks().filter(qMatch), 'Fact-checks from FactCheck.org, Snopes, Lead Stories, Check Your Fact and BBC Verify, and any report that calls itself a fact check. A fact-check is one organisation’s finding: read how they reached it.');
@@ -208,13 +218,13 @@
     return '<div class="nw-ev' + (e.id === st.sel ? ' on' : '') + (seen.has(e.id + ':' + e.n) ? ' seen' : '') + '" data-e="' + e.id + '">' + (seen.has(e.id + ':' + e.n) ? '' : '<span class="dot"></span>') + img(e.img, 'nw-th') +
       '<div class="nw-b"><div class="nw-meta"><span class="nw-cat">' + (CATNAME[e.cat] || e.cat) + '</span><span>' + ago(e.last) + '</span>' + (e.developing ? '<span class="nw-dev">Developing</span>' : '') + '</div>' +
       '<b class="nw-t">' + esc(e.title) + '</b>' + (e.summary ? '<div class="nw-s">' + esc(e.summary) + '</div>' : '') +
-      '<div class="nw-foot"><span class="nw-conf ' + cc + '">' + ct + '</span>' + (e.official ? '<span class="nw-tag" style="border-color:var(--acc2);color:var(--acc2)" title="An institution’s own statement is among the reports">🏛 Official</span>' : '') + leanBar(e.lean, e.outlets) + '<span>' + esc(names(e.outlets, 3)) + '</span></div></div></div>';
+      '<div class="nw-foot"><span class="nw-conf ' + cc + '">' + ct + '</span>' + (e.official ? '<span class="nw-tag" style="border-color:var(--acc2);color:var(--acc2)" title="An institution’s own statement is among the reports">🏛 Official</span>' : '') + (e.faith ? tradTags(e) : leanBar(e.lean, e.outlets)) + '<span>' + esc(names(e.outlets, 3)) + '</span></div></div></div>';
   }
   function open(id) {
     st.sel = id; st.det = true;
     root.querySelectorAll('.nw-ev').forEach(x => x.classList.toggle('on', x.dataset.e === id));
     const m = root.querySelector('.nw-main'); if (m) m.classList.add('det');
-    detail(D.events.find(e => e.id === id));
+    detail(evById(id));
   }
   function detail(e) {
     const d = root.querySelector('#nwdet'); if (!d || !e) return;
@@ -241,6 +251,10 @@
       timeline(e) +
       '<div class="nw-card"><h4>The reports</h4><label class="small" style="display:flex;gap:6px;align-items:center;margin:-2px 0 8px"><input type="checkbox" data-rd' + (st.readable ? ' checked' : '') + '> Only reports I can read here in full (' + nRead + ' of ' + e.articles.length + ')</label><div class="nw-tabs"><button class="nw-chip' + (st.tab === 'news' ? ' on' : '') + '" data-t="news">Straight news <i>' + news.length + '</i></button>' + (ops.length ? '<button class="nw-chip' + (st.tab === 'op' ? ' on' : '') + '" data-t="op">Opinion &amp; analysis <i>' + ops.length + '</i></button>' : '') + '<button class="nw-chip' + (st.tab === 'all' ? ' on' : '') + '" data-t="all">All, by time <i>' + e.articles.length + '</i></button></div>' +
       (tabArts.length ? tabArts.slice().sort((a, b) => st.tab === 'all' ? a.date - b.date : b.date - a.date).map(art).join('') : '<div class="small mute">None.</div>') + '</div>';
+    if (e.faith) {   // church outlets are not placed on the left-right chart: show who reports it instead
+      const cov = [...d.querySelectorAll('.nw-card')].find(x => { const h = x.querySelector('h4'); return h && h.textContent === 'Coverage'; });
+      if (cov) cov.outerHTML = '<div class="nw-card"><h4>Who reports it</h4><div class="nw-row" style="gap:4px">' + (e.trads || []).map(t => '<span class="nw-tag">' + (FAITHN[t] || t) + '</span>').join('') + '</div><div class="small mute" style="margin-top:8px">Outlets: ' + esc(e.outlets.map(o => (S[o] || {}).name || o).join(', ')) + '</div><div class="small mute" style="margin-top:4px">Church outlets are not placed on the left-right chart. Two outlets of the same tradition can share sources, so check the reports against each other.</div></div>';
+    }
     d.scrollTop = 0;
     d.onclick = ev => {
       const t = ev.target.closest('[data-t]'); if (t) { st.tab = t.dataset.t; detail(e); return; }
@@ -274,6 +288,50 @@
     b.onclick = ev => { const r = ev.target.closest('[data-r]'); if (r) { ev.preventDefault(); reader(r.dataset.r, r.dataset.n); } };
   }
 
+  /* ---------- Christian and church news ----------
+     Church outlets are kept out of the main page and shown here, in their own events (a story two or more Christian
+     outlets report) and their single reports, filtered by tradition. The Opinion filter lists the commentary. */
+  const tradTags = e => (e.trads || []).map(t => '<span class="nw-tag" title="Traditions among the outlets reporting this">' + (FAITHN[t] || t) + '</span>').join('') + '<span>' + esc(names(e.outlets, 3)) + '</span>';
+  function faithMatch(a, k) {
+    const s = SRC()[a.src] || {};
+    if (k === 'all') return true;
+    if (k === 'opinion') return a.genre === 'opinion';
+    if (k === 'vatican') return s.faith === 'vatican' || PAPAL.test(a.title);
+    return s.faith === k;
+  }
+  function drawChristian(b) {
+    const F = (D && D.faith) || { events: [], singles: [], n: 0 }, k = st.fz || 'all', S = SRC();
+    const evOk = (e, kk) => kk === 'all' || (kk === 'vatican' ? e.cat === 'vatican' || e.articles.some(a => faithMatch(a, 'vatican')) : kk === 'opinion' ? false : (e.trads || []).includes(kk));
+    const w = st.q ? words(st.q) : [];
+    const evQ = e => !w.length || w.every(x => (e.title + ' ' + e.summary + ' ' + e.articles.map(a => a.title).join(' ')).toLowerCase().includes(x));
+    const count = kk => kk === 'opinion' ? F.singles.concat(...F.events.map(e => e.articles)).filter(a => a.genre === 'opinion').length : F.events.filter(e => evOk(e, kk)).length + F.singles.filter(a => a.genre !== 'opinion' && faithMatch(a, kk)).length;
+    let ev = k === 'opinion' ? [] : F.events.filter(e => evOk(e, k) && evQ(e));
+    if (st.wide) ev = ev.filter(e => e.outlets.length >= 4);
+    if (st.sort === 'latest') ev.sort((a, c) => c.last - a.last); else if (st.sort === 'most') ev.sort((a, c) => c.outlets.length - a.outlets.length);
+    let one;
+    if (k === 'opinion') { const m = new Map(); F.singles.concat(...F.events.map(e => e.articles)).forEach(a => { if (a.genre === 'opinion') m.set(a.id, a); }); one = [...m.values()]; }
+    else one = F.singles.filter(a => a.genre !== 'opinion' && faithMatch(a, k));
+    one = st.wide ? [] : one.filter(qMatch).sort((a, c) => c.date - a.date).slice(0, 300);
+    if (st.sel && !ev.some(e => e.id === st.sel)) st.sel = null;
+    if (!st.sel && ev.length && innerWidth > 900) st.sel = ev[0].id;
+    const chips = '<div class="nw-chips" style="margin:0 0 8px">' + FZ.map(([id, l]) => '<button class="nw-chip' + (k === id ? ' on' : '') + '" data-fz="' + id + '">' + l + '<i>' + count(id) + '</i></button>').join('') + '</div>';
+    const intro = '<div class="small mute" style="line-height:1.5;margin:0 0 10px">Church and Christian news from ' + D.sources.filter(s => s.faith && s.on && s.ok).length + ' outlets: Catholic, Orthodox, Protestant, evangelical and Anglican, ecumenical, and the Vatican, kept apart from the main news. A story is an <b>event</b> when two or more Christian outlets report it; the rest are single reports from one outlet.' + (D.prefs && !D.prefs.google ? ' About ' + D.sources.filter(s => s.faith && s.via).length + ' more outlets that block feed readers can be switched on in ⚙ Sources (through Google News).' : '') + '</div>';
+    const empty = !F.events.length && !F.singles.length;
+    b.innerHTML = '<div class="nw-main' + (st.det ? ' det' : '') + '"><div class="nw-list" id="nwlist">' + chips + intro +
+      (empty ? '<div class="nw-empty">' + (loading ? '⏳ Downloading…' : D.internet ? 'No Christian news yet. Press <b>↻ Refresh</b>.' : 'Turn on internet access above to download Christian news.') + '</div>' :
+        (ev.length ? '<h3 class="mk-h3" style="margin:6px 0;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute)">Reported by several outlets <span class="small">' + ev.length + '</span></h3>' + ev.map(card).join('') : '') +
+        (one.length ? '<h3 class="mk-h3" style="margin:14px 0 4px;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute)">' + (k === 'opinion' ? 'Opinion and commentary' : 'Single reports') + ' <span class="small">' + one.length + '</span></h3>' + one.map(art).join('') : '') +
+        (!ev.length && !one.length ? '<div class="nw-empty">Nothing here' + (st.q ? ' matches “' + esc(st.q) + '”' : ' in this group yet') + '.</div>' : '')) +
+      '</div><div class="nw-det" id="nwdet"></div></div>';
+    b.querySelector('#nwlist').onclick = e => {
+      const z = e.target.closest('[data-fz]'); if (z) { st.fz = z.dataset.fz; st.sel = null; drawBody(); return; }
+      const r = e.target.closest('[data-r]'); if (r) { e.preventDefault(); reader(r.dataset.r, r.dataset.n); return; }
+      const c = e.target.closest('[data-e]'); if (c) open(c.dataset.e);
+    };
+    if (st.sel) detail(ev.find(e => e.id === st.sel));
+    else b.querySelector('#nwdet').innerHTML = '<div class="nw-hint">' + (ev.length ? 'Pick a story on the left to see every outlet’s report of it.' : 'Single reports open on the outlet’s own site: use <b>Read here</b> or <b>Open</b> under each one.') + '</div>';
+  }
+
   /* ---------- reading access, saving, text size ---------- */
   const PAYWALL_RE = /(subscribe (now )?to (continue|read|keep reading|unlock)|subscribers? only|already a subscriber|you have reached your (free )?(article )?limit|create a free account to (continue|read)|to continue reading|start your (free )?trial|unlock this article)/i;
   let saved = J('news_saved', {});
@@ -292,7 +350,7 @@
     return '<span class="nw-tag" title="This site refuses the in-app reader (it blocks automated readers or needs its own page). It opens on the site.">🌐 Opens on the site</span>';
   }
   function freeAlternatives(url) {
-    const e = D && st.curEvent ? D.events.find(x => x.id === st.curEvent) : null; if (!e || !e.articles.some(a => a.link === url)) return '';
+    const e = D && st.curEvent ? evById(st.curEvent) : null; if (!e || !e.articles.some(a => a.link === url)) return '';
     const S = SRC(), free = e.articles.filter(a => a.link !== url && !a.via && a.genre === 'news' && (S[a.src] || {}).access && S[a.src].access.st === 'full');
     if (!free.length) return '<p class="small mute">No free full-text report of this story has been found yet.</p>';
     return '<h3 style="margin:18px 0 6px">The same story, free to read here</h3>' + free.slice(0, 8).map(a => '<p style="margin:0 0 8px"><a href="#" data-r="' + esc(a.link) + '" data-n="' + esc((S[a.src] || {}).name || '') + '"><b>' + esc((S[a.src] || {}).name || a.src) + ':</b> ' + esc(a.title) + '</a></p>').join('');
@@ -603,23 +661,25 @@
   /* ---------- sources ---------- */
   function sourcesView(b) {
     const ORDER = ['wire', 'public', 'paper', 'tv', 'digital', 'magazine', 'intl', 'investigative', 'specialist', 'primary', 'special', 'opinion', 'custom'], ko = k => { const i = ORDER.indexOf(k); return i < 0 ? 99 : i; };
-    const list = (D ? D.sources : []).slice().sort((a, b2) => ko(a.kind) - ko(b2.kind) || a.name.localeCompare(b2.name));
+    const TO = ['vatican', 'catholic', 'orthodox', 'protestant', 'ecumenical'], fo = s => s.faith ? 1 + TO.indexOf(s.faith) : 0;
+    /* the general outlets first, then the Christian outlets grouped by tradition */
+    const list = (D ? D.sources : []).slice().sort((a, b2) => fo(a) - fo(b2) || ko(a.kind) - ko(b2.kind) || a.name.localeCompare(b2.name));
     const on = list.filter(s => s.on).length, ok = list.filter(s => s.on && s.ok).length;
     b.innerHTML = '<div class="nw-srcs"><h2 style="margin:0 0 4px">Sources</h2><div class="small mute" style="max-width:820px;line-height:1.5;margin-bottom:10px">' + on + ' outlets switched on, ' + ok + ' answering at the last update. Events are ranked by how many <b>independent</b> outlets report them, so a mix from across the spectrum and around the world is what makes the ranking trustworthy. ' +
       'The lean column is an approximate placement after public media-bias charts (AllSides, Ad Fontes), only for US and UK outlets; you can change any of them. AP, Reuters, CNN and USA Today no longer offer feeds a reader can use, so their headlines come through Google News (headline and link only, no “Read here”).</div>' +
       '<div class="nw-card" style="max-width:820px"><h4>🔒 Privacy</h4>' +
-      '<label style="display:flex;gap:8px;align-items:flex-start;margin:4px 0"><input type="checkbox" id="nwpg"' + (D && D.prefs && D.prefs.google ? ' checked' : '') + '><span><b>Get AP, Reuters, CNN and USA Today through Google News</b><br><span class="small mute">These four block feed readers, so their headlines can only come through Google News. Google then sees those requests from this PC (not what you read). Off by default; the other ' + ((D ? D.sources.filter(s => !s.via).length : 58)) + ' outlets come straight from each outlet.</span></span></label>' +
+      '<label style="display:flex;gap:8px;align-items:flex-start;margin:4px 0"><input type="checkbox" id="nwpg"' + (D && D.prefs && D.prefs.google ? ' checked' : '') + '><span><b>Get AP, Reuters, CNN, USA Today and ' + (D ? D.sources.filter(s => s.via && s.faith).length : 15) + ' Christian outlets through Google News</b><br><span class="small mute">These block feed readers, so their headlines can only come through Google News. Google then sees those requests from this PC (not what you read). Off by default; the other ' + ((D ? D.sources.filter(s => !s.via).length : 58)) + ' outlets come straight from each outlet.</span></span></label>' +
       '<label style="display:flex;gap:8px;align-items:flex-start;margin:8px 0 4px"><input type="checkbox" id="nwpp"' + (!D || !D.prefs || D.prefs.pictures ? ' checked' : '') + '><span><b>Download pictures</b><br><span class="small mute">Pictures come through Moundshroud and are kept on this PC, so no site can set cookies or see what you look at. Off: text only, and nothing extra is downloaded.</span></span></label>' +
       '<div class="small mute" style="margin-top:6px">Always true: feeds are fetched by Moundshroud with an ordinary browser name, with no cookies, account or history attached; what you open, search, follow and summarise never leaves this PC; the AI briefs are written by your local AI.</div></div>' +
       '<div class="nw-row" style="margin:6px 0 10px;gap:8px"><button class="ib" id="nwacc">🔎 Check reading access now</button><span class="small mute">Opens the newest article from each outlet in the reader and records whether the whole article came through, a subscription was asked for, or the site refused. Checked by itself every few days. Moundshroud never gets around paywalls; where an outlet is closed, the event page shows the free reports of the same story.</span></div>' +
       '<table class="nw-tbl"><tr><th>On</th><th>Outlet</th><th>Type</th><th>Country</th><th>Lean</th><th>Status</th><th>Reading here</th><th></th></tr>' +
-      list.map(s => '<tr data-s="' + s.id + '"><td><input type="checkbox" data-on' + (s.on ? ' checked' : '') + (s.via && !(D.prefs && D.prefs.google) ? ' disabled title="Switch on Get AP, Reuters, CNN and USA Today through Google News above"' : '') + '></td><td><b>' + esc(s.name) + '</b>' + (s.via ? ' <span class="nw-tag">via Google News</span>' : '') + '</td><td>' + (KIND[s.kind] || s.kind) + '</td><td>' + esc(s.country || '') + '</td>' +
+      list.map((s, i) => (s.faith && (!i || list[i - 1].faith !== s.faith) ? '<tr><td colspan="8" style="padding-top:14px"><b>✝ ' + (FAITHN[s.faith] || s.faith) + '</b>' + (!list[i - 1].faith ? ' <span class="small mute">Christian and church news: shown together in News › Christian, kept out of the main news</span>' : '') + '</td></tr>' : '') + '<tr data-s="' + s.id + '"><td><input type="checkbox" data-on' + (s.on ? ' checked' : '') + (s.via && !(D.prefs && D.prefs.google) ? ' disabled title="Switch on the Google News option above"' : '') + '></td><td><b>' + esc(s.name) + '</b>' + (s.via ? ' <span class="nw-tag">via Google News</span>' : '') + '</td><td>' + (KIND[s.kind] || s.kind) + (s.faith ? ' <span class="small mute">· ' + (FAITHN[s.faith] || s.faith) + '</span>' : '') + '</td><td>' + esc(s.country || '') + '</td>' +
         '<td><select data-lean><option value="">Not rated</option>' + Object.keys(LEAN).map(k => '<option value="' + k + '"' + (s.lean === k ? ' selected' : '') + '>' + LEAN[k][0] + '</option>').join('') + '</select></td>' +
         '<td class="small">' + (s.access ? accessTag(s) : (s.via ? '<span class="mute">headline only</span>' : '<span class="mute">not checked</span>')) + '</td><td class="small">' + (!s.on ? '<span class="mute">off</span>' : !s.at ? '<span class="mute">not fetched yet</span>' : s.err && !s.ok ? '<span style="color:var(--bad)">✕ ' + esc(s.err) + '</span>' : s.err ? '<span style="color:var(--warn)">' + s.ok + ' of ' + s.feeds + ' feeds</span>' : '<span style="color:var(--ok)">✓ ' + s.feeds + ' feed' + (s.feeds > 1 ? 's' : '') + '</span>') + '</td><td>' + (s.custom ? '<button class="ib" data-del>Remove</button>' : '') + '</td></tr>').join('') + '</table>' +
       '<div class="nw-card" style="max-width:820px"><h4>Add a feed</h4><div class="nw-row"><input id="nwcn" placeholder="Name, e.g. My local paper" style="flex:1;min-width:160px"><input id="nwcu" placeholder="RSS or Atom feed address (https://…)" style="flex:2;min-width:240px"><select id="nwcl"><option value="">Not rated</option>' + Object.keys(LEAN).map(k => '<option value="' + k + '">' + LEAN[k][0] + '</option>').join('') + '</select><button class="pri" id="nwca">Add</button></div><div class="small mute" style="margin-top:6px">Most news sites have one: look for “RSS” at the bottom of the site, or try the site’s address followed by /feed or /rss.</div></div></div>';
     const save = async patch => { try { D = await A.api('/api/news/sources', patch); } catch (e) { A.notify('err', 'Could not save: ' + e.message); } };
     b.onchange = async ev => {
-      if (ev.target.id === 'nwpg' || ev.target.id === 'nwpp') { await save(ev.target.id === 'nwpg' ? { google: ev.target.checked } : { pictures: ev.target.checked }); sourcesView(b); A.toast(ev.target.id === 'nwpg' ? (ev.target.checked ? 'On. AP, Reuters, CNN and USA Today come in at the next refresh.' : 'Off. Their stories leave at the next refresh.') : (ev.target.checked ? 'Pictures on.' : 'Pictures off: text only.')); if (ev.target.id === 'nwpg' && ev.target.checked) refresh(true, true); return; }
+      if (ev.target.id === 'nwpg' || ev.target.id === 'nwpp') { await save(ev.target.id === 'nwpg' ? { google: ev.target.checked } : { pictures: ev.target.checked }); sourcesView(b); A.toast(ev.target.id === 'nwpg' ? (ev.target.checked ? 'On. The outlets that block feed readers come in at the next refresh.' : 'Off. Their stories leave at the next refresh.') : (ev.target.checked ? 'Pictures on.' : 'Pictures off: text only.')); if (ev.target.id === 'nwpg' && ev.target.checked) refresh(true, true); return; }
       const tr = ev.target.closest('[data-s]'); if (!tr) return; const id = tr.dataset.s;
       if (ev.target.hasAttribute('data-on')) { const off = D.sources.filter(s => !s.on).map(s => s.id).filter(x => x !== id); if (!ev.target.checked) off.push(id); await save({ off }); A.toast(ev.target.checked ? 'Switched on. It is included from the next refresh.' : 'Switched off. Its stories leave at the next refresh.'); }
       if (ev.target.hasAttribute('data-lean')) { await save({ lean: { [id]: ev.target.value } }); A.toast('Saved. Coverage bars use it from the next refresh.'); }

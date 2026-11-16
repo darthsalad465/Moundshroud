@@ -139,6 +139,24 @@
     return parts.join(' ');
   }
 
+  /* ---------- news from the News tab ---------- */
+  const NEWSQ = /\b(news|headlines?|current events|breaking|latest on|update on|happening|going on|this week'?s|today'?s (?:stories|events)|in the world)\b/i;
+  const NEWS_STOP = new Set('a an the and or of on in at to for about is are was were be been what whats what\'s any anything latest news headline headlines today todays today\'s this week weeks week\'s current events breaking update updates happening going there tell me give show summarize summarise recent new world me my please can you do know the about with from by it its how why who where when which'.split(' '));
+  async function newsSources(q) {
+    const words = q.toLowerCase().replace(/[^a-z0-9' ]+/g, ' ').split(/\s+/).filter(w => w.length > 2 && !NEWS_STOP.has(w));
+    const snap = await A.api('/api/news'); const names = Object.fromEntries((snap.sources || []).map(s => [s.id, s.name]));
+    const day = t => new Date(t).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+    let items = [];
+    if (words.length) {
+      let r = await A.api('/api/news/search?q=' + encodeURIComponent(words.join(' ')));
+      if (!(r.items || []).length && words.length > 1) r = await A.api('/api/news/search?q=' + encodeURIComponent(words.slice().sort((a, b) => b.length - a.length)[0]));
+      items = (r.items || []).slice(0, 6).map(a => ({ title: a.title, text: ((a.desc || '').slice(0, 500) + ' (' + (names[a.src] || a.src) + ', ' + day(a.date) + ')').trim(), kind: 'news', url: a.link, where: 'News tab, ' + (names[a.src] || a.src) }));
+    }
+    if (!items.length) items = (snap.events || []).slice(0, 8).map(e => ({ title: e.title, text: ((e.summary || '').slice(0, 450) + ' (' + (e.articles || []).length + ' reports, latest ' + day(e.last) + ')').trim(), kind: 'news', url: ((e.articles || [])[0] || {}).link, where: 'News tab top stories' }));
+    if (items.length && snap.at) items[0].text += ' [News last refreshed ' + new Date(snap.at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ']';
+    return items;
+  }
+
   /* ---------- context from files + libraries ---------- */
   async function gather(q) {
     const sources = [];
@@ -154,6 +172,8 @@
       pages.forEach(p => sources.push({ title: p.title, text: p.text, kind: 'web', url: p.url, where: 'the web (read just now)' }));
       (r.results || []).slice(0, 6).forEach(x => { if (!have.has(x.url)) sources.push({ title: x.title, text: x.snippet || '', kind: 'web', url: x.url, where: 'web result (' + (x.source || 'web') + ')' }); });
     }).catch(() => {}));
+    /* a question about the news uses the articles the News tab already saved: no extra AI call, works offline */
+    if (!hasAtt && NEWSQ.test(q)) tasks.push(newsSources(q).then(list => list.forEach(x => sources.push(x))).catch(() => {}));
     /* a question about Moundshroud itself is answered from Moundshroud's own files, not from guesswork */
     if (!hasAtt && window.AppCtx && AppCtx.about(q)) tasks.push(AppCtx.context(q).then(t => { if (t) sources.push({ title: 'Moundshroud source code', text: t, kind: 'app', where: 'the app\'s own files (web/, lib/, server.js)' }); }).catch(() => {}));
     await Promise.all(tasks);
@@ -175,6 +195,7 @@
     }
     if (runOn() && !voice && window.A && A.interp) s += INTERP;
     if (sources.some(x => x.kind === 'web')) s += '\n\nSome sources were fetched from the internet a moment ago. Prefer them for anything that could have changed since your training, name the site in the citation (for example [1] Wikipedia), and if they disagree with what you already know, trust them and say so.';
+    if (sources.some(x => x.kind === 'news')) s += '\n\nSome sources are news articles saved by the News tab. Answer from them, name the outlet and the date, and say how recent the news is. If they do not cover the question, say the News tab has nothing on it yet and suggest refreshing News.';
     if (sources.some(x => x.kind === 'app')) s += '\n\nSome sources are excerpts of Moundshroud\'s own source code, so you can answer questions about the app itself exactly: name the file (for example web/js/chat.js) when you explain where something lives. Never invent a file or a setting that is not in the excerpts - if it is not there, say you could not find it and offer to search again.';
     if (voice) s += '\n\nThe user is talking to you out loud and your answer will be read aloud. Reply in one to three short, natural spoken sentences. No lists, no markdown, no citations.';
     if (A.memory && !(A.ai && A.ai.isCloud(model()) && !A.ai.allowed('memory'))) s += A.memory.prompt();      // what the AI remembers stays off Claude unless allowed
@@ -253,7 +274,7 @@
       const sources = computed ? [] : opts.sources || (!opts.noLocal && A.actions && A.actions.looksActionable(text) ? [] : await gather(text)); am.sources = sources;
       if (sources.length) { const ch = el.querySelector('.chips'); if (!ch) el.insertAdjacentHTML('beforeend', srcChips(sources)); }
       const hist = cur.msgs.slice(0, -2).filter(m => !m.local).slice(-12).map(m => ({ role: m.role, content: m.content }));
-      const think = opts.voice ? false : $('think').checked;
+      const showTh = $('showthink').checked, think = opts.voice ? false : (showTh || $('think').checked);      /* Show thinking also asks the model to think: nothing can be shown otherwise */
       const body = { model: model(), stream: true, keep_alive: (A.power && A.power.on ? '1m' : '3m'), think, messages: [{ role: 'system', content: systemPrompt(sources, opts.voice) }, ...hist, Object.assign({ role: 'user', content: text }, (cur.att || []).some(a => a.image) ? { images: cur.att.filter(a => a.image).map(a => a.image) } : {})] };
       const hh = A.prep && A.prep.ctxFor ? A.prep.ctxFor(text) : ''; if (hh) body.messages[0].content += hh;
       if (computed) body.messages[0].content += '\n\nThe code interpreter has already worked this out exactly. Its output:\n```\n' + computed + '\n```\nGive the answer using this output as the true result (do not recalculate it, do not write code).' + (/chart\(s\) shown/.test(computed) ? ' A chart from the code is shown to the user; mention it in one sentence.' : ' No chart was made; do not mention one.');       // household details, only for emergency-type questions
@@ -261,7 +282,7 @@
       if (useTools) {
         const prev = A.chat.lastExplanation().slice(0, 700);       // a clean slate for action requests, so old requests are not repeated; the last answer is kept for "quiz me on that"
         body.messages = [{ role: 'system', content: body.messages[0].content + A.actions.hint + (prev ? '\n\nFor context only - your previous answer in this chat was: "' + prev.replace(/"/g, "'") + '". Use it only if the user says "that" or "it".' : '') }, body.messages[body.messages.length - 1]];
-        body.tools = A.actions.schema; if (!$('think').checked) body.think = false;
+        body.tools = A.actions.schema; if (!think) body.think = false;
       }
       setStatus('thinking...', 'busy'); wait('Thinking…'); const calls = [];
       const onTok = j => {
@@ -276,7 +297,7 @@
       const paint = () => {
         paintT = 0;
         const bd = el.querySelector('.bd'); if (bd) bd.innerHTML = am.content ? md(am.content) : waitHtml('Thinking…');
-        if (am.thinking && !el.querySelector('details')) el.insertAdjacentHTML('afterbegin', '<details open><summary>Thinking</summary><div></div></details>');
+        if (am.thinking && !el.querySelector('details')) el.insertAdjacentHTML('afterbegin', '<details' + (showTh ? ' open' : '') + '><summary>Thinking</summary><div></div></details>');
         const dv = el.querySelector('details div'); if (dv) dv.textContent = am.thinking;
         if (msgsEl.scrollHeight - msgsEl.scrollTop - msgsEl.clientHeight < 140) msgsEl.scrollTop = msgsEl.scrollHeight;
       };
@@ -286,7 +307,7 @@
         for (let k = 0; k < 2 && e; k++) {      // a model may lack tools AND thinking: retry once per missing feature
           if (am.content) throw e;
           if (body.tools && /tool/i.test(e.message)) { delete body.tools; body.messages[0].content = body.messages[0].content.replace(A.actions.hint, ''); }     // this model cannot use tools
-          else if ('think' in body && /think/i.test(e.message)) delete body.think;
+          else if ('think' in body && /think/i.test(e.message)) { delete body.think; if (showTh) A.toast(String(model()).replace(/:latest$/, '') + ' cannot show its thinking. It answers without it.', 4500); }
           else throw e;
           try { await stream(body, onTok); e = null; } catch (e2) { if (e2.name === 'AbortError') throw e2; e = e2; }
         }
@@ -358,7 +379,7 @@
     const sc = e.target.closest('.src');
     const mEl = e.target.closest('.m'); if (!mEl) return;
     const i = +mEl.dataset.i, m = cur.msgs[i]; if (!m) return;
-    if (sc) { const s = (m.sources || [])[+sc.dataset.i]; if (!s) return; if (s.kind === 'web') A.net.open(s); else if (s.kind === 'lib') A.lib.openUrl(s.url, s.title); else if (s.kind === 'note') { A.showTab('notes'); A.notes.openByPath(s.path); } else if (s.kind === 'attach') A.toast('Attached to this chat'); else A.viewer.open(s, ((cur.msgs[i - 1] || {}).content) || ''); return; }
+    if (sc) { const s = (m.sources || [])[+sc.dataset.i]; if (!s) return; if (s.kind === 'web' || (s.kind === 'news' && s.url)) A.net.open(s); else if (s.kind === 'lib') A.lib.openUrl(s.url, s.title); else if (s.kind === 'note') { A.showTab('notes'); A.notes.openByPath(s.path); } else if (s.kind === 'attach') A.toast('Attached to this chat'); else A.viewer.open(s, ((cur.msgs[i - 1] || {}).content) || ''); return; }
     const t = e.target.closest('[data-t]'); if (!t) return;
     switch (t.dataset.t) {
       case 'copy': A.copy(m.content); break;
@@ -488,6 +509,7 @@
       const row = (id, name, text) => { const lab = $(id); return lab && lab.style.display !== 'none' ? '<div><b>' + name + '</b><br>' + text + '</div>' : ''; };
       A.pop(this, '<div class="opthelp"><div class="grp" style="margin-top:0">What these boxes do</div>' +
         '<div><b>Think harder</b><br>The assistant reasons step by step before it answers. Slower, and better on hard questions.</div>' +
+        '<div><b>Show thinking</b><br>Watch the reasoning appear while the assistant works. It folds under the answer afterwards. It also turns thinking on, so replies are slower. A model that cannot think just answers.</div>' +
         row('uwl', 'Use libraries', 'Looks the question up in your offline libraries first and shows where each fact came from.') +
         row('ufl', 'Use my files', 'Searches your own notes and files first. They never leave this PC.') +
         row('uwb', '🌐 Web', 'Searches the internet for this question and names the sites it used.') +
@@ -549,6 +571,7 @@
   $('useweb').checked = ls.get('useweb', '0') === '1'; $('useweb').onchange = () => ls.set('useweb', $('useweb').checked ? '1' : '0');
   $('newc').onclick = () => A.chat.newChat();
   $('think').checked = ls.get('think', '0') === '1'; $('think').onchange = () => ls.set('think', $('think').checked ? '1' : '0');
+  $('showthink').checked = ls.get('showthink', '0') === '1'; $('showthink').onchange = () => ls.set('showthink', $('showthink').checked ? '1' : '0');
   A.chat.warm = warm;
 
   A.registerTab('chat', 'Chat', () => inEl.focus());

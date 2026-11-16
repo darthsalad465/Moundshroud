@@ -2497,7 +2497,7 @@ MW.PAL = {
   const Music = {
     tracks: TRACKS,
     current: () => current,
-    level() { return (LEVELS[MW.State.settings.music] ?? 0.6) * 1.6; },
+    level() { return songOn() ? 0 : (LEVELS[MW.State.settings.music] ?? 0.6) * 1.6; },   // a song from Moundshroud's Music tab outranks the game's music
     applyVolume() { if (MW.Ambience) MW.Ambience.refresh(); if (!ensure()) return; out.gain.cancelScheduledValues(ctx.currentTime); out.gain.setTargetAtTime(current ? this.level() : 0, ctx.currentTime, 0.15); },
     /* play a track (no-op if it's already playing); `after` is what to resume when a one-shot ends */
     play(name, after) {
@@ -2543,6 +2543,8 @@ MW.PAL = {
     }
   };
   MW.Music = Music;
+  function songOn() { try { return window.parent !== window && typeof window.parent.msSongOn === 'function' && window.parent.msSongOn(); } catch (e) { return false; } }
+  { let was = songOn(); setInterval(() => { const s = songOn(); if (s !== was) { was = s; if (ctx) Music.applyVolume(); } }, 700); }
 })();
 
 </script>

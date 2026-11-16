@@ -16,6 +16,7 @@
 
     /* ---------------- keypad calculator ---------------- */
     function calc() {
+      if (A.aurum) return A.aurum.mount(body());
       const KEYS = [['AC', 'ac', 'ac'], ['(', ')'].length ? ['( )', 'par', 'fn'] : null, ['%', '%', 'fn'], ['÷', '/', 'op'], ['7'], ['8'], ['9'], ['×', '*', 'op'], ['4'], ['5'], ['6'], ['−', '-', 'op'], ['1'], ['2'], ['3'], ['+', '+', 'op'], ['±', 'neg', 'fn'], ['0'], ['.'], ['=', 'eq', 'eq']];
       const SCI = [['sin(', 'sin'], ['cos(', 'cos'], ['tan(', 'tan'], ['log(', 'log'], ['ln(', 'ln'], ['√(', '√'], ['^', 'xʸ'], ['!', 'n!'], ['π', 'π'], ['e', 'e'], ['asin(', 'sin⁻¹'], ['acos(', 'cos⁻¹'], ['atan(', 'tan⁻¹'], ['exp(', 'eˣ'], ['abs(', '|x|']];
       body().innerHTML = '<div class="row" style="gap:18px;align-items:flex-start;flex-wrap:wrap"><div style="width:340px;max-width:100%"><div class="disp"><input id="ce" type="text" inputmode="none" autocomplete="off" spellcheck="false" placeholder="0"><div class="res" id="cr"></div><div class="row" style="gap:6px;justify-content:space-between;margin-top:4px"><span class="small mute" id="cmm"></span><span class="row" style="gap:6px"><button class="ib" id="cdeg" title="Angle mode for sin, cos, tan">' + (rad ? 'RAD' : 'DEG') + '</button><button class="ib" id="csci">' + (sci ? 'Basic' : 'Scientific') + '</button><button class="ib" id="ccp">Copy</button></span></div></div>' +

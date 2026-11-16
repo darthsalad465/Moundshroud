@@ -59,7 +59,7 @@
       '<div class="agcomp"><div class="agbox"><div data-k="att" class="ssatt" hidden></div><textarea rows="2" data-k="in" placeholder="' + esc(cfg.placeholder) + '"></textarea>' +
       '<div class="agchips">' + (cfg.attach ? '<button class="agchip" data-k="clip" title="' + esc(cfg.attach.title) + '">📎 ' + esc(cfg.attach.label) + '</button><input type="file" data-k="file" accept="' + esc(cfg.attach.accept) + '" hidden>' : '') + '<span data-k="chips" class="sschips"></span><span style="flex:1"></span><button class="agsend" data-k="send" title="Make it (Enter)">↑</button></div></div></div></section></div>';
     const $ = k => host.querySelector('[data-k="' + k + '"]');
-    const x = host.querySelector('.agx');
+    const x = host.querySelector('.agx'), stat = $('stat');      /* kept: its data-k is changed below (the dot's colour), so $('stat') only finds it once */
     $('chips').innerHTML = cfg.chips();
     if (cfg.wire) cfg.wire($('chips'), host);
     /* the list */
@@ -98,7 +98,7 @@
       const box = $('msgs'), c = $('conv'), stick = c.scrollHeight - c.scrollTop - c.clientHeight < 160;
       box.innerHTML = sess && sess.turns.length ? sess.turns.map(turnHtml).join('') : welcome();
       $('title').textContent = sess ? sess.title : cfg.title; $('sub').textContent = sess ? new Date(sess.created).toLocaleString() : (cfg.sub || '');
-      const b = sess && busy(sess.id); $('stat').textContent = b ? 'Working' : ''; $('stat').dataset.k = b ? 'busy' : '';
+      const b = sess && busy(sess.id); stat.textContent = b ? 'Working' : ''; stat.dataset.k = b ? 'busy' : '';
       if (stick || !sess) c.scrollTop = c.scrollHeight;
     }
     $('msgs').addEventListener('click', async e => {
@@ -147,7 +147,10 @@
   const val = (el, k) => { const e = el.querySelector('[data-c="' + k + '"]'); return !e ? undefined : e.type === 'checkbox' ? e.checked : e.value; };
   const remember = (el, key) => el.addEventListener('change', e => { const c = e.target.closest('[data-c]'); if (c) ls.set(key + '_' + c.dataset.c, c.type === 'checkbox' ? (c.checked ? '1' : '0') : c.value); });
   const saved = (key, k, d) => ls.get(key + '_' + k, d);
-  const blobPost = async (url, body, signal, what) => { const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal }); if (!r.ok) { let m = what + ' could not be made.'; try { m = (await r.json()).error || m; } catch (e) { } throw new Error(m); } return r.blob(); };
+  /* the pages are read fresh from the disk, the server only when it starts: a server that was running before a part was added answers "not found" */
+  const OLD = 'Moundshroud was updated while it was running, and the running copy does not have this part yet. Close Moundshroud, open it again, then press ↻ Try again.';
+  const plain = m => /^not found$/i.test(String(m || '').trim()) ? OLD : m;
+  const blobPost = async (url, body, signal, what) => { const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal }); if (!r.ok) { let m = what + ' could not be made.'; try { m = (await r.json()).error || m; } catch (e) { } throw new Error(plain(m)); } return r.blob(); };
   async function improve(target, text, progress, image) { if (!A.promptOpt) return { prompt: text, neg: '' }; progress('Writing a detailed prompt…'); return A.promptOpt.optimize(target, text, image ? { image } : {}); }
 
   /* ---------- 🖼️ AI art ---------- */
@@ -158,7 +161,7 @@
     placeholder: 'Describe a picture, or attach a photo and say what to change…  (Enter to make it)',
     examples: ['A lighthouse on a cliff in a storm at night', 'A cosy reading nook with a cat, warm evening light', 'A knight made of glass in a misty forest'],
     attach: { label: 'Photo', title: 'Attach a photo to edit (or drop or paste one here)', accept: 'image/*' },
-    chips: () => sel('style', 'Style', ART_STYLES, saved('ss_art', 'style', '')) + sel('shape', 'Shape', [['512x512', 'Square'], ['512x768', 'Tall'], ['768x512', 'Wide']], saved('ss_art', 'shape', '512x512')) + sel('q', 'Quality', [['2', 'Fast'], ['4', 'Detailed']], saved('ss_art', 'q', '4')) + sel('eng', 'Made by', [['sd', 'Picture model (seconds)'], ['flux', 'FLUX (about 3 min)'], ['svg', 'Qwen vector drawing']], saved('ss_art', 'eng', 'sd')) + '<span data-c-edit hidden>' + sel('edit', 'Edit', [['kontext', '🪄 Precise (2 to 5 min)'], ['sd', '🎨 Quick redraw']], saved('ss_art', 'edit', 'kontext')) + sel('str', 'Change', [['0.35', 'A little'], ['0.55', 'Some'], ['0.75', 'A lot']], saved('ss_art', 'str', '0.55')) + '</span>' + chk('imp', '✨ Improve my prompt', saved('ss_art', 'imp', '1') === '1', 'The AI on this PC rewrites your words into the most detailed prompt the engine reads best'),
+    chips: () => sel('style', 'Style', ART_STYLES, saved('ss_art', 'style', '')) + sel('shape', 'Shape', [['512x512', 'Square'], ['512x768', 'Tall'], ['768x512', 'Wide']], saved('ss_art', 'shape', '512x512')) + sel('q', 'Quality', [['2', 'Fast'], ['4', 'Detailed']], saved('ss_art', 'q', '4')) + sel('eng', 'Made by', [['sd', 'Picture model (seconds)'], ['flux', 'FLUX (1 to 7 min)'], ['svg', 'Qwen vector drawing']], saved('ss_art', 'eng', 'sd')) + '<span data-c-edit hidden>' + sel('edit', 'Edit', [['kontext', '🪄 Precise (2 to 5 min)'], ['sd', '🎨 Quick redraw']], saved('ss_art', 'edit', 'kontext')) + sel('str', 'Change', [['0.35', 'A little'], ['0.55', 'Some'], ['0.75', 'A lot']], saved('ss_art', 'str', '0.55')) + '</span>' + chk('imp', '✨ Improve my prompt', saved('ss_art', 'imp', '1') === '1', 'The AI on this PC rewrites your words into the most detailed prompt the engine reads best'),
     wire: async el => { remember(el, 'ss_art'); const s = await astat(); const k = el.querySelector('[data-c=edit] option[value=kontext]'); if (!s.edit && k) { k.disabled = true; k.textContent = '🪄 Precise (edit model not installed)'; el.querySelector('[data-c=edit]').value = 'sd'; } const f = el.querySelector('[data-c=eng] option[value=flux]'); if (!s.edit && f) f.disabled = true; },
     onAttach: (host, on) => { const e = host.querySelector('[data-c-edit]'); if (e) e.hidden = !on; ['style', 'shape', 'eng'].forEach(k => { const c = host.querySelector('[data-c=' + k + ']'); if (c) c.closest('label').hidden = on; }); },
     read: el => ({ style: val(el, 'style'), shape: val(el, 'shape'), steps: +val(el, 'q'), eng: val(el, 'eng'), edit: val(el, 'edit'), strength: +val(el, 'str'), improve: val(el, 'imp') }),
@@ -176,7 +179,7 @@
       if (o.improve && o.eng !== 'svg') { const r = await improve('image', o.prompt, progress); prompt = r.prompt; neg = r.neg || ''; used = r.prompt; }
       const [w, h] = String(o.shape || '512x512').split('x').map(Number), styled = prompt + (o.style ? (AIArt.SUFFIX[o.style] || '') : '');
       if (o.eng === 'svg') { progress('Qwen is drawing…'); const r = await AIArt.svg(o.prompt + (o.style ? ' (' + o.style + ' style)' : '')); const blob = await (await fetch(r.url)).blob(); return { media: [{ type: 'image', blob }], meta: { engine: 'Qwen vector drawing' } }; }
-      if (o.eng === 'flux') { progress('FLUX is drawing (about 3 minutes)…'); const blob = await blobPost('/api/art/flux', { prompt: styled, w, h }, signal, 'The picture'); return { media: [{ type: 'image', blob }], text: used ? '*Prompt used:* ' + used : '', meta: { engine: 'FLUX', size: w + '×' + h } }; }
+      if (o.eng === 'flux') { progress('FLUX is drawing (1 to 7 minutes; slowest when memory is nearly full)…'); const blob = await blobPost('/api/art/flux', { prompt: styled, w, h }, signal, 'The picture'); return { media: [{ type: 'image', blob }], text: used ? '*Prompt used:* ' + used : '', meta: { engine: 'FLUX', size: w + '×' + h } }; }
       progress('Drawing…'); const r = await AIArt.image(prompt, { style: o.style, neg, w, h, steps: o.steps || 4, signal });
       return { media: [{ type: 'image', blob: r.blob }], text: used ? '*Prompt used:* ' + used + (neg ? '\n\n*Avoiding:* ' + neg : '') : '', meta: { engine: 'SDXL Turbo', size: w + '×' + h, seed: r.seed } };
     },
@@ -239,7 +242,7 @@
       /* a long video: the AI writes the shot list, the server makes and joins the shots */
       const n = Math.ceil(o.seconds / clip), shots = await shotList(o.prompt, n, o.smooth, progress, signal);
       const st = await A.api('/api/video/long/start', { title: o.prompt, shots, size: o.size, smooth: o.smooth });
-      if (!st.ok) throw new Error(st.error || 'The long video could not start.');
+      if (!st.ok) throw new Error(plain(st.error) || 'The long video could not start.');
       if (ctx && ctx.setJob) await ctx.setJob(st.id);
       const out = await follow(st.id, signal, progress);
       out.text = '**' + shots.length + ' shots**' + (o.smooth ? ', each continuing the last' : ', joined') + '. First shots: ' + shots.slice(0, 3).map((s, i) => '(' + (i + 1) + ') ' + s).join(' ');
@@ -269,6 +272,7 @@
     for (; ;) {
       if (signal.aborted) { await A.api('/api/video/long/stop', { id }).catch(() => { }); throw Object.assign(new Error('Stopped. Its finished shots are kept: press Resume to carry on.'), { name: 'AbortError' }); }
       let s; try { s = await A.api('/api/video/long/status?id=' + encodeURIComponent(id)); } catch (e) { s = null; }
+      if (s && !s.state) throw new Error(/^not found$/i.test(s.error || '') ? OLD : 'The server no longer has this video on its list, so it cannot be followed. Press ↻ Try again to make it again.');
       if (s) {
         if (s.state === 'done') { progress('Fetching the finished video…'); const r = await fetch('/api/video/long/file?id=' + encodeURIComponent(id)); if (!r.ok) throw new Error('The finished video could not be read.'); const blob = await r.blob(); return { media: [{ type: 'video', blob }], meta: { engine: 'Wan 2.1' + (s.smooth ? ' + VACE (smooth)' : ' (shots)'), size: s.w + '×' + s.h + ' · ' + s.seconds + ' s' } }; }
         if (s.state === 'failed' || s.state === 'stopped' || s.state === 'interrupted') throw new Error(s.err || s.note || 'It stopped.');
