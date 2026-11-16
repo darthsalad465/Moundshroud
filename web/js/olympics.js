@@ -524,7 +524,7 @@
 
   /* the level cards the Run page shows */
   function levelPicker() {
-    return '<div class="ollevels">' + LEVELS.map((l, i) => '<label class="ollev' + (i === 0 ? ' on' : '') + '" data-lv="' + l.id + '"><input type="radio" name="ollv" value="' + l.id + '"' + (i === 0 ? ' checked' : '') + '><span class="ollv-i">' + l.icon + '</span><span class="ollv-t"><b>' + esc(l.name) + '</b><span class="small mute">' + esc(l.blurb) + '</span><span class="small">' + (l.clock ? l.clock + ' s a question' : 'untimed') + ' · up to ' + Math.max(...Object.values(l.n)) + ' items an event</span></span></label>').join('') + '</div>';
+    return '<div class="ollevels">' + LEVELS.map((l, i) => '<label class="ollev" data-lv="' + l.id + '"><input type="radio" name="ollv" value="' + l.id + '"' + (i === 0 ? ' checked' : '') + '><span class="ollv-i">' + l.icon + '</span><span class="ollv-t"><b>' + esc(l.name) + '</b><span class="small mute">' + esc(l.blurb) + '</span><span class="small">' + (l.clock ? l.clock + ' s a question' : 'untimed') + ' · up to ' + Math.max(...Object.values(l.n)) + ' items an event</span></span></label>').join('') + '</div>';
   }
 
   A.olympics = { render, EVENTS, LEVELS, ask, models, medals, runCode, _t: { REASON, INSTR, CODE, KNOW, SEARCH, POOL, HARD, take, LEVELS } };
