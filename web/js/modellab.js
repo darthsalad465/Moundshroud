@@ -15,7 +15,9 @@
 .ml .ex{border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:8px;background:var(--panel)}
 .ml .card{border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:10px;background:var(--panel)}
 .ml pre{background:#0b0e14;color:#cdd3e0;border-radius:8px;padding:10px;font-size:12px;white-space:pre-wrap;max-height:220px;overflow:auto;margin-top:10px}
-.ml .mute{color:var(--mute);font-size:12px}`; document.head.appendChild(s); }
+.ml .mute{color:var(--mute);font-size:12px}
+.ml .ftstep{display:flex;gap:10px;margin:12px 0}
+.ml .ftn{flex:none;width:24px;height:24px;border-radius:50%;background:var(--acc,#7c5cff);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}`; document.head.appendChild(s); }
 
   async function render(el) {
     el.innerHTML = '<div class="ml"><div class="ml-wrap">' +
@@ -26,7 +28,7 @@
       '<label>Example answers to copy (optional, the strongest lever)</label><div class="mute">Each pair shows the model a question and the ideal reply. A handful of good ones shapes its style a lot.</div><div id="mlex"></div><button class="ib2" id="mladd" style="margin-top:8px">+ Add example</button>' +
       '<div style="margin:14px 0"><button class="btn" id="mlbuild">⚙ Build the model</button> <span class="mute" id="mlstat"></span></div><div id="mllog"></div>' +
       '<h3 style="margin:18px 0 2px">Your custom models</h3><div class="mute">Built here. Choose them in Chat’s model menu like any other.</div><div id="mllist"></div>' +
-      '<div class="card" style="margin-top:16px"><b>Want real fine-tuning?</b><div class="mute" style="margin-top:4px">Your RTX 5050 (8 GB) can train small models with QLoRA, which changes the weights, not just the instructions. That needs a Python and CUDA setup and takes hours per run. Ask and it can be added as a heavier, separate step.</div></div>' +
+      '<div id="mlft" style="margin-top:16px"></div>' +
       '</div></div>';
     const q = id => el.querySelector(id);
     const exBox = q('#mlex');
@@ -53,6 +55,52 @@
     };
     addEx('What is a variable?', 'A variable is a labelled box that holds a value. Example: score = 0. You can read it or change it later. Want to try naming one?');
     loadModels();
+    renderFT();
+
+    /* the interactive fine-tuning tutorial: guided steps that explain what each stage does to the model */
+    async function renderFT() {
+      const host = el.querySelector('#mlft'); if (!host) return;
+      const qf = s => host.querySelector(s);
+      const step = (n, title, body) => '<div class="ftstep"><div class="ftn">' + n + '</div><div><b>' + title + '</b><div class="mute" style="margin-top:3px">' + body + '</div></div></div>';
+      let st = {}; try { st = await A.api('/api/finetune/status'); } catch (e) { }
+      let h = '<div class="card"><h3 style="margin:0 0 6px">🎓 Real fine-tuning (GPU), guided</h3><div class="mute">The Model Lab above adds instructions and examples on top of a model. Fine-tuning goes deeper: it changes the model’s own numbers, so the new behaviour is baked in. Here is exactly what happens.</div>';
+      if (!st.installed) {
+        h += step('0', 'One-time setup', 'Fine-tuning needs a Python toolkit and a GPU build of PyTorch, a few GB. Press Set up once; it runs in the background and you can leave this page.') +
+          '<div style="margin-top:8px"><button class="btn" id="ftinstall">⚙ Set up fine-tuning</button> <span class="mute" id="ftinststat">' + (st.installing ? 'Installing…' : '') + '</span></div><pre id="ftinstlog"' + (st.installing ? '' : ' style="display:none"') + '></pre>';
+      } else {
+        h += step('1', 'The base model, frozen', 'A small open model is the starting point. It already knows language. Its billions of numbers stay frozen; you do not rewrite them.') +
+          '<div style="margin:6px 0 10px"><select id="ftbase" class="ib2">' + (st.bases || []).map(b => '<option value="' + esc(b.id) + '">' + esc(b.name) + '</option>').join('') + '</select> <span class="mute">downloaded the first time you train</span></div>' +
+          step('2', 'Your examples, the lessons', 'The example pairs you wrote above are the lessons. Each question and ideal answer teaches the behaviour. More good, varied ones teach more.') +
+          step('3', '4-bit and LoRA, how it fits', 'The base is squeezed to 4-bit so it fits your 8 GB GPU, and training adds tiny side-matrices (LoRA) next to the frozen weights. Only those few million numbers learn, so it is fast and safe.') +
+          '<div class="row2" style="margin:6px 0 10px"><div><label>Rounds over the data (epochs)</label><input id="ftep" type="number" min="1" max="10" value="3"></div><div><label>Adapter size (LoRA r)</label><input id="ftr" type="number" min="8" max="64" step="8" value="16"></div></div>' +
+          step('4', 'Training, watch the loss fall', 'The model reads each example, guesses the answer, and measures how wrong it is: the loss. It nudges the adapters to be less wrong, over and over. Falling loss means it is learning.') +
+          '<div style="margin:6px 0"><button class="btn" id="fttrain">▶ Start fine-tuning</button> <button class="ib2" id="ftstop" style="display:none">■ Stop</button> <span class="mute" id="ftstat"></span></div><pre id="ftprog" style="display:none"></pre>' +
+          step('5', 'Merge, export, use', 'The learned adapters are folded back in, saved as a GGUF file, and imported into Ollama as a new model you pick in Chat, fully offline.') +
+          '<div id="ftimport" style="display:none;margin-top:6px"><input id="ftname" placeholder="name for the tuned model" value="my-tuned" style="max-width:220px"> <button class="btn" id="ftimpbtn">⬇ Import into Ollama</button></div>';
+      }
+      host.innerHTML = h + '</div>';
+      if (qf('#ftinstall')) { qf('#ftinstall').onclick = async () => { qf('#ftinstall').disabled = true; qf('#ftinststat').textContent = 'Installing… 10 to 20 minutes.'; qf('#ftinstlog').style.display = ''; await A.api('/api/finetune/install', {}); pollInstall(); }; if (st.installing) pollInstall(); }
+      function pollInstall() { const lg = qf('#ftinstlog'); const t = setInterval(async () => { const s = await A.api('/api/finetune/status').catch(() => ({})); const l = await A.api('/api/finetune/installlog').catch(() => ({})); if (lg) lg.textContent = l.log || ''; if (!s.installing) { clearInterval(t); renderFT(); } }, 4000); }
+      if (qf('#fttrain')) {
+        qf('#fttrain').onclick = async () => {
+          const examples = [...el.querySelectorAll('#mlex .ex')].map(d => ({ u: d.querySelector('.mlexu').value.trim(), a: d.querySelector('.mlexa').value.trim() })).filter(e => e.u && e.a);
+          if (examples.length < 2) return A.toast('Add at least 2 examples above first.');
+          const r = await A.api('/api/finetune/train', { base: qf('#ftbase').value, system: el.querySelector('#mlsys').value, examples, epochs: +qf('#ftep').value, lora_r: +qf('#ftr').value });
+          if (!r.ok) return A.toast(r.error || 'Could not start.');
+          qf('#fttrain').disabled = true; qf('#ftstop').style.display = ''; qf('#ftprog').style.display = ''; qf('#ftstat').textContent = 'Starting…'; pollTrain(r.id);
+        };
+        qf('#ftstop').onclick = () => A.api('/api/finetune/stop', {});
+      }
+      function pollTrain(id) {
+        const pg = qf('#ftprog'); const t = setInterval(async () => {
+          const p = await A.api('/api/finetune/progress', { id }).catch(() => ({}));
+          if (pg) { const steps = (p.lines || []).filter(l => l.stage === 'step'), msgs = (p.lines || []).filter(l => l.msg).slice(-6).map(l => '• ' + l.msg); const last = steps[steps.length - 1]; pg.textContent = msgs.join('\n') + (last ? '\n\nloss ' + last.loss + '  (step ' + last.step + '/' + (last.total_steps || '?') + ', epoch ' + last.epoch + ')' : ''); }
+          if (p.error) { clearInterval(t); qf('#ftstat').textContent = 'Failed.'; qf('#fttrain').disabled = false; qf('#ftstop').style.display = 'none'; }
+          if (p.done) { clearInterval(t); qf('#ftstat').innerHTML = '<span class="ok">Done.</span>'; qf('#ftstop').style.display = 'none'; const imp = qf('#ftimport'); if (imp) { imp.style.display = ''; imp.dataset.id = id; } }
+        }, 4000);
+      }
+      if (qf('#ftimpbtn')) qf('#ftimpbtn').onclick = async () => { const id = qf('#ftimport').dataset.id; const r = await A.api('/api/finetune/import', { id, name: qf('#ftname').value }); A.toast(r.ok ? ('Imported “' + r.name + '”. Pick it in Chat.') : (r.error || 'Import failed.')); if (r.ok) loadModels(); };
+    }
   }
   A.modelLab = { render };
   if (A.studio && A.studio.reg) A.studio.reg('modellab', '🧠 Model Lab', body => A.modelLab.render(body), 30);
