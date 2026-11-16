@@ -28,6 +28,7 @@
       '<label>Example answers to copy (optional, the strongest lever)</label><div class="mute">Each pair shows the model a question and the ideal reply. A handful of good ones shapes its style a lot.</div><div id="mlex"></div><button class="ib2" id="mladd" style="margin-top:8px">+ Add example</button>' +
       '<div style="margin:14px 0"><button class="btn" id="mlbuild">⚙ Build the model</button> <span class="mute" id="mlstat"></span></div><div id="mllog"></div>' +
       '<h3 style="margin:18px 0 2px">Your custom models</h3><div class="mute">Built here. Choose them in Chat’s model menu like any other.</div><div id="mllist"></div>' +
+      '<div id="mlgym" style="margin-top:16px"></div>' +
       '<div id="mlft" style="margin-top:16px"></div>' +
       '</div></div>';
     const q = id => el.querySelector(id);
@@ -56,6 +57,51 @@
     addEx('What is a variable?', 'A variable is a labelled box that holds a value. Example: score = 0. You can read it or change it later. Want to try naming one?');
     loadModels();
     renderFT();
+    renderGym();
+
+    /* the practice gym: a model solves graded coding exercises in a sealed sandbox; passing answers become lessons */
+    async function renderGym() {
+      const host = el.querySelector('#mlgym'); if (!host) return;
+      const g = s => host.querySelector(s);
+      const [mr, rr] = await Promise.all([A.api('/api/modellab/models').catch(() => ({ models: [] })), A.api('/api/practice/runs').catch(() => ({ runs: [], count: 40 }))]);
+      const n = rr.count || 40;
+      host.innerHTML = '<div class="card"><h3 style="margin:0 0 6px">🏋 Practice gym (the AI trains itself)</h3>' +
+        '<div class="mute">One of your models works through ' + n + ' Python exercises on its own. Each answer runs in a sealed sandbox (its own throwaway folder, no internet, 10 second limit) and hidden tests grade it. Answers that pass become lessons: load them as examples below, fine-tune, then send the tuned model back to the gym and compare scores.</div>' +
+        '<div class="row2" style="margin-top:10px"><div><label>Model that practises</label><select id="gymmodel">' + (mr.models || []).map(m => '<option value="' + esc(m.name) + '">' + esc(m.name) + '</option>').join('') + '</select></div>' +
+        '<div><label>Tries per exercise</label><input id="gymtries" type="number" min="1" max="4" value="2"></div>' +
+        '<div><label>Exercises</label><select id="gymlimit"><option value="10">10 (quick)</option><option value="20">20</option><option value="' + n + '" selected>all ' + n + '</option></select></div></div>' +
+        '<div style="margin:12px 0"><button class="btn" id="gymgo">▶ Start practice</button> <button class="ib2" id="gymstop" style="display:none">■ Stop</button> <span class="mute" id="gymstat"></span></div>' +
+        '<div id="gymlive"></div><h4 style="margin:14px 0 4px">Scoreboard</h4><div id="gymruns"></div></div>';
+      const drawRuns = list => {
+        g('#gymruns').innerHTML = (list || []).length ? list.map(r => '<div class="card" style="display:flex;gap:10px;align-items:center;margin-top:6px"><div style="flex:1"><b>' + esc(r.model) + '</b> · ' + r.passed + '/' + r.total + ' passed (' + (r.total ? Math.round(100 * r.passed / r.total) : 0) + '%)<div class="mute">' + esc((r.when || '').slice(0, 16).replace('T', ' ')) + ' · ' + r.attempts + ' tries each</div></div>' + (r.examples ? '<button class="ib2 gymuse" data-id="' + esc(r.id) + '">Use ' + r.examples + ' answers as lessons</button>' : '') + '</div>').join('') : '<div class="mute">No runs yet.</div>';
+        host.querySelectorAll('.gymuse').forEach(b => b.onclick = async () => {
+          const ex = (await A.api('/api/practice/examples', { id: b.dataset.id })).examples || [];
+          const box = el.querySelector('#mlex'); box.innerHTML = ''; ex.forEach(e => addEx(e.u, e.a));
+          el.querySelector('#mlsys').value = 'You are a careful Python programmer. Reply with correct, tested code in one python block.';
+          el.querySelector('.ml').scrollTop = 0; A.toast('Loaded ' + ex.length + ' passing answers as lessons. Build or fine-tune below.');
+        });
+      };
+      drawRuns(rr.runs);
+      const live = s => {
+        const pct = s.total ? Math.round(100 * s.done / s.total) : 0;
+        g('#gymlive').innerHTML = '<div class="mute">' + esc(s.model) + ': ' + s.done + '/' + s.total + ' done, ' + s.passed + ' passed, ' + s.tries + ' attempts</div><div style="height:6px;border-radius:4px;background:var(--panel2);margin:6px 0"><div style="height:100%;width:' + pct + '%;border-radius:4px;background:linear-gradient(90deg,var(--acc),var(--acc2))"></div></div>' +
+          (s.recent || []).map(r => '<div class="mute">' + (r.ok ? '<span style="color:var(--ok,#30a46c)">✔</span>' : '<span style="color:var(--bad,#e5484d)">✖</span>') + ' ' + esc(r.name) + ' · ' + r.tries + ' tr' + (r.tries === 1 ? 'y' : 'ies') + ' · ' + r.s + ' s</div>').join('');
+      };
+      let timer = 0;
+      const poll = () => { clearInterval(timer); timer = setInterval(async () => {
+        const s = await A.api('/api/practice/status').catch(() => null); if (!s) return;
+        live(s); if (!s.running) { clearInterval(timer); g('#gymgo').disabled = false; g('#gymstop').style.display = 'none'; g('#gymstat').textContent = s.error ? 'Stopped: ' + s.error : 'Finished: ' + s.passed + '/' + s.done + ' passed.'; drawRuns((await A.api('/api/practice/runs')).runs); }
+        if (!host.isConnected) clearInterval(timer);
+      }, 2500); };
+      g('#gymgo').onclick = async () => {
+        const r = await A.api('/api/practice/start', { model: g('#gymmodel').value, attempts: +g('#gymtries').value, limit: +g('#gymlimit').value });
+        if (!r.ok) return A.toast(r.error || 'Could not start.');
+        g('#gymgo').disabled = true; g('#gymstop').style.display = ''; g('#gymstat').textContent = 'Practising… you can leave this page.'; poll();
+      };
+      g('#gymstop').onclick = () => A.api('/api/practice/stop', {});
+      const s0 = await A.api('/api/practice/status').catch(() => null);
+      if (s0 && s0.running) { g('#gymgo').disabled = true; g('#gymstop').style.display = ''; live(s0); poll(); }
+    }
 
     /* the interactive fine-tuning tutorial: guided steps that explain what each stage does to the model */
     async function renderFT() {
