@@ -35,9 +35,9 @@
   if (Array.isArray(window.OA_STYLES_MORE)) STYLES.push(...window.OA_STYLES_MORE);
   let el = null;
   const get = () => { try { return localStorage.getItem(KEY) || 'modern'; } catch (e) { return 'modern'; } };
-  const apply = id => {
+  const apply = (id, preview) => {
     const s = STYLES.find(x => x.id === id) || STYLES[0]; if (!el) { el = document.createElement('style'); el.id = 'oa-style'; (document.head || document.documentElement).appendChild(el); }
-    el.textContent = s.css; document.documentElement.dataset.style = s.id; try { localStorage.setItem(KEY, s.id); } catch (e) { }
+    el.textContent = s.css; document.documentElement.dataset.style = s.id; if (!preview) { try { localStorage.setItem(KEY, s.id); } catch (e) { } }
   };
   if (window.OA_THEMES) { window.OA_THEMES.styles = STYLES; window.OA_THEMES.getStyle = get; window.OA_THEMES.applyStyle = apply; }
   apply(get());

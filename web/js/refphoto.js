@@ -8,6 +8,10 @@
   const MARK = '__REF_IMAGE__';          // what Game maker's page carries where the photo goes; the app swaps it when the game runs
   const CSS = `
 .rfp{display:flex;flex-direction:column;gap:8px}
+.rfp-tog{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text);cursor:pointer;user-select:none}
+.rfp-tog input{margin:0}
+.rfp-body{display:flex;flex-direction:column;gap:8px}
+.rfp-body[hidden]{display:none}
 .rfp-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .rfp-in{flex:1;min-width:140px;font-size:12.5px;padding:5px 9px;border-radius:9px;border:1px solid var(--line);background:var(--panel);color:var(--text)}
 .rfp-in:focus{outline:none;border-color:var(--acc,#7c5cff)}
@@ -56,17 +60,21 @@
     return out;
   }
 
-  /* the picker: a box saying what to look for (filled in from the game description, and changeable, so a picture of
-     something else entirely can be used), a button that searches, the choices, and the one that was taken.
-     onPick(item | null) receives { title, page, credit, dataUrl, b64, w, h, colors }. Returns { set, get, clear, setQuery }. */
+  /* the picker: a tick box (like the picture generator's, so the photo is simply on or off), then a box saying what to
+     look for (filled in from the game description, and changeable, so a picture of something else entirely can be used),
+     a button that searches, the choices, and the one that was taken.
+     onPick(item | null) receives { title, page, credit, dataUrl, b64, w, h, colors }. Returns { get, clear, set, setQuery, fill, on }. */
   function panel(container, opts) {
     style();
-    container.innerHTML = '<div class="rfp"><div class="rfp-row">' +
+    container.innerHTML = '<div class="rfp">' +
+      '<label class="rfp-tog"><input type="checkbox" data-p="on"> 📷 Reference photo</label>' +
+      '<div class="rfp-body" data-p="body" hidden><div class="rfp-row">' +
       '<input class="rfp-in" data-p="q" type="search" placeholder="a picture of…" title="What to look for: filled in from the game description, and free to change">' +
-      '<button class="rfp-btn" data-p="go">📷 Find a photo</button></div>' +
-      '<div class="rfp-info" data-p="msg">A picture to build towards. The box starts from your game description, and can be changed.</div>' +
-      '<div class="rfp-list" data-p="list"></div><div class="rfp-info" data-p="info"></div></div>';
+      '<button class="rfp-btn" data-p="go">🔍 Find a photo</button></div>' +
+      '<div class="rfp-info" data-p="msg">Find a photo of the subject, pick it, and the game is built to match it.</div>' +
+      '<div class="rfp-list" data-p="list"></div><div class="rfp-info" data-p="info"></div></div></div>';
     const q = k => container.querySelector('[data-p=' + k + ']');
+    const on = () => !!q('on').checked;
     /* the box starts on the description of the game; it is only filled again while it is still empty, so anything typed in it stays */
     const fromGame = () => String((opts.query && opts.query()) || '').replace(/\s+/g, ' ').trim().slice(0, 90);
     const fill = () => { const b = q('q'); if (b && !b.value.trim()) b.value = fromGame(); };
@@ -80,12 +88,22 @@
       const off = container.querySelector('[data-p=off]'); if (off) off.onclick = () => { clear(); };
     };
     function clear() { pick = null; [...q('list').children].forEach(el => el.classList.remove('on')); info(null); say('No reference photo: the game is built from your words alone.'); if (opts.onPick) opts.onPick(null); }
+    /* the tick box: off is exactly the old behaviour, the game is built from words alone */
+    q('on').onchange = () => {
+      q('body').hidden = !on();
+      if (on()) {
+        fill();
+        if (pick) { info(pick); say('The game will follow this photo.'); if (opts.onPick) opts.onPick(pick); }
+        else say('Pick a photo for the game to follow.');
+      } else { say('Off: the game is built from your words alone.'); if (opts.onPick) opts.onPick(null); }
+    };
     async function choose(i) {
       const f = found[i]; if (!f || busy) return;
       busy = true; [...q('list').children].forEach((el, k) => el.classList.toggle('on', k === i));
       say('Getting the photo ready…');
       try {
         pick = Object.assign({ title: clean(f.it.title), page: f.it.page || '', credit: credit(f.it) }, await prepare(f.blob));
+        if (!on()) { q('on').checked = true; q('body').hidden = false; }     // picking one turns it on
         say('The game will follow this photo.');
         info(pick);
         if (opts.onPick) opts.onPick(pick);
@@ -109,11 +127,18 @@
     };
     q('q').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); q('go').click(); } });
     return {
-      get: () => pick,
+      get: () => on() ? pick : null,
+      on,
       clear,
       setQuery: t => { q('q').value = String(t || ''); },
       fill,
-      set: it => { pick = it || null; info(it || null); say(it ? 'This game already follows a reference photo.' : 'No reference photo.'); }
+      set: it => {
+        pick = it || null;
+        if (it) { q('on').checked = true; q('body').hidden = false; }
+        info(it || null);
+        say(it ? 'This game already follows a reference photo.' : 'Off: the game is built from your words alone.');
+        if (opts.onPick) opts.onPick(it || null);
+      }
     };
   }
 

@@ -442,6 +442,97 @@ html.sh .rm-opt:has(input:checked) {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--acc) 25%, transparent);
 }
 
+/* All Features grid */
+html.sh #setx #sfeat button[data-tab],
+html.sh #setx #stours button[data-tour] {
+  border-radius: 12px !important;
+  border: 1px solid var(--hair) !important;
+  background: color-mix(in srgb, var(--panel2) 68%, var(--bg)) !important;
+  box-shadow: var(--sh-1);
+  transition: transform var(--d2) var(--e-out), border-color var(--d2), box-shadow var(--d2), background-color var(--d2);
+}
+html.sh #setx #sfeat button[data-tab]:hover,
+html.sh #setx #stours button[data-tour]:hover {
+  transform: translateY(-2px) scale(1.01);
+  border-color: color-mix(in srgb, var(--acc) 55%, var(--line)) !important;
+  box-shadow: var(--sh-2);
+}
+html.sh #setx #sfeat button[data-tab] span:first-child,
+html.sh #setx #stours button[data-tour] span:first-child {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--acc) 18%, transparent), color-mix(in srgb, var(--acc2) 8%, transparent));
+  border-radius: 10px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1);
+}
+
+/* Keyboard shortcuts full list */
+html.sh #setx #skeys {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  padding: 4px 0;
+}
+html.sh #setx #skeys > div {
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--hair);
+  background: color-mix(in srgb, var(--panel2) 38%, transparent);
+  box-shadow: var(--sh-1);
+}
+html.sh #setx #skeys h3 {
+  margin: 0 0 10px !important;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--acc);
+}
+html.sh #setx #skeys .krow {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 45%, transparent);
+}
+html.sh #setx #skeys .krow:last-child { border-bottom: 0; }
+html.sh #setx #skeys .kk {
+  flex: none;
+  min-width: 96px;
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+html.sh #setx #skeys .kl {
+  flex: 1;
+  font-size: 12.5px;
+  color: var(--text);
+  line-height: 1.4;
+}
+html.sh #setx #skeys .small.mute {
+  margin: -2px 0 6px 96px;
+  font-size: 11px;
+}
+
+/* Buddy selector in Settings */
+html.sh #setx #sbd button[data-b] {
+  border-radius: 12px;
+  padding: 8px 13px !important;
+  transition: transform var(--d2) var(--e-spring), border-color var(--d2), background-color var(--d2);
+  border: 1px solid var(--hair);
+  background: color-mix(in srgb, var(--panel2) 68%, var(--bg));
+  box-shadow: var(--sh-1);
+}
+html.sh #setx #sbd button[data-b]:hover {
+  transform: translateY(-2px) scale(1.02);
+  border-color: color-mix(in srgb, var(--acc) 55%, var(--line));
+  box-shadow: var(--sh-2);
+}
+html.sh #setx #sbd button[data-b].on {
+  border-color: var(--acc);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--acc) 14%, var(--panel2)), color-mix(in srgb, var(--panel2) 85%, var(--bg)));
+  box-shadow: 0 0 0 1px var(--acc), 0 8px 20px -8px var(--glow);
+}
+
 /* Customizer dialog (#ov .dlg) */
 html.sh .cu-sec {
   margin-top: 14px; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--hair);

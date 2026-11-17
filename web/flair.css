@@ -74,3 +74,129 @@ details[open] > summary ~ * { animation: panelIn .26s ease-out; }
 
 /* ---------- nothing loops while the window is hidden ---------- */
 html.idle [data-bk], html.idle .nw-ev .dot, html.idle .nw-bi.reading, html.idle .bar i, html.idle #nwaitxt .mute { animation-play-state: paused; }
+
+/* ---------- Enhanced button states and focus rings ---------- */
+button:focus-visible, .ib:focus-visible, .pri:focus-visible, .chip:focus-visible, .nw-chip:focus-visible, .mk-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--acc) 30%, transparent), 0 0 0 6px var(--bg);
+}
+button:disabled, .pri:disabled { opacity: .45; cursor: not-allowed; transform: none !important; }
+
+/* ---------- Feature/Tour button press feedback ---------- */
+#setx #sfeat button[data-tab]:active,
+#setx #stours button[data-tour]:active {
+  transform: scale(calc(1 - .035 * var(--mv, 1)));
+}
+
+/* ---------- Keyboard shortcut keys press animation ---------- */
+#setx #skeys .kk kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 24px;
+  padding: 0 7px;
+  border-radius: 6px;
+  border: 1px solid var(--hair);
+  background: var(--panel2);
+  font: 500 11px/1 var(--f-mono);
+  color: var(--text);
+  box-shadow: 0 2px 4px rgba(0,0,0,.15), inset 0 1px 0 rgba(255,255,255,.08);
+  transition: transform .06s ease-out, background-color .12s, border-color .12s;
+}
+#setx #skeys .krow:hover .kk kbd {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--acc) 45%, var(--line));
+  background: color-mix(in srgb, var(--acc) 8%, var(--panel2));
+}
+
+/* ---------- Theme/Style preview hover card lift ---------- */
+#setx #sst .stl, #setx #sth .thm {
+  transition: transform .22s cubic-bezier(.22,.8,.28,1), border-color .2s, box-shadow .22s, background-color .2s;
+}
+#setx #sst .stl:hover, #setx #sth .thm:hover {
+  transform: translateY(calc(-4px * var(--mv, 1)));
+  box-shadow: var(--sh-3), 0 0 0 1px color-mix(in srgb, var(--acc) 35%, var(--line));
+}
+
+/* ---------- Loading skeletons ---------- */
+@keyframes skelPulse {
+  0%, 100% { opacity: .45 }
+  50% { opacity: 1 }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--panel2) 25%, color-mix(in srgb, var(--panel) 55%, var(--panel2)) 50%, var(--panel2) 75%);
+  background-size: 200% 100%;
+  animation: skelPulse 1.4s ease-in-out infinite, skelSlide 1.8s ease-in-out infinite;
+}
+@keyframes skelSlide {
+  0% { background-position: -200% 0 }
+  100% { background-position: 200% 0 }
+}
+.sk-text { height: 1rem; border-radius: 4px; margin: 6px 0; }
+.sk-title { height: 1.5rem; width: 60%; border-radius: 4px; margin-bottom: 8px; }
+.sk-card { padding: 16px; border-radius: 12px; border: 1px solid var(--hair); background: var(--panel2); }
+
+/* ---------- Empty states ---------- */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--mute);
+}
+.empty-state svg { width: 64px; height: 64px; margin-bottom: 16px; opacity: .5; }
+.empty-state h3 { margin: 0 0 8px !important; font-size: 16px; color: var(--text); }
+.empty-state p { margin: 0 !important; font-size: 13.5px; line-height: 1.5; max-width: 320px; }
+.empty-state .pri { margin-top: 16px; }
+
+/* ---------- Toast/notification entrance ---------- */
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(calc(-20px * var(--mv, 1))) scale(.95); }
+  to { opacity: 1; transform: none; }
+}
+.toast { animation: toastIn .3s cubic-bezier(.22,.8,.28,1); }
+
+/* ---------- Settings section entrance stagger ---------- */
+#setx #sfeat > div, #setx #stours > div, #setx #skeys > div {
+  animation: fadeSlideUp .4s cubic-bezier(.22,.8,.28,1) both;
+}
+#setx #sfeat > div:nth-child(1) { animation-delay: .02s; }
+#setx #sfeat > div:nth-child(2) { animation-delay: .04s; }
+#setx #sfeat > div:nth-child(3) { animation-delay: .06s; }
+#setx #sfeat > div:nth-child(4) { animation-delay: .08s; }
+#setx #sfeat > div:nth-child(5) { animation-delay: .10s; }
+#setx #stours > div:nth-child(1) { animation-delay: .02s; }
+#setx #stours > div:nth-child(2) { animation-delay: .04s; }
+#setx #stours > div:nth-child(3) { animation-delay: .06s; }
+#setx #skeys > div:nth-child(1) { animation-delay: .02s; }
+#setx #skeys > div:nth-child(2) { animation-delay: .04s; }
+#setx #skeys > div:nth-child(3) { animation-delay: .06s; }
+#setx #skeys > div:nth-child(4) { animation-delay: .08s; }
+#setx #skeys > div:nth-child(5) { animation-delay: .10s; }
+#setx #skeys > div:nth-child(6) { animation-delay: .12s; }
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(calc(12px * var(--mv, 1))); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ---------- Scroll reveal for sections ---------- */
+@keyframes scrollReveal {
+  from { opacity: 0; transform: translateY(calc(20px * var(--mv, 1))); }
+  to { opacity: 1; transform: none; }
+}
+.reveal { animation: scrollReveal .6s cubic-bezier(.22,.8,.28,1) both; }
+
+/* ---------- Buddy button active glow ---------- */
+#setx #sbd button[data-b].on {
+  animation: chipOn .32s cubic-bezier(.3,1.4,.5,1);
+}
+
+/* ---------- Smooth scroll behavior for anchor jumps ---------- */
+html:not([data-motion="off"]) { scroll-behavior: smooth; }
+html[data-motion="off"] { scroll-behavior: auto; }
+
+/* ---------- Selection highlight ---------- */
+::selection { background: color-mix(in srgb, var(--acc) 30%, transparent); }

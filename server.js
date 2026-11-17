@@ -314,6 +314,8 @@ const mainServer = http.createServer(async (req, res) => {
     if (url === '/api/godot/launch' && req.method === 'POST') { const b = await jbody(req, 4e3); return json(res, 200, godot.launch(b.name, !!b.play)); }
     if (url === '/api/godot/delete' && req.method === 'POST') { const b = await jbody(req, 4e3); return json(res, 200, godot.remove(b.name)); }
     if (url === '/api/godot/export' && req.method === 'POST') { const b = await jbody(req, 4e3); return json(res, 200, godot.exportWeb(b.name)); }
+    /* does the project actually load and compile? answered by the engine, not by guessing */
+    if (url === '/api/godot/check' && req.method === 'POST') { const b = await jbody(req, 4e3); return json(res, 200, godot.check(b.name)); }
     /* the Godot editor inside the Moundshroud window: our page (web/godot-editor.html) plus Godot's official web editor
        files (engines/godot/web-editor). Its threads need SharedArrayBuffer, which only a cross-origin isolated page
        gets, so this page alone carries the COOP/COEP headers. */
