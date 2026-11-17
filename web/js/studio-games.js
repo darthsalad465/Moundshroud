@@ -130,10 +130,15 @@
     $('gmp').addEventListener('input', () => { if (refUi) refUi.fill(); });
     /* the rules are told about the photo as well: the plain ones forbid every image, and a small model obeys the rule it
        read first, so the exception is written into the system prompt whenever a photo is chosen */
-    const sysNow = () => SYS + (ref ? '\n- EXCEPTION: one picture is allowed. A reference photo is provided as the exact text ' + RK +
-      ', which the app replaces with the photo when the game runs. It may be used as an <img> src, as new Image() with that src, or in canvas drawImage, and it should be used for the background, title screen or a sprite. No other image may be loaded.' : '');
-    const refNote = () => ref ? '\n\nA reference photo is included. Wherever a data:image/jpeg URL belongs, write exactly ' + RK +
-      ' — the app replaces that text with the photo when the game runs, so it works as <img src="' + RK + '">, as new Image() with that src, and in canvas drawImage. Use it for the background, the title screen or a sprite, and match its colours and mood. Reference: "' + ref.title + '" (' + ref.credit + '). Its main colours: ' + ref.colors.join(', ') + '.' : '';
+    const sysNow = () => SYS + (ref ? '\n- EXCEPTION: one picture is allowed and MUST be used. The exact text ' + RK +
+      ' is replaced by a real photograph when the game runs. Draw it as the full-window background, then draw the game on top of it. It may be used as an <img> src, as new Image() with that src, or in canvas drawImage. No other image may be loaded.' : '');
+    /* concrete code to copy: a small model follows a snippet far better than a description */
+    const refNote = () => ref ? '\n\nREQUIRED: the game MUST use its reference photo as the background. Write this in the script:\n' +
+      'const REF_IMAGE = "' + RK + '";\n' +
+      'const refImg = new Image(); refImg.src = REF_IMAGE;\n' +
+      'and in every frame, before drawing anything else:\n' +
+      'if (refImg.complete) ctx.drawImage(refImg, 0, 0, canvas.width, canvas.height);\n' +
+      'then draw the fox, platforms, trees and everything else on top of it. Reference photo: "' + ref.title + '" (' + ref.credit + '). Its main colours: ' + ref.colors.join(', ') + '.' : '';
     const fillRef = html => String(html).split(RK).join(ref ? ref.dataUrl : '');
     const say = (kind, html) => { msg.innerHTML = html ? '<div class="gmk-msg gmk-' + kind + '">' + html + '</div>' : ''; };
     /* the code arriving, live: the whole reply as it streams, so you can watch the game being written */
@@ -232,9 +237,9 @@
         else { cur.prev = (cur.prev || []).concat([{ html: cur.html, asks: cur.asks.slice() }]).slice(-5); cur.html = out.html; cur.asks = cur.asks.concat([text]); cur.dirty = true; $('gmc').value = ''; }
         const secs = Math.round((Date.now() - t0) / 1000), st = before ? diffStat(before, out.html) : null;
         const changed = st ? ' · ' + (st.gone + st.add) + ' of ' + st.lines + ' lines changed (' + st.add + ' new, ' + st.gone + ' gone)' : '';
-        if (ref && out.html.indexOf(RK) < 0) A.toast('The game was written without the reference photo: press 📷 again, or say in your words where it should be used.', 5200);
         if (st && !st.add && !st.gone) say('warn', '⚠ ' + secs + ' s, but the AI sent back exactly the same code, so nothing changed. Say the change in different words, or pick a bigger model.');
-        else say('ok', '✓ ' + (kind === 'new' ? 'Made' : 'Changed') + ' in ' + secs + ' s' + changed + '. Click the game to give it the keyboard. Save it to keep it.' + (triedPatch ? '<br><span class="gmk-note">The AI rewrote the file instead of patching it: its small edit did not fit the code.</span>' : ''));
+        else say('ok', '✓ ' + (kind === 'new' ? 'Made' : 'Changed') + ' in ' + secs + ' s' + changed + '. Click the game to give it the keyboard. Save it to keep it.' + (triedPatch ? '<br><span class="gmk-note">The AI rewrote the file instead of patching it: its small edit did not fit the code.</span>' : '') +
+          (ref && out.html.indexOf(RK) < 0 ? '<br><span class="gmk-note">This model did not use the reference photo. Press 📷 again and pick it, then say where it should go (e.g. “use the reference photo as the background”), or try a bigger model.</span>' : ''));
         if (op) op.end(true, secs + ' s' + changed);
         liveShow(false); play();
       } catch (e) {
@@ -251,7 +256,8 @@
       if (op) op.say(bug ? 'looking for the bug' : 'looking for the smallest change');
       const msgs = [
         { role: 'system', content: PATCH_SYS },
-        { role: 'user', content: 'The whole game file:\n```html\n' + cur.html + '\n```\n\n' + (bug ? 'It fails at run time with: ' + text.replace(/^Fix this error that appears when the game runs:\s*/i, '') + '\nFind the cause in that code and fix it.' : 'What to change: ' + text) + '\n\nReply with the JSON edits only.' }
+        { role: 'user', content: 'The whole game file:\n```html\n' + cur.html + '\n```\n\n' + (bug ? 'It fails at run time with: ' + text.replace(/^Fix this error that appears when the game runs:\s*/i, '') + '\nFind the cause in that code and fix it.' : 'What to change: ' + text) +
+          (ref ? '\n\nThe text ' + RK + ' in the code is the reference photo, which the app puts in when the game runs. Keep every occurrence exactly as it is; do not remove or replace it.' : '') + '\n\nReply with the JSON edits only.' }
       ];
       const reply = await ask(msgs, 900, (n, txt) => {
         if (txt && txt.length > liveN) { liveAdd(txt.slice(liveN)); liveN = txt.length; }
@@ -262,6 +268,9 @@
       });
       const edits = A.patch.parse(reply); if (!edits) return false;
       const res = A.patch.apply(cur.html, edits); if (!res.applied) return false;
+      /* a small fix must not throw the reference photo away: if the edit removed it, the fix is refused and the whole file
+         is rewritten instead (that request carries the photo's instructions) */
+      if (ref && cur.html.indexOf(RK) >= 0 && res.text.indexOf(RK) < 0) return false;
       const before = cur.html;
       cur.prev = (cur.prev || []).concat([{ html: before, asks: cur.asks.slice() }]).slice(-5);
       cur.html = res.text; cur.asks = cur.asks.concat([text]); cur.dirty = true; $('gmc').value = '';

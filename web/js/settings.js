@@ -31,13 +31,11 @@
   const accSort = (a, b) => (/^English/.test(b) ? 1 : 0) - (/^English/.test(a) ? 1 : 0) || a.localeCompare(b);
   const vOpts = (voices, want, g, a) => { const by = {}; voices.filter(v => (!A.speech || !A.speech.okVoice || A.speech.okVoice(v)) && (!g || vgender(v) === g) && (!a || vacc(v) === a)).forEach(v => { (by[vacc(v)] = by[vacc(v)] || []).push(v); }); return Object.keys(by).sort(accSort).map(k => '<optgroup label="' + esc(k) + '">' + by[k].map(v => { const gg = vgender(v); return '<option value="' + esc(v.name) + '"' + (want === v.name ? ' selected' : '') + '>' + (gg === 'f' ? '♀ ' : gg === 'm' ? '♂ ' : '') + esc(v.name.replace(/^Microsoft /, '').replace(/ (Online )?(\(Natural\) )?- .*$/, '')) + (v.localService ? '' : ' (online)') + '</option>'; }).join('') + '</optgroup>').join(''); };
   const VSTYLES = [['Deep', 0.6, 0.9], ['Warm', 0.85, 0.95], ['Natural', 1, 1], ['Bright', 1.25, 1.05], ['High', 1.5, 1.1], ['Slow and clear', 1, 0.75], ['Fast', 1, 1.4]];
-  function build() {
+  function build(isAuthor) {
     const TH = window.OA_THEMES, cur = TH ? TH.get() : '', curStyle = TH && TH.getStyle ? TH.getStyle() : 'modern', voices = (A.speech && A.speech.natural ? A.speech.natural : []).concat('speechSynthesis' in window ? speechSynthesis.getVoices() : []), want = ls.get('voice', '');
     const vopts = vOpts(voices, want, '', ''), accs = Array.from(new Set(voices.map(vacc))).sort(accSort);
     const buddies = A.companion && A.companion.buddies ? A.companion.buddies() : [], bcur = A.companion && A.companion.current ? A.companion.current() : 0;
     let h = '';
-    let isAuthor = false;
-    fetch('/api/is-author').then(r => r.json()).then(j => { isAuthor = j.author; }).catch(() => {});
     h += sec('appearance', '🎨', 'Appearance', row('New look: sidebar and drawn icons', 'Pages are listed in a sidebar at the left, with one drawn icon each, and the page sits on a rounded sheet. Turn this off to get the row of tabs across the top back. It applies to the Modern interface style; the other styles keep their own layout.', tog('shroud', ls.get('shroud', '1') !== '0'), 'new look sidebar rail icons classic tabs top bar layout shroud') + row('Gliding tabs in the classic look', 'Only used while the new look above is off: the gliding tab marker and a different look for each area. Turn this off if anything seems wrong with the top bar. (Add ?classic to the address to force it from outside.)', tog('nopro', ls.get('nopro', '0') !== '1'), 'classic polish top bar tabs look modern') + row('Group pages into menus', 'Fold related pages into four menus (Office, Education, Personal, Entertainment) so the list is shorter. Turn off to see every page in one list.', tog('navgroups', ls.get('navgroups', '1') !== '0'), 'tabs menus group top bar sidebar nav office education personal entertainment') + row('Alphabetical order', 'Show catalogues and contents (the Guide, games, books, openings, languages, library categories) in A to Z order. Takes effect the next time you reload Moundshroud.', tog('alpha', ls.get('alpha', '1') !== '0'), 'alphabetical order sort az contents') + row('Customize everything', 'Fonts, text size, spacing, corners, accent colour, contrast, animation and more.', '<button class="pri" data-a="cust">Open customizer</button>', 'font zoom size spacing corners accent contrast') +
       row('Motion', 'How much Moundshroud moves: the cross-fade between pages, the lift when you hover a card, the loading bar and the small touches on buttons. <b>Subtle</b> keeps everything but calmer, and is what Windows asks for when you have animations turned off. <b>Off</b> leaves the app perfectly still - nothing moves, but colours and highlights still tell you what is happening.', '<div id="smot" style="display:flex;gap:6px"></div><button class="ib" data-a="replayboot" title="Watch the Moundshroud opening sequence again">✨ Replay intro</button>', 'motion animation transition speed reduced movement accessibility still smooth intro boot splash') +
       (TH && TH.styles ? '<div class="sxrow" data-k="interface style shape animation" style="display:block"><div style="padding:2px 0 8px"><b>Interface style</b> <span class="small mute">how the app is shaped and animated</span></div><div id="sst" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:4px">' + TH.styles.map(s => '<button class="stl' + (s.id === curStyle ? ' on' : '') + '" data-s="' + s.id + '" title="' + esc(s.note) + '" style="text-align:left;padding:10px 12px;border-radius:12px;border:2px solid ' + (s.id === curStyle ? 'var(--acc)' : 'var(--line)') + ';background:var(--panel2);color:var(--text)"><div class="row" style="justify-content:space-between;margin-bottom:4px"><span style="font-size:20px;line-height:1">' + esc(s.icon) + '</span><span class="small" style="color:var(--acc);font-weight:700">' + (s.id === curStyle ? '✓' : '') + '</span></div><b style="font-size:13.5px;display:block">' + esc(s.name) + '</b><span class="small mute" style="display:block;font-size:11.5px;line-height:1.35;margin-top:2px">' + esc(s.note) + '</span></button>').join('') + '</div></div>' : '') +
@@ -145,13 +143,16 @@
   function open(sectionId) {
     close(); root = document.createElement('div'); root.id = 'setx'; root.style.cssText = 'position:fixed;inset:0;z-index:150;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:2vh 2vw';
     const initSec = sectionId || SECS[0][0], initLabel = (SECS.find(s => s[0] === initSec) || SECS[0])[2];
-    root.innerHTML = '<style>#setx .nm{display:none!important}</style><div class="card sx-modal" style="margin:0;padding:0;width:min(1080px,100%);height:min(88vh,880px);display:flex;flex-direction:column;overflow:hidden">' +
-      '<div class="sx-head"><div class="sx-brand"><div class="sx-badge"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8M16 5v4M10 15v4"/></svg></div><div><div class="sx-title">Settings</div><div class="sx-sub" id="sxcur">' + esc(initLabel) + '</div></div></div>' +
-      '<div class="sx-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5 21 21"/></svg><input id="sq" type="text" placeholder="Search settings (voice, theme, privacy, cards...)" autocomplete="off"><div class="sx-sqmeta"><span id="sqcnt" style="display:none"></span><button type="button" id="sqclr" title="Clear search">✕</button></div></div>' +
-      '<span style="flex:1"></span><button class="pri" id="sdone">Done</button></div>' +
-      '<div class="sx-main" style="display:flex;flex:1;min-height:0"><div id="snav" style="width:224px;flex:none;border-right:1px solid var(--line);padding:10px;overflow:auto">' + SECS.map((s, i) => '<button class="ib' + (s[0] === initSec ? ' on' : '') + '" data-n="' + s[0] + '" style="--i:' + i + '"><span class="sx-ic">' + s[1] + '</span><span class="sx-lbl">' + s[2] + '</span></button>').join('') + '</div><div id="sbody" style="flex:1;overflow:auto;padding:18px 24px 32px;min-width:0">' + build() + '</div></div></div>';
-    document.body.appendChild(root); document.addEventListener('keydown', onKey, true); try { const g = root.querySelector('#stghost'); if (g && A.storage) A.storage.render(g); } catch (e) { }
-    const $$ = s => root.querySelector(s), body = $$('#sbody'); root.onclick = e => { if (e.target === root) close(); }; $$('#sdone').onclick = close;
+    fetch('/api/is-author').then(r => r.json()).then(j => {
+      const isAuthor = j.author;
+      root.innerHTML = '<style>#setx .nm{display:none!important}</style><div class="card sx-modal" style="margin:0;padding:0;width:min(1080px,100%);height:min(88vh,880px);display:flex;flex-direction:column;overflow:hidden">' +
+        '<div class="sx-head"><div class="sx-brand"><div class="sx-badge"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8M16 5v4M10 15v4"/></svg></div><div><div class="sx-title">Settings</div><div class="sx-sub" id="sxcur">' + esc(initLabel) + '</div></div></div>' +
+        '<div class="sx-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5 21 21"/></svg><input id="sq" type="text" placeholder="Search settings (voice, theme, privacy, cards...)" autocomplete="off"><div class="sx-sqmeta"><span id="sqcnt" style="display:none"></span><button type="button" id="sqclr" title="Clear search">✕</button></div></div>' +
+        '<span style="flex:1"></span><button class="pri" id="sdone">Done</button></div>' +
+        '<div class="sx-main" style="display:flex;flex:1;min-height:0"><div id="snav" style="width:224px;flex:none;border-right:1px solid var(--line);padding:10px;overflow:auto">' + SECS.map((s, i) => '<button class="ib' + (s[0] === initSec ? ' on' : '') + '" data-n="' + s[0] + '" style="--i:' + i + '"><span class="sx-ic">' + s[1] + '</span><span class="sx-lbl">' + s[2] + '</span></button>').join('') + '</div><div id="sbody" style="flex:1;overflow:auto;padding:18px 24px 32px;min-width:0">' + build(isAuthor) + '</div></div></div>';
+      document.body.appendChild(root); document.addEventListener('keydown', onKey, true); try { const g = root.querySelector('#stghost'); if (g && A.storage) A.storage.render(g); } catch (e) { }
+      const $$ = s => root.querySelector(s), body = $$('#sbody'); root.onclick = e => { if (e.target === root) close(); }; $$('#sdone').onclick = close;
+      // ... rest of open function continues here
     const markNav = id => {
       $$('#snav').querySelectorAll('[data-n]').forEach(b => b.classList.toggle('on', b.dataset.n === id));
       const info = SECS.find(s => s[0] === id); if (info && $$('#sxcur')) $$('#sxcur').textContent = info[2];
@@ -450,7 +451,293 @@
     });
     if (sectionId) setTimeout(() => { const s = body.querySelector('[data-sec=' + sectionId + ']'); if (s) body.scrollTo({ top: s.offsetTop - 8 }); }, 50);
     try { speechSynthesis.onvoiceschanged = () => { if (root && !body.dataset.vrefreshed) { body.dataset.vrefreshed = 1; const sel = $$('#sv'); if (sel && sel.options.length < 3) { close(); open(sectionId); } } }; } catch (e) { }
-  }
+  }).catch(() => {
+    // Fallback: build without isAuthor if fetch fails
+    root.innerHTML = '<style>#setx .nm{display:none!important}</style><div class="card sx-modal" style="margin:0;padding:0;width:min(1080px,100%);height:min(88vh,880px);display:flex;flex-direction:column;overflow:hidden">' +
+      '<div class="sx-head"><div class="sx-brand"><div class="sx-badge"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8M16 5v4M10 15v4"/></svg></div><div><div class="sx-title">Settings</div><div class="sx-sub" id="sxcur">' + esc(initLabel) + '</div></div></div>' +
+      '<div class="sx-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5 21 21"/></svg><input id="sq" type="text" placeholder="Search settings (voice, theme, privacy, cards...)" autocomplete="off"><div class="sx-sqmeta"><span id="sqcnt" style="display:none"></span><button type="button" id="sqclr" title="Clear search">✕</button></div></div>' +
+      '<span style="flex:1"></span><button class="pri" id="sdone">Done</button></div>' +
+      '<div class="sx-main" style="display:flex;flex:1;min-height:0"><div id="snav" style="width:224px;flex:none;border-right:1px solid var(--line);padding:10px;overflow:auto">' + SECS.map((s, i) => '<button class="ib' + (s[0] === initSec ? ' on' : '') + '" data-n="' + s[0] + '" style="--i:' + i + '"><span class="sx-ic">' + s[1] + '</span><span class="sx-lbl">' + s[2] + '</span></button>').join('') + '</div><div id="sbody" style="flex:1;overflow:auto;padding:18px 24px 32px;min-width:0">' + build(false) + '</div></div></div>';
+    document.body.appendChild(root); document.addEventListener('keydown', onKey, true); try { const g = root.querySelector('#stghost'); if (g && A.storage) A.storage.render(g); } catch (e) { }
+    const $$ = s => root.querySelector(s), body = $$('#sbody'); root.onclick = e => { if (e.target === root) close(); }; $$('#sdone').onclick = close;
+    // Re-initialize all handlers (same as success case)
+    const TH = window.OA_THEMES;
+    wakeShow(); setTimeout(wakeShow, 6000);
+    if ($$('#sst')) $$('#sst').onclick = e => { const b = e.target.closest('.stl'); if (!b) return; TH.applyStyle(b.dataset.s); $$('#sst').querySelectorAll('.stl').forEach(x => { const on = x === b; x.classList.toggle('on', on); x.style.borderColor = on ? 'var(--acc)' : 'var(--line)'; const ck = x.querySelector('.row span:last-child'); if (ck) ck.textContent = on ? '✓' : ''; }); };
+    if ($$('#sth')) $$('#sth').onclick = e => { const b = e.target.closest('.thm'); if (!b) return; TH.apply(b.dataset.t2); $$('#sth').querySelectorAll('.thm').forEach(x => { const on = x === b; x.classList.toggle('on', on); x.style.borderColor = on ? 'var(--acc)' : 'var(--line)'; }); };
+    if ($$('#smot') && A.motion) {
+      const drawM = () => { const cur2 = A.motion.level; $$('#smot').innerHTML = [['full', 'Full'], ['subtle', 'Subtle'], ['off', 'Off']].map(x => '<button class="ib' + (cur2 === x[0] ? ' on' : '') + '" data-m="' + x[0] + '" title="' + (x[0] === 'full' ? 'everything moves' : x[0] === 'subtle' ? 'calmer, shorter' : 'nothing moves') + '">' + x[1] + '</button>').join(''); };
+      drawM();
+      $$('#smot').onclick = e => { const b = e.target.closest('[data-m]'); if (!b) return; A.motion.set(b.dataset.m); drawM(); A.toast('Motion: ' + b.textContent.trim(), 1800); };
+      A.on('motion', drawM);
+    }
+    const sample = 'Hello! This is how I sound when I read to you.'; const test = () => { try { A.speech.stop(); A.speech.speak(sample); } catch (e) { } };
+    const refill = () => { const voices = (A.speech && A.speech.natural ? A.speech.natural : []).concat('speechSynthesis' in window ? speechSynthesis.getVoices() : []), sel = $$('#sv'), n = voices.filter(v => (!$$('#vg').value || vgender(v) === $$('#vg').value) && (!$$('#va').value || vacc(v) === $$('#va').value)).length; sel.innerHTML = '<option value="">Automatic (best English voice)</option>' + vOpts(voices, ls.get('voice', ''), $$('#vg').value, $$('#va').value); $$('#vcnt').textContent = n; if (!n) sel.innerHTML = '<option value="">No voices match: install more in Windows (see above)</option>'; };
+    $$('#vg').onchange = refill; $$('#va').onchange = refill;
+    body.querySelectorAll('[data-vs]').forEach(b => { b.onclick = () => { const s = VSTYLES.find(x => x[0] === b.dataset.vs); ls.set('pitch', String(s[1])); ls.set('rate', String(s[2])); $$('#spi').value = s[1]; $$('#spv').textContent = s[1]; $$('#sr2').value = s[2]; $$('#srv').textContent = s[2] + '×'; body.querySelectorAll('[data-vs]').forEach(x => x.classList.toggle('on', x === b)); test(); }; });
+    $$('#sv').onchange = e => { ls.set('voice', e.target.value); test(); }; $$('#sr2').oninput = e => { ls.set('rate', e.target.value); $$('#srv').textContent = e.target.value + '×'; }; $$('#sr2').onchange = test; $$('#spi').oninput = e => { ls.set('pitch', e.target.value); $$('#spv').textContent = e.target.value; }; $$('#spi').onchange = test; $$('#svo').onchange = e => { ls.set('svol', e.target.value); test(); };
+    if ($$('#sfv')) $$('#sfv').oninput = e => { A.sfx.vol = +e.target.value; }; if ($$('#muv')) $$('#muv').oninput = e => { A.music.vol = +e.target.value; };
+    $$('#scs').onchange = e => ls.set('card_cs', e.target.value);
+    $$('#sbd') && ($$('#sbd').onclick = e => { const b = e.target.closest('[data-b]'); if (!b) return; A.companion.setBuddy(+b.dataset.b); $$('#sbd').querySelectorAll('[data-b]').forEach(x => x.classList.toggle('on', x === b)); });
+    const T = { shroud: v => { if (A.shroud) A.shroud.set(v); }, nopro: v => { ls.set('nopro', v ? '0' : '1'); if (!(A.shroud && A.shroud.on)) document.documentElement.classList.toggle('nopro', !v); }, cvon: v => ChessVoice && ChessVoice.setEnabled(v), alpha: v => ls.set('alpha', v ? '1' : '0'), navgroups: v => { ls.set('navgroups', v ? '1' : '0'); A.buildNav(); }, sfuse: v => ls.set('sf_use', v ? '1' : '0'), sfstudy: v => fetch('/api/study/config', { method: 'POST', body: JSON.stringify({ on: v }) }).catch(() => { }), sfx: v => { A.sfx.on = v; }, mus: v => { A.music.on = v; if (!v) A.music.stop(); }, bshow: v => { v ? A.companion.show() : A.companion.hide(); }, broam: v => { if (A.companion && A.companion.setRoaming) A.companion.setRoaming(v); }, bspeak: v => ls.set('buddy_speak', v ? '1' : '0'), lp: v => A.power.toggle(v), olai: v => ls.set('olai', v ? '1' : '0'), olpre: v => ls.set('olpre', v ? '1' : '0'), sol3: v => ls.set('sol_d3', v ? '1' : '0'), hauto: v => ls.set('help_auto', v ? '1' : '0') };
+    root.addEventListener('change', e => { const t = e.target.closest('[data-t]'); if (t) { const sp2 = t.parentElement && t.parentElement.querySelector('span'); if (sp2 && /^(On|Off)$/.test(sp2.textContent)) sp2.textContent = t.checked ? 'On' : 'Off'; if (T[t.dataset.t]) T[t.dataset.t](t.checked); } });
+    /* the Personality box saves as you type; a preset fills it, and you can still edit it after */
+    const sp = $$('#spersona'), saidSaved = () => { const n = $$('#sperss'); if (n) { n.textContent = '✓ Saved'; clearTimeout(n._t); n._t = setTimeout(() => n.textContent = '', 1600); } };
+    if (sp) sp.addEventListener('input', () => { ls.set('persona', sp.value); saidSaved(); });
+    body.querySelectorAll('[data-p]').forEach(bp => bp.onclick = () => { if (sp) { sp.value = bp.dataset.p; ls.set('persona', sp.value); sp.focus(); saidSaved(); } });
+    /* ---- online AI (Claude + Free LLMs) and internet access ---- */
+    const clState = $$('#clstate'), clBox = $$('#clbox');
+    const providerLabels = {
+      'anthropic': 'Anthropic (Claude)',
+      'groq': 'Groq (Llama, Qwen, Whisper)',
+      'nvidia-nim': 'NVIDIA NIM (GLM, Kimi, Nemotron)',
+      'google-gemini': 'Google Gemini',
+      'openrouter': 'OpenRouter (300+ models)',
+      'kilo-code': 'Kilo Code (coding optimized)',
+      'mistral-ai': 'Mistral AI',
+      'cohere': 'Cohere',
+      'cloudflare-workers-ai': 'Cloudflare Workers AI',
+      'modelscope': 'ModelScope',
+      'ovhcloud-ai-endpoints': 'OVHcloud AI (EU)',
+      'ollama-cloud': 'Ollama Cloud',
+      'glhf-chat': 'Glhf.chat (unlimited)',
+      'chutes-ai': 'Chutes.ai (DeepSeek R1)',
+      'llm7-io': 'LLM7.io (GPT-OSS)',
+      'z-ai-zhipu-ai': 'Z.ai (GLM)',
+      'gonka-broker': 'Gonka Broker',
+      'agnes-ai': 'Agnes AI',
+      'aion-labs': 'Aion Labs',
+      'siliconflow': 'SiliconFlow',
+      'grok-(xai)': 'Grok (xAI)',
+      'opencode': 'OpenCode Zen'
+    };
+    const noKeyProviderLabels = {
+      'glhf-chat': 'Glhf.chat',
+      'chutes-ai': 'Chutes.ai',
+      'ovhcloud-ai-endpoints': 'OVHcloud AI (Anonymous)'
+    };
+    const noKeyRecommendedModels = {
+      'glhf-chat': [{id:'meta-llama/Meta-Llama-3.1-70B-Instruct',name:'Llama 3.1 70B',note:'131K ctx, unlimited free, no key'},{id:'mistralai/Mixtral-8x7B-Instruct-v0.1',name:'Mixtral 8x7B',note:'32K ctx, unlimited free, no key'}],
+      'chutes-ai': [{id:'deepseek-ai/DeepSeek-R1',name:'DeepSeek R1',note:'131K ctx, reasoning, no key'},{id:'meta-llama/Meta-Llama-3.1-70B-Instruct',name:'Llama 3.1 70B',note:'131K ctx, no key'}],
+      'ovhcloud-ai-endpoints': [{id:'qwen3.5-397b-a17b',name:'Qwen 3.5 397B',note:'262K ctx, 2 RPM anonymous'},{id:'gpt-oss-120b',name:'GPT-OSS 120B',note:'131K ctx, 2 RPM anonymous'},{id:'meta-llama-3_3-70b-instruct',name:'Llama 3.3 70B',note:'131K ctx, 2 RPM anonymous'}]
+    };
+    const providerKeyUrls = {
+      'anthropic': 'https://console.anthropic.com/settings/keys',
+      'groq': 'https://console.groq.com/keys',
+      'nvidia-nim': 'https://build.nvidia.com/settings/api-keys',
+      'google-gemini': 'https://aistudio.google.com/app/apikey',
+      'openrouter': 'https://openrouter.ai/workspaces/default/keys',
+      'kilo-code': 'https://app.kilo.ai/profile',
+      'mistral-ai': 'https://console.mistral.ai/api-keys',
+      'cohere': 'https://dashboard.cohere.com/api-keys',
+      'cloudflare-workers-ai': 'https://dash.cloudflare.com/profile/api-tokens',
+      'modelscope': 'https://modelscope.cn/my/myaccesstoken',
+      'ovhcloud-ai-endpoints': 'https://www.ovhcloud.com/en/public-cloud/ai-endpoints/catalog/',
+      'ollama-cloud': 'https://ollama.com/settings/keys',
+      'glhf-chat': 'https://glhf.chat/',
+      'chutes-ai': 'https://chutes.ai/',
+      'llm7-io': 'https://token.llm7.io',
+      'z-ai-zhipu-ai': 'https://open.bigmodel.cn/usercenter/apikeys',
+      'gonka-broker': 'https://app.gonkabroker.com/signup',
+      'agnes-ai': 'https://platform.agnes-ai.com/settings/apiKeys',
+      'aion-labs': 'https://www.aionlabs.ai/app/api-keys/',
+      'siliconflow': 'https://cloud.siliconflow.cn/account/ak',
+      'grok-(xai)': 'https://console.x.ai/',
+      'opencode': 'https://opencode.ai/auth'
+    };
+    const cdraw = st => {
+      const prov = st.provider || 'anthropic';
+      const isAnthropic = prov === 'anthropic';
+      const provLabel = providerLabels[prov] || prov;
+      const keyUrl = providerKeyUrls[prov] || '';
+      const hasProviders = st.providers && st.providers.length > 0;
+      const provInfo = hasProviders ? st.providers.find(p => p.id === prov) : null;
+      const freeModelsCount = provInfo ? provInfo.freeModels : 0;
+      const maxContext = provInfo ? provInfo.maxContext : 0;
+      const tagline = provInfo ? provInfo.tagline : '';
+      const protocols = provInfo ? provInfo.protocols : [];
+      
+      // Recommended models per provider (from freellm.js)
+      const recommendedModels = {
+        'groq': [{id:'llama-3.3-70b-versatile',name:'Llama 3.3 70B Versatile',note:'30 RPM, 1K RPD, 131K ctx'},{id:'qwen/qwen3.8-27b',name:'Qwen 3.8 27B',note:'Reasoning, 30 RPM, 131K ctx'},{id:'whisper-large-v3',name:'Whisper Large v3',note:'Speech-to-text, 20 RPM'},{id:'whisper-large-v3-turbo',name:'Whisper Large v3 Turbo',note:'Speech-to-text, 20 RPM'}],
+        'nvidia-nim': [{id:'z-ai/glm-5.3-flash',name:'GLM 5.3 Flash',note:'1M ctx, 40 RPM, multimodal'},{id:'moonshotai/kimi-k2.6',name:'Kimi K2.6',note:'262K ctx, 40 RPM'},{id:'poolside/laguna-xs-2.1',name:'Laguna XS 2.1',note:'262K ctx, 40 RPM, code'}],
+        'google-gemini': [{id:'gemini-3.8-flash',name:'Gemini 3.8 Flash',note:'1M ctx, multimodal'},{id:'gemini-3.6-flash',name:'Gemini 3.6 Flash',note:'1M ctx, multimodal'},{id:'gemini-3.5-flash-lite',name:'Gemini 3.5 Flash-Lite',note:'1M ctx, multimodal'}],
+        'openrouter': [{id:'stealth/crouton-alpha',name:'Crouton Alpha',note:'1M ctx, free'},{id:'nvidia/nemotron-3-ultra-550b-a55b:free',name:'Nemotron 3 Ultra',note:'1M ctx, free'},{id:'nvidia/nemotron-3.5-super-vl:free',name:'Nemotron 3.5 Super VL',note:'1M ctx, free, vision'},{id:'baidu/ernie-5.5-flash-preview:free',name:'ERNIE 5.5 Flash',note:'1M ctx, free'}],
+        'kilo-code': [{id:'nvidia/nemotron-3-ultra-550b-a55b:free',name:'Nemotron 3 Ultra',note:'Coding optimized, 200 req/hr'},{id:'cohere/north-mini-code:free',name:'North Mini Code',note:'Coding optimized, 200 req/hr'},{id:'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',name:'Nemotron 3 Nano Omni',note:'256K ctx, reasoning'}],
+        'mistral-ai': [{id:'open-mistral-7b',name:'Mistral 7B',note:'32K ctx'},{id:'open-mixtral-8x7b',name:'Mixtral 8x7B',note:'32K ctx'},{id:'mistral-medium-3.5-128b',name:'Mistral Medium 3.5 (128B)',note:'256K ctx'}],
+        'cohere': [{id:'command-a-218b',name:'Command A+ (218B)',note:'128K ctx'},{id:'command-a-111b',name:'Command A (111B)',note:'256K ctx'},{id:'command-r',name:'Command R',note:'128K ctx'}],
+        'cloudflare-workers-ai': [{id:'@cf/meta/llama-3.3-70b-instruct-fp8-fast',name:'Llama 3.3 70B FP8 Fast',note:'24K ctx, 10K neurons/day'},{id:'@cf/meta/llama-4-scout-17b-16e-instruct',name:'Llama 4 Scout 17B',note:'131K ctx'},{id:'@cf/openai/gpt-oss-120b',name:'GPT-OSS 120B',note:'128K ctx'}],
+        'modelscope': [{id:'MiniMax/MiniMax-M1-80k',name:'MiniMax M1 80K',note:'80K ctx'},{id:'meituan-longcat/LongCat-Flash-Lite',name:'LongCat Flash Lite',note:'8K ctx'},{id:'MedAIBase/AntAngelMed',name:'AntAngelMed',note:'Medical, 8K ctx'}],
+        'ovhcloud-ai-endpoints': [{id:'qwen3.5-397b-a17b',name:'Qwen 3.5 397B',note:'262K ctx, EU hosted, 2 RPM'},{id:'gpt-oss-120b',name:'GPT-OSS 120B',note:'131K ctx, EU hosted'},{id:'meta-llama-3_3-70b-instruct',name:'Llama 3.3 70B',note:'131K ctx, EU hosted'}],
+        'ollama-cloud': [{id:'gpt-oss:120b',name:'GPT-OSS 120B',note:'128K ctx'},{id:'nemotron-3-ultra',name:'Nemotron 3 Ultra',note:'256K ctx'},{id:'minimax-m3',name:'MiniMax M3',note:'512K ctx'}],
+        'glhf-chat': [{id:'meta-llama/Meta-Llama-3.1-70B-Instruct',name:'Llama 3.1 70B',note:'131K ctx, unlimited free'},{id:'mistralai/Mixtral-8x7B-Instruct-v0.1',name:'Mixtral 8x7B',note:'32K ctx, unlimited free'}],
+        'chutes-ai': [{id:'deepseek-ai/DeepSeek-R1',name:'DeepSeek R1',note:'131K ctx, reasoning'},{id:'meta-llama/Meta-Llama-3.1-70B-Instruct',name:'Llama 3.1 70B',note:'131K ctx'}],
+        'llm7-io': [{id:'gpt-oss-20b',name:'GPT-OSS 20B',note:'128K ctx, 60 RPM'},{id:'mistral-Nemo-Instruct-2407',name:'Mistral Nemo 2407',note:'128K ctx, 60 RPM'},{id:'codestral-latest',name:'Codestral Latest',note:'32K ctx, code'}],
+        'z-ai-zhipu-ai': [{id:'glm-4.5-air',name:'GLM 4.5 Air',note:'131K ctx'},{id:'glm-4.7-flash',name:'GLM 4.7 Flash',note:'200K ctx'},{id:'glm-4.5',name:'GLM 4.5',note:'128K ctx'}],
+        'gonka-broker': [{id:'minimaxai-minimax-m2-7',name:'MiniMax M2.7',note:'200K ctx'},{id:'deepseek-ai-deepseek-v4-flash-0731',name:'DeepSeek V4 Flash',note:'400K ctx'},{id:'zai-org/GLM-5.3-Flash',name:'GLM 5.3 Flash',note:'400K ctx'}],
+        'agnes-ai': [{id:'agnes-2.5-flash',name:'Agnes 2.5 Flash',note:'256K ctx'},{id:'agnes-image-2.1-flash',name:'Agnes Image 2.1 Flash',note:'4K ctx, vision'},{id:'agnes-image-2.0-flash',name:'Agnes Image 2.0 Flash',note:'4K ctx, vision'}],
+        'aion-labs': [{id:'aion-labs-aion-2.0',name:'Aion 2.0',note:'128K ctx'},{id:'aion-labs-aion-rp-llama-3.1-8b',name:'Aion RP Llama 3.1 8B',note:'32K ctx'},{id:'aion-labs-aion-3.0',name:'Aion 3.0',note:'128K ctx'}],
+        'siliconflow': [{id:'tencent-hunyuan-mt-7b',name:'Hunyuan MT 7B',note:'1K RPM'},{id:'xingchenagi-xing4-0-29b',name:'Xing 4.0 29B',note:'1K RPM'}],
+        'grok-(xai)': [{id:'grok-2',name:'Grok 2',note:'131K ctx, $25/mo free credits'},{id:'grok-2-mini',name:'Grok 2 Mini',note:'131K ctx, $25/mo free credits'}],
+        'opencode': [{id:'big-pickle',name:'Big Pickle',note:'No context limit'},{id:'nemotron-3.5-lightning-free',name:'Nemotron 3.5 Lightning',note:'262K ctx'},{id:'deepseek-v4-flash',name:'DeepSeek V4 Flash',note:'1M ctx'}],
+      };
+      const modelsForProvider = isAnthropic ? (st.models || []) : (recommendedModels[prov] || []);
+      const providerOptions = hasProviders
+        ? st.providers.map(p => '<option value="' + esc(p.id) + '"' + (p.id === prov ? ' selected' : '') + '>' + esc(providerLabels[p.id] || p.name) + (p.hasKey ? ' ✓' : '') + (p.freeModels ? ' (' + p.freeModels + ' free)' : '') + '</option>').join('')
+        : Object.keys(providerLabels).map(p => '<option value="' + esc(p) + '"' + (p === prov ? ' selected' : '') + '>' + esc(providerLabels[p]) + '</option>').join('');
+      
+      if (clBox) clBox.innerHTML =
+        (st.problem ? '<div class="small" style="color:var(--bad);border:1px solid var(--bad);border-radius:8px;padding:8px 10px;margin-bottom:8px;line-height:1.5">⚠ ' + esc(st.problem) + '</div>' : '') +
+        (!st.on ? '<div class="small mute" style="line-height:1.6;margin-bottom:8px">To use a cloud provider: pick one below, sign up at their site, and paste your API key here. <b>Most free providers need no credit card.</b> ' + (keyUrl ? 'Get a key: <a href="' + esc(keyUrl) + '" target="_blank" rel="noopener noreferrer">' + esc(keyUrl) + '</a>' : '') + '</div>' : '') +
+        '<div class="row" style="gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px"><label class="small mute" style="flex:1;min-width:160px">Provider</label><select id="cprov" style="max-width:340px;flex:1">' + providerOptions + '</select></div>' +
+        (provInfo && !isAnthropic ? '<div class="small mute" style="margin-bottom:8px;line-height:1.6"><b>' + esc(provLabel) + '</b> — ' + esc(tagline || 'Free tier available') + (freeModelsCount ? ' · <b>' + freeModelsCount + ' free models</b>' : '') + (maxContext ? ' · Max context: <b>' + (maxContext >= 1000000 ? (maxContext/1000000).toFixed(1) + 'M' : (maxContext/1000).toFixed(0) + 'K') + '</b>' : '') + (protocols.length ? ' · ' + protocols.map(esc).join(', ') : '') + '</div>' : '') +
+        '<div class="row" style="gap:6px;flex-wrap:wrap;align-items:center"><input type="password" id="ckey" autocomplete="off" spellcheck="false" placeholder="' + (st.on ? 'paste a new key to replace the saved one' : (isAnthropic ? 'sk-ant-api…' : 'API key…')) + '" style="min-width:220px;flex:1"><button class="pri" data-cl="save">' + (st.on || st.saved ? 'Replace the key' : 'Save the key') + '</button>' + (st.on || st.saved ? '<button class="ib" data-cl="forget">Forget it</button>' : '') + '</div>' +
+        (st.saved ? '<div class="small mute" style="margin-top:4px">🔐 The key is ' + (st.encrypted ? 'encrypted by Windows for your Windows account' : 'being encrypted') + ' and never shown to this window. Key ending ' + esc(st.tail || '????') + '.</div>' : '') +
+        (st.on ? '<div class="row" style="gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px"><label class="small mute">Model</label><select id="cmodel" style="max-width:340px;flex:1">' + modelsForProvider.map(m => '<option value="' + esc(m.id) + '"' + (m.id === st.model ? ' selected' : '') + '>' + esc(m.name) + (m.note ? ' - ' + esc(m.note) : '') + '</option>').join('') + '<option value="">— Enter custom model ID —</option></select><button class="ib" data-cl="test">Test it</button><button class="ib" data-cl="refresh">Refresh providers</button><button class="ib" data-cl="forcerefresh" title="Force refresh from GitHub (clears 6-hour cache)">⟳ Force refresh</button></div>' + (!isAnthropic ? '<div class="small mute" style="margin-top:4px"><a href="https://freellm.net/models/" target="_blank" rel="noopener noreferrer">Browse all 300+ free models at freellm.net →</a></div>' : '') : '');
+      if (clState) clState.innerHTML = st.on
+        ? '&#9729; <b>' + esc(provLabel) + ' is on</b>: answers use <b>' + esc(st.model) + '</b> (key ending ' + esc(st.tail) + '). Pick the local model in the box at the top of the chat to go back to offline answers at any time.'
+        : '&#128274; Answers use the <b>local model</b>: nothing leaves this PC.';
+    };
+    const cget = async () => { try { const st = await A.api('/api/cloud'); cdraw(st); const w = $$('#cweb'); if (w) w.checked = !!st.web; if (A.net) A.net.refresh(); return st; } catch (e) { if (clState) clState.textContent = 'The online AI settings could not be read.'; } };
+    const cset = async patch => { try { const st = await A.api('/api/cloud', patch); cdraw(st); if (A.net) A.net.refresh(); return st; } catch (e) { A.toast('Could not save: ' + e.message, 5000); } };
+    if (clBox) clBox.addEventListener('click', async e => {
+      const b = e.target.closest('[data-cl]'); if (!b) return; const a = b.dataset.cl;
+      if (a === 'save') { const k = $$('#ckey'); const v = (k.value || '').trim(); if (!v) return A.toast('Paste your API key first.', 4000); const prov = $$('#cprov') ? $$('#cprov').value : 'anthropic'; const st = await cset({ providerKey: { provider: prov, key: v } }); if (st && st.on) { A.toast(prov + ' is ready. It is now in the model list at the top of the chat.', 6000); k.value = ''; } }
+      else if (a === 'forget') { const prov = $$('#cprov') ? $$('#cprov').value : 'anthropic'; const st = await cset({ providerKey: { provider: prov, key: '' } }); if (st) A.toast('The key was removed.', 5000); }
+      else if (a === 'test') { A.toast('Asking model...', 3000); const prov = $$('#cprov') ? $$('#cprov').value : 'anthropic'; const model = $$('#cmodel') ? $$('#cmodel').value : ''; const r = prov === 'anthropic' ? await A.api('/api/cloud/test', {}) : await A.api('/api/cloud/test-free', { provider: prov, model: model }); A.toast(r && r.ok ? 'Model answered (' + (r.model || '') + '): "' + (r.reply || '') + '"' : ((r && r.error) || 'No answer.'), r && r.ok ? 5000 : 8000); }
+      else if (a === 'refresh') { const prov = $$('#cprov') ? $$('#cprov').value : 'anthropic'; if (prov === 'anthropic') { const r = await A.api('/api/cloud/models', {}); if (r && r.status) cdraw(r.status); A.toast(r && r.error ? r.error : (r && r.live ? 'Model list updated from Anthropic.' : 'Using the built-in list.'), 5000); } else { const r = await A.api('/api/cloud/providers', {}); const st = await A.api('/api/cloud', {}); cdraw(st); A.toast('Providers refreshed.', 3000); } }
+      else if (a === 'forcerefresh') { A.toast('Fetching fresh provider list from GitHub...', 3000); const r = await A.api('/api/cloud/refresh-providers', {}); const st = await A.api('/api/cloud', {}); cdraw(st); A.toast(r && r.length ? 'Refreshed: ' + r.length + ' providers loaded.' : 'Could not refresh providers.', 5000); }
+    });
+    if (clBox) clBox.addEventListener('change', async e => {
+      if (e.target.id === 'cprov') { const prov = e.target.value; cset({ provider: prov }); }
+      else if (e.target.id === 'cmodel') {
+        const val = e.target.value;
+        if (val === '') {
+          const custom = prompt('Enter custom model ID (e.g., "deepseek-ai/DeepSeek-V3" or "gemini-2.5-pro"):');
+          if (custom) {
+            e.target.value = custom;
+            cset({ model: custom });
+          } else {
+            const st = await A.api('/api/cloud');
+            cdraw(st);
+          }
+        } else {
+          cset({ model: val });
+        }
+      }
+    });
+    if ($$('#cweb')) $$('#cweb').addEventListener('change', e => cset({ web: e.target.checked }));
+    if ($$('#sacommit')) { A.api('/api/autocommit').then(r => { const c = $$('#sacommit'); if (c) c.checked = !!(r && r.on); }).catch(() => {}); $$('#sacommit').addEventListener('change', e => { A.api('/api/autocommit', { on: e.target.checked }).catch(() => {}); A.toast(e.target.checked ? 'Auto-commit on' : 'Auto-commit off: changes are no longer committed by themselves.'); }); }
+    cget();
+    /* No API Key Required section */
+    const nkState = $$('#nkstate'), nkBox = $$('#nkbox');
+    let nkProviders = [];
+    const nkdraw = st => {
+      if (!nkBox) return;
+      const prov = st.provider || 'glhf-chat';
+      const provLabel = noKeyProviderLabels[prov] || prov;
+      const modelsForProvider = noKeyRecommendedModels[prov] || [];
+      const providerOptions = nkProviders.map(p => '<option value="' + esc(p.id) + '"' + (p.id === prov ? ' selected' : '') + '>' + esc(noKeyProviderLabels[p.id] || p.name) + '</option>').join('');
+      nkBox.innerHTML =
+        (st.error ? '<div class="small" style="color:var(--bad);border:1px solid var(--bad);border-radius:8px;padding:8px 10px;margin-bottom:8px;line-height:1.5">⚠ ' + esc(st.error) + '</div>' : '') +
+        '<div class="row" style="gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px"><label class="small mute" style="flex:1;min-width:160px">Provider</label><select id="nkprov" style="max-width:340px;flex:1">' + providerOptions + '</select></div>' +
+        '<div class="row" style="gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px"><label class="small mute">Model</label><select id="nkmodel" style="max-width:340px;flex:1">' + modelsForProvider.map(m => '<option value="' + esc(m.id) + '"' + (m.id === st.model ? ' selected' : '') + '>' + esc(m.name) + (m.note ? ' - ' + esc(m.note) : '') + '</option>').join('') + '<option value="">— Enter custom model ID —</option></select><button class="ib" data-nk="test">Test it</button><button class="ib" data-nk="refresh">Refresh</button><button class="ib" data-nk="forcerefresh" title="Force refresh from GitHub (clears 6-hour cache)">⟳ Force refresh</button></div>';
+      if (nkState) nkState.innerHTML = st.provider
+        ? '&#128274; <b>' + esc(provLabel) + '</b> is active: answers use <b>' + esc(st.model) + '</b>. Pick the local model in the box at the top of the chat to go back to offline answers at any time.'
+        : '&#128274; Answers use the <b>local model</b>: nothing leaves this PC.';
+    };
+    const nkget = async () => {
+      try {
+        const r = await A.api('/api/cloud/no-key');
+        nkProviders = r || [];
+        const st = await A.api('/api/cloud');
+        nkdraw(st);
+      } catch (e) {
+        if (nkState) nkState.textContent = 'No-key providers could not be loaded.';
+      }
+    };
+    const nkset = async patch => {
+      try {
+        const st = await A.api('/api/cloud', patch);
+        nkdraw(st);
+        if (A.net) A.net.refresh();
+        return st;
+      } catch (e) {
+        A.toast('Could not save: ' + e.message, 5000);
+      }
+    };
+    if (nkBox) nkBox.addEventListener('click', async e => {
+      const b = e.target.closest('[data-nk]'); if (!b) return; const a = b.dataset.nk;
+      if (a === 'test') { A.toast('Asking model...', 3000); const prov = $$('#nkprov') ? $$('#nkprov').value : 'glhf-chat'; const model = $$('#nkmodel') ? $$('#nkmodel').value : ''; const r = await A.api('/api/cloud/test-no-key', { provider: prov, model: model }); A.toast(r && r.ok ? 'Model answered (' + (r.model || '') + '): "' + (r.reply || '') + '"' : ((r && r.error) || 'No answer.'), r && r.ok ? 5000 : 8000); }
+      else if (a === 'refresh') { const r = await A.api('/api/cloud/no-key', {}); nkProviders = r || {}; const st = await A.api('/api/cloud', {}); nkdraw(st); A.toast('Providers refreshed.', 3000); }
+      else if (a === 'forcerefresh') { A.toast('Fetching fresh provider list from GitHub...', 3000); const r = await A.api('/api/cloud/refresh-providers', {}); const st = await A.api('/api/cloud', {}); nkdraw(st); A.toast(r && r.length ? 'Refreshed: ' + r.length + ' providers loaded.' : 'Could not refresh providers.', 5000); }
+    });
+    if (nkBox) nkBox.addEventListener('change', async e => {
+      if (e.target.id === 'nkprov') { const prov = e.target.value; nkset({ provider: prov }); }
+      else if (e.target.id === 'nkmodel') {
+        const val = e.target.value;
+        if (val === '') {
+          const custom = prompt('Enter custom model ID (e.g., "deepseek-ai/DeepSeek-V3" or "gemini-2.5-pro"):');
+          if (custom) {
+            e.target.value = custom;
+            nkset({ model: custom });
+          } else {
+            const st = await A.api('/api/cloud');
+            nkdraw(st);
+          }
+        } else {
+          nkset({ model: val });
+        }
+      }
+    });
+    nkget();
+    /* Free frontier pool: the routes, how they are doing, and a live test */
+    const frBox = $$('#frbox');
+    const frdraw = st => {
+      if (!frBox) return;
+      const rs = (st && st.routes) || [];
+      frBox.innerHTML =
+        '<div class="row" style="gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px"><button class="pri" data-fr="pick">Use it in the chat</button><button class="ib" data-fr="test">Test every route</button><span class="small mute">' + (st ? st.usedToday + ' answered today · ' + st.total + ' in all' : '') + '</span></div>' +
+        (rs.length ? '<div style="display:flex;flex-direction:column;gap:2px">' + rs.map(r => '<div><div class="row" style="gap:8px;align-items:center;border-bottom:1px solid var(--line);padding:4px 0"><span style="width:8px;height:8px;border-radius:50%;flex:none;background:' + (r.awake ? '#3fbf6f' : '#d09b2c') + '"></span><b style="flex:1;min-width:110px">' + esc(r.name) + '</b><span class="small mute">' + esc(r.model) + '</span><span class="small mute" style="min-width:56px;text-align:right">' + r.usedToday + ' today</span>' + (r.awake ? '' : '<span class="small mute">resting ' + Math.ceil(r.restMs / 1000) + 's</span>') + '</div>' + (r.lastError && !r.awake ? '<div class="small mute" style="margin:0 0 4px 16px">' + esc(r.lastError) + '</div>' : '') + '</div>').join('') + '</div>' : '') +
+        '<div class="small mute" style="margin-top:8px;line-height:1.5">' + esc((st && st.limit) || '') + '</div>';
+    };
+    const frget = async () => { try { frdraw(await A.api('/api/free/status')); } catch (e) { if (frBox) frBox.textContent = 'The free routes could not be read.'; } };
+    if (frBox) frBox.addEventListener('click', async e => {
+      const b = e.target.closest('[data-fr]'); if (!b) return;
+      if (b.dataset.fr === 'pick') { ls.set('model', 'free-auto'); A.toast('The chat will use ✦ Free frontier · auto. Open Chat and ask something.', 7000); }
+      else if (b.dataset.fr === 'test') { A.toast('Asking every free route…', 4000); const r = await A.api('/api/free/test', {}); A.toast(r && r.routes ? (r.ok + ' of ' + r.routes.length + ' free routes answered just now.') : 'No answer.', 7000); frget(); }
+    });
+    frget();
+    { const hk = $$('#hkind'), st = $$('#hkindst');
+      if (hk) {
+        A.api('/api/harness/kind').then(r => { hk.value = r.kind || 'claude'; if (!r.jcode) { hk.querySelector('option[value="jcode"]').disabled = true; st.textContent = 'jcode is not installed'; } }).catch(() => { });
+        hk.onchange = async () => { const r = await A.api('/api/harness/kind', { kind: hk.value }); if (r.ok) { st.textContent = ''; A.toast('Agent harness: ' + (hk.value === 'jcode' ? 'jcode' : 'Claude Code')); } else { A.toast(r.error || 'Could not switch.'); const g = await A.api('/api/harness/kind'); hk.value = g.kind; } };
+      } }
+    if (A.privacyPage) A.privacyPage($$('#prvbox'), cset);
+    if (A.remotePage) A.remotePage($$('#rmbox'));
+    /* the version is read from the VERSION file on disk (one place to change it). Updates live in updates.js (Settings › Backup & data › Updates);
+       the old "releases folder" check below stays for copies with no update source. */
+    const about = async () => { try { return await A.api('/api/about'); } catch (e) { return null; } };
+    about().then(a => { const el = document.getElementById('aboutver'); if (!a || !el) return; A.version = a.version || A.version; A.built = a.built || A.built; el.innerHTML = 'Moundshroud <b>' + esc(a.version) + '</b>' + (a.built ? ' (built ' + esc(a.built) + ')' : ''); });
+    if (A.updates) A.updates.render(document.getElementById('updbox'));
+    root.addEventListener('click', async e => {
+      const b = e.target.closest('[data-a]'); if (!b) return; const a = b.dataset.a;
+      if (a === 'vtest') test(); else if (a === 'cust') { A.custom && A.custom.open(); } else if (a === 'replayboot') { close(); if (window.OA_REPLAY_BOOT) window.OA_REPLAY_BOOT(); } else if (a === 'sounds') { close(); A.showTab('play'); setTimeout(() => { const s = document.querySelector('#plsub [data-s=sounds]'); s && s.click(); }, 400); }
+      else if (a === 'wake') { wakeSet(b); }
+      else if (a === 'cvox') { A.cvoice.auto = !A.cvoice.auto; b.textContent = A.cvoice.auto ? 'On' : 'Off'; } else if (a === 'cnote') { const v = A.chessNotify ? A.chessNotify.toggle() : ls.get('cmnote', '1') === '0'; if (!A.chessNotify) ls.set('cmnote', v ? '1' : '0'); b.textContent = 'Message alerts: ' + (v ? 'On' : 'Off'); } else if (a === 'ccai') { ls.set('cmai', ls.get('cmai', '1') !== '0' ? '0' : '1'); b.textContent = 'AI chatter: ' + (ls.get('cmai', '1') !== '0' ? 'On' : 'Off'); } else if (a === 'cbak') { const blob = new Blob([A.chars.backup()], { type: 'application/json' }), u = URL.createObjectURL(blob), l = document.createElement('a'); l.href = u; l.download = 'moundshroud-characters-' + new Date().toISOString().slice(0, 10) + '.json'; l.click(); setTimeout(() => URL.revokeObjectURL(u), 3000); } else if (a === 'cimp') { const f = document.createElement('input'); f.type = 'file'; f.accept = '.json'; f.onchange = async () => { try { A.chars.restore(await f.files[0].text()); A.toast('Restored. Reload Moundshroud to see everything.', 5000); } catch (er) { A.toast('That file could not be read.'); } }; f.click(); } else if (a === 'chars') { close(); A.chars.manage(); } else if (a === 'forgetchars') { if (confirm('Every character will forget everything about you: facts, shared history and relationships. Continue?')) { A.chars.forgetAll(); A.toast('All characters have forgotten you.'); } } else if (a === 'buddychat') { close(); A.buddy && A.buddy.open(); } else if (a === 'buddytrick') { close(); if (A.companion && A.companion.doTrick) A.companion.doTrick(); } else if (a === 'cset') openChessTab('settings'); else if (a === 'lab') openChessTab('lab');
+      else if (a.startsWith('walk:')) { close(); setTimeout(() => A.walk && A.walk.start(a.slice(5)), 250); }
+      else if (a === 'present') { close(); A.tutorial && A.tutorial.resume(); } else if (a === 'guide') { close(); A.showTab('guide'); } else if (a === 'storage') { const g = $$('#stghost'); if (g) g.scrollIntoView({ behavior: 'smooth' }); }
+      else if (a === 'clrchat') { if (!confirm('Delete every saved chat?')) return; await A.api('/api/chats', []); close(); location.reload(); }
+      else if (a === 'resethelp') { ls.set('play_help_seen', '[]'); A.toast('Game tutorials will show again.'); }
+      else if (a === 'personareset') { const t = $$('#spersona'); if (t) t.value = ''; ls.set('persona', ''); A.toast('Personality cleared. The assistant is back to its normal self.'); }
+      else if (a === 'mem') { close(); try { A.memory.manage(); } catch (er) { A.toast('What the assistant remembers is not loaded: reload Moundshroud.'); } }
+      else if (a === 'resetchess') { if (!confirm('Reset ALL chess data: games, ratings, daily games, clubs and friends? This cannot be undone.')) return; ['chgames', 'chonline', 'chdaily', 'chsocial', 'chprof', 'chstudy', 'chrush', 'chtour', 'chlearn', 'chrate'].forEach(k => ls.set(k, '')); A.toast('Chess data cleared.'); }
+      else if (a === 'restore') { A.backup.pick(); } else if (a === 'fullbak') { A.backup.make(); } else if (a === 'shareapp') { const st = $$('#shareappstatus'); if (st) st.textContent = 'Creating zip…'; A.toast('Creating shareable app zip…', 4000); try { const r = await fetch('/api/app/share', { method: 'POST' }); if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || 'Server error ' + r.status); } const blob = await r.blob(); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'Moundshroud-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '.zip'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 10000); if (st) st.textContent = '✅ Ready — sent to your Downloads'; A.toast('Shareable app zip downloaded!', 6000); } catch (e) { if (st) st.textContent = '❌ ' + e.message; A.toast('Share failed: ' + e.message, 8000); } } else if (a === 'gitpush') { const st = $$('#gitpushstatus'); if (st) st.textContent = 'Pushing…'; A.toast('Pushing to GitHub…', 4000); try { const r = await A.api('/api/git/push', { addAll: true, message: 'Auto-commit from Moundshroud: ' + new Date().toISOString().slice(0, 19).replace('T', ' ') }); if (r.ok && r.repo) { if (st) st.innerHTML = '✅ Pushed to <a href="' + esc(r.repo) + '" target="_blank" rel="noopener noreferrer">' + esc(r.repo) + '</a> (' + esc(r.branch) + ')'; A.toast('Pushed to ' + r.repo + ' (' + r.branch + ')', 8000); } else if (r.ok && !r.hadChanges) { if (st) st.textContent = '✅ Nothing to commit — working tree clean'; A.toast('Nothing to commit', 5000); } else { if (st) st.textContent = '❌ ' + (r.error || 'Push failed'); A.toast('Push failed: ' + (r.error || 'unknown error'), 8000); } } catch (e) { if (st) st.textContent = '❌ ' + e.message; A.toast('Push error: ' + e.message, 8000); } } else if (a === 'selftest') { A.selftest.run(); } else if (a === 'keys') { keySheet(); } else if (a === 'webtest') { const st = await A.api('/api/cloud'); if (st && st.on) { A.toast('Online AI: ' + st.model + ' (' + st.provider + ') - key ending ' + st.tail); } else { A.toast('Online AI is off.'); } } else if (a === 'update') { about().then(r => { if (!r) return A.toast('The version could not be read.'); if (r.offers && r.offers.length) A.toast('Version ' + r.offers[0].version + ' is in the releases folder. Quit Moundshroud from the tray, unzip that copy over this folder (keep your data folder), then start it again.', 14000); else A.toast('You are on the newest version (' + r.version + ').', 5000); }); } else if (a === 'problems') { close(); if (A.problems) A.problems.open(); else A.toast('The problem log is not loaded: reload Moundshroud.'); }
+    });
+    if (sectionId) setTimeout(() => { const s = body.querySelector('[data-sec=' + sectionId + ']'); if (s) body.scrollTo({ top: s.offsetTop - 8 }); }, 50);
+    try { speechSynthesis.onvoiceschanged = () => { if (root && !body.dataset.vrefreshed) { body.dataset.vrefreshed = 1; const sel = $$('#sv'); if (sel && sel.options.length < 3) { close(); open(sectionId); } } }; } catch (e) { }
+  });
+}
   A.settings = { open, close };
   const hook = () => { const c = document.getElementById('cog'); if (c) c.onclick = () => open(); };
   hook(); setTimeout(hook, 0); addEventListener('load', hook);

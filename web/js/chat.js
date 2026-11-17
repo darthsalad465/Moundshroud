@@ -587,7 +587,7 @@ function readBudget(m) {
       $('model').innerHTML = copies.length ? '<optgroup label="Models">' + main.map(opt).join('') + '</optgroup><optgroup label="Agent tab copies (same models, larger memory)">' + copies.map(opt).join('') + '</optgroup>' : main.map(opt).join('');
       $('model').title = 'The AI model that answers in Chat. A larger model (more GB) usually answers better and more slowly.';
       /* the local model is still the default: Claude only when it was picked on purpose */
-      const small = /qwen3\.5:(2|0\.8)b|:(0\.\d|[1-3](\.\d)?)b\b/i, local = r.models.filter(m => !m.cloud);
+      const small = /qwen3\.5:(2|0\.8)b|:(0\.\d|[1-3](\.\d)?)b\b|:\d+m\b/i, local = r.models.filter(m => !m.cloud);
       const bigQwen = local.filter(m => /qwen/i.test(m.name) && !small.test(m.name)).sort((a, b) => b.size - a.size)[0];
       const pick = pref.includes(saved) ? saved : ((bigQwen && bigQwen.name) || local.filter(m => !small.test(m.name)).sort((a, b) => b.size - a.size)[0]?.name || pref[0]); $('model').value = pick;
       $('status').textContent = 'ready'; warm();

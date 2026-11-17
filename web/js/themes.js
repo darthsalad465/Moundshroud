@@ -43,12 +43,11 @@
   const BASE = 'header{background:color-mix(in srgb,var(--panel) 72%,transparent)!important}nav{background:color-mix(in srgb,var(--panel) 50%,transparent)!important}.chip:hover{background:var(--panel2)!important}::-webkit-scrollbar-thumb{background:var(--line)}.pri,nav button.on,.ib.on{color:var(--onacc)!important}.logo{box-shadow:0 0 16px color-mix(in srgb,var(--acc) 55%,transparent)}';
   let style = null;
   const get = () => { try { return localStorage.getItem(KEY) || 'shroud'; } catch (e) { return 'shroud'; } };
-  const apply = id => {
+  const apply = (id, preview) => {
     const t = THEMES.find(x => x.id === id) || THEMES[0];
     if (!style) { style = document.createElement('style'); style.id = 'oa-theme'; (document.head || document.documentElement).appendChild(style); }
     style.textContent = mk(t.v) + BASE + t.css; document.documentElement.dataset.theme = t.id; document.documentElement.style.colorScheme = t.dark ? 'dark' : 'light';
-    try { localStorage.setItem(KEY, t.id); } catch (e) { }
-    window.dispatchEvent(new CustomEvent('oa-theme', { detail: t.id }));
+    if (!preview) { try { localStorage.setItem(KEY, t.id); } catch (e) { } window.dispatchEvent(new CustomEvent('oa-theme', { detail: t.id })); }
   };
   window.OA_THEMES = { list: THEMES, get, apply };
   apply(get());
