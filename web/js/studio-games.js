@@ -5,9 +5,17 @@
 // (Ctrl+Enter); your edits count as a change, so ↶ Undo goes back. Saved games live in localStorage under oa_gm_games.
 (() => {
   if (!A.studio) return; const esc = A.studio.esc;
-  const KEY = 'gm_games', MAX_NEW = 7000, MAX_EDIT = 8000, MAX_SRC = 400000, KEEP = 30, MAX_PARTS = 10;
+  /* no practical ceiling on the code: 32,000 tokens is a very large game, and the free routes accept it. The maker
+     used to stop at 7,000, which cut ambitious games off; a cut reply is still stitched together from several parts. */
+  const KEY = 'gm_games', MAX_NEW = 32000, MAX_EDIT = 32000, MAX_SRC = 400000, KEEP = 30, MAX_PARTS = 10;
   /* the model's working memory (tokens), sized to the request: a fixed 16k cut long games short, even on the 64k and 128k models */
   const ctxFor = (chars, cap) => Math.min(131072, Math.max(16384, Math.ceil((chars / 3 + cap + 1024) / 8192) * 8192));
+  /* What the model picker knows: the free/online models are the ones that can write a very long game. A model running
+     on this PC gets no more than it had before (7,000 tokens), because a bigger budget also asks Ollama for a bigger
+     context, and a small model given 40k of context can sit there loading and never answer. */
+  let MODELS = [];
+  const isOnline = m => { const x = MODELS.find(o => o.name === m); return x ? !!x.cloud : !!(A.ai && A.ai.isCloud(m)); };
+  const LOCAL_CAP = 7000;
   const CONT = 'You stopped before the HTML file was finished. Continue it exactly where you stopped, starting with the very next character. Do not repeat anything already written, do not start over, do not open a new code block, and write no explanation. End the file with </html>.';
   /* stitch a continuation onto the reply so far: drop a restarted code fence and any text the model repeated */
   const joinPart = (a, b) => {
@@ -102,7 +110,7 @@
       '<div class="gmk-grid"><div class="gmk-side">' +
       '<div class="gmk-card"><div class="gmk-h">New game</div><textarea id="gmp" rows="4" placeholder="e.g. A racing game where I dodge traffic on a three-lane road at night, with nitro on the space bar"></textarea>' +
       '<div class="gmk-ideas">' + IDEAS.map((x, i) => '<button class="gmk-idea" data-idea="' + i + '" title="' + esc(x[2]) + '">' + x[0] + ' ' + esc(x[1]) + '</button>').join('') + '</div>' +
-      '<button class="gmk-go" id="gmnew">✨ Make this game</button><div class="gmk-note">One AI request per press, capped at about ' + Math.round(MAX_NEW * .75 / 100) * 100 + ' words of code.</div></div>' +
+      '<button class="gmk-go" id="gmnew">✨ Make this game</button><div class="gmk-note">One AI request per press, as big a game as the model can write (up to about ' + Math.round(MAX_NEW * .75 / 100) * 100 + ' words of code; longer ones arrive in parts).</div></div>' +
       '<div class="gmk-card" id="gmedit" hidden><div class="gmk-h">Change this game</div><textarea id="gmc" rows="3" placeholder="e.g. make the enemies faster, add a boss every 5 levels, use a sunset colour scheme"></textarea>' +
       '<div class="gmk-row"><button class="gmk-go" id="gmchg">🔁 Apply change</button><button class="gmk-btn" id="gmundo" title="Go back to the version before the last change (no AI request)">↶ Undo</button></div><div class="gmk-hist" id="gmhist"></div></div>' +
       '<div class="gmk-card"><div class="gmk-h">My games <span class="gmk-count" id="gmn"></span></div><div id="gmlist"></div></div>' +
@@ -127,7 +135,7 @@
     };
 
     /* models: the same list as the top bar, starting on the top bar's choice */
-    (async () => { const sel = $('gmm'); try { const ms = ((await (await fetch('/api/models')).json()).models || []).filter(m => !/embed/i.test(m.name)); const top = A.ai.model(), saved = ls.get('gm_model', ''); const pick = ms.some(m => m.name === saved) ? saved : top; sel.innerHTML = ms.map(m => '<option value="' + esc(m.name) + '"' + (m.name === pick ? ' selected' : '') + '>' + esc(m.label || m.name) + (m.cloud ? ' (Claude, online)' : ' (on this PC)') + '</option>').join(''); } catch (e) { sel.innerHTML = '<option value="">Top bar model</option>'; } sel.onchange = () => ls.set('gm_model', sel.value); })();
+          (async () => { const sel = $('gmm'); try { const ms = ((await (await fetch('/api/models')).json()).models || []).filter(m => !/embed/i.test(m.name)); MODELS = ms; const top = A.ai.model(), saved = ls.get('gm_model', ''); const pick = ms.some(m => m.name === saved) ? saved : top; sel.innerHTML = ms.map(m => '<option value="' + esc(m.name) + '"' + (m.name === pick ? ' selected' : '') + '>' + esc(m.label || m.name) + (m.cloud ? ' (online)' : ' (on this PC)') + '</option>').join(''); } catch (e) { sel.innerHTML = '<option value="">Top bar model</option>'; } sel.onchange = () => ls.set('gm_model', sel.value); })();
 
     function play() {
       const eb = $('gmerr'); if (eb) { eb.innerHTML = ''; eb.dataset.same = ''; }
@@ -153,8 +161,8 @@
     /* one bounded AI request; returns the full reply text or throws an Error with a plain message */
     async function ask(messages, cap, onLen) {
       const model = $('gmm').value || A.ai.model(); if (!model) throw new Error('No AI model is chosen. Pick one in the "Made by" list.');
-      const cloud = A.ai.isCloud(model);
-      let r; try { r = await fetch('/api/chat', { method: 'POST', signal: ctl.signal, body: JSON.stringify({ model, stream: true, think: false, keep_alive: '5m', options: Object.assign({ temperature: .5, num_predict: cap }, cloud ? {} : { num_ctx: ctxFor(messages.reduce((n, m) => n + m.content.length, 0), cap) }), messages }) }); }
+      const cloud = isOnline(model), budget = cloud ? cap : Math.min(cap, LOCAL_CAP);
+      let r; try { r = await fetch('/api/chat', { method: 'POST', signal: ctl.signal, body: JSON.stringify({ model, stream: true, think: false, keep_alive: '5m', options: Object.assign({ temperature: .5, num_predict: budget }, cloud ? {} : { num_ctx: ctxFor(messages.reduce((n, m) => n + m.content.length, 0), budget) }), messages }) }); }
       catch (e) { if (e.name === 'AbortError') throw e; throw new Error('Could not reach the AI engine: ' + e.message); }
       const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '', all = '', err = '';
       for (; ;) { const { value, done } = await rd.read(); if (done) break; buf += dec.decode(value, { stream: true }); let i; while ((i = buf.indexOf('\n')) >= 0) { const ln = buf.slice(0, i).trim(); buf = buf.slice(i + 1); if (!ln) continue; try { const j = JSON.parse(ln); if (j.error) err = String(j.error.message || j.error);       if (j.message && j.message.content) { all += j.message.content; onLen(all.length, all); } } catch (e) { } } }

@@ -12,7 +12,7 @@ module.exports = async ok => {
   ok('learn: there are 12 lessons with three questions each and a valid right answer', L.LESSONS.length === 12 && L.LESSONS.every(l => l.q.length === 3 && l.q.every(q => q[1].length === 4 && q[2] >= 0 && q[2] < 4 && new Set(q[1]).size === 4)));
 
   /* every lesson passage exists in both Bible texts */
-  for (const [name, file] of [['World English Bible', 'web/data/bible-web.json'], ['Douay-Rheims', 'web/data/bible-dr.json']]) {
+  for (const [name, file] of [['World English Bible', 'web/data/bible-web.json'], ['Douay-Rheims', 'web/data/bible-dr.json'], ['King James Version', 'web/data/bible-kjv.json']]) {
     const bible = JSON.parse(rd(file)); let bad = '';
     for (const l of L.LESSONS) for (const p of l.ps) { const ch = bible.books[p[0]] && bible.books[p[0]].ch[p[1]]; const n = ch ? ch.v.slice(p[2] - 1, p[3]).filter(Boolean).length : 0; if (n < Math.min(2, p[3] - p[2] + 1)) bad += l.id + ' ' + JSON.stringify(p) + ' '; }
     ok('learn: every lesson passage is found in the ' + name, !bad, bad);

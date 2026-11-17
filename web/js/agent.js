@@ -49,7 +49,7 @@
       '<div class="row" style="gap:6px;flex-wrap:wrap"><button class="ib" id="agpick">Choose a folder...</button><button class="ib" id="agreset">Use its own workspace</button></div></div>' +
       '<div class="card" style="margin-top:10px"><div style="font-weight:600;margin-bottom:6px">How far it may reach</div>' +
       '<label class="chk" style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" id="agguard" style="margin-top:3px"><span><b>Whole PC, guarded</b><div class="small mute">Off: it works in its folder and asks before every command.<br>On: it reads files anywhere on this PC and runs harmless commands (listing files, git status, checking a script for mistakes) unasked. It asks before running a program, deleting, moving, installing, downloading or editing outside its folder. Disk formatting, boot changes and deleting Windows or Program Files are always refused.</div></span></label></div>' +
-      '<div class="row" style="gap:8px;margin:14px 0;align-items:center"><button class="ib on" id="hback" style="padding:9px 18px">← Back to the conversation</button><button class="ib" id="aggo" style="padding:9px 18px" title="The same agent in a console window of its own, with the same model, memory, folder and reach">🖥 Open in a terminal window instead</button><span class="small mute" id="agmsg"></span></div>' +
+      '<div class="row" style="gap:8px;margin:14px 0;align-items:center"><button class="ib on" id="hback" style="padding:9px 18px">← Back to the conversation</button><button class="ib" id="aggo" style="padding:9px 18px" title="The same agent in a console window of its own, with the same harness, model, memory, folder and reach chosen here">🖥 Open in a terminal window instead</button><span class="small mute" id="agmsg"></span></div>' +
       '<div class="card"><div style="font-weight:600;margin-bottom:6px">Good to know</div><ul class="small" style="margin:0;padding-left:18px;line-height:1.6">' +
       '<li><b>Good for:</b> small scripts, single-file projects and games, simple edits, explaining code.</li>' +
       '<li><b>Not good for:</b> big projects, careful debugging or long jobs left running unattended. These are small models: they can be confidently wrong and they forget after about 32,000 tokens.</li>' +
@@ -74,7 +74,7 @@
       /* measured on this PC: Gemma 4 (6.1 GB) fits on the 8 GB graphics card even at 128k; Bonsai 2 27b at 128k needed 17 GB, more than the PC has */
       const heavy = (m.size > 6.6 * 1073741824 && +$('agctx').value > 32768) || (m.size > 6.2 * 1073741824 && +$('agctx').value > 65536) ? ' Warning: this model with this memory size needs more memory than this PC has free, so it will run very slowly. Gemma 4 (e4b) is the one that handles a large memory well here.' : '';
       n.textContent = (!m.tools ? 'This model cannot use tools, so it cannot drive the agent.' : made ? 'Ready to use.' : 'First start makes a copy of this model with this memory size (about a minute, no download).') + heavy;
-      $('aggo').disabled = !st || !st.installed || !st.claude || !m.tools;
+      $('aggo').disabled = !st || !st.installed || !(st.claude || st.jcode) || !m.tools;
       chips();
     }
     /* the memory sizes this model supports; the last choice is kept when the model allows it */
@@ -89,7 +89,8 @@
       const sel = $('agmodel'), list = (st && st.models) || [];
       if (!list.length) { sel.innerHTML = '<option value="">' + esc(st && st.base || 'gemma4:e4b') + ' (default)</option>'; sel.disabled = true; modelNote(); return; }
       sel.disabled = false;
-      sel.innerHTML = list.map(m => '<option value="' + esc(m.name) + '"' + (m.tools ? '' : ' disabled') + '>' + esc(bare(m.name)) + (m.size ? '  ·  ' + gb(m.size) : '') + (m.tools ? '' : '  ·  cannot use tools') + '</option>').join('');
+      const nameOf = m => m.free ? (m.label || '✦ Free frontier (free, no key)') : bare(m.name);
+      sel.innerHTML = list.map(m => '<option value="' + esc(m.name) + '"' + (m.tools ? '' : ' disabled') + '>' + esc(nameOf(m)) + (!m.free && m.size ? '  ·  ' + gb(m.size) : '') + (m.tools ? '' : '  ·  cannot use tools') + '</option>').join('');
       const saved = lsGet(MKEY, ''), ok = n => list.some(m => m.name === n && m.tools);
       sel.value = ok(saved) ? saved : ok(st.base) ? st.base : ((list.find(m => m.tools) || {}).name || '');
       modelNote();
@@ -113,7 +114,7 @@
         + row(s.claude, s.claude ? 'Claude Code (its tools) is installed' : 'Claude Code is not installed', s.claude ? '' : 'The agent borrows its file and command tools.')
         + row(s.ollama, s.ollama ? 'Ollama is running' : 'Ollama is not running', s.ollama ? '' : 'The agent starts it for you when it opens.')
         + (s.ollama ? row(can > 0, can + ' of ' + (s.models || []).length + ' models can drive the agent', can ? '' : 'The first start downloads Gemma 4 (about 6.6 GB).') : '');
-      $('aggo').disabled = !s.installed || !s.claude;
+      $('aggo').disabled = !s.installed || !(s.claude || s.jcode);
       fillModels(); if (view === 'routines') drawRoutines();
     }
     dirLine(); check();
@@ -141,7 +142,7 @@
     };
     $('agcmod').onclick = function () {
       const list = toolModels();
-      const pp = A.pop(this, '<div class="grp" style="margin-top:0">Model for new sessions</div>' + (list.length ? list.map(m => '<div class="hit" data-m="' + esc(m.name) + '">' + (m.name === $('agmodel').value ? '✓ ' : '') + esc(bare(m.name)) + ' <span class="small mute">' + gb(m.size) + '</span></div>').join('') : '<div class="small mute" style="padding:6px 10px">The list appears once Ollama is running.</div>') + '<div class="hit" data-m="">⚙ Memory and more…</div>');
+      const pp = A.pop(this, '<div class="grp" style="margin-top:0">Model for new sessions</div>' + (list.length ? list.map(m => '<div class="hit" data-m="' + esc(m.name) + '">' + (m.name === $('agmodel').value ? '✓ ' : '') + esc(m.free ? (m.label || '✦ Free frontier (free, no key)') : bare(m.name)) + ' <span class="small mute">' + (m.free ? 'free' : gb(m.size)) + '</span></div>').join('') : '<div class="small mute" style="padding:6px 10px">The list appears once Ollama is running.</div>') + '<div class="hit" data-m="">⚙ Memory and more…</div>');
       pp.onclick = e => { const h = e.target.closest('[data-m]'); if (!h) return; A.closePop(); if (!h.dataset.m) return show('set'); $('agmodel').value = h.dataset.m; lsPut(MKEY, h.dataset.m); modelNote(); later(); };
     };
     $('agcreach').onclick = () => { $('agguard').checked = !$('agguard').checked; lsPut(GKEY, $('agguard').checked ? '1' : ''); chips(); later(); };

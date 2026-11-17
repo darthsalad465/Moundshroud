@@ -67,9 +67,15 @@
       row('Delete all chat history', 'Removes every saved chat in the Chat tab.', '<button class="ib dang" data-a="clrchat">Delete chats</button>', 'chats history delete') +
       row('Opponents and players reply from the AI', 'Chess opponents, poker players, club members and friends answer with the local AI. Turn off for short canned lines.', tog('olai', bool('olai', true)), 'opponent chat ai replies') +
       row('Internet access for the assistant', 'Off by default. Switched on, the chat can search the web and read pages when you tick <b>&#127760; Web</b> under the message box, and Moundshroud shows what it read as sources you can click. Searches leave this PC from your own connection, and Moundshroud refuses to fetch anything on your own network (the router, other devices, itself).', '<label class="chk" style="margin:0;gap:7px"><input type="checkbox" id="cweb"> <span class="small mute">Allow</span></label><button class="ib" data-a="webtest">Try a search</button>', 'internet online web search look up network privacy firewall') +
-      '<div class="sxrow" data-k="claude anthropic api key online ai cloud model" style="display:block"><div style="flex:1;min-width:0"><b>&#9729; Online AI: Claude</b>' +
-      '<div class="small mute" style="margin-top:3px;line-height:1.48">Off by default. With your own Anthropic API key, Moundshroud can answer with Claude instead of the local model: much faster and stronger, with a bigger context. What you ask, and any file you attach, is then <b>sent to Anthropic</b> over the internet. The key is kept on this PC in <code>data\\cloud.json</code>, is never shown to the page and never written to a log, and clearing it puts everything back to fully offline. Making a key: console.anthropic.com (billed by Anthropic, on your own account).</div>' +
-      '<div class="small" id="clstate" style="margin-top:10px"></div><div id="clbox" style="margin-top:10px"></div></div></div>');
+      '<div class="sxrow" data-k="free frontier ai no key auto fallback unlimited model ovhcloud pollinations qwen gpt oss llama" style="display:block"><div style="flex:1;min-width:0"><b>✦ Free frontier AI (no key)</b>' +
+      '<div class="small mute" style="margin-top:3px;line-height:1.48">Frontier-class models with no sign-up and no card: Moundshroud keeps several free routes and moves to the next one by itself when one hits its free limit, then to the model on this PC, so an answer always comes back. <b>Nothing free is truly unlimited</b>: the public routes allow a few requests a minute, which is plenty for ordinary use. Pick <b>✦ Free frontier · auto</b> in the model box at the top of the chat, or press the button below.</div>' +
+      '<div id="frbox" class="small" style="margin-top:10px">Checking the free routes…</div></div></div>' +
+      '<div class="sxrow" data-k="claude anthropic api key online ai cloud model groq openrouter gemini nim free llm" style="display:block"><div style="flex:1;min-width:0"><b>&#9729; Online AI</b>' +
+      '<div class="small mute" style="margin-top:3px;line-height:1.48">Off by default. Pick a provider, add your API key, and Moundshroud will answer with that model instead of the local one. <b>Anthropic (Claude)</b> is billed by Anthropic. <b>Free LLM providers</b> (Groq, OpenRouter, Google Gemini, NVIDIA NIM, Mistral, Cohere, Cloudflare, and more) offer free tiers - no credit card needed for most. The key is kept on this PC in <code>data\\cloud.json</code>, encrypted by Windows for your account, never shown to this window.</div>' +
+      '<div class="small" id="clstate" style="margin-top:10px"></div><div id="clbox" style="margin-top:10px"></div></div></div>' +
+      '<div class="sxrow" data-k="no-key free api open ai cloud model glhf chutes ovhcloud" style="display:block"><div style="flex:1;min-width:0"><b>&#128274; No API Key Required</b>' +
+      '<div class="small mute" style="margin-top:3px;line-height:1.48">These providers work without any signup or API key. <b>OVHcloud AI</b> is the one that answers reliably (anonymous tier, 2 requests a minute); Glhf.chat and Chutes.ai are often down or rate limited. The <b>✦ Free frontier AI</b> box above already uses whichever of these is working. Nothing leaves this PC except your prompt to the provider; no keys are stored.</div>' +
+      '<div class="small" id="nkstate" style="margin-top:10px"></div><div id="nkbox" style="margin-top:10px"></div></div></div>');
     h += sec('persona', '🎭', 'Personality',
       '<div class="sxrow" data-k="personality persona character tone voice how the assistant acts thinks behaviour behavior instructions custom system prompt julius caesar book context style" style="display:block">' +
       '<div class="small mute" style="line-height:1.5;margin-bottom:10px">How the main assistant in <b>Chat</b> acts and thinks: its tone, its style, and any standing instruction you want it to keep. This is added to the start of every chat. Leave it blank for the normal helpful, concise assistant. (The Bible Expert, your buddy and the game characters keep their own personalities.)</div>' +
@@ -102,6 +108,8 @@
       row('Written guide', 'Searchable guide and what is new.', '<button class="ib" data-a="guide">Open the guide</button>', 'guide help what is new changelog'));
     h += sec('data', '💾', 'Backup & data',
       row('Back up everything', 'One zip with your notes, flashcards, chats, prompts, reminders and everything Moundshroud remembers (settings, progress, chess careers, scores, favourites, playlists). Choose where to save it, such as an external drive.', '<button class="pri" data-a="fullbak">Back up now</button>', 'backup export full everything save') +
+      row('Share this app', 'Create a portable zip of the current Moundshroud version (code only, no personal data) that your friends can unzip and run. Includes the server, web UI, and all built-in features.', '<button class="ib" data-a="shareapp">Create shareable zip</button><span class="small mute" id="shareappstatus" style="margin-left:10px"></span>', 'share app export portable zip send friend') +
+      row('Push to GitHub', 'Commit all changes and push to the configured Git remote (usually origin on GitHub). Shows the repo URL after pushing. Useful after the AI made edits you want to share or back up remotely.', '<button class="ib" data-a="gitpush">Push to GitHub</button><span class="small mute" id="gitpushstatus" style="margin-left:10px"></span>', 'git push github remote commit') +
       row('Auto-commit changes to git', 'When an assistant finishes a turn, your changes to Moundshroud’s code are saved to git on this PC, so work is never lost. Turn it off to stop the automatic commits.', '<label class="chk" style="margin:0;gap:7px"><input type="checkbox" id="sacommit"> <span class="small mute">On</span></label>', 'auto commit git version control backup history save changes undo') +
       row('About this version', '<span id="aboutver">Moundshroud ' + A.version + ' (built ' + A.built + ')</span>. ' + (() => { const t = A.selftest && A.selftest.last(); return t ? 'Last self-test: ' + new Date(t.at).toLocaleDateString() + ', ' + t.checks + ' checks, ' + (t.bad ? t.bad + ' need attention' : 'all passed') + '.' : 'No self-test has been run yet.'; })(), '', 'about version build') +
       row('Updates', '<div id="updbox" class="small mute">Reading…</div>', '', 'update updates newer new version upgrade download install') +
@@ -188,32 +196,229 @@
     const sp = $$('#spersona'), saidSaved = () => { const n = $$('#sperss'); if (n) { n.textContent = '✓ Saved'; clearTimeout(n._t); n._t = setTimeout(() => n.textContent = '', 1600); } };
     if (sp) sp.addEventListener('input', () => { ls.set('persona', sp.value); saidSaved(); });
     body.querySelectorAll('[data-p]').forEach(bp => bp.onclick = () => { if (sp) { sp.value = bp.dataset.p; ls.set('persona', sp.value); sp.focus(); saidSaved(); } });
-    /* ---- online AI (Claude) and internet access ---- */
+    /* ---- online AI (Claude + Free LLMs) and internet access ---- */
     const clState = $$('#clstate'), clBox = $$('#clbox');
+    const providerLabels = {
+      'anthropic': 'Anthropic (Claude)',
+      'groq': 'Groq (Llama, Qwen, Whisper)',
+      'nvidia-nim': 'NVIDIA NIM (GLM, Kimi, Nemotron)',
+      'google-gemini': 'Google Gemini',
+      'openrouter': 'OpenRouter (300+ models)',
+      'kilo-code': 'Kilo Code (coding optimized)',
+      'mistral-ai': 'Mistral AI',
+      'cohere': 'Cohere',
+      'cloudflare-workers-ai': 'Cloudflare Workers AI',
+      'modelscope': 'ModelScope',
+      'ovhcloud-ai-endpoints': 'OVHcloud AI (EU)',
+      'ollama-cloud': 'Ollama Cloud',
+      'glhf-chat': 'Glhf.chat (unlimited)',
+      'chutes-ai': 'Chutes.ai (DeepSeek R1)',
+      'llm7-io': 'LLM7.io (GPT-OSS)',
+      'z-ai-zhipu-ai': 'Z.ai (GLM)',
+      'gonka-broker': 'Gonka Broker',
+      'agnes-ai': 'Agnes AI',
+      'aion-labs': 'Aion Labs',
+      'siliconflow': 'SiliconFlow',
+      'grok-(xai)': 'Grok (xAI)',
+      'opencode': 'OpenCode Zen'
+    };
+    const noKeyProviderLabels = {
+      'glhf-chat': 'Glhf.chat',
+      'chutes-ai': 'Chutes.ai',
+      'ovhcloud-ai-endpoints': 'OVHcloud AI (Anonymous)'
+    };
+    const noKeyRecommendedModels = {
+      'glhf-chat': [{id:'meta-llama/Meta-Llama-3.1-70B-Instruct',name:'Llama 3.1 70B',note:'131K ctx, unlimited free, no key'},{id:'mistralai/Mixtral-8x7B-Instruct-v0.1',name:'Mixtral 8x7B',note:'32K ctx, unlimited free, no key'}],
+      'chutes-ai': [{id:'deepseek-ai/DeepSeek-R1',name:'DeepSeek R1',note:'131K ctx, reasoning, no key'},{id:'meta-llama/Meta-Llama-3.1-70B-Instruct',name:'Llama 3.1 70B',note:'131K ctx, no key'}],
+      'ovhcloud-ai-endpoints': [{id:'qwen3.5-397b-a17b',name:'Qwen 3.5 397B',note:'262K ctx, 2 RPM anonymous'},{id:'gpt-oss-120b',name:'GPT-OSS 120B',note:'131K ctx, 2 RPM anonymous'},{id:'meta-llama-3_3-70b-instruct',name:'Llama 3.3 70B',note:'131K ctx, 2 RPM anonymous'}]
+    };
+    const providerKeyUrls = {
+      'anthropic': 'https://console.anthropic.com/settings/keys',
+      'groq': 'https://console.groq.com/keys',
+      'nvidia-nim': 'https://build.nvidia.com/settings/api-keys',
+      'google-gemini': 'https://aistudio.google.com/app/apikey',
+      'openrouter': 'https://openrouter.ai/workspaces/default/keys',
+      'kilo-code': 'https://app.kilo.ai/profile',
+      'mistral-ai': 'https://console.mistral.ai/api-keys',
+      'cohere': 'https://dashboard.cohere.com/api-keys',
+      'cloudflare-workers-ai': 'https://dash.cloudflare.com/profile/api-tokens',
+      'modelscope': 'https://modelscope.cn/my/myaccesstoken',
+      'ovhcloud-ai-endpoints': 'https://www.ovhcloud.com/en/public-cloud/ai-endpoints/catalog/',
+      'ollama-cloud': 'https://ollama.com/settings/keys',
+      'glhf-chat': 'https://glhf.chat/',
+      'chutes-ai': 'https://chutes.ai/',
+      'llm7-io': 'https://token.llm7.io',
+      'z-ai-zhipu-ai': 'https://open.bigmodel.cn/usercenter/apikeys',
+      'gonka-broker': 'https://app.gonkabroker.com/signup',
+      'agnes-ai': 'https://platform.agnes-ai.com/settings/apiKeys',
+      'aion-labs': 'https://www.aionlabs.ai/app/api-keys/',
+      'siliconflow': 'https://cloud.siliconflow.cn/account/ak',
+      'grok-(xai)': 'https://console.x.ai/',
+      'opencode': 'https://opencode.ai/auth'
+    };
     const cdraw = st => {
+      const prov = st.provider || 'anthropic';
+      const isAnthropic = prov === 'anthropic';
+      const provLabel = providerLabels[prov] || prov;
+      const keyUrl = providerKeyUrls[prov] || '';
+      const hasProviders = st.providers && st.providers.length > 0;
+      const provInfo = hasProviders ? st.providers.find(p => p.id === prov) : null;
+      const freeModelsCount = provInfo ? provInfo.freeModels : 0;
+      const maxContext = provInfo ? provInfo.maxContext : 0;
+      const tagline = provInfo ? provInfo.tagline : '';
+      const protocols = provInfo ? provInfo.protocols : [];
+      
+      // Recommended models per provider (from freellm.js)
+      const recommendedModels = {
+        'groq': [{id:'llama-3.3-70b-versatile',name:'Llama 3.3 70B Versatile',note:'30 RPM, 1K RPD, 131K ctx'},{id:'qwen/qwen3.8-27b',name:'Qwen 3.8 27B',note:'Reasoning, 30 RPM, 131K ctx'},{id:'whisper-large-v3',name:'Whisper Large v3',note:'Speech-to-text, 20 RPM'},{id:'whisper-large-v3-turbo',name:'Whisper Large v3 Turbo',note:'Speech-to-text, 20 RPM'}],
+        'nvidia-nim': [{id:'z-ai/glm-5.3-flash',name:'GLM 5.3 Flash',note:'1M ctx, 40 RPM, multimodal'},{id:'moonshotai/kimi-k2.6',name:'Kimi K2.6',note:'262K ctx, 40 RPM'},{id:'poolside/laguna-xs-2.1',name:'Laguna XS 2.1',note:'262K ctx, 40 RPM, code'}],
+        'google-gemini': [{id:'gemini-3.8-flash',name:'Gemini 3.8 Flash',note:'1M ctx, multimodal'},{id:'gemini-3.6-flash',name:'Gemini 3.6 Flash',note:'1M ctx, multimodal'},{id:'gemini-3.5-flash-lite',name:'Gemini 3.5 Flash-Lite',note:'1M ctx, multimodal'}],
+        'openrouter': [{id:'stealth/crouton-alpha',name:'Crouton Alpha',note:'1M ctx, free'},{id:'nvidia/nemotron-3-ultra-550b-a55b:free',name:'Nemotron 3 Ultra',note:'1M ctx, free'},{id:'nvidia/nemotron-3.5-super-vl:free',name:'Nemotron 3.5 Super VL',note:'1M ctx, free, vision'},{id:'baidu/ernie-5.5-flash-preview:free',name:'ERNIE 5.5 Flash',note:'1M ctx, free'}],
+        'kilo-code': [{id:'nvidia/nemotron-3-ultra-550b-a55b:free',name:'Nemotron 3 Ultra',note:'Coding optimized, 200 req/hr'},{id:'cohere/north-mini-code:free',name:'North Mini Code',note:'Coding optimized, 200 req/hr'},{id:'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',name:'Nemotron 3 Nano Omni',note:'256K ctx, reasoning'}],
+        'mistral-ai': [{id:'open-mistral-7b',name:'Mistral 7B',note:'32K ctx'},{id:'open-mixtral-8x7b',name:'Mixtral 8x7B',note:'32K ctx'},{id:'mistral-medium-3.5-128b',name:'Mistral Medium 3.5 (128B)',note:'256K ctx'}],
+        'cohere': [{id:'command-a-218b',name:'Command A+ (218B)',note:'128K ctx'},{id:'command-a-111b',name:'Command A (111B)',note:'256K ctx'},{id:'command-r',name:'Command R',note:'128K ctx'}],
+        'cloudflare-workers-ai': [{id:'@cf/meta/llama-3.3-70b-instruct-fp8-fast',name:'Llama 3.3 70B FP8 Fast',note:'24K ctx, 10K neurons/day'},{id:'@cf/meta/llama-4-scout-17b-16e-instruct',name:'Llama 4 Scout 17B',note:'131K ctx'},{id:'@cf/openai/gpt-oss-120b',name:'GPT-OSS 120B',note:'128K ctx'}],
+        'modelscope': [{id:'MiniMax/MiniMax-M1-80k',name:'MiniMax M1 80K',note:'80K ctx'},{id:'meituan-longcat/LongCat-Flash-Lite',name:'LongCat Flash Lite',note:'8K ctx'},{id:'MedAIBase/AntAngelMed',name:'AntAngelMed',note:'Medical, 8K ctx'}],
+        'ovhcloud-ai-endpoints': [{id:'qwen3.5-397b-a17b',name:'Qwen 3.5 397B',note:'262K ctx, EU hosted, 2 RPM'},{id:'gpt-oss-120b',name:'GPT-OSS 120B',note:'131K ctx, EU hosted'},{id:'meta-llama-3_3-70b-instruct',name:'Llama 3.3 70B',note:'131K ctx, EU hosted'}],
+        'ollama-cloud': [{id:'gpt-oss:120b',name:'GPT-OSS 120B',note:'128K ctx'},{id:'nemotron-3-ultra',name:'Nemotron 3 Ultra',note:'256K ctx'},{id:'minimax-m3',name:'MiniMax M3',note:'512K ctx'}],
+        'glhf-chat': [{id:'meta-llama/Meta-Llama-3.1-70B-Instruct',name:'Llama 3.1 70B',note:'131K ctx, unlimited free'},{id:'mistralai/Mixtral-8x7B-Instruct-v0.1',name:'Mixtral 8x7B',note:'32K ctx, unlimited free'}],
+        'chutes-ai': [{id:'deepseek-ai/DeepSeek-R1',name:'DeepSeek R1',note:'131K ctx, reasoning'},{id:'meta-llama/Meta-Llama-3.1-70B-Instruct',name:'Llama 3.1 70B',note:'131K ctx'}],
+        'llm7-io': [{id:'gpt-oss-20b',name:'GPT-OSS 20B',note:'128K ctx, 60 RPM'},{id:'mistral-Nemo-Instruct-2407',name:'Mistral Nemo 2407',note:'128K ctx, 60 RPM'},{id:'codestral-latest',name:'Codestral Latest',note:'32K ctx, code'}],
+        'z-ai-zhipu-ai': [{id:'glm-4.5-air',name:'GLM 4.5 Air',note:'131K ctx'},{id:'glm-4.7-flash',name:'GLM 4.7 Flash',note:'200K ctx'},{id:'glm-4.5',name:'GLM 4.5',note:'128K ctx'}],
+        'gonka-broker': [{id:'minimaxai-minimax-m2-7',name:'MiniMax M2.7',note:'200K ctx'},{id:'deepseek-ai-deepseek-v4-flash-0731',name:'DeepSeek V4 Flash',note:'400K ctx'},{id:'zai-org/GLM-5.3-Flash',name:'GLM 5.3 Flash',note:'400K ctx'}],
+        'agnes-ai': [{id:'agnes-2.5-flash',name:'Agnes 2.5 Flash',note:'256K ctx'},{id:'agnes-image-2.1-flash',name:'Agnes Image 2.1 Flash',note:'4K ctx, vision'},{id:'agnes-image-2.0-flash',name:'Agnes Image 2.0 Flash',note:'4K ctx, vision'}],
+        'aion-labs': [{id:'aion-labs-aion-2.0',name:'Aion 2.0',note:'128K ctx'},{id:'aion-labs-aion-rp-llama-3.1-8b',name:'Aion RP Llama 3.1 8B',note:'32K ctx'},{id:'aion-labs-aion-3.0',name:'Aion 3.0',note:'128K ctx'}],
+        'siliconflow': [{id:'tencent-hunyuan-mt-7b',name:'Hunyuan MT 7B',note:'1K RPM'},{id:'xingchenagi-xing4-0-29b',name:'Xing 4.0 29B',note:'1K RPM'}],
+        'grok-(xai)': [{id:'grok-2',name:'Grok 2',note:'131K ctx, $25/mo free credits'},{id:'grok-2-mini',name:'Grok 2 Mini',note:'131K ctx, $25/mo free credits'}],
+        'opencode': [{id:'big-pickle',name:'Big Pickle',note:'No context limit'},{id:'nemotron-3.5-lightning-free',name:'Nemotron 3.5 Lightning',note:'262K ctx'},{id:'deepseek-v4-flash',name:'DeepSeek V4 Flash',note:'1M ctx'}],
+      };
+      const modelsForProvider = isAnthropic ? (st.models || []) : (recommendedModels[prov] || []);
+      const providerOptions = hasProviders
+        ? st.providers.map(p => '<option value="' + esc(p.id) + '"' + (p.id === prov ? ' selected' : '') + '>' + esc(providerLabels[p.id] || p.name) + (p.hasKey ? ' ✓' : '') + (p.freeModels ? ' (' + p.freeModels + ' free)' : '') + '</option>').join('')
+        : Object.keys(providerLabels).map(p => '<option value="' + esc(p) + '"' + (p === prov ? ' selected' : '') + '>' + esc(providerLabels[p]) + '</option>').join('');
+      
       if (clBox) clBox.innerHTML =
         (st.problem ? '<div class="small" style="color:var(--bad);border:1px solid var(--bad);border-radius:8px;padding:8px 10px;margin-bottom:8px;line-height:1.5">⚠ ' + esc(st.problem) + '</div>' : '') +
-        (!st.on ? '<div class="small mute" style="line-height:1.6;margin-bottom:8px">To use Claude: sign in at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">console.anthropic.com › API keys</a>, add a little credit (the API is pay-as-you-go and separate from a Claude.ai subscription), press <b>Create key</b>, and paste it here. It starts with <code>sk-ant-</code>.</div>' : '') +
-        '<div class="row" style="gap:6px;flex-wrap:wrap;align-items:center"><input type="password" id="ckey" autocomplete="off" spellcheck="false" placeholder="' + (st.on ? 'paste a new key to replace the saved one' : 'sk-ant-api…') + '" style="min-width:220px;flex:1"><button class="pri" data-cl="save">' + (st.on || st.saved ? 'Replace the key' : 'Save the key') + '</button>' + (st.on || st.saved ? '<button class="ib" data-cl="forget">Forget it</button>' : '') + '</div>' +
+        (!st.on ? '<div class="small mute" style="line-height:1.6;margin-bottom:8px">To use a cloud provider: pick one below, sign up at their site, and paste your API key here. <b>Most free providers need no credit card.</b> ' + (keyUrl ? 'Get a key: <a href="' + esc(keyUrl) + '" target="_blank" rel="noopener noreferrer">' + esc(keyUrl) + '</a>' : '') + '</div>' : '') +
+        '<div class="row" style="gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px"><label class="small mute" style="flex:1;min-width:160px">Provider</label><select id="cprov" style="max-width:340px;flex:1">' + providerOptions + '</select></div>' +
+        (provInfo && !isAnthropic ? '<div class="small mute" style="margin-bottom:8px;line-height:1.6"><b>' + esc(provLabel) + '</b> — ' + esc(tagline || 'Free tier available') + (freeModelsCount ? ' · <b>' + freeModelsCount + ' free models</b>' : '') + (maxContext ? ' · Max context: <b>' + (maxContext >= 1000000 ? (maxContext/1000000).toFixed(1) + 'M' : (maxContext/1000).toFixed(0) + 'K') + '</b>' : '') + (protocols.length ? ' · ' + protocols.map(esc).join(', ') : '') + '</div>' : '') +
+        '<div class="row" style="gap:6px;flex-wrap:wrap;align-items:center"><input type="password" id="ckey" autocomplete="off" spellcheck="false" placeholder="' + (st.on ? 'paste a new key to replace the saved one' : (isAnthropic ? 'sk-ant-api…' : 'API key…')) + '" style="min-width:220px;flex:1"><button class="pri" data-cl="save">' + (st.on || st.saved ? 'Replace the key' : 'Save the key') + '</button>' + (st.on || st.saved ? '<button class="ib" data-cl="forget">Forget it</button>' : '') + '</div>' +
         (st.saved ? '<div class="small mute" style="margin-top:4px">🔐 The key is ' + (st.encrypted ? 'encrypted by Windows for your Windows account' : 'being encrypted') + ' and never shown to this window. Key ending ' + esc(st.tail || '????') + '.</div>' : '') +
-        (st.on ? '<div class="row" style="gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px"><label class="small mute">Model</label><select id="cmodel" style="max-width:340px">' + (st.models || []).map(m => '<option value="' + esc(m.id) + '"' + (m.id === st.model ? ' selected' : '') + '>' + esc(m.name) + (m.note ? ' - ' + esc(m.note) : '') + '</option>').join('') + '</select><button class="ib" data-cl="test">Test it</button><button class="ib" data-cl="refresh">Refresh the list</button></div>' : '');
+        (st.on ? '<div class="row" style="gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px"><label class="small mute">Model</label><select id="cmodel" style="max-width:340px;flex:1">' + modelsForProvider.map(m => '<option value="' + esc(m.id) + '"' + (m.id === st.model ? ' selected' : '') + '>' + esc(m.name) + (m.note ? ' - ' + esc(m.note) : '') + '</option>').join('') + '<option value="">— Enter custom model ID —</option></select><button class="ib" data-cl="test">Test it</button><button class="ib" data-cl="refresh">Refresh providers</button><button class="ib" data-cl="forcerefresh" title="Force refresh from GitHub (clears 6-hour cache)">⟳ Force refresh</button></div>' + (!isAnthropic ? '<div class="small mute" style="margin-top:4px"><a href="https://freellm.net/models/" target="_blank" rel="noopener noreferrer">Browse all 300+ free models at freellm.net →</a></div>' : '') : '');
       if (clState) clState.innerHTML = st.on
-        ? '&#9729; <b>Claude is on</b>: answers use <b>' + esc(st.model) + '</b> (key ending ' + esc(st.tail) + '). Pick the local model in the box at the top of the chat to go back to offline answers at any time.'
+        ? '&#9729; <b>' + esc(provLabel) + ' is on</b>: answers use <b>' + esc(st.model) + '</b> (key ending ' + esc(st.tail) + '). Pick the local model in the box at the top of the chat to go back to offline answers at any time.'
         : '&#128274; Answers use the <b>local model</b>: nothing leaves this PC.';
     };
     const cget = async () => { try { const st = await A.api('/api/cloud'); cdraw(st); const w = $$('#cweb'); if (w) w.checked = !!st.web; if (A.net) A.net.refresh(); return st; } catch (e) { if (clState) clState.textContent = 'The online AI settings could not be read.'; } };
     const cset = async patch => { try { const st = await A.api('/api/cloud', patch); cdraw(st); if (A.net) A.net.refresh(); return st; } catch (e) { A.toast('Could not save: ' + e.message, 5000); } };
     if (clBox) clBox.addEventListener('click', async e => {
       const b = e.target.closest('[data-cl]'); if (!b) return; const a = b.dataset.cl;
-      if (a === 'save') { const k = $$('#ckey'); const v = (k.value || '').trim(); if (!v) return A.toast('Paste your Anthropic API key first.', 4000); const st = await cset({ key: v }); if (st && st.on) { A.toast('Claude is ready. It is now in the model list at the top of the chat.', 6000); k.value = ''; } }
-      else if (a === 'forget') { const st = await cset({ forget: true }); if (st) A.toast('The key was removed. Moundshroud is fully offline again.', 5000); }
-      else if (a === 'test') { A.toast('Asking Claude...', 3000); const r = await A.api('/api/cloud/test', {}); A.toast(r && r.ok ? 'Claude answered (' + (r.model || '') + '): "' + (r.reply || '') + '"' : ((r && r.error) || 'No answer.'), r && r.ok ? 5000 : 8000); }
-      else if (a === 'refresh') { const r = await A.api('/api/cloud/models', {}); if (r && r.status) cdraw(r.status); A.toast(r && r.error ? r.error : (r && r.live ? 'Model list updated from Anthropic.' : 'Using the built-in list.'), 5000); }
+      if (a === 'save') { const k = $$('#ckey'); const v = (k.value || '').trim(); if (!v) return A.toast('Paste your API key first.', 4000); const prov = $$('#cprov') ? $$('#cprov').value : 'anthropic'; const st = await cset({ providerKey: { provider: prov, key: v } }); if (st && st.on) { A.toast(prov + ' is ready. It is now in the model list at the top of the chat.', 6000); k.value = ''; } }
+      else if (a === 'forget') { const prov = $$('#cprov') ? $$('#cprov').value : 'anthropic'; const st = await cset({ providerKey: { provider: prov, key: '' } }); if (st) A.toast('The key was removed.', 5000); }
+      else if (a === 'test') { A.toast('Asking model...', 3000); const prov = $$('#cprov') ? $$('#cprov').value : 'anthropic'; const model = $$('#cmodel') ? $$('#cmodel').value : ''; const r = prov === 'anthropic' ? await A.api('/api/cloud/test', {}) : await A.api('/api/cloud/test-free', { provider: prov, model: model }); A.toast(r && r.ok ? 'Model answered (' + (r.model || '') + '): "' + (r.reply || '') + '"' : ((r && r.error) || 'No answer.'), r && r.ok ? 5000 : 8000); }
+      else if (a === 'refresh') { const prov = $$('#cprov') ? $$('#cprov').value : 'anthropic'; if (prov === 'anthropic') { const r = await A.api('/api/cloud/models', {}); if (r && r.status) cdraw(r.status); A.toast(r && r.error ? r.error : (r && r.live ? 'Model list updated from Anthropic.' : 'Using the built-in list.'), 5000); } else { const r = await A.api('/api/cloud/providers', {}); const st = await A.api('/api/cloud', {}); cdraw(st); A.toast('Providers refreshed.', 3000); } }
+      else if (a === 'forcerefresh') { A.toast('Fetching fresh provider list from GitHub...', 3000); const r = await A.api('/api/cloud/refresh-providers', {}); const st = await A.api('/api/cloud', {}); cdraw(st); A.toast(r && r.length ? 'Refreshed: ' + r.length + ' providers loaded.' : 'Could not refresh providers.', 5000); }
     });
-    if (clBox) clBox.addEventListener('change', e => { if (e.target.id === 'cmodel') cset({ model: e.target.value }); });
+    if (clBox) clBox.addEventListener('change', async e => {
+      if (e.target.id === 'cprov') { const prov = e.target.value; cset({ provider: prov }); }
+      else if (e.target.id === 'cmodel') {
+        const val = e.target.value;
+        if (val === '') {
+          const custom = prompt('Enter custom model ID (e.g., "deepseek-ai/DeepSeek-V3" or "gemini-2.5-pro"):');
+          if (custom) {
+            e.target.value = custom;
+            cset({ model: custom });
+          } else {
+            const st = await A.api('/api/cloud');
+            cdraw(st);
+          }
+        } else {
+          cset({ model: val });
+        }
+      }
+    });
     if ($$('#cweb')) $$('#cweb').addEventListener('change', e => cset({ web: e.target.checked }));
     if ($$('#sacommit')) { A.api('/api/autocommit').then(r => { const c = $$('#sacommit'); if (c) c.checked = !!(r && r.on); }).catch(() => {}); $$('#sacommit').addEventListener('change', e => { A.api('/api/autocommit', { on: e.target.checked }).catch(() => {}); A.toast(e.target.checked ? 'Auto-commit on' : 'Auto-commit off: changes are no longer committed by themselves.'); }); }
     cget();
+    /* No API Key Required section */
+    const nkState = $$('#nkstate'), nkBox = $$('#nkbox');
+    let nkProviders = [];
+    const nkdraw = st => {
+      if (!nkBox) return;
+      const prov = st.provider || 'glhf-chat';
+      const provLabel = noKeyProviderLabels[prov] || prov;
+      const modelsForProvider = noKeyRecommendedModels[prov] || [];
+      const providerOptions = nkProviders.map(p => '<option value="' + esc(p.id) + '"' + (p.id === prov ? ' selected' : '') + '>' + esc(noKeyProviderLabels[p.id] || p.name) + '</option>').join('');
+      nkBox.innerHTML =
+        (st.error ? '<div class="small" style="color:var(--bad);border:1px solid var(--bad);border-radius:8px;padding:8px 10px;margin-bottom:8px;line-height:1.5">⚠ ' + esc(st.error) + '</div>' : '') +
+        '<div class="row" style="gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px"><label class="small mute" style="flex:1;min-width:160px">Provider</label><select id="nkprov" style="max-width:340px;flex:1">' + providerOptions + '</select></div>' +
+        '<div class="row" style="gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px"><label class="small mute">Model</label><select id="nkmodel" style="max-width:340px;flex:1">' + modelsForProvider.map(m => '<option value="' + esc(m.id) + '"' + (m.id === st.model ? ' selected' : '') + '>' + esc(m.name) + (m.note ? ' - ' + esc(m.note) : '') + '</option>').join('') + '<option value="">— Enter custom model ID —</option></select><button class="ib" data-nk="test">Test it</button><button class="ib" data-nk="refresh">Refresh</button><button class="ib" data-nk="forcerefresh" title="Force refresh from GitHub (clears 6-hour cache)">⟳ Force refresh</button></div>';
+      if (nkState) nkState.innerHTML = st.provider
+        ? '&#128274; <b>' + esc(provLabel) + '</b> is active: answers use <b>' + esc(st.model) + '</b>. Pick the local model in the box at the top of the chat to go back to offline answers at any time.'
+        : '&#128274; Answers use the <b>local model</b>: nothing leaves this PC.';
+    };
+    const nkget = async () => {
+      try {
+        const r = await A.api('/api/cloud/no-key');
+        nkProviders = r || [];
+        const st = await A.api('/api/cloud');
+        nkdraw(st);
+      } catch (e) {
+        if (nkState) nkState.textContent = 'No-key providers could not be loaded.';
+      }
+    };
+    const nkset = async patch => {
+      try {
+        const st = await A.api('/api/cloud', patch);
+        nkdraw(st);
+        if (A.net) A.net.refresh();
+        return st;
+      } catch (e) {
+        A.toast('Could not save: ' + e.message, 5000);
+      }
+    };
+    if (nkBox) nkBox.addEventListener('click', async e => {
+      const b = e.target.closest('[data-nk]'); if (!b) return; const a = b.dataset.nk;
+      if (a === 'test') { A.toast('Asking model...', 3000); const prov = $$('#nkprov') ? $$('#nkprov').value : 'glhf-chat'; const model = $$('#nkmodel') ? $$('#nkmodel').value : ''; const r = await A.api('/api/cloud/test-no-key', { provider: prov, model: model }); A.toast(r && r.ok ? 'Model answered (' + (r.model || '') + '): "' + (r.reply || '') + '"' : ((r && r.error) || 'No answer.'), r && r.ok ? 5000 : 8000); }
+      else if (a === 'refresh') { const r = await A.api('/api/cloud/no-key', {}); nkProviders = r || {}; const st = await A.api('/api/cloud', {}); nkdraw(st); A.toast('Providers refreshed.', 3000); }
+      else if (a === 'forcerefresh') { A.toast('Fetching fresh provider list from GitHub...', 3000); const r = await A.api('/api/cloud/refresh-providers', {}); const st = await A.api('/api/cloud', {}); nkdraw(st); A.toast(r && r.length ? 'Refreshed: ' + r.length + ' providers loaded.' : 'Could not refresh providers.', 5000); }
+    });
+    if (nkBox) nkBox.addEventListener('change', async e => {
+      if (e.target.id === 'nkprov') { const prov = e.target.value; nkset({ provider: prov }); }
+      else if (e.target.id === 'nkmodel') {
+        const val = e.target.value;
+        if (val === '') {
+          const custom = prompt('Enter custom model ID (e.g., "deepseek-ai/DeepSeek-V3" or "gemini-2.5-pro"):');
+          if (custom) {
+            e.target.value = custom;
+            nkset({ model: custom });
+          } else {
+            const st = await A.api('/api/cloud');
+            nkdraw(st);
+          }
+        } else {
+          nkset({ model: val });
+        }
+      }
+    });
+    nkget();
+    /* Free frontier pool: the routes, how they are doing, and a live test */
+    const frBox = $$('#frbox');
+    const frdraw = st => {
+      if (!frBox) return;
+      const rs = (st && st.routes) || [];
+      frBox.innerHTML =
+        '<div class="row" style="gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px"><button class="pri" data-fr="pick">Use it in the chat</button><button class="ib" data-fr="test">Test every route</button><span class="small mute">' + (st ? st.usedToday + ' answered today · ' + st.total + ' in all' : '') + '</span></div>' +
+        (rs.length ? '<div style="display:flex;flex-direction:column;gap:2px">' + rs.map(r => '<div><div class="row" style="gap:8px;align-items:center;border-bottom:1px solid var(--line);padding:4px 0"><span style="width:8px;height:8px;border-radius:50%;flex:none;background:' + (r.awake ? '#3fbf6f' : '#d09b2c') + '"></span><b style="flex:1;min-width:110px">' + esc(r.name) + '</b><span class="small mute">' + esc(r.model) + '</span><span class="small mute" style="min-width:56px;text-align:right">' + r.usedToday + ' today</span>' + (r.awake ? '' : '<span class="small mute">resting ' + Math.ceil(r.restMs / 1000) + 's</span>') + '</div>' + (r.lastError && !r.awake ? '<div class="small mute" style="margin:0 0 4px 16px">' + esc(r.lastError) + '</div>' : '') + '</div>').join('') + '</div>' : '') +
+        '<div class="small mute" style="margin-top:8px;line-height:1.5">' + esc((st && st.limit) || '') + '</div>';
+    };
+    const frget = async () => { try { frdraw(await A.api('/api/free/status')); } catch (e) { if (frBox) frBox.textContent = 'The free routes could not be read.'; } };
+    if (frBox) frBox.addEventListener('click', async e => {
+      const b = e.target.closest('[data-fr]'); if (!b) return;
+      if (b.dataset.fr === 'pick') { ls.set('model', 'free-auto'); A.toast('The chat will use ✦ Free frontier · auto. Open Chat and ask something.', 7000); }
+      else if (b.dataset.fr === 'test') { A.toast('Asking every free route…', 4000); const r = await A.api('/api/free/test', {}); A.toast(r && r.routes ? (r.ok + ' of ' + r.routes.length + ' free routes answered just now.') : 'No answer.', 7000); frget(); }
+    });
+    frget();
     { const hk = $$('#hkind'), st = $$('#hkindst');
       if (hk) {
         A.api('/api/harness/kind').then(r => { hk.value = r.kind || 'claude'; if (!r.jcode) { hk.querySelector('option[value="jcode"]').disabled = true; st.textContent = 'jcode is not installed'; } }).catch(() => { });
@@ -238,7 +443,7 @@
       else if (a === 'personareset') { const t = $$('#spersona'); if (t) t.value = ''; ls.set('persona', ''); A.toast('Personality cleared. The assistant is back to its normal self.'); }
       else if (a === 'mem') { close(); try { A.memory.manage(); } catch (er) { A.toast('What the assistant remembers is not loaded: reload Moundshroud.'); } }
       else if (a === 'resetchess') { if (!confirm('Reset ALL chess data: games, ratings, daily games, clubs and friends? This cannot be undone.')) return; ['chgames', 'chonline', 'chdaily', 'chsocial', 'chprof', 'chstudy', 'chrush', 'chtour', 'chlearn', 'chrate'].forEach(k => ls.set(k, '')); A.toast('Chess data cleared.'); }
-      else if (a === 'restore') { A.backup.pick(); } else if (a === 'fullbak') { A.backup.make(); } else if (a === 'selftest') { A.selftest.run(); } else if (a === 'keys') { keySheet(); } else if (a === 'webtest') { const st = await A.api('/api/cloud'); if (!st.web) return A.toast('Switch internet access on first (the tick box on the left).', 5000); const q = prompt('What should Moundshroud search the web for?', 'today\'s news'); if (!q) return; A.toast('Searching...', 4000); const r = await A.api('/api/net/search', { q: q, n: 5 }); const list = (r.results || []); if (r.error) return A.toast(r.error, 6000); A.dlg('<div class="hd"><b>Web search: ' + esc(q) + '</b></div><div class="bd">' + (list.length ? list.map(x => '<div style="padding:6px 0;border-bottom:1px solid var(--line)"><b>' + esc(x.title) + '</b> <span class="small mute">' + esc(x.source || '') + '</span><div class="small mute" style="overflow-wrap:anywhere">' + esc(x.url) + '</div><div class="small" style="margin-top:3px">' + esc((x.snippet || '').slice(0, 220)) + '</div></div>').join('') : '<div class="small mute">Nothing came back. The connection may be down.</div>') + '<div class="small mute" style="margin-top:10px">This is what the chat sees and cites when the &#127760; Web box is ticked.</div></div>'); }
+      else if (a === 'restore') { A.backup.pick(); } else if (a === 'fullbak') { A.backup.make(); } else if (a === 'shareapp') { const st = $$('#shareappstatus'); if (st) st.textContent = 'Creating zip…'; A.toast('Creating shareable app zip…', 4000); try { const r = await fetch('/api/app/share', { method: 'POST' }); if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || 'Server error ' + r.status); } const blob = await r.blob(); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'Moundshroud-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '.zip'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 10000); if (st) st.textContent = '✅ Ready — sent to your Downloads'; A.toast('Shareable app zip downloaded!', 6000); } catch (e) { if (st) st.textContent = '❌ ' + e.message; A.toast('Share failed: ' + e.message, 8000); } } else if (a === 'gitpush') { const st = $$('#gitpushstatus'); if (st) st.textContent = 'Pushing…'; A.toast('Pushing to GitHub…', 4000); try { const r = await A.api('/api/git/push', { addAll: true, message: 'Auto-commit from Moundshroud: ' + new Date().toISOString().slice(0, 19).replace('T', ' ') }); if (r.ok && r.repo) { if (st) st.innerHTML = '✅ Pushed to <a href="' + esc(r.repo) + '" target="_blank" rel="noopener noreferrer">' + esc(r.repo) + '</a> (' + esc(r.branch) + ')'; A.toast('Pushed to ' + r.repo + ' (' + r.branch + ')', 8000); } else if (r.ok && !r.hadChanges) { if (st) st.textContent = '✅ Nothing to commit — working tree clean'; A.toast('Nothing to commit', 5000); } else { if (st) st.textContent = '❌ ' + (r.error || 'Push failed'); A.toast('Push failed: ' + (r.error || 'unknown error'), 8000); } } catch (e) { if (st) st.textContent = '❌ ' + e.message; A.toast('Push error: ' + e.message, 8000); } } else if (a === 'selftest') { A.selftest.run(); } else if (a === 'keys') { keySheet(); } else if (a === 'webtest') { const st = await A.api('/api/cloud'); if (!st.web) return A.toast('Switch internet access on first (the tick box on the left).', 5000); const q = prompt('What should Moundshroud search the web for?', 'today\'s news'); if (!q) return; A.toast('Searching...', 4000); const r = await A.api('/api/net/search', { q: q, n: 5 }); const list = (r.results || []); if (r.error) return A.toast(r.error, 6000); A.dlg('<div class="hd"><b>Web search: ' + esc(q) + '</b></div><div class="bd">' + (list.length ? list.map(x => '<div style="padding:6px 0;border-bottom:1px solid var(--line)"><b>' + esc(x.title) + '</b> <span class="small mute">' + esc(x.source || '') + '</span><div class="small mute" style="overflow-wrap:anywhere">' + esc(x.url) + '</div><div class="small" style="margin-top:3px">' + esc((x.snippet || '').slice(0, 220)) + '</div></div>').join('') : '<div class="small mute">Nothing came back. The connection may be down.</div>') + '<div class="small mute" style="margin-top:10px">This is what the chat sees and cites when the &#127760; Web box is ticked.</div></div>'); }
       else if (a === 'update') { about().then(r => { if (!r) return A.toast('The version could not be read.'); if (r.offers && r.offers.length) A.toast('Version ' + r.offers[0].version + ' is in the releases folder. Quit Moundshroud from the tray, unzip that copy over this folder (keep your data folder), then start it again.', 14000); else A.toast('You are on the newest version (' + r.version + ').', 5000); }); } else if (a === 'problems') { close(); if (A.problems) A.problems.open(); else A.toast('The problem log is not loaded: reload Moundshroud.'); }
     });
     if (sectionId) setTimeout(() => { const s = body.querySelector('[data-sec=' + sectionId + ']'); if (s) body.scrollTo({ top: s.offsetTop - 8 }); }, 50);

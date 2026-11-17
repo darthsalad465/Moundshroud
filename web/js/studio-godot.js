@@ -116,7 +116,7 @@ html.god-filled body{overflow:hidden}html.god-filled body>*:not(main){visibility
     const say = (kind, html) => { msg.innerHTML = html ? '<div class="god-msg god-' + kind + '">' + html + '</div>' : ''; };
 
     /* models: the same list as Studio > Game maker */
-    (async () => { const sel = $('gdm'); try { const ms = ((await (await fetch('/api/models')).json()).models || []).filter(m => !/embed/i.test(m.name)); const top = A.ai.model(), saved = ls.get('gd_model', ''); const pick = ms.some(m => m.name === saved) ? saved : top; sel.innerHTML = ms.map(m => '<option value="' + esc(m.name) + '"' + (m.name === pick ? ' selected' : '') + '>' + esc(m.label || m.name) + (m.cloud ? ' (Claude, online)' : ' (on this PC)') + '</option>').join(''); } catch (e) { sel.innerHTML = '<option value="">Top bar model</option>'; } sel.onchange = () => ls.set('gd_model', sel.value); })();
+          (async () => { const sel = $('gdm'); try { const ms = ((await (await fetch('/api/models')).json()).models || []).filter(m => !/embed/i.test(m.name)); MODELS = ms; const top = A.ai.model(), saved = ls.get('gd_model', ''); const pick = ms.some(m => m.name === saved) ? saved : top; sel.innerHTML = ms.map(m => '<option value="' + esc(m.name) + '"' + (m.name === pick ? ' selected' : '') + '>' + esc(m.label || m.name) + (m.cloud ? ' (online)' : ' (on this PC)') + '</option>').join(''); } catch (e) { sel.innerHTML = '<option value="">Top bar model</option>'; } sel.onchange = () => ls.set('gd_model', sel.value); })();
 
     function banner() {
       $('gdbanner').innerHTML = engine ? '' : '<div class="god-warnbox"><b>Godot is not installed on this PC yet.</b> The AI can still write the project, and it is saved as real files, but nothing can play or open it until the engine is here. Run this once (about 82 MB, then it is offline for good):<div class="god-cmd"><code>' + esc(INSTALL) + '</code><button class="god-btn" id="gdcopy">Copy</button><button class="god-btn" id="gdcheck">I ran it</button></div></div>';
@@ -224,10 +224,14 @@ html.god-filled body{overflow:hidden}html.god-filled body>*:not(main){visibility
     $('gdfundo').onclick = () => { const t = fTab(fpath); if (!t) return; t.text = t.orig; t.dirty = false; $('gdcode').value = t.text; const e = window.CodeEd && CodeEd.of($('gdcode')); if (e) e.refresh(); fileBar(); };
     $('gdcode').addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'w' && fpath) { e.preventDefault(); closeFile(fpath); } });
     /* the same bounded request Studio > Game maker makes, through the local engine */
+    let MODELS = [];
+    /* the free/online models are the ones the bigger budget is for; a model on this PC keeps the budget it had, so its
+       context stays small enough to load (a 40k context on a small model can leave it loading instead of answering) */
+    const isOnline = m => { const x = MODELS.find(o => o.name === m); return x ? !!x.cloud : !!(A.ai && A.ai.isCloud(m)); };
     async function ask(messages, cap, onLen) {
       const model = $('gdm').value || A.ai.model(); if (!model) throw new Error('No AI model is chosen. Pick one in the "Made by" list.');
-      const cloud = A.ai.isCloud(model);
-      let r; try { r = await fetch('/api/chat', { method: 'POST', signal: ctl.signal, body: JSON.stringify({ model, stream: true, think: false, keep_alive: '5m', options: Object.assign({ temperature: .35, num_predict: cap }, cloud ? {} : { num_ctx: Math.min(131072, Math.max(16384, Math.ceil((messages.reduce((n, m) => n + m.content.length, 0) / 3 + cap + 1024) / 8192) * 8192)) }), messages }) }); }
+      const cloud = isOnline(model), budget = cloud ? cap : Math.min(cap, 9000);
+      let r; try { r = await fetch('/api/chat', { method: 'POST', signal: ctl.signal, body: JSON.stringify({ model, stream: true, think: false, keep_alive: '5m', options: Object.assign({ temperature: .35, num_predict: budget }, cloud ? {} : { num_ctx: Math.min(131072, Math.max(16384, Math.ceil((messages.reduce((n, m) => n + m.content.length, 0) / 3 + budget + 1024) / 8192) * 8192)) }), messages }) }); }
       catch (e) { if (e.name === 'AbortError') throw e; throw new Error('Could not reach the AI engine: ' + e.message); }
       const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '', all = '', err = '';
       for (; ;) { const { value, done } = await rd.read(); if (done) break; buf += dec.decode(value, { stream: true }); let i; while ((i = buf.indexOf('\n')) >= 0) { const ln = buf.slice(0, i).trim(); buf = buf.slice(i + 1); if (!ln) continue; try { const j = JSON.parse(ln); if (j.error) err = String(j.error.message || j.error); if (j.message && j.message.content) { all += j.message.content; onLen(all.length); } } catch (e) { } } }

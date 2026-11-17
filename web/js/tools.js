@@ -39,16 +39,18 @@
       '<div class="small" id="rpst"></div><div id="rplist" style="margin-top:10px;max-width:900px"></div></div>';
     const kb = n => n >= 1073741824 ? (n / 1073741824).toFixed(1) + ' GB' : n >= 1048576 ? Math.round(n / 1048576) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
     let timer = null;
-    const paint = async () => {
+const paint = async () => {
       if (my !== tok) return;
       const r = await A.api('/api/refs').catch(() => ({ refs: [] }));
       const list = r.refs || [], busy = list.some(x => x.job && (x.job.state === 'running' || x.job.state === 'refreshing'));
       const box = document.getElementById('rplist'); if (!box) return;
-      box.innerHTML = list.map(x => '<div class="card" style="padding:10px;margin-bottom:8px"><div class="row" style="align-items:flex-start;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:220px"><b>' + esc(x.name) + '</b> <span class="small mute">' + [x.size, x.lic, x.installed && x.files + ' files', x.installed && kb(x.bytes) + ' on this PC'].filter(Boolean).join(' · ') + '</span>' +
-        '<div class="small mute" style="margin-top:2px">' + esc(x.about || '') + ' <span class="mute">' + esc(x.repo) + '</span></div>' +
+      box.innerHTML = '<div id="rplist-virtual" class="virtual-list" style="max-height:700px;overflow:auto"></div>';
+      /* Virtual scrolling for repositories list */
+      A.virtualList($('rplist-virtual'), list, x => '<div class="card" style="padding:10px;margin-bottom:8px"><div class="row" style="align-items:flex-start;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:220px"><b>' + A.esc(x.name) + '</b> <span class="small mute">' + [x.size, x.lic, x.installed && x.files + ' files', x.installed && kb(x.bytes) + ' on this PC'].filter(Boolean).join(' · ') + '</span>' +
+        '<div class="small mute" style="margin-top:2px">' + A.esc(x.about || '') + ' <span class="mute">' + A.esc(x.repo) + '</span></div>' +
         (x.installed ? '<div class="small" style="margin-top:2px">🛡 ' + (!x.safety || !x.safety.level ? 'not checked yet' : x.safety.level === 'danger' ? '⛔ ' + x.safety.counts.danger + ' serious finding(s)' : x.safety.level === 'warn' ? '⚠️ ' + x.safety.counts.warn + ' to look at' : '✅ nothing risky stood out') + '</div>' : '') +
-        (x.job && (x.job.state === 'running' || x.job.state === 'refreshing') ? '<div class="small" style="margin-top:4px">' + (x.job.state === 'refreshing' ? 'Refreshing' : 'Downloading') + '… ' + x.job.pct + '% <span class="mute">' + esc(x.job.said || '') + '</span></div>' : x.job && x.job.state === 'failed' ? '<div class="small warn" style="margin-top:4px">' + esc(x.job.said || 'It failed.') + '</div>' : '') + '</div>' +
-        (x.installed ? '<button class="ib" data-rf="' + esc(x.slug) + '"' + (busy ? ' disabled' : '') + '>Refresh</button><button class="ib dang" data-rm="' + esc(x.slug) + '">Remove</button>' : '<button class="pri" data-dl="' + esc(x.slug) + '"' + (busy ? ' disabled' : '') + '>Download</button>') + '</div></div>').join('');
+        (x.job && (x.job.state === 'running' || x.job.state === 'refreshing') ? '<div class="small" style="margin-top:4px">' + (x.job.state === 'refreshing' ? 'Refreshing' : 'Downloading') + '… ' + x.job.pct + '% <span class="mute">' + A.esc(x.job.said || '') + '</span></div>' : x.job && x.job.state === 'failed' ? '<div class="small warn" style="margin-top:4px">' + A.esc(x.job.said || 'It failed.') + '</div>' : '') + '</div>' +
+        (x.installed ? '<button class="ib" data-rf="' + A.esc(x.slug) + '"' + (busy ? ' disabled' : '') + '>Refresh</button><button class="ib dang" data-rm="' + A.esc(x.slug) + '">Remove</button>' : '<button class="pri" data-dl="' + A.esc(x.slug) + '"' + (busy ? ' disabled' : '') + '>Download</button>') + '</div></div>', { itemHeight: 160 });
       if (busy && !timer) timer = setInterval(paint, 1500);
       if (!busy && timer) { clearInterval(timer); timer = null; }
     };
@@ -136,8 +138,11 @@
       const r = await A.api('/api/clip'); if (my !== tok || !$('clist')) return; const q = ($('cq').value || '').toLowerCase();
       $('cstate').innerHTML = r.on ? '<span class="ok">ON</span> - remembering text you copy (last 100)' : '<span class="mute">OFF</span> - nothing is being remembered'; $('ctog').textContent = r.on ? 'Turn off' : 'Turn on';
       const items = (r.items || []).filter(x => !q || x.text.toLowerCase().includes(q));
-      $('clist').innerHTML = items.length ? items.map(x => '<div class="card" style="padding:8px 12px"><div style="white-space:pre-wrap;max-height:4.8em;overflow:hidden;overflow-wrap:anywhere">' + esc(x.text.slice(0, 400)) + '</div><div class="row small mute" style="margin-top:6px"><span style="flex:1">' + esc(A.fmtAgo(x.at)) + ' &middot; ' + x.text.length + ' chars</span><span class="ib" data-a="copy" data-id="' + x.id + '" style="cursor:pointer">Copy</span><span class="ib" data-a="ask" data-id="' + x.id + '" style="cursor:pointer">Ask AI</span><span class="ib dang" data-a="del" data-id="' + x.id + '" style="cursor:pointer">Delete</span></div></div>').join('') : '<div class="mute small">' + (r.on ? 'Nothing yet - copy some text.' : 'Turn it on to start.') + '</div>';
-      $('clist').onclick = e => {
+      $('clist').innerHTML = '<div id="clist-virtual" class="virtual-list" style="max-height:700px;overflow:auto"></div>';
+      /* Virtual scrolling for clipboard list */
+      A.virtualList($('clist-virtual'), items, x => '<div class="card" style="padding:8px 12px"><div style="white-space:pre-wrap;max-height:4.8em;overflow:hidden;overflow-wrap:anywhere">' + A.esc(x.text.slice(0, 400)) + '</div><div class="row small mute" style="margin-top:6px"><span style="flex:1">' + A.esc(A.fmtAgo(x.at)) + ' &middot; ' + x.text.length + ' chars</span><span class="ib" data-a="copy" data-id="' + x.id + '" style="cursor:pointer">Copy</span><span class="ib" data-a="ask" data-id="' + x.id + '" style="cursor:pointer">Ask AI</span><span class="ib dang" data-a="del" data-id="' + x.id + '" style="cursor:pointer">Delete</span></div></div>', { itemHeight: 120 });
+      // Re-bind click events
+      $('clist-virtual').onclick = e => {
         const a = e.target.closest('[data-a]'); if (!a) return; const it = (r.items || []).find(x => x.id === a.dataset.id); if (!it) return;
         if (a.dataset.a === 'copy') A.copy(it.text); else if (a.dataset.a === 'del') A.api('/api/clip/delete', { id: it.id }).then(draw);
         else { const p = A.pop(a, ['Summarize', 'Fix grammar', 'Explain', 'Reply to this', 'Translate to English'].map(x => '<div class="hit"><b>' + x + '</b></div>').join('')); p.onclick = ev => { const h = ev.target.closest('.hit'); if (!h) return; A.closePop(); const P = { Summarize: 'Summarize this:\n\n', 'Fix grammar': 'Fix the spelling and grammar. Reply with only the corrected text:\n\n', Explain: 'Explain this clearly:\n\n', 'Reply to this': 'Write a friendly, natural reply to this:\n\n', 'Translate to English': 'Translate this into English:\n\n' }; A.chat.ask(P[h.textContent] + it.text, { noLocal: true, sources: [] }); }; a.dataset.pop = '1'; }

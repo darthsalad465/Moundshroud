@@ -511,6 +511,10 @@ try {
     try { await require('./swarm-test.js')(ok); } catch (e) { ok('the swarm modules load', false, e.message); }
     try { await require('./agent-modes-test.js')(ok); } catch (e) { ok('the agent modes module loads', false, e.message); }
     try { await require('./bible-test.js')(ok); } catch (e) { ok('the bible expert test loads', false, e.message); }
+    try { await require('./bible-book-test.js')(ok); } catch (e) { ok('the bible book test loads', false, e.message); }
+    try { await require('./freeroute-test.js')(ok); } catch (e) { ok('the free ai test loads', false, e.message); }
+    try { await require('./cyber-offsec-test.js')(ok); } catch (e) { ok('the Cyber labs test loads', false, e.message); }
+    try { await require('./agentbridge-test.js')(ok); } catch (e) { ok('the free-agent bridge test loads', false, e.message); }
     try { await require('./checker-test.js')(ok); } catch (e) { ok('the page checker test loads', false, e.message); }
     try { await require('./pages-test.js')(ok); } catch (e) { ok('the Tools and Cyber games pages test loads', false, e.message); }
     try { await require('./radio-test.js')(ok); } catch (e) { ok('the radio test loads', false, e.message); }

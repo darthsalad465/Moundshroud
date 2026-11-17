@@ -77,17 +77,23 @@
   }
   function row(a) { return '<div class="rowitem" data-au="' + esc(a[0]) + '"><b style="flex:1">' + esc(a[0]) + '</b><span class="small mute">' + a[1] + ' book' + (a[1] > 1 ? 's' : '') + '</span></div>'; }
   let authors = [];
-  function refresh() {
+function refresh() {
     chips(); azbar(); const b = $('clsb'); b.scrollTop = 0;
     if (!data.items.length) { b.innerHTML = '<div style="max-width:520px;margin:40px auto;text-align:center"><div style="font-size:42px">📚</div><h3>No Gutenberg books here yet</h3><p class="mute">No Project Gutenberg collection is installed, or the library has not been restarted since they were added. Close and reopen Moundshroud, or get them from Prepare &rarr; Stock up &rarr; Classics.</p></div>'; $('clsn').textContent = ''; return; }
     if (mode === 'authors') {
       const m = {}; data.items.forEach(x => { if (!st.shelf || x.s === st.shelf) m[x.a] = (m[x.a] || 0) + 1; }); const w = norm(st.q);
       authors = Object.entries(m).filter(x => !w || norm(x[0]).includes(w)).sort((p, q) => norm(surname(p[0])).localeCompare(norm(surname(q[0]))));
-      list = authors; $('clsn').textContent = authors.length.toLocaleString() + ' authors'; b.innerHTML = '<div id="clsg"></div>'; shown = 0; more(); return;
+      list = authors; $('clsn').textContent = authors.length.toLocaleString() + ' authors';
+      b.innerHTML = '<div id="clsg"></div>';
+      /* Virtual scrolling for authors list */
+      A.virtualList(b, list, ([name, count]) => '<div class="rowitem" data-au="' + A.esc(name) + '"><b style="flex:1">' + A.esc(name) + '</b><span class="small mute">' + count + ' book' + (count > 1 ? 's' : '') + '</span></div>', { itemHeight: 48 });
+      return;
     }
     list = filter(); $('clsn').textContent = list.length.toLocaleString() + ' of ' + data.items.length.toLocaleString() + ' books';
-    if (!list.length) { b.innerHTML = '<p class="mute" style="text-align:center;margin-top:40px">Nothing matches' + (st.q ? ' "' + esc(st.q) + '"' : '') + '. Try fewer words, or just an author\'s surname.</p>'; return; }
-    b.innerHTML = '<div id="clsg" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:12px"></div>'; shown = 0; more();
+    if (!list.length) { b.innerHTML = '<p class="mute" style="text-align:center;margin-top:40px">Nothing matches' + (st.q ? ' "' + A.esc(st.q) + '"' : '') + '. Try fewer words, or just an author\'s surname.</p>'; return; }
+    b.innerHTML = '<div id="clsg" class="virtual-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px"></div>';
+    /* Virtual list with grid rendering */
+    A.virtualList(b, list, card, { itemHeight: 280 });
   }
   function more(upto) {
     const g = $('clsg'); if (!g) return; const end = Math.min(list.length, upto || shown + PAGE); if (end <= shown) return;
