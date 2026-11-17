@@ -892,6 +892,10 @@ if (url === '/api/chat' && req.method === 'POST') {
       try { for (const f of fs.readdirSync(path.join(ROOT, 'releases'))) { const m = /^Moundshroud-(.+?)-part1-program\.zip$/i.exec(f); if (m && newer(m[1], ver)) offers.push({ file: f, version: m[1] }); } } catch (e) { }
       return json(res, 200, { version: ver, built, offers, started: new Date(started).toISOString().slice(0, 10), folder: ROOT });
     }
+    if (url === '/api/is-author') {
+      const isAuthor = fs.existsSync(path.join(ROOT, '.author-copy'));
+      return json(res, 200, { author: isAuthor });
+    }
     /* updates: is there a newer version (asked online only with internet access on), and install it when the user says so */
     if (url === '/api/update/status') return json(res, 200, update.status());
     if (url === '/api/update/check' && req.method === 'POST') return json(res, 200, await update.check(false));
