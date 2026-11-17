@@ -791,7 +791,7 @@ if (url === '/api/chat' && req.method === 'POST') {
         try { repoUrl = cp.execSync('git config --get remote.' + remote + '.url', { cwd: ROOT, encoding: 'utf8', timeout: 5000 }).trim(); } catch (e) {}
         let currentBranch = '';
         try { currentBranch = cp.execSync('git rev-parse --abbrev-ref HEAD', { cwd: ROOT, encoding: 'utf8', timeout: 5000 }).trim(); } catch (e) {}
-        const pushBranch = branch || currentBranch || 'main';
+        const pushBranch = 'main';
         
         // Check if there are changes to commit
         let status = '';
