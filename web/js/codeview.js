@@ -11,7 +11,7 @@
 
   /* read-only: a sticky column inside the <pre>, so the code's own box, colours and Copy button stay as they were */
   function numberPre(pre) {
-    if (!pre || pre.closest('.cv-skip')) return;
+    if (!pre || pre.closest('.cv-skip') || pre.closest('.ce')) return;   // the full editor draws its own numbers: never two columns
     let g = pre.querySelector(':scope > .cv-g');      // not always first: Chat puts ▶ Run in front of it
     const code = pre.querySelector(':scope > code'), text = code ? code.textContent : [...pre.childNodes].filter(n => n !== g && !(n.classList && n.classList.contains('cp'))).map(n => n.textContent).join('');
     if (!text.trim()) { if (g) g.remove(); return; }

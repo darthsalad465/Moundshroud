@@ -1,6 +1,6 @@
 // Edit the app: a VS Code style page for changing Moundshroud's own files without leaving Moundshroud. A folder tree on
 // the left, open files as tabs at the top, and the full editor (web/js/code-ed.js) in the middle: syntax colouring, line
-// numbers, minimap, find & replace (Ctrl+F / Ctrl+H), the command palette (Ctrl+Shift+P), Go to line (Ctrl+G) and a
+// numbers, find & replace (Ctrl+F / Ctrl+H), the command palette (Ctrl+Shift+P), Go to line (Ctrl+G) and a
 // status bar with the line and column. Saving keeps the previous version first, and JavaScript is syntax-checked before
 // it is written, so a missing bracket is caught at the moment of saving instead of at the next reload. History (↩) puts
 // an older version back. Everything under web\ shows after a reload; lib\ and server.js need the app restarted.

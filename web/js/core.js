@@ -78,12 +78,205 @@ A.hold = new Set();
 A.aiBusy = (name, on) => { if (on) A.hold.add(name); else A.hold.delete(name); };
 A.pageAwake = name => A.cur === name || A.hold.has(name);
 A.every = (name, ms, fn) => setInterval(() => { if (A.pageAwake(name)) { try { fn(); } catch (e) { } } }, ms);
+
+/* Performance: reduced polling for background tabs. Foreground = normal speed, Background = 5x slower, Hidden = paused */
+const POLL_MULTIPLIER = { foreground: 1, background: 5, hidden: 0 };
+let _pollState = 'foreground';
+function _updatePollState() {
+  if (document.hidden) _pollState = 'hidden';
+  else if (document.hasFocus ? document.hasFocus() : true) _pollState = 'foreground';
+  else _pollState = 'background';
+}
+document.addEventListener('visibilitychange', _updatePollState);
+window.addEventListener('focus', _updatePollState);
+window.addEventListener('blur', _updatePollState);
+_updatePollState();
+
+/* A.every with adaptive polling - skips work when tab is asleep or app is in background */
+const _origEvery = A.every;
+A.every = (name, ms, fn) => {
+  const baseMs = ms * POLL_MULTIPLIER[_pollState];
+  return _origEvery(name, baseMs, () => {
+    if (!A.pageAwake(name)) return;
+    if (_pollState === 'hidden') return;
+    try { fn(); } catch (e) { }
+  });
+};
+
+/* One-time idle callback for non-critical work */
+A.onIdle = fn => {
+  if ('requestIdleCallback' in window) requestIdleCallback(fn, { timeout: 5000 });
+  else setTimeout(fn, 0);
+};
+
+/* Debounce helper for frequent events */
+A.debounce = (fn, ms = 150) => {
+  let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+};
+
+/* Throttle helper for high-frequency events */
+A.throttle = (fn, ms = 100) => {
+  let last = 0; return (...args) => { const now = Date.now(); if (now - last >= ms) { last = now; fn(...args); } };
+};
+
+/* Memory: track and warn on large arrays */
+A.mem = {
+  track: (name, arr) => { if (Array.isArray(arr) && arr.length > 5000) console.warn(`Large array ${name}: ${arr.length} items`); },
+  clear: (obj, keys) => { keys.forEach(k => { if (obj[k] && typeof obj[k] === 'object') obj[k] = []; }); }
+};
+
+/* Virtual scrolling for large lists - renders only visible items */
+A.virtualList = (host, items, renderItem, opts = {}) => {
+  const { itemHeight = 40, overscan = 5, onScroll } = opts;
+  let scrollTop = 0;
+  let startIdx = 0;
+  let endIdx = 0;
+  let wrapper = host.querySelector('.virtual-wrapper');
+
+  if (!wrapper) {
+    host.style.overflow = 'auto';
+    host.innerHTML = '<div class="virtual-wrapper" style="position:relative"></div>';
+    wrapper = host.querySelector('.virtual-wrapper');
+  }
+
+  const visibleCount = Math.ceil(host.clientHeight / itemHeight) + overscan * 2;
+
+  function render() {
+    const totalHeight = items.length * itemHeight;
+    wrapper.style.height = totalHeight + 'px';
+
+    startIdx = Math.max(0, Math.floor(scrollTop / itemHeight) - overscan);
+    endIdx = Math.min(items.length, startIdx + visibleCount);
+
+    wrapper.innerHTML = '';
+    for (let i = startIdx; i < endIdx; i++) {
+      const div = document.createElement('div');
+      div.style.position = 'absolute';
+      div.style.top = i * itemHeight + 'px';
+      div.style.height = itemHeight + 'px';
+      div.style.left = 0;
+      div.style.right = 0;
+      div.innerHTML = renderItem(items[i], i);
+      wrapper.appendChild(div);
+    }
+  }
+
+  host.addEventListener('scroll', A.throttle(() => {
+    scrollTop = host.scrollTop;
+    render();
+    onScroll?.(startIdx, endIdx);
+  }, 16));
+
+  const ro = new ResizeObserver(A.debounce(render, 50));
+  ro.observe(host);
+
+  return {
+    refresh: render,
+    scrollTo: idx => { host.scrollTop = idx * itemHeight; },
+    setItems: newItems => { items.length = 0; items.push(...newItems); render(); },
+    destroy: () => ro.disconnect()
+  };
+};
+
+/* Virtual grid for grid layouts */
+A.virtualGrid = (host, items, renderItem, opts = {}) => {
+  const { colWidth = 160, colHeight = 200, cols = 4, overscan = 2 } = opts;
+  let scrollTop = 0;
+  let wrapper = host.querySelector('.virtual-wrapper');
+
+  if (!wrapper) {
+    host.style.overflow = 'auto';
+    host.innerHTML = '<div class="virtual-wrapper" style="position:relative"></div>';
+    wrapper = host.querySelector('.virtual-wrapper');
+  }
+
+  const rowHeight = colHeight;
+  const rowsPerScreen = Math.ceil(host.clientHeight / rowHeight) + overscan;
+
+  function render() {
+    const totalRows = Math.ceil(items.length / cols);
+    const totalHeight = totalRows * rowHeight;
+    wrapper.style.height = totalHeight + 'px';
+
+    const startRow = Math.max(0, Math.floor(scrollTop / rowHeight) - overscan);
+    const endRow = Math.min(totalRows, startRow + rowsPerScreen);
+
+    wrapper.innerHTML = '';
+    for (let r = startRow; r < endRow; r++) {
+      for (let c = 0; c < cols; c++) {
+        const idx = r * cols + c;
+        if (idx >= items.length) continue;
+        const div = document.createElement('div');
+        div.style.position = 'absolute';
+        div.style.top = r * rowHeight + 'px';
+        div.style.left = c * colWidth + 'px';
+        div.style.width = colWidth + 'px';
+        div.style.height = colHeight + 'px';
+        div.innerHTML = renderItem(items[idx], idx);
+        wrapper.appendChild(div);
+      }
+    }
+  }
+
+  host.addEventListener('scroll', A.throttle(() => {
+    scrollTop = host.scrollTop;
+    render();
+  }, 16));
+
+  const ro = new ResizeObserver(A.debounce(render, 50));
+  ro.observe(host);
+
+  return { refresh: render, destroy: () => ro.disconnect() };
+};
+
+/* IntersectionObserver-based lazy image loading */
+A.lazyImages = (root = document) => {
+  const images = root.querySelectorAll('img[data-src]:not([data-lazy-done])');
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const img = entry.target;
+        img.src = img.dataset.src;
+        img.onload = () => img.removeAttribute('data-src');
+        img.dataset.lazyDone = '1';
+        obs.unobserve(img);
+      }
+    });
+  }, { rootMargin: '100px' });
+  images.forEach(img => obs.observe(img));
+  return obs;
+};
+
+/* Performance observer for long tasks */
+A.perf = {
+  marks: [],
+  measure: (name, startMark, endMark) => {
+    try { performance.measure(name, startMark, endMark); } catch (e) { }
+  },
+  mark: name => { performance.mark(name); A.perf.marks.push(name); },
+  getEntries: () => performance.getEntriesByType('measure'),
+  clear: () => { performance.clearMeasures(); A.perf.marks = []; },
+  onLongTask: cb => {
+    if ('PerformanceObserver' in window) {
+      try {
+        const obs = new PerformanceObserver(list => {
+          list.getEntries().forEach(e => cb(e));
+        });
+        obs.observe({ entryTypes: ['longtask'] });
+        return obs;
+      } catch (e) { }
+    }
+  }
+};
+
 A.showTab = name => {
   if (!A.tabs[name]) return;
   const _t0 = nowMs();
   const prev = A.cur; A.cur = name; try { A.closePop(); } catch (e) { }
   if (prev !== name) { try { A.emit('tab:hide', prev); } catch (e) { } } try { A.emit('tab:show', name); } catch (e) { }
-  for (const n of A.order) { const p = $('p-' + n); if (p) p.classList.toggle('on', n === name); }      // a missing page must not stop the others being hidden
+  /* every page is switched off except this one, whether or not its module has registered its tab yet: a page loaded
+     later (the Chat tab is loaded on its own) must never stay on under the one being shown */
+  for (const p of document.querySelectorAll('section.panel')) p.classList.toggle('on', p.id === 'p-' + name);
   try { A.navMark(); } catch (e) { }
   requestAnimationFrame(() => { const ab = document.querySelector('#nav button.on'); if (ab && ab.scrollIntoView) ab.scrollIntoView({ block: 'nearest', inline: 'center' }); });   // in the next frame: done here it forced a second full layout of the new page       // keep the active tab visible in a narrow window
   /* one page failing to open must never take the rest of the app with it: it gets a "try again" card instead */

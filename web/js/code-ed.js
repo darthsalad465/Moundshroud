@@ -1,6 +1,6 @@
 // Moundshroud's code editor, built to feel like VS Code and VSCodium. Any textarea marked data-code (Edit the app, the Godot
 // file editor, the Game maker) or class cl-ed (the coding lessons) is upgraded in place: syntax colouring with a coloured
-// overlay, a line-number gutter, the current line lit, a minimap, find & replace, a command palette (Ctrl+Shift+P), Go to
+// overlay, a line-number gutter, the current line lit, find & replace, a command palette (Ctrl+Shift+P), Go to
 // line (Ctrl+G), bracket matching, auto-indent and auto-close, Alt+↑/↓ to move a line, Ctrl+/ to comment, word wrap, a
 // breadcrumb and a status bar with line, column and selection.
 // The textarea is never replaced - it keeps its id, its value and its input events - so every page keeps working as it was.
@@ -135,7 +135,7 @@
     wrap.innerHTML =
       '<div class="ce-crumb" hidden></div>' +
       '<div class="ce-body"><div class="ce-gut" aria-hidden="true"><div class="ce-gi"></div></div>' +
-      '<div class="ce-view"><pre class="ce-hl" aria-hidden="true"><code></code></pre><canvas class="ce-map" aria-hidden="true"></canvas></div></div>' +
+      '<div class="ce-view"><pre class="ce-hl" aria-hidden="true"><code></code></pre></div></div>' +
       '<div class="ce-find" hidden><input class="ce-fq" type="search" placeholder="Find" autocomplete="off"><span class="ce-fc small mute"></span>' +
       '<button class="ce-fb" data-f="prev" title="Previous match (Shift+Enter)">↑</button><button class="ce-fb" data-f="next" title="Next match (Enter)">↓</button>' +
       '<button class="ce-fb ce-fword" data-f="word" title="Whole word">ab</button><button class="ce-fb ce-fcase" data-f="case" title="Match case">Aa</button>' +
@@ -147,7 +147,7 @@
     host.insertBefore(wrap, ta);
     const view = wrap.querySelector('.ce-view');
     view.appendChild(ta);
-    const pre = wrap.querySelector('.ce-hl > code'), gutBox = wrap.querySelector('.ce-gut'), gut = wrap.querySelector('.ce-gi'), map = wrap.querySelector('.ce-map');
+    const pre = wrap.querySelector('.ce-hl > code'), gutBox = wrap.querySelector('.ce-gut'), gut = wrap.querySelector('.ce-gi');
     const crumb = wrap.querySelector('.ce-crumb'), fin = wrap.querySelector('.ce-find');
     const fq = wrap.querySelector('.ce-fq'), fr = wrap.querySelector('.ce-fr'), fc = wrap.querySelector('.ce-fc');
 
@@ -171,7 +171,7 @@
       if (gut.dataset.n !== String(n)) { gut.dataset.n = n; gut.innerHTML = Array.from({ length: n }, (_, i) => '<i>' + (i + 1) + '</i>').join(''); }
       wrap.querySelector('[data-s=lang]').textContent = LANGNAME[state.lang] || state.lang;
       wrap.querySelector('[data-s=len]').textContent = (text.length >= 1024 ? (text.length / 1024).toFixed(1) + ' KB' : text.length + ' B');
-      sync(); caret(); mini();
+      sync(); caret();
       crumb.hidden = !name;
       if (name) crumb.innerHTML = String(name).split('/').map((p, i, a) => (i ? '<span class="ce-sep">›</span>' : '') + (i === a.length - 1 ? '<b>' + esc(p) + '</b>' : esc(p))).join('');
     }
@@ -194,29 +194,6 @@
       wrap.querySelector('.ce-view').style.setProperty('--ce-line', line);
       match(true);
     }
-    /* the minimap: each line a thin bar, coloured by what it mostly is */
-    function mini() {
-      if (!map.offsetParent) return;
-      const dpr = window.devicePixelRatio || 1, w = 68, h = map.clientHeight || 200;
-      map.width = w * dpr; map.height = h * dpr;
-      const g = map.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
-      g.clearRect(0, 0, w, h);
-      const lines = ta.value.split('\n'), total = Math.max(1, lines.length);
-      const step = h / total, y0 = ta.scrollTop / Math.max(1, ta.clientHeight) * h;
-      g.fillStyle = 'rgba(127,127,160,.35)';
-      for (let i = 0; i < total; i++) {
-        const ln = lines[i]; if (!ln.trim()) continue;
-        const yy = i * step;
-        if (yy < -step || yy > h) continue;
-        const ww = Math.min(w - 4, 2 + (ln.trim().length / 90) * (w - 8));
-        g.fillStyle = /^\s*(\/\/|#|\/\*|\*)/.test(ln) ? 'rgba(120,170,120,.45)' : /[{}()[\];]/.test(ln) ? 'rgba(150,170,220,.55)' : 'rgba(160,160,190,.4)';
-        g.fillRect(2, yy, ww, Math.max(1, step - .4));
-      }
-      if (total * step > h) { /* scrolled */ }
-      g.fillStyle = 'rgba(255,255,255,.10)';
-      g.fillRect(0, clamp(y0, 0, h - 4), w, Math.max(6, (ta.clientHeight / Math.max(1, ta.scrollHeight)) * h));
-    }
-
     /* ---------- find & replace ---------- */
     const flags = () => (state.case ? 'g' : 'gi');
     const rx = () => {
@@ -285,7 +262,6 @@
         ['Find and replace', 'Ctrl+H', () => openFind(true)],
         ['Go to line…', 'Ctrl+G', () => goLine()],
         ['Toggle word wrap', 'Alt+Z', () => wrapToggle()],
-        ['Toggle the minimap', '', () => { map.hidden = !map.hidden; mini(); }],
         ['Toggle the line numbers', '', () => { gut.hidden = !gut.hidden; sync(); }],
         ['Go to the top of the file', 'Ctrl+Home', () => { ta.setSelectionRange(0, 0); ta.scrollTop = 0; sync(); caret(); }],
         ['Go to the end of the file', 'Ctrl+End', () => { ta.setSelectionRange(ta.value.length, ta.value.length); ta.scrollTop = ta.scrollHeight; sync(); caret(); }],
@@ -385,7 +361,7 @@
     };
 
     ta.addEventListener('input', () => { schedule(); caret(); });
-    ta.addEventListener('scroll', () => { sync(); mini(); });
+    ta.addEventListener('scroll', () => { sync(); });
     ta.addEventListener('keyup', caret);
     ta.addEventListener('click', caret);
     ta.addEventListener('select', caret);
@@ -446,7 +422,6 @@
       Object.defineProperty(ta, 'value', { configurable: true, get() { return d.get.call(this); }, set(v) { d.set.call(this, v); schedule(); } });
     } catch (e) { }
     render();
-    new ResizeObserver(() => mini()).observe(view);
     return api;
   }
 

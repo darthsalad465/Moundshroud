@@ -39,7 +39,10 @@
   function draw() {
     const f = $('nq').value.trim().toLowerCase();
     const items = list.filter(n => !f || (n.title + ' ' + n.snippet).toLowerCase().includes(f));
-    $('nlist').innerHTML = items.length ? items.map(n => '<div class="item' + (cur && cur.id === n.id ? ' cur' : '') + '" data-id="' + esc(n.id) + '"><b>' + esc(n.title) + '</b><span>' + esc(n.snippet || '(empty)') + '</span></div>').join('') : '<div class="mute small" style="padding:10px">' + (list.length ? 'No matches.' : 'No notes yet. Press + to write one.') + '</div>';
+    $('nlist').innerHTML = '<div id="nlist-virtual" style="height:100%;overflow:auto"></div>';
+    A.virtualList($('nlist-virtual'), items, n => '<div class="item' + (cur && cur.id === n.id ? ' cur' : '') + '" data-id="' + A.esc(n.id) + '"><b>' + A.esc(n.title) + '</b><span>' + A.esc(n.snippet || '(empty)') + '</span></div>', { itemHeight: 50 });
+    // Re-bind click events
+    $('nlist-virtual').onclick = e => { const i = e.target.closest('.item'); if (i) open(i.dataset.id); };
   }
   $('nq').oninput = draw;
   $('nlist').onclick = e => { const i = e.target.closest('.item'); if (i) open(i.dataset.id); };

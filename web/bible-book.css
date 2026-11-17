@@ -1,0 +1,53 @@
+/* The Bible as a book (web/js/bible-book.js): the Guide's holographic book, used for Scripture.
+   Everything here builds on guide-book.css; these are only the reading page and the chapter grid. */
+.bbk .bbk-sel{height:32px;max-width:200px;border-radius:9px;border:1px solid rgba(247,231,184,.16);
+  background:rgba(247,231,184,.055);color:rgba(247,231,184,.85);font:12px/1 "Segoe UI",system-ui,sans-serif;
+  padding:0 7px;cursor:pointer}
+.bbk .bbk-sel:hover{background:rgba(247,231,184,.13);border-color:rgba(247,231,184,.34);color:#fff8e6}
+.bbk .bbk-sel option{background:#120c26;color:#f6efdf}
+
+/* ---------- the reading page ---------- */
+.bbk .gbk-content{padding:18px 34px 42px}
+.bbk-read{max-width:58ch;margin:0 auto;font-family:Georgia,"Times New Roman",serif;
+  font-size:var(--bbk-size,18px);line-height:1.92;color:#332b3f;text-align:justify;
+  -webkit-hyphens:auto;hyphens:auto;text-wrap:pretty;animation:bbkFade .36s ease both}
+.bbk-read p{margin:0 0 1.02em}
+.bbk-read p:last-child{margin-bottom:0}
+.bbk-read sup{font:600 10px/1 "Segoe UI",system-ui,sans-serif;color:#a97c22;opacity:.78;
+  margin:0 5px 0 2px;letter-spacing:.02em;vertical-align:super;user-select:none}
+@keyframes bbkFade{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+
+/* ---------- the left page: book, chapter grid, text size ---------- */
+.bbk .gbk-left{padding:30px 26px 26px 32px}
+.bbk-bookname{font:600 clamp(21px,2.1vw,30px)/1.1 Georgia,"Times New Roman",serif;color:#241a38;
+  margin:7px 0 3px;letter-spacing:-.005em;text-wrap:balance}
+.bbk-chline{font:12.5px/1.5 Georgia,serif;color:#5b4b66;margin:0 0 12px}
+.bbk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(34px,1fr));gap:5px;
+  flex:1;min-height:0;overflow:auto;align-content:start;padding:2px 4px 4px 0;
+  scrollbar-width:thin;scrollbar-color:rgba(169,124,34,.35) transparent}
+.bbk-grid::-webkit-scrollbar{width:6px}
+.bbk-grid::-webkit-scrollbar-thumb{background:rgba(169,124,34,.28);border-radius:3px}
+.bbk-ch{border:1px solid rgba(74,50,20,.18);background:rgba(255,255,255,.32);color:#4d4159;
+  border-radius:7px;padding:6px 0;font:11.5px/1 "Segoe UI",system-ui,sans-serif;cursor:pointer;
+  text-align:center;transition:background .14s,border-color .14s}
+.bbk-ch:hover{background:rgba(232,197,106,.26);border-color:rgba(169,124,34,.5)}
+.bbk-ch.on{background:linear-gradient(180deg,#e2c176,#c9a24b);border-color:rgba(120,85,25,.5);
+  color:#241a38;font-weight:700;box-shadow:0 2px 8px rgba(169,124,34,.28)}
+.bbk-size{display:flex;align-items:center;gap:6px;margin-top:10px;font:10.5px/1 "Segoe UI",system-ui,sans-serif;
+  color:#a08a63;letter-spacing:.08em;text-transform:uppercase}
+.bbk-size button{width:27px;height:24px;border-radius:6px;border:1px solid rgba(74,50,20,.2);
+  background:rgba(255,255,255,.36);color:#5c4214;cursor:pointer;font:600 11px/1 "Segoe UI",system-ui,sans-serif}
+.bbk-size button:hover{background:rgba(232,197,106,.3)}
+
+/* the contents drawer lists books, not chapters */
+.bbk .gbk-tocitem .n{width:24px}
+.bbk .gbk-tocitem .r{font-size:9px}
+
+@media (max-width:900px){
+  .bbk .gbk-content{padding:10px 20px 40px}
+  .bbk-read{font-size:16.5px;text-align:left}
+  .bbk .bbk-sel{max-width:104px;font-size:11px;padding:0 4px}
+}
+@media (prefers-reduced-motion:reduce){
+  .bbk-read{animation:none}
+}
