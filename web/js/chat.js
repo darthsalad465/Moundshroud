@@ -162,6 +162,17 @@
   }
 
   /* ---------- context from files + libraries ---------- */
+/* how much of each web page to read, chosen by the model that will answer: a 2B local model gets a few thousand chars so its small context isn't swamped, while a cloud model gets whole pages */
+function readBudget(m) {
+    const name = String(m || '');
+    if (A.ai && A.ai.isCloud(name)) return { pages: 3, chars: 40000, total: 100000 };     // whole articles: Claude's context is large
+    if (/free|auto/i.test(name)) return { pages: 2, chars: 25000, total: 45000 };
+    const hit = /(\d+(?:\.\d+)?)\s*b\b/i.exec(name);            // Qwen3.5:2b, gemma4:12b, gemma4:e4b
+    const size = hit ? parseFloat(hit[1]) : (/\d+m\b/i.test(name) ? 0.3 : 8);
+    if (size <= 2) return { pages: 2, chars: 4000, total: 8000 };
+    if (size <= 4) return { pages: 2, chars: 8000, total: 16000 };
+    return { pages: 3, chars: 20000, total: 50000 };
+  }
   async function gather(q) {
     const sources = [];
     const tasks = [];
@@ -170,10 +181,10 @@
     if (toClaude && $('usefiles').checked && !A.ai.allowed('files')) cur._kept = 'Your files and notes were not searched, because Claude is answering (Settings › Privacy to allow it).';
     if (!hasAtt && $('usefiles').checked && !(toClaude && !A.ai.allowed('files'))) tasks.push(A.api('/api/docs/search', { q, n: 5 }).then(r => (r.results || []).forEach(x => sources.push({ title: x.title, page: x.kind === 'doc' && x.page ? x.page : 0, text: String(x.text || x.snippet || '').slice(0, 1400), kind: x.kind, path: x.path, where: x.path }))).catch(() => {}));
     if (!hasAtt && $('usewiki').checked && A.caps.lib) tasks.push(A.api('/api/lib/context', { q, n: 4 }).then(r => (r.sources || []).forEach(x => sources.push({ title: x.title, text: x.text, kind: 'lib', url: x.url, where: x.book, category: x.category }))).catch(() => {}));
-    /* the internet, when it is switched on and the 🌐 box is ticked: the top pages are read in full, the next few come in as snippets */
-    if (!hasAtt && A.net && A.net.on() && $('useweb').checked) tasks.push(A.net.lookup(q).then(r => {
+    /* the internet, when it is switched on and the 🌐 box is ticked: top pages read in full, next few as snippets */
+    if (!hasAtt && A.net && A.net.on() && $('useweb').checked) tasks.push(A.net.lookup(q, readBudget(model())).then(r => {
       const pages = r.pages || [], have = new Set(pages.map(p => p.url));
-      pages.forEach(p => sources.push({ title: p.title, text: p.text, kind: 'web', url: p.url, where: 'the web (read just now)' }));
+      pages.forEach(p => sources.push({ title: p.title, text: p.text, kind: 'web', url: p.url, where: 'the web (read just now' + (p.truncated ? ', page continued beyond what was read' : '') + ')' }));
       (r.results || []).slice(0, 6).forEach(x => { if (!have.has(x.url)) sources.push({ title: x.title, text: x.snippet || '', kind: 'web', url: x.url, where: 'web result (' + (x.source || 'web') + ')' }); });
     }).catch(() => {}));
     /* a question about the news uses the articles the News tab already saved: no extra AI call, works offline */

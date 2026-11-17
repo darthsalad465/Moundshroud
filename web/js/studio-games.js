@@ -110,6 +110,7 @@
       '<div class="gmk-grid"><div class="gmk-side">' +
       '<div class="gmk-card"><div class="gmk-h">New game</div><textarea id="gmp" rows="4" placeholder="e.g. A racing game where I dodge traffic on a three-lane road at night, with nitro on the space bar"></textarea>' +
       '<div class="gmk-ideas">' + IDEAS.map((x, i) => '<button class="gmk-idea" data-idea="' + i + '" title="' + esc(x[2]) + '">' + x[0] + ' ' + esc(x[1]) + '</button>').join('') + '</div>' +
+      '<div id="gmref" style="margin:0 0 10px"></div>' +
       '<button class="gmk-go" id="gmnew">✨ Make this game</button><div class="gmk-note">One AI request per press, as big a game as the model can write (up to about ' + Math.round(MAX_NEW * .75 / 100) * 100 + ' words of code; longer ones arrive in parts).</div></div>' +
       '<div class="gmk-card" id="gmedit" hidden><div class="gmk-h">Change this game</div><textarea id="gmc" rows="3" placeholder="e.g. make the enemies faster, add a boss every 5 levels, use a sunset colour scheme"></textarea>' +
       '<div class="gmk-row"><button class="gmk-go" id="gmchg">🔁 Apply change</button><button class="gmk-btn" id="gmundo" title="Go back to the version before the last change (no AI request)">↶ Undo</button></div><div class="gmk-hist" id="gmhist"></div></div>' +
@@ -120,6 +121,20 @@
       '<div id="gmmsg"></div><div id="gmerr"></div><div id="gmlive" hidden><div class="gmk-codebar"><b>▶ The AI is writing this now</b><span class="gmk-note">live, as it types · the game you already have keeps playing</span></div><pre class="gmk-live" id="gmlivepre"></pre></div><div id="gmcodebox" hidden><div class="gmk-codebar"><b>&lt;/&gt; The game’s code</b><span class="gmk-note">Change anything, then ▶ Run my code (Ctrl+Enter). Ctrl+S saves. ↶ Undo goes back.</span><span class="gmk-sp"></span><button class="gmk-btn" id="gmrun">▶ Run my code</button></div><textarea class="gmk-src" id="gmsrc" data-code spellcheck="false" autocomplete="off" autocapitalize="off"></textarea></div></div></div>';
     const $ = id => root.querySelector('#' + id), msg = $('gmmsg');
     let cur = null, ctl = null, busy = false, frame = null;
+    /* 📷 reference photo: a picture of the subject from the web. It is embedded in the page as a data: URL wherever the
+       code says __REF_IMAGE__, so the game can draw with it, and its colours are given to the AI as well. */
+    const RK = (window.RefPhoto && RefPhoto.MARK) || '__REF_IMAGE__';
+    let ref = null, refUi = null;
+    if (window.RefPhoto) refUi = RefPhoto.panel($('gmref'), { query: () => $('gmp').value, onPick: it => { ref = it; } });
+    /* the picture box follows the description while it is still empty, and keeps whatever is typed into it */
+    $('gmp').addEventListener('input', () => { if (refUi) refUi.fill(); });
+    /* the rules are told about the photo as well: the plain ones forbid every image, and a small model obeys the rule it
+       read first, so the exception is written into the system prompt whenever a photo is chosen */
+    const sysNow = () => SYS + (ref ? '\n- EXCEPTION: one picture is allowed. A reference photo is provided as the exact text ' + RK +
+      ', which the app replaces with the photo when the game runs. It may be used as an <img> src, as new Image() with that src, or in canvas drawImage, and it should be used for the background, title screen or a sprite. No other image may be loaded.' : '');
+    const refNote = () => ref ? '\n\nA reference photo is included. Wherever a data:image/jpeg URL belongs, write exactly ' + RK +
+      ' — the app replaces that text with the photo when the game runs, so it works as <img src="' + RK + '">, as new Image() with that src, and in canvas drawImage. Use it for the background, the title screen or a sprite, and match its colours and mood. Reference: "' + ref.title + '" (' + ref.credit + '). Its main colours: ' + ref.colors.join(', ') + '.' : '';
+    const fillRef = html => String(html).split(RK).join(ref ? ref.dataUrl : '');
     const say = (kind, html) => { msg.innerHTML = html ? '<div class="gmk-msg gmk-' + kind + '">' + html + '</div>' : ''; };
     /* the code arriving, live: the whole reply as it streams, so you can watch the game being written */
     let liveBuf = '', liveDue = 0, liveAt = 0, liveN = 0;
@@ -141,7 +156,7 @@
       const eb = $('gmerr'); if (eb) { eb.innerHTML = ''; eb.dataset.same = ''; }
       const st = $('gmstage'); st.innerHTML = ''; if (!cur) return;
       frame = document.createElement('iframe'); frame.setAttribute('sandbox', 'allow-scripts'); frame.title = cur.name || 'Game'; frame.className = 'gmk-frame';
-      frame.srcdoc = seal(cur.html); frame.onload = () => { try { frame.focus(); } catch (e) { } }; st.appendChild(frame);
+      frame.srcdoc = seal(fillRef(cur.html)); frame.onload = () => { try { frame.focus(); } catch (e) { } }; st.appendChild(frame);
       $('gmsrc').value = cur.html; setTimeout(() => $('gmsrc').dispatchEvent(new Event('input')), 0);   // the code box grows to fit the new code
     }
     function show() {
@@ -196,10 +211,11 @@
         if (ok) { busy = false; ctl = null; show(); return; }
         liveN = 0;
       }
-      const msgs = [{ role: 'system', content: SYS }];
-      if (kind === 'new') msgs.push({ role: 'user', content: 'Make this game: ' + text });
+      const msgs = [{ role: 'system', content: sysNow() }];
+      if (kind === 'new') msgs.push({ role: 'user', content: 'Make this game: ' + text + refNote() });
       else msgs.push({ role: 'user', content: 'Here is my current game:\n```html\n' + cur.html + '\n```\n' + (cur.asks.length ? 'Earlier requests, already done: ' + cur.asks.slice(-5).join(' | ') + '\n' : '') + 'Change it like this: ' + text + '\n' +
-        (/^fix this error/i.test(text) ? 'Fix the cause of that one error and nothing else. ' : '') + 'Change only what this needs: keep every other line exactly as it is, and do not rewrite, rename or reshuffle code that already works. Reply with the complete updated HTML file.' });
+        (/^fix this error/i.test(text) ? 'Fix the cause of that one error and nothing else. ' : '') + 'Change only what this needs: keep every other line exactly as it is, and do not rewrite, rename or reshuffle code that already works.' +
+        (ref ? ' The text ' + RK + ' in the code is the reference photo the app puts in when the game runs: keep every occurrence exactly as it is.' : '') + ' Reply with the complete updated HTML file.' });
       try {
         /* a long game comes in parts: when a reply stops before </html>, the AI is asked to carry on from where it stopped */
         let reply = await ask(msgs, cap, onLen), out = extract(reply);
@@ -212,10 +228,11 @@
         }
         if (out.err) throw new Error(out.err);
         const before = kind === 'new' ? '' : cur.html;
-        if (kind === 'new') cur = { id: 'g' + Date.now().toString(36), name: titleOf(out.html) || text.slice(0, 40), html: out.html, asks: [text], prev: [], model: $('gmm').value, dirty: true };
+        if (kind === 'new') cur = { id: 'g' + Date.now().toString(36), name: titleOf(out.html) || text.slice(0, 40), html: out.html, asks: [text], prev: [], model: $('gmm').value, dirty: true, ref };
         else { cur.prev = (cur.prev || []).concat([{ html: cur.html, asks: cur.asks.slice() }]).slice(-5); cur.html = out.html; cur.asks = cur.asks.concat([text]); cur.dirty = true; $('gmc').value = ''; }
         const secs = Math.round((Date.now() - t0) / 1000), st = before ? diffStat(before, out.html) : null;
         const changed = st ? ' · ' + (st.gone + st.add) + ' of ' + st.lines + ' lines changed (' + st.add + ' new, ' + st.gone + ' gone)' : '';
+        if (ref && out.html.indexOf(RK) < 0) A.toast('The game was written without the reference photo: press 📷 again, or say in your words where it should be used.', 5200);
         if (st && !st.add && !st.gone) say('warn', '⚠ ' + secs + ' s, but the AI sent back exactly the same code, so nothing changed. Say the change in different words, or pick a bigger model.');
         else say('ok', '✓ ' + (kind === 'new' ? 'Made' : 'Changed') + ' in ' + secs + ' s' + changed + '. Click the game to give it the keyboard. Save it to keep it.' + (triedPatch ? '<br><span class="gmk-note">The AI rewrote the file instead of patching it: its small edit did not fit the code.</span>' : ''));
         if (op) op.end(true, secs + ' s' + changed);
@@ -258,7 +275,8 @@
     function save() {
       if (!cur) return; if ($('gmsrc').value && $('gmsrc').value !== cur.html) { applyCode(); play(); }
       cur.name = $('gmname').value.trim() || cur.name || 'Untitled game';
-      const l = list(), g = { id: cur.id, name: cur.name, html: cur.html, asks: cur.asks, model: cur.model, ts: Date.now() }, i = l.findIndex(x => x.id === cur.id);
+      cur.ref = ref;
+      const l = list(), g = { id: cur.id, name: cur.name, html: cur.html, asks: cur.asks, model: cur.model, ts: Date.now(), ref: ref || null }, i = l.findIndex(x => x.id === cur.id);
       if (i >= 0) l.splice(i, 1); l.unshift(g);
       if (l.length > KEEP) return say('err', 'You have ' + KEEP + ' saved games, the most it keeps. Delete one first.');
       if (!store(l)) return say('err', '<b>Could not save.</b> The app storage on this PC is full. Delete an old game and try again.');
@@ -287,12 +305,12 @@
     $('gmsrc').addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); $('gmrun').click(); } else if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) { e.preventDefault(); if (applyCode()) play(); save(); } });
     $('gmsave').onclick = save;
     /* port it to the Arcade: the game already runs sealed in an iframe, so the Arcade plays the very same HTML */
-    $('gmport').onclick = () => { if (!cur) return; const nm = cur.name || 'Untitled game'; const id = A.arcade && A.arcade.add({ kind: 'html', name: nm, html: cur.html, from: 'gamemaker' }); if (id) say('ok', '✓ <b>' + esc(nm) + '</b> is in the Arcade. Open <b>Games › Arcade</b>; it sits under <b>Action &amp; arcade</b>. Save the game here first if you want to keep editing it.'); else say('warn', 'The game could not be added to the Arcade.'); };
+    $('gmport').onclick = () => { if (!cur) return; const nm = cur.name || 'Untitled game'; const id = A.arcade && A.arcade.add({ kind: 'html', name: nm, html: fillRef(cur.html), from: 'gamemaker' }); if (id) say('ok', '✓ <b>' + esc(nm) + '</b> is in the Arcade. Open <b>Games › Arcade</b>; it sits under <b>Action &amp; arcade</b>. Save the game here first if you want to keep editing it.'); else say('warn', 'The game could not be added to the Arcade.'); };
     $('gmname').onchange = () => { if (cur) { cur.name = $('gmname').value.trim() || cur.name; cur.dirty = true; show(); } };
     $('gmname').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); save(); } };
     $('gmlist').onclick = e => {
       const o = e.target.closest('[data-open]'), rn = e.target.closest('[data-ren]'), dl = e.target.closest('[data-del]');
-      if (o) { if (busy) return; const g = list().find(x => x.id === o.dataset.open); if (!g) return; cur = { id: g.id, name: g.name, html: g.html, asks: (g.asks || []).slice(), prev: [], model: g.model, dirty: false }; say('', ''); play(); show(); drawList(); return; }
+      if (o) { if (busy) return; const g = list().find(x => x.id === o.dataset.open); if (!g) return; cur = { id: g.id, name: g.name, html: g.html, asks: (g.asks || []).slice(), prev: [], model: g.model, dirty: false, ref: g.ref || null }; ref = cur.ref; if (refUi) refUi.set(ref); say('', ''); play(); show(); drawList(); return; }
       if (rn) { const row = rn.closest('.gmk-item'), l = list(), g = l.find(x => x.id === rn.dataset.ren); if (!g) return; row.innerHTML = '<input class="gmk-rename" value="' + esc(g.name) + '" maxlength="60"><button class="gmk-mini" data-ok="1">✓</button>'; const inp = row.querySelector('input'); inp.focus(); inp.select();
         const done = keep => { if (done.d) return; done.d = 1; const v = inp.value.trim(); if (keep && v) { g.name = v; store(l); if (cur && cur.id === g.id) { cur.name = v; show(); } } drawList(); };
         inp.onkeydown = ev => { if (ev.key === 'Enter') done(true); else if (ev.key === 'Escape') done(false); }; inp.onblur = () => done(true); return; }

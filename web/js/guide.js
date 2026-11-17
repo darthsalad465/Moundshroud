@@ -1415,19 +1415,29 @@
 <p>Everything - the AI, the libraries, search, speech, your notes and chats - stays on this computer. The only network traffic is to your own PC. You can turn off Wi-Fi and everything still works.</p>` },
   ];
 
-  const whatsNew = '<details class="card" open style="margin:10px 0"><summary style="cursor:pointer;font-weight:600;color:var(--text)">What\'s new</summary>' + CHANGELOG.map(c => '<div class="small mute" style="margin:10px 0 2px">' + c[0] + '</div><ul style="margin:2px 0">' + c[1].map(x => '<li>' + x + '</li>').join('') + '</ul>').join('') + '</details>';
+  const whatsNew = '<div class="changelog" id="gch">' + CHANGELOG.map(c => '<details class="card" style="margin:8px 0"><summary style="cursor:pointer;font-weight:600;color:var(--text);display:flex;align-items:center;gap:8px"><span>' + c[0] + '</span><span class="mute small">' + c[1].length + ' change' + (c[1].length > 1 ? 's' : '') + '</span></summary><ul style="margin:8px 0 8px 20px">' + c[1].map(x => '<li style="margin:4px 0;line-height:1.5">' + x + '</li>').join('') + '</ul></details>').join('') + '</div>';
   const toc = A.az(SECTIONS, s => s.title).map(s => '<span class="chip" data-g="' + s.id + '">' + s.icon + ' ' + s.title.replace(/ - .*$|:.*$| \(.*$/, '') + '</span>').join('');
   root.innerHTML = '<div class="scroll pad guide" style="flex:1;max-width:820px" id="gscroll">' +
     '<h2>Welcome</h2><p>Meet <b>Moundshroud</b>, your own private assistant. It runs entirely on this PC: no account, no subscription, no internet needed. Nothing you type, say or open is sent anywhere.</p>' +
     '<div class="row" style="margin:8px 0 4px;flex-wrap:wrap"><button class="pri" id="gtour">Take the 1-minute tour</button><button class="pri" id="gpres" style="margin-left:6px">🎬 Full presentation</button><button class="pri" id="gbook" style="margin-left:6px">📖 Open the book</button><span class="small mute">Guide updated ' + GUIDE_UPDATED + '</span></div>' +
     '<input id="gq" type="text" placeholder="Search this guide..." style="margin:10px 0 6px"><div class="chips" id="gtoc" style="margin-bottom:6px">' + toc + '</div><div id="gnone" class="mute small" style="display:none;margin:8px 0">Nothing in the guide matches that.</div>' +
-    '<div id="gnew">' + whatsNew + '</div>' +
+    '<div id="gnew"><h3 style="margin:8px 0 4px">What\'s new</h3>' + whatsNew + '</div>' +
     A.az(SECTIONS, s => s.title).map(s => '<section class="gsec" id="g-' + s.id + '"><h2>' + s.icon + ' ' + s.title + '</h2>' + s.html + '</section>').join('') + '</div>';
   $('gtour').onclick = () => tour(); $('gpres').onclick = () => A.tutorial.resume(); $('gbook').onclick = () => A.guideBook && A.guideBook.open();
   $('gtoc').onclick = e => { const c = e.target.closest('[data-g]'); if (!c) return; $('gq').value = ''; filter(); const el = $('g-' + c.dataset.g); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
   function filter() {
     const q = ($('gq').value || '').trim().toLowerCase(); let shown = 0;
     root.querySelectorAll('.gsec').forEach(s => { const hit = !q || s.textContent.toLowerCase().includes(q); s.style.display = hit ? '' : 'none'; if (hit) shown++; });
+    // Also filter changelog items
+    if (q) {
+      root.querySelectorAll('#gch details').forEach(d => {
+        const hit = d.textContent.toLowerCase().includes(q);
+        d.style.display = hit ? '' : 'none';
+        if (hit) d.open = true;
+      });
+    } else {
+      root.querySelectorAll('#gch details').forEach(d => { d.style.display = ''; d.open = false; });
+    }
     $('gnew').style.display = q ? 'none' : ''; $('gnone').style.display = q && !shown ? 'block' : 'none';
   }
   $('gq').oninput = filter;

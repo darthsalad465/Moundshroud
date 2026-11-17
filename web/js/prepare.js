@@ -155,7 +155,7 @@
     sv.onclick = async e => { const b = e.target.closest('[data-vget]'); if (!b) return; b.disabled = true; b.textContent = '…'; const x = await A.api('/api/inv/get', { id: 'voice:' + b.dataset.vget }).catch(err => ({ error: err.message })); if (x.error) { A.notify('err', x.error); b.disabled = false; b.textContent = 'Download'; } else { A.notify('ok', 'Downloading the voice. It appears under Voices above when it is done.'); setTimeout(() => inventory(my), 2500); } };
   }
   P.sections.stock = async function (b, my) {
-    b.innerHTML = '<div class="scroll pad" style="flex:1"><h2>Stock up while the internet works</h2><div class="mute small">Everything Moundshroud can download is here: offline libraries, AI models, voices, the voice-typing model, the chess engine, the picture and music makers, tools and music. Downloads keep going in the background and appear where they belong when finished. Everything already on this PC is listed first, with its size, and can be removed (you are asked first, and told what stops working and whether it can be downloaded again).</div><div id="smsg" class="card" style="margin-top:10px"></div><div id="sinv"></div><h3 style="margin:22px 0 4px">Download more</h3><div id="slist"></div><div id="smod"></div><div id="smodname"></div><div id="svoice"></div><div class="small mute" style="margin:10px 0">Any other Kiwix library (.zim file) dropped into <b>nomad\\library</b> is picked up automatically. Browse more at library.kiwix.org. The chess engine is checked against the size and SHA-256 published with the Stockfish release before it is unpacked, and the source is written into <b>engines\\stockfish\\ENGINE-SOURCE.txt</b>.</div></div>';
+    b.innerHTML = '<div class="scroll pad" style="flex:1"><h2>Stock up while the internet works</h2><div class="mute small">Everything Moundshroud can download is here: offline libraries, AI models, voices, the voice-typing model, the chess engine, the picture and music makers, tools and music. Downloads keep going in the background and appear where they belong when finished. Everything already on this PC is listed first, with its size, and can be removed (you are asked first, and told what stops working and whether it can be downloaded again).</div><div id="smsg" class="card" style="margin-top:10px"></div><div id="sinv"></div><h3 style="margin:22px 0 4px">Download more</h3><div class="row" style="gap:8px;margin-bottom:12px;flex-wrap:wrap"><button class="pri" id="sgetall" title="Download all core tools: chess engine, CyberChef, library engine, Tor Browser, picture maker, music maker">⬇ Download all core tools</button><span class="small mute" id="sgetallst" style="align-self:center"></span></div><div id="slist"></div><div id="smod"></div><div id="smodname"></div><div id="svoice"></div><div class="small mute" style="margin:10px 0">Any other Kiwix library (.zim file) dropped into <b>nomad\\library</b> is picked up automatically. Browse more at library.kiwix.org. The chess engine is checked against the size and SHA-256 published with the Stockfish release before it is unpacked, and the source is written into <b>engines\\stockfish\\ENGINE-SOURCE.txt</b>.</div></div>';
     const draw = async () => {
       if (my !== tok || !$('slist')) return; let s; try { s = await A.api('/api/prep/stock'); } catch (e) { return; }
       const all = s.items.concat(s.engines || []), eng = (s.engines || [])[0];
@@ -170,6 +170,17 @@
       if (all.some(i => i.status === 'downloading' || i.status === 'installing') || (pu && pu.running)) pollT = setTimeout(draw, 4000);
     };
     draw();
+    $('sgetall').onclick = async () => {
+      const btn = $('sgetall'), st = $('sgetallst');
+      btn.disabled = true; st.textContent = 'Starting…';
+      try {
+        const r = await A.api('/api/prep/stock/get-all');
+        if (r.error) { st.textContent = '❌ ' + r.error; A.toast(r.error, 6000); }
+        else { st.textContent = '✅ ' + (r.started || 0) + ' downloads started'; A.toast('Core tools download started', 5000); }
+      } catch (e) { st.textContent = '❌ ' + e.message; A.toast('Failed: ' + e.message, 6000); }
+      btn.disabled = false;
+      setTimeout(draw, 3000);
+    };
     inventory(my);
   };
 
