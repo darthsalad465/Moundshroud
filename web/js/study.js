@@ -28,29 +28,32 @@
   const shell = (h, body) => { kb = null; root.innerHTML = '<div class="pad scroll" style="flex:1">' + h + body + '</div>'; };
 
   /* ---------------- home ---------------- */
-  function home() {
+function home() {
     deckSel = ''; kb = null; const ds = decks(), nDue = due('').length;
     root.innerHTML = '<div class="scroll pad" style="flex:1"><h2>Study</h2>' +
       '<div class="stat"><div class="card"><b>' + streak() + '</b><span class="small mute">day streak</span></div><div class="card"><b>' + nDue + '</b><span class="small mute">due today</span></div><div class="card"><b>' + cards.length + '</b><span class="small mute">cards</span></div><div class="card"><b>' + mastery('') + '%</b><span class="small mute">mastered</span></div></div>' +
       '<div class="row" style="margin:10px 0"><button class="pri" id="sgo"' + (nDue ? '' : ' disabled') + '>Review due cards</button><button class="ib" id="simp">Import</button></div><div id="qzslot"></div>' +
       '<div class="card"><b>Make a deck with AI</b><div class="small mute" style="margin:2px 0 6px">Paste notes or a passage and MOUNDSHROUD writes the cards. You can also add cards by hand inside a deck.</div><input id="stitle" type="text" placeholder="Deck name (e.g. Biology ch.3)" style="margin-bottom:6px"><textarea id="stext" rows="4" placeholder="Paste text here..."></textarea><div class="row" style="margin-top:6px"><button class="pri" id="smk">Make flashcards</button><button class="ib" id="snew">Empty deck</button><span class="small mute" id="sst"></span></div></div>' +
-      (ds.length ? '<h3>Your decks</h3>' + ds.map(d => '<div class="card row" style="cursor:pointer" data-deck="' + esc(d) + '"><div style="flex:1"><b>' + esc(d) + '</b><div class="small mute">' + inDeck(d).length + ' cards &middot; ' + due(d).length + ' due</div><div class="bar" style="margin-top:5px"><i style="width:' + mastery(d) + '%"></i></div></div><span class="mute">' + mastery(d) + '%</span></div>').join('') : '<div class="mute small" style="margin-top:12px">No decks yet - make one above.</div>') + '</div>';
+      (ds.length ? '<h3>Your decks</h3><div id="deck-list" class="virtual-list" style="max-height:500px;overflow:auto"></div>' : '<div class="mute small" style="margin-top:12px">No decks yet - make one above.</div>') + '</div>';
     $('sgo').onclick = () => flash('');
     $('smk').onclick = () => make($('stext').value, $('stitle').value || 'My deck');
     $('snew').onclick = () => { const n = ($('stitle').value || '').trim(); if (!n) return A.toast('Type a deck name first'); if (!decks().includes(n)) { cards.push(newCard(n, 'Question', 'Answer')); save(); } deckPage(n); };
     $('simp').onclick = () => importDlg('');
-    root.querySelectorAll('[data-deck]').forEach(b => b.onclick = () => deckPage(b.dataset.deck));
+    /* Virtual scrolling for decks list */
+    A.virtualList($('deck-list'), ds, d => '<div class="card row" style="cursor:pointer" data-deck="' + A.esc(d) + '"><div style="flex:1"><b>' + A.esc(d) + '</b><div class="small mute">' + inDeck(d).length + ' cards &middot; ' + due(d).length + ' due</div><div class="bar" style="margin-top:5px"><i style="width:' + mastery(d) + '%"></i></div></div><span class="mute">' + mastery(d) + '%</span></div>', { itemHeight: 80 });
+    // Re-bind click events
+    $('deck-list').onclick = e => { const b = e.target.closest('[data-deck]'); if (b) deckPage(b.dataset.deck); };
     if (A.quiz) A.quiz.mount($('qzslot'));
   }
 
   /* ---------------- deck page ---------------- */
-  function deckPage(d) {
+function deckPage(d) {
     deckSel = d; kb = null; const l = inDeck(d), n = l.length;
     const tile = (k, name, desc, min) => '<div class="card" data-mode="' + k + '"' + (n < (min || 1) ? ' style="opacity:.4;pointer-events:none"' : '') + '><b>' + name + '</b><div class="small mute">' + desc + '</div></div>';
     root.innerHTML = '<div class="scroll pad" style="flex:1"><div class="row"><button class="ib" id="sx">&larr; Decks</button><h2 style="margin:0;flex:1">' + esc(d) + '</h2><button class="ib" id="sexp">Export</button><button class="ib" id="simp">Import</button><button class="ib dang" id="sdel">Delete</button></div>' +
       '<div class="small mute" style="margin:6px 0">' + n + ' cards &middot; ' + due(d).length + ' due &middot; ' + mastery(d) + '% mastered</div><div class="bar"><i style="width:' + mastery(d) + '%"></i></div>' +
       '<div class="mode">' + tile('flash', 'Flashcards', 'Spaced repetition') + tile('learn', 'Learn', 'Adaptive questions') + tile('test', 'Test', 'Graded practice test', 2) + tile('match', 'Match', 'Beat the clock', 4) + tile('write', 'Write', 'Type each answer') + tile('spell', 'Spell', 'Listen, then type') + '</div>' +
-      '<div class="row"><h3 style="margin:0;flex:1">Cards</h3><button class="ib" id="sadd">+ Add card</button><button class="ib" id="sai">+ More with AI</button></div><div id="slist"></div></div>';
+      '<div class="row"><h3 style="margin:0;flex:1">Cards</h3><button class="ib" id="sadd">+ Add card</button><button class="ib" id="sai">+ More with AI</button></div><div id="slist" class="virtual-list" style="max-height:500px;overflow:auto"></div></div>';
     $('sx').onclick = home;
     $('sdel').onclick = async () => { if (!confirm('Delete the deck "' + d + '"?')) return; cards = cards.filter(c => c.deck !== d); await save(); home(); };
     $('sexp').onclick = () => A.dlg('<div class="hd"><b>Export "' + esc(d) + '"</b> <span class="mute small">tab-separated: question, tab, answer</span></div><div class="bd"><textarea id="sxt" rows="12" readonly>' + esc(l.map(c => c.q.replace(/[\t\n]+/g, ' ') + '\t' + c.a.replace(/[\t\n]+/g, ' ')).join('\n')) + '</textarea><div class="row" style="margin-top:8px"><button class="pri" id="sxc">Copy</button><button class="ib" id="sxd">Close</button></div></div>') || ($('sxc').onclick = () => A.copy($('sxt').value), $('sxd').onclick = A.closeDlg);
@@ -58,8 +61,10 @@
     $('sadd').onclick = () => editDlg(null, d);
     $('sai').onclick = () => { const t = prompt('Paste text to make more cards from:'); if (t) make(t, d); };
     root.querySelectorAll('[data-mode]').forEach(t => t.onclick = () => ({ flash, learn, test, match, write, spell })[t.dataset.mode](d));
-    const sl = $('slist'); sl.innerHTML = l.map(c => '<div class="card" style="padding:8px 12px"><div class="row"><div style="flex:1"><b>' + esc(c.q) + '</b><div class="mute small" style="white-space:pre-wrap">' + esc(c.a) + '</div></div><span class="small mute" title="mastery">' + '&#9679;'.repeat(c.m || 0) + '&#9675;'.repeat(MAXM - (c.m || 0)) + '</span><span class="ib" data-e="' + c.id + '" style="cursor:pointer">Edit</span></div></div>').join('');
-    sl.onclick = e => { const x = e.target.closest('[data-e]'); if (x) editDlg(cards.find(c => c.id === x.dataset.e), d); };
+    /* Virtual scrolling for cards list */
+    A.virtualList($('slist'), l, c => '<div class="card" style="padding:8px 12px"><div class="row"><div style="flex:1"><b>' + A.esc(c.q) + '</b><div class="mute small" style="white-space:pre-wrap">' + A.esc(c.a) + '</div></div><span class="small mute" title="mastery">' + '&#9679;'.repeat(c.m || 0) + '&#9675;'.repeat(MAXM - (c.m || 0)) + '</span><span class="ib" data-e="' + c.id + '" style="cursor:pointer">Edit</span></div></div>', { itemHeight: 80 });
+    // Re-bind click events
+    $('slist').onclick = e => { const x = e.target.closest('[data-e]'); if (x) editDlg(cards.find(c => c.id === x.dataset.e), d); };
   }
   function editDlg(c, d) {
     A.dlg('<div class="hd"><b>' + (c ? 'Edit card' : 'New card') + '</b></div><div class="bd"><div class="small mute">Question / term</div><textarea id="eq" rows="2">' + esc(c ? c.q : '') + '</textarea><div class="small mute" style="margin-top:6px">Answer / definition</div><textarea id="ea" rows="3">' + esc(c ? c.a : '') + '</textarea><div class="row" style="margin-top:10px">' + (c ? '<button class="ib dang" id="edl">Delete</button>' : '') + '<span class="sp"></span><button class="ib" id="ecn">Cancel</button><button class="pri" id="esv">Save</button></div></div>');

@@ -15,6 +15,7 @@
 <link rel="stylesheet" href="/web/shroud.css">
 <link rel="stylesheet" href="/web/storybook.css">
 <link rel="stylesheet" href="/web/guide-book.css">
+<link rel="stylesheet" href="/web/bible-book.css">
 <script>/* The new look (web/shroud.css, web/js/shroud.js) is decided here, before anything is drawn, so the window never flashes the old layout.
    The first time it runs it moves the app to the Moundshroud colour theme and remembers the old choice (oa_shroud_prev), so one click brings it back. */
 (function(){try{var d=document.documentElement,s=localStorage;
@@ -125,7 +126,7 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
 <nav id="nav"></nav>
 <main>
   <!-- CHAT -->
-  <section class="panel on" id="p-chat">
+  <section class="panel" id="p-chat">
     <div id="chattabs" class="row"><button class="ib on" data-ct="chat">&#128172; Chat</button><button class="ib" data-ct="agent">&#129302; Agent</button><button class="ib" data-ct="swarm">&#128029; Swarm</button><button class="ib" data-ct="olympics">&#127941; Olympics</button><button class="ib" data-ct="debate">&#128483; Debate</button></div>
     <div id="agentpane"></div>
     <div id="swarmpane"></div>
@@ -213,6 +214,7 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
 <script defer src="/web/js/styles.js"></script>
 <script defer src="/web/js/custom.js"></script>
 <script defer src="/web/js/core.js"></script>
+<script defer src="/web/js/lazy.js"></script>
 <script defer src="/web/js/codeview.js"></script>
 <script defer src="/web/js/code-ed.js"></script>
 <script defer src="/web/js/activity.js"></script>
@@ -278,6 +280,8 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
 <script defer src="/web/js/cyber-tools.js"></script>
 <script defer src="/web/js/artex.js"></script>
 <script defer src="/web/js/cyber-labs.js"></script>
+<script defer src="/web/js/cyber-reverse.js"></script>
+<script defer src="/web/js/cyber-crack.js"></script>
 <script defer src="/web/js/health.js"></script>
 <script defer src="/web/js/prepare.js"></script>
 <script defer src="/web/js/prep-plans.js"></script>
@@ -430,6 +434,7 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
 <script defer src="/web/js/tutorial.js"></script>
 <script defer src="/web/js/guide.js"></script>
 <script defer src="/web/js/guide-book.js"></script>
+<script defer src="/web/js/bible-book.js"></script>
 <script defer src="/web/js/appmap.js"></script>
 <script defer src="/web/js/whatsnew.js"></script>
 <script defer src="/web/js/search.js"></script>

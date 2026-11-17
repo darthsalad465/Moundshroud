@@ -6,6 +6,8 @@ const U = require('./lib/util'), docs = require('./lib/docs'), kiwix = require('
 const safe = require('./lib/safe');
 const problems = require('./lib/problems');
 const cloud = require('./lib/cloud');
+const freeRoute = require('./lib/freeroute');
+const { ANTHROPIC_KEY } = cloud;
 const gateway = require('./lib/gateway');
 const net = require('./lib/net');
 const news = require('./lib/news');
@@ -56,6 +58,7 @@ function cleanup() {
   try { gateway.stop(); } catch (e) {}
   try { harnesses.claude.stop(); } catch (e) {}   // the hidden Claude Code process of the in-app agent
   try { harnesses.jcode.stop(); jcodeLib.stopDaemon(); } catch (e) {}   // and jcode, with its background server
+  try { require('./lib/agentbridge').stop(); } catch (e) {}   // the free-agent bridge the harnesses use for free models
   try { routines.shutdown(); } catch (e) {}  // and a routine's, if one is running
   try { remote.stop(); } catch (e) {}        // and the phone server
   try { bibleLib.close(); } catch (e) {}     // and the Bible Expert's index builder, if it is running
@@ -338,46 +341,93 @@ const mainServer = http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': GT[path.extname(f).toLowerCase()] || 'application/octet-stream', 'Content-Length': fs.statSync(f).size, 'Cache-Control': 'no-store' });
       return fs.createReadStream(f).pipe(res);
     }
-    if (url === '/api/models') {
-      const cs = cloud.status();
-      const cloudList = cs.on ? cs.models.map(m => ({ name: m.id, size: 0, cloud: true, label: '☁ ' + m.name + (m.note ? ' - ' + m.note : '') })) : [];
-      return ensureOllama(up => {
-        if (!up) return json(res, 200, { ollama: false, cloud: cs.on, models: cloudList });
-        http.get({ ...OLLAMA, path: '/api/tags' }, r => { let b = ''; r.on('data', c => b += c); r.on('end', () => { try { const j = JSON.parse(b); json(res, 200, { ollama: true, cloud: cs.on, models: cloudList.concat((j.models || []).map(m => ({ name: m.name, size: m.size }))) }); } catch (e) { json(res, 200, { ollama: true, cloud: cs.on, models: cloudList }); } }); })
-          .on('error', () => json(res, 200, { ollama: false, cloud: cs.on, models: cloudList }));
-      });
-    }
-    /* AI: a local model, or Claude when the user has saved a key and picked a Claude model. Both answer in the same shape,
-       so every feature in the app (chat, the buddy, quizzes, documents, the chess coach) works with either. */
-    if (url === '/api/chat' && req.method === 'POST') {
-      const payload = await body(req);
-      let b = null; try { b = JSON.parse(payload); } catch (e) { b = null; }
-      const cc = cloud.cfg();
-      const isCloud = !!(b && cloud.isCloud(b.model) && cc.key);
-      /* pressing buttons in the app needs the local model: Anthropic tool schemas are a different shape, and an action
-         that quietly did nothing would be worse than answering locally. The model name is swapped so it still works. */
-      if (isCloud && b.tools) {
-        const local = await localModelName();
-        if (local) { b.model = local; cloud.set({ local }); return ollamaChat(JSON.stringify(b), res); }
-        delete b.tools;
-      }
-      if (isCloud) {
-        if (b.stream) return cloud.streamTo(b, res);
-        return cloud.once(b, r => json(res, 200, r));
-      }
-      if (b && b.model && !cloud.isCloud(b.model) && b.model !== cc.local) cloud.set({ local: String(b.model) });   // remember it for the tool case above
-      return ollamaChat(payload, res);
-    }
+if (url === '/api/models') {
+  const cs = await cloud.status();
+  /* the free pool is always offered: no key, no setup, and it moves to another free route or the local model by itself */
+  let cloudList = [{ name: 'free-auto', size: 0, cloud: true, label: '✦ Free frontier · auto (free, no key)' }];
+  if (cs.on && cs.provider === 'anthropic') {
+    cloudList = cs.models.map(m => ({ name: m.id, size: 0, cloud: true, label: '☁ ' + m.name + (m.note ? ' - ' + m.note : '') }));
+  } else if (cs.on && cs.provider !== 'anthropic' && cs.provider !== 'local') {
+    // Free LLM provider
+    cloudList = cs.models.map(m => ({ name: m.id, size: 0, cloud: true, label: '☁ ' + m.name + (m.note ? ' - ' + m.note : ''), provider: cs.provider }));
+  }
+  return ensureOllama(up => {
+    if (!up) return json(res, 200, { ollama: false, cloud: cs.on, models: cloudList, provider: cs.provider });
+    http.get({ ...OLLAMA, path: '/api/tags' }, r => { let b = ''; r.on('data', c => b += c); r.on('end', () => { try { const j = JSON.parse(b); json(res, 200, { ollama: true, cloud: cs.on, models: cloudList.concat((j.models || []).map(m => ({ name: m.name, size: m.size }))) }); } catch (e) { json(res, 200, { ollama: true, cloud: cs.on, models: cloudList }); } }); })
+      .on('error', () => json(res, 200, { ollama: false, cloud: cs.on, models: cloudList }));
+  });
+}
+/* AI: a local model, or a cloud provider (Anthropic or Free LLM) when the user has saved a key.
+   Both answer in the same shape, so every feature in the app (chat, the buddy, quizzes, documents, the chess coach) works with either. */
+if (url === '/api/chat' && req.method === 'POST') {
+  const payload = await body(req);
+  let b = null; try { b = JSON.parse(payload); } catch (e) { b = null; }
+  const cc = cloud.cfg();
+  /* the free pool: try every free route in turn; if not one of them answers, the model on this PC does */
+  if (b && b.model === 'free-auto') {
+    if (b.stream) return freeRoute.stream(b, res).then(async handled => {
+      if (handled) return;
+      const local = await localModelName().catch(() => '');
+      if (local) { cloud.set({ local }); return ollamaChat(JSON.stringify(Object.assign({}, b, { model: local })), res); }
+      res.writeHead(200, { 'Content-Type': 'application/x-ndjson; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify({ error: 'No free route answered and there is no model on this PC to fall back to.' }) + '\n');
+    });
+    return freeRoute.once(b, async (err, r) => {
+      if (r) return json(res, 200, r);
+      const local = await localModelName().catch(() => '');
+      if (local) { cloud.set({ local }); return ollamaChat(JSON.stringify(Object.assign({}, b, { model: local })), res); }
+      json(res, 200, { error: (err && err.error) || 'No free route answered.' });
+    });
+  }
+  /* If the model exists locally in Ollama, always use Ollama — even if the name matches a cloud provider's list.
+     This prevents "Unknown provider" when a local model name coincides with a free provider's model ID. */
+  const isLocalModel = b && b.model && await (async () => {
+    try {
+      const r = await new Promise(resolve => http.get({ ...OLLAMA, path: '/api/tags', timeout: 1500 }, res => { let d = ''; res.on('data', c => d += c); res.on('end', () => resolve(d)); }).on('error', () => resolve('')));
+      const j = JSON.parse(r || '{}');
+      return (j.models || []).some(m => m.name === b.model);
+    } catch (e) { return false; }
+  })();
+  const isAnthropic = !!(b && cloud.isCloud(b.model) && ANTHROPIC_KEY && !isLocalModel);
+  const isFree = !!(b && cloud.isFreeProvider(b.model) && cc.provider !== 'anthropic' && !isLocalModel);
+  const isNoKey = !!(b && cloud.isNoKeyProvider(b.model) && !isLocalModel);
+  const isCloud = isAnthropic || isFree || isNoKey;
+  /* Anthropic uses its own tool format; free LLM providers use OpenAI function calling (same as our schema).
+     So only strip tools for Anthropic; let free LLM providers handle tools natively. */
+  if (isAnthropic && b.tools) {
+    const local = await localModelName();
+    if (local) { b.model = local; cloud.set({ local }); return ollamaChat(JSON.stringify(b), res); }
+    delete b.tools;
+  }
+  if (isAnthropic) {
+    if (b.stream) return cloud.streamTo(b, res);
+    return cloud.once(b, r => json(res, 200, r));
+  }
+  if (isFree) {
+    /* a provider that fails must answer with an error; a rejection used to leave the page waiting for ever */
+    const fail = e => { try { if (!res.headersSent) json(res, 502, { error: 'That free provider did not answer: ' + String((e && e.message) || e) }); else res.end(); } catch (x) { } };
+    if (b.stream) return Promise.resolve(cloud.streamFree(cc.provider, b, res)).catch(fail);
+    return Promise.resolve(cloud.callFree(cc.provider, b, r => json(res, 200, r))).catch(fail);
+  }
+  if (isNoKey) {
+    if (b.stream) return cloud.streamNoKey(cc.provider, b, res);
+    return cloud.callNoKey(cc.provider, b, r => json(res, 200, r));
+  }
+  if (b && b.model && !cloud.isCloud(b.model) && b.model !== cc.local) cloud.set({ local: String(b.model) });
+  return ollamaChat(payload, res);
+}
     /* ---- Claude (Anthropic) and internet access: settings, a live check, and the two web calls ---- */
     if (url === '/api/cloud') {
-      if (req.method === 'GET') return json(res, 200, cloud.status());
+      if (req.method === 'GET') return json(res, 200, await cloud.status());
       const b = await jbody(req, 2e5);
       if (b.forget) return json(res, 200, cloud.set({ key: '', model: '' }));
       const patch = {};
       if (typeof b.key === 'string') { const k = b.key.trim(); const bad = cloud.keyProblem(k); if (bad) return json(res, 400, { error: bad }); patch.key = k; }
       if (typeof b.model === 'string') patch.model = b.model.trim();
       if (typeof b.web === 'boolean') patch.web = b.web;
-      let st = cloud.set(patch);
+      if (typeof b.provider === 'string') patch.provider = b.provider.trim();
+      if (b.providerKey && typeof b.providerKey.provider === 'string' && typeof b.providerKey.key === 'string') patch.providerKey = b.providerKey;
+      const st = cloud.set(patch);
       /* a new key: read the live model list straight away and pick a sensible model, so nothing has to be chosen by hand */
       if (patch.key && !patch.model) {
         const r = await cloud.refreshModels().catch(() => null);
@@ -386,15 +436,42 @@ const mainServer = http.createServer(async (req, res) => {
       }
       return json(res, 200, st);
     }
-    if (url === '/api/cloud/models') { const r = await cloud.refreshModels(); return json(res, 200, Object.assign({ status: cloud.status() }, r)); }
+    if (url === '/api/cloud/models') { const r = await cloud.refreshModels(); return json(res, 200, Object.assign({ status: await cloud.status() }, r)); }
     if (url === '/api/cloud/test' && req.method === 'POST') return json(res, 200, await cloud.test());
+    /* ---- Free LLM providers (Groq, OpenRouter, NVIDIA NIM, Google Gemini, etc.) ---- */
+    if (url === '/api/cloud/providers' && req.method === 'GET') return json(res, 200, await cloud.getProviders());
+    if (url === '/api/cloud/set-provider' && req.method === 'POST') {
+      const b = await jbody(req, 1e5);
+      const patch = {};
+      if (typeof b.provider === 'string') patch.provider = b.provider.trim();
+      if (typeof b.model === 'string') patch.model = b.model.trim();
+      if (b.providerKey && typeof b.providerKey.provider === 'string' && typeof b.providerKey.key === 'string') patch.providerKey = b.providerKey;
+      return json(res, 200, cloud.set(patch));
+    }
+    if (url === '/api/cloud/test-free' && req.method === 'POST') {
+      const b = await jbody(req, 1e5);
+      return json(res, 200, await cloud.testFree(b.provider, b.model));
+    }
+    /* ---- No API key required providers (Glhf.chat, Chutes.ai, OVHcloud anonymous) ---- */
+    if (url === '/api/cloud/no-key' && req.method === 'GET') return json(res, 200, cloud.getNoKeyProviders());
+    /* the free pool: which routes it has, how they are doing, and a live test of each one */
+    if (url === '/api/free/status') return json(res, 200, freeRoute.status());
+    if (url === '/api/free/test' && req.method === 'POST') return json(res, 200, await freeRoute.testAll());
+    if (url === '/api/cloud/test-no-key' && req.method === 'POST') {
+      const b = await jbody(req, 1e5);
+      return json(res, 200, await cloud.testNoKey(b.provider, b.model));
+    }
+    /* Force refresh free LLM providers from GitHub (clears cache) */
+    if (url === '/api/cloud/refresh-providers' && req.method === 'POST') {
+      return json(res, 200, await cloud.forceRefreshProviders());
+    }
     if (url === '/api/net/search' && req.method === 'POST') { const b = await jbody(req, 1e5); return json(res, 200, await net.search(b.q, b.n)); }
     if (url === '/api/net/page' && req.method === 'POST') { const b = await jbody(req, 1e5); return json(res, 200, await net.page(b.url)); }
     /* ---- News: the last edition (readable offline), a refresh (only with internet access on), and the source list ---- */
     /* ---- Privacy: what can leave this PC, and the window's own settings ---- */
     if (url === '/api/privacy') {
       if (req.method === 'POST') { const b = await jbody(req, 1e4); if (typeof b.signout === 'boolean') privacy.setChoice({ signout: b.signout }); }
-      const cs = cloud.status(), np = news.prefsPublic();
+      const cs = await cloud.status(), np = news.prefsPublic();
       return json(res, 200, privacy.status({ internet: net.on(), claude: !!(cs && cs.on), news: np }));
     }
     if (url === '/api/news') return json(res, 200, news.snapshot());
@@ -659,7 +736,7 @@ const mainServer = http.createServer(async (req, res) => {
     if (url === '/api/wake') { const W = path.join(DATA, 'wake-on'); if (req.method === 'POST') { const b = await jbody(req, 1e3); if (b.on) fs.writeFileSync(W, '1'); else { try { fs.unlinkSync(W); } catch (e) { } } } let status = ''; try { status = fs.readFileSync(path.join(DATA, 'wake-status.txt'), 'utf8').trim(); } catch (e) { } return json(res, 200, { on: fs.existsSync(W), status }); }
     if (url === '/api/harness/clear' && req.method === 'POST') return json(res, 200, harness.clear());
     if (url === '/api/agent/status') return agent.status(s => json(res, 200, s));
-    if (url === '/api/agent/launch' && req.method === 'POST') { const b = await jbody(req, 1e4); return agent.list((up, models) => json(res, 200, agent.launch(b.dir, { model: b.model, guard: !!b.guard, ctx: b.ctx }, models))); }
+    if (url === '/api/agent/launch' && req.method === 'POST') { const b = await jbody(req, 1e4); return agent.list(async (up, models) => json(res, 200, await agent.launch(b.dir, { model: b.model, guard: !!b.guard, ctx: b.ctx, harness: harnessKind }, models))); }
     if (url === '/api/pick-folder' && req.method === 'POST') {
       const ps = "Add-Type -AssemblyName System.Windows.Forms; $f=New-Object System.Windows.Forms.FolderBrowserDialog; $f.Description='Choose a folder for your assistant to read'; $f.ShowNewFolderButton=$false; if($f.ShowDialog() -eq 'OK'){ [Console]::Out.Write($f.SelectedPath) }";
       return cp.execFile('powershell.exe', ['-NoProfile', '-STA', '-Command', ps], { windowsHide: false, timeout: 300000 }, (e, out) => json(res, 200, { path: String(out || '').trim() }));
@@ -693,6 +770,101 @@ const mainServer = http.createServer(async (req, res) => {
       const z = await extra.backup(); if (!z) return json(res, 500, { error: 'backup failed' }); prep.noteBackup();
       res.writeHead(200, { 'Content-Type': 'application/zip', 'Content-Disposition': 'attachment; filename="' + path.basename(z) + '"', 'Content-Length': fs.statSync(z).size });
       return fs.createReadStream(z).on('close', () => extra.rm(z)).pipe(res);
+    }
+    /* ---- Git push to GitHub ---- */
+    if (url === '/api/git/push' && req.method === 'POST') {
+      const b = await jbody(req, 1e4);
+      const { addAll = true, message, remote = 'origin', branch } = b || {};
+      try {
+        // Get current repo info
+        let repoUrl = '';
+        try { repoUrl = cp.execSync('git config --get remote.' + remote + '.url', { cwd: ROOT, encoding: 'utf8', timeout: 5000 }).trim(); } catch (e) {}
+        let currentBranch = '';
+        try { currentBranch = cp.execSync('git rev-parse --abbrev-ref HEAD', { cwd: ROOT, encoding: 'utf8', timeout: 5000 }).trim(); } catch (e) {}
+        const pushBranch = branch || currentBranch || 'main';
+        
+        // Check if there are changes to commit
+        let status = '';
+        try { status = cp.execSync('git status --porcelain', { cwd: ROOT, encoding: 'utf8', timeout: 5000 }).trim(); } catch (e) {}
+        
+        if (addAll && status) {
+          cp.execSync('git add -A', { cwd: ROOT, encoding: 'utf8', timeout: 10000 });
+          const commitMsg = message || 'Auto-commit from Moundshroud: ' + new Date().toISOString().slice(0, 19).replace('T', ' ');
+          cp.execSync('git commit -m ' + JSON.stringify(commitMsg), { cwd: ROOT, encoding: 'utf8', timeout: 10000 });
+        }
+        
+        // Push
+        let pushOutput = '';
+        try { pushOutput = cp.execSync('git push ' + remote + ' ' + pushBranch, { cwd: ROOT, encoding: 'utf8', timeout: 30000 }); } catch (e) {
+          return json(res, 500, { error: 'Git push failed: ' + (e.stderr || e.stdout || e.message) });
+        }
+        
+        // Parse repo URL to get GitHub web URL
+        let webUrl = repoUrl;
+        if (repoUrl) {
+          // Convert git@github.com:user/repo.git or https://github.com/user/repo.git to https://github.com/user/repo
+          webUrl = repoUrl.replace(/^git@github\.com:/, 'https://github.com/').replace(/\.git$/, '');
+          if (repoUrl.startsWith('https://github.com/')) webUrl = repoUrl.replace(/\.git$/, '');
+        }
+        
+        return json(res, 200, { ok: true, repo: webUrl || 'unknown', branch: pushBranch, output: pushOutput.trim(), hadChanges: !!status });
+      } catch (e) {
+        return json(res, 500, { error: 'Git operation failed: ' + e.message });
+      }
+    }
+    /* ---- Share app: create portable zip ---- */
+    if (url === '/api/app/share' && req.method === 'POST') {
+      const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      const zipName = 'Moundshroud-' + stamp + '.zip';
+      const tmpDir = path.join(extra.TMP, 'share-' + Date.now());
+      try {
+        fs.mkdirSync(tmpDir, { recursive: true });
+        const appDir = path.join(tmpDir, 'Moundshroud');
+        fs.mkdirSync(appDir, { recursive: true });
+        
+        // Copy essential files (exclude node_modules, data, .git, tmp, releases, logs)
+        const exclude = ['node_modules', 'data', '.git', 'tmp', 'releases', '*.log', '*.zip', 'Moundshroud-*', '.vscode', '.idea'];
+        function copyRecursive(src, dest) {
+          if (!fs.existsSync(src)) return;
+          const rel = path.relative(ROOT, src);
+          if (exclude.some(e => e.includes('*') ? new RegExp('^' + e.replace(/\*/g, '.*') + '$').test(rel) : rel === e || rel.startsWith(e + '/'))) return;
+          const stat = fs.statSync(src);
+          if (stat.isDirectory()) {
+            fs.mkdirSync(dest, { recursive: true });
+            for (const f of fs.readdirSync(src)) copyRecursive(path.join(src, f), path.join(dest, f));
+          } else {
+            fs.copyFileSync(src, dest);
+          }
+        }
+        copyRecursive(ROOT, appDir);
+        
+        // Create zip using PowerShell Compress-Archive (available on Windows)
+        const zipPath = path.join(extra.TMP, zipName);
+        const psScript = `
+          $ErrorActionPreference = 'Stop'
+          Compress-Archive -Path "${appDir.replace(/\\/g, '\\\\')}\\*" -DestinationPath "${zipPath.replace(/\\/g, '\\\\')}" -Force
+        `;
+        cp.execSync('powershell -NoProfile -Command ' + JSON.stringify(psScript), { timeout: 60000, encoding: 'utf8' });
+        
+        // Cleanup temp dir
+        extra.rm(tmpDir);
+        
+        if (!fs.existsSync(zipPath)) return json(res, 500, { error: 'Zip creation failed' });
+        
+        const size = fs.statSync(zipPath).size;
+        
+        // Return the zip file
+        res.writeHead(200, { 
+          'Content-Type': 'application/zip', 
+          'Content-Disposition': 'attachment; filename="' + zipName + '"',
+          'Content-Length': size 
+        });
+        fs.createReadStream(zipPath).on('close', () => extra.rm(zipPath)).pipe(res);
+        
+      } catch (e) {
+        extra.rm(tmpDir);
+        return json(res, 500, { error: 'Failed to create shareable app: ' + e.message });
+      }
     }
     /* no engine help of any kind while a real Lichess game is being played (Lichess forbids it) */
     if (lichess.live() && (url === '/api/sf/go' || url === '/api/sf/ana' || url === '/api/study/book')) return json(res, 200, { error: 'Chess engines are locked while your Lichess game is being played.', locked: true });

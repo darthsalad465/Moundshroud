@@ -129,6 +129,7 @@
     { title: 'Spiritual: Bible, prayers, Rosary', icon: '✝️', group: 'Go to', tags: 'faith bible prayer rosary spiritual', run: () => A.showTab('faith') },
     { title: 'Spiritual: learn the Bible (lessons, quiz, memorize)', icon: '🎓', group: 'Go to', tags: 'bible learn lesson quiz memorize verse study books spiritual', run: () => (A.faith && A.faith.learn ? A.faith.learn() : A.showTab('faith')) },
     { title: 'Spiritual: ask the Bible Expert', icon: '✝️', group: 'Go to', tags: 'bible expert ask scripture church history theology catechism fathers question', run: () => (A.faith && A.faith.expert ? A.faith.expert() : A.showTab('faith')) },
+    { title: 'Spiritual: read the Bible as a book', icon: '📖', group: 'Go to', tags: 'bible book read kjv king james read scripture holy page turn', run: () => (A.bibleBook ? A.bibleBook.open() : A.showTab('faith')) },
     { title: 'Study flashcards', icon: '🎓', group: 'Go to', tags: 'study flashcards revise', run: () => A.showTab('study') },
     { title: 'Ready check: is everything set up', icon: '🛟', group: 'Go to', tags: 'prepare ready check health setup stock up', run: () => A.showTab('health') },
     { title: 'First aid and emergency plans', icon: '🚑', group: 'Go to', tags: 'first aid emergency plans prepare', run: () => { A.showTab('health'); setTimeout(() => { const b = document.querySelector('#psub [data-s=practice]'); b && b.click(); }, 300); } },

@@ -647,15 +647,14 @@ pre.cv-n>code{white-space:pre!important}
 .ce-gi i{display:block;font-style:normal;height:19.375px}
 .ce-gi i.on{color:#e8e8f0;font-weight:700}
 .ce-view{position:relative;flex:1;min-width:0;overflow:hidden}
-.ce-hl{position:absolute;top:0;left:0;margin:0;padding:10px 76px 40px 12px;pointer-events:none;user-select:none;
+.ce-hl{position:absolute;top:0;left:0;margin:0;padding:10px 16px 40px 12px;pointer-events:none;user-select:none;
   color:var(--ce-fg);font:13px/1.55 ui-monospace,Consolas,"Cascadia Mono",monospace;white-space:pre;tab-size:2;will-change:transform}
 .ce .ce-ta{position:absolute!important;inset:0;width:100%!important;height:100%!important;box-sizing:border-box;margin:0!important;
-  padding:10px 76px 40px 12px!important;border:0!important;border-radius:0!important;background:transparent!important;color:transparent!important;
+  padding:10px 16px 40px 12px!important;min-height:0!important;border:0!important;border-radius:0!important;background:transparent!important;color:transparent!important;
   caret-color:#e8e8f0;font:13px/1.55 ui-monospace,Consolas,"Cascadia Mono",monospace!important;white-space:pre;tab-size:2;resize:none!important;
   outline:none!important;overflow:auto;box-shadow:none!important}
 .ce .ce-ta::selection{background:rgba(90,140,255,.35);color:transparent}
 .ce .ce-ta::placeholder{color:#5f6470}
-.ce-map{position:absolute;right:0;top:0;width:68px;height:100%;opacity:.8;pointer-events:none;background:#1b1b20}
 /* token colours, the same family as VS Code's dark+ */
 .tk-k{color:#569cd6}.tk-s{color:#ce9178}.tk-c{color:#6a9955;font-style:italic}.tk-n{color:#b5cea8}
 .tk-f{color:#dcdcaa}.tk-t{color:#4ec9b0}.tk-p{color:#9cdcfe}
@@ -722,18 +721,13 @@ pre.cv-n>code{white-space:pre!important}
 .rm-opt{display:flex!important;align-items:center;gap:9px;padding:8px 11px;margin:5px 0!important;border-radius:10px;border:1px solid var(--line);background:var(--panel2)}
 .cu-sec{margin-top:12px;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:color-mix(in srgb,var(--panel2) 35%,transparent)}
 /* a panel with the hidden attribute must actually stay hidden (display:flex above would otherwise show it) */
-.ce-find[hidden], .ce-crumb[hidden], .ce-frep[hidden], .ce-s[hidden], .ce-map[hidden] { display: none !important; }
+.ce-find[hidden], .ce-crumb[hidden], .ce-frep[hidden], .ce-s[hidden] { display: none !important; }
 /* the gutter must sit on exactly the same line height as the code, or the numbers drift from the lines */
 .ce-gi { font-size: 13px; line-height: 1.55; }
 .ce-gi i { height: auto; line-height: inherit; }
 .god-edwrap .ce { min-height: 420px; }
 .ae-main .ce { min-height: 320px; }
-/* a narrow window: the minimap would leave too little room for the code */
-@media (max-width: 900px) {
-  .ce-map { display: none; }
-  .ce-hl { padding-right: 12px; }
-  .ce .ce-ta { padding-right: 12px !important; }
-}
+.gmk .ce { min-height: 320px; }
 /* AI Olympics: the four levels of pressure */
 .ollevels{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px;margin-top:6px}
 .ollev{display:flex;gap:10px;align-items:flex-start;padding:9px 11px;border:1px solid var(--line);border-radius:11px;background:var(--panel2);cursor:pointer;transition:border-color .15s,background .15s}
