@@ -47,13 +47,18 @@ A private assistant that runs entirely on your Windows PC. It answers with local
 **Guide** — Searchable manual, 1-minute tour, full presentation, holographic book view
 
 ## New in 1.3.0
-- **Passwords** (Tools): Encrypted vault (AES-256-GCM, PBKDF2 600k rounds), generator, weak/reused check, browser import, version history, clipboard wipe after 30s, AI never sees the page
-- **Photos**: Month view, AI descriptions ("dog in snow", "birthday 2024"), files read-only, OneDrive cloud-only files not downloaded unless opened
-- **Mail**: IMAP (Gmail, Yahoo, iCloud, Fastmail, Proton via Bridge), scripts/tracking blocked, scam warnings, AI inbox brief, summaries, reply help — drafts go to your Drafts folder, Moundshroud never sends
-- **AI Memory**: Say "remember that..." in Chat; `Ctrl+K → What the AI remembers about me` to view/delete; AI can find photos and start email drafts
-- **Lichess** (Chess): Real games on your free Lichess account via official Board API; all engines/hints locked during play per fair-play rules
-- **News → Research**, **Tor Browser** (Browser tab), working **Meeting Notes** transcripts, animations respect app Motion setting (not Windows)
-- **Settings → Appearance → Grouped top bar** toggles flat/sidebar layout
+- **Free LLMs** (Settings → AI & power): 22+ providers, 311+ models via [awesome-freellm-apis](https://github.com/lucasdorazio/awesome-freellm-apis) — Groq, NVIDIA NIM, Google Gemini, OpenRouter, Mistral, Cohere, Cloudflare, ModelScope, OVHcloud, Ollama Cloud, Glhf.chat, Chutes.ai, LLM7.io, Z.ai, Gonka, Agnes, Aion Labs, SiliconFlow, Grok, OpenCode Zen, and more. Auto-updated from GitHub (6-hour cache) with local fallback.
+- **No API Key Required**: Glhf.chat (unlimited Llama/Mixtral), Chutes.ai (DeepSeek R1), OVHcloud AI (anonymous EU-hosted) — just pick a provider and model, no signup.
+- **Free frontier pool** (Settings → AI & power): auto-fallback across working free routes, shows live status and daily usage.
+- **Push to GitHub** (Settings → Backup & data): commit & push changes to your remote (author copy only).
+- **Shareable app zip** (Settings → Backup & data): portable zip of the current version (code only, no personal data).
+- **Passwords** (Tools): Encrypted vault (AES-256-GCM, PBKDF2 600k rounds), generator, weak/reused check, browser import, version history, clipboard wipe after 30s, AI never sees the page.
+- **Photos**: Month view, AI descriptions ("dog in snow", "birthday 2024"), files read-only, OneDrive cloud-only files not downloaded unless opened.
+- **Mail**: IMAP (Gmail, Yahoo, iCloud, Fastmail, Proton via Bridge), scripts/tracking blocked, scam warnings, AI inbox brief, summaries, reply help — drafts go to your Drafts folder, Moundshroud never sends.
+- **AI Memory**: Say "remember that..." in Chat; `Ctrl+K → What the AI remembers about me` to view/delete; AI can find photos and start email drafts.
+- **Lichess** (Chess): Real games on your free Lichess account via official Board API; all engines/hints locked during play per fair-play rules.
+- **News → Research**, **Tor Browser** (Browser tab), working **Meeting Notes** transcripts, animations respect app Motion setting (not Windows).
+- **Settings → Appearance → Grouped top bar** toggles flat/sidebar layout.
 
 ## Spiritual
 Bible in two translations (modern + Douay-Rheims), traditional prayers, Rosary, liturgical calendar, devotional classics, plus five devotional pages: holy hour, Stations of the Cross, Divine Mercy chaplet (and Seven Sorrows), simplified Liturgy of the Hours (from local Bible files), saints calendar with 9-day novena tracker.  
@@ -66,14 +71,15 @@ Bible in two translations (modern + Douay-Rheims), traditional prayers, Rosary, 
 - Motion setting: **Full** / **Subtle** / **Off** (app controls it, not Windows)
 - 43 color themes × 29 styles, all combinable, fade on change
 
-## Claude via Respan Gateway
-All Claude requests (chat, buddy, quizzes, documents, chess coach, Settings test) route through the local [Respan Gateway](https://github.com/respanai/respan-gateway) (MIT/Apache-2.0):
-- **No sign-up**: Uses your Anthropic key from Settings; no Respan account/key/credits; nothing traced
-- **Local only**: Listens on `127.0.0.1`, starts on first Claude use, stops with Moundshroud
-- **Drop-in**: Request is byte-for-byte identical; routing/retries/log in one place
-- **Optional**: Without it, Claude answers direct from Anthropic; `/api/cloud` shows `gateway: off`
-- **Install**: `powershell -ExecutionPolicy Bypass -File install-gateway.ps1` (creates `.venv`, installs `respan-gateway==0.3.0` wheels-only)
-- **Manual**: `.venv\Scripts\python.exe -m respan_gateway` serves on `http://127.0.0.1:8080` (`/ui/` = request log); Moundshroud starts its own copy on a free port
+## AI Backends
+### Local (Ollama)
+Runs entirely on your PC. Models like `qwen3.5:9b`, `qwen3.5:2b` (low-power), `llama3.1:8b`, `nemotron3:8b`. No internet needed.
+
+### Cloud (Settings → AI & power)
+- **Anthropic (Claude)**: Your own API key; routes via local [Respan Gateway](https://github.com/respanai/respan-gateway) (MIT/Apache-2.0) — no sign-up, local-only, optional.
+- **Free LLM providers** (OpenAI-compatible): 22+ providers with free tiers. Keys encrypted via Windows DPAPI in `data/cloud.json`. Recommended models per provider shown in dropdown; custom model ID entry supported.
+- **No-key providers**: Glhf.chat, Chutes.ai, OVHcloud AI Endpoints (anonymous) — zero setup.
+- **Tools**: Free providers support function calling (web search, file ops, etc.) passed through automatically.
 
 ## Data & Backups
 - **Local only**: Notes → `Documents\Assistant Notes`, server data → `data\`, browser storage → `edge-profile\`
@@ -127,6 +133,8 @@ Moundshroud code: **MIT** (see `LICENSE`). Third-party content keeps its own ter
 - Server has **zero npm deps**: `node server.js` with Node 24 is all it needs
 - `MOUNDSHROUD_PORT` runs second copy on another port (same `data` folder — test carefully)
 - `.gitignore` allowlists only program files; personal data/downloads/browser profile/snapshots/releases never committed
+- Tab scripts lazy-loaded on demand via `web/js/lazy.js` (preload on hover/idle)
+- Virtual scrolling on long lists (classics, chess books, money, notes, study, tools)
 
 ## Known Limits
 - AI quality = local model quality; Ask Moundshroud Everything always shows sources
