@@ -28,6 +28,8 @@
 !/install-video-model.ps1
 !/install-gateway.ps1
 !/install-song-tools.ps1
+!/install-godot.ps1
+!/install-godot-templates.ps1
 !/requirements.txt
 !/lib/
 !/agent/
