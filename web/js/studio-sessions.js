@@ -161,12 +161,12 @@
     placeholder: 'Describe a picture, or attach a photo and say what to change…  (Enter to make it)',
     examples: ['A lighthouse on a cliff in a storm at night', 'A cosy reading nook with a cat, warm evening light', 'A knight made of glass in a misty forest'],
     attach: { label: 'Photo', title: 'Attach a photo to edit (or drop or paste one here)', accept: 'image/*' },
-    chips: () => sel('style', 'Style', ART_STYLES, saved('ss_art', 'style', '')) + sel('shape', 'Shape', [['512x512', 'Square'], ['512x768', 'Tall'], ['768x512', 'Wide']], saved('ss_art', 'shape', '512x512')) + sel('q', 'Quality', [['2', 'Fast'], ['4', 'Detailed']], saved('ss_art', 'q', '4')) + sel('eng', 'Made by', [['sd', 'Picture model (seconds)'], ['flux', 'FLUX (1 to 7 min)'], ['svg', 'Qwen vector drawing']], saved('ss_art', 'eng', 'sd')) + '<span data-c-edit hidden>' + sel('edit', 'Edit', [['kontext', '🪄 Precise (2 to 5 min)'], ['sd', '🎨 Quick redraw']], saved('ss_art', 'edit', 'kontext')) + sel('str', 'Change', [['0.35', 'A little'], ['0.55', 'Some'], ['0.75', 'A lot']], saved('ss_art', 'str', '0.55')) + '</span>' + chk('imp', '✨ Improve my prompt', saved('ss_art', 'imp', '1') === '1', 'The AI on this PC rewrites your words into the most detailed prompt the engine reads best'),
+    chips: () => sel('style', 'Style', ART_STYLES, saved('ss_art', 'style', '')) + sel('shape', 'Shape', [['512x512', 'Square'], ['512x768', 'Tall'], ['768x512', 'Wide']], saved('ss_art', 'shape', '512x512')) + sel('q', 'Quality', [['2', 'Fast'], ['4', 'Detailed']], saved('ss_art', 'q', '4')) + sel('eng', 'Made by', [['sd', 'Picture model (seconds)'], ['flux', 'FLUX (1 to 7 min)'], ['svg', 'Qwen vector drawing']], saved('ss_art', 'eng', 'sd')) + '<span data-c-edit hidden>' + sel('edit', 'Edit', [['kontext', '🪄 Precise (2 to 5 min)'], ['sd', '🎨 Quick redraw']], saved('ss_art', 'edit', 'kontext')) + sel('str', 'Change', [['0.35', 'A little'], ['0.55', 'Some'], ['0.75', 'A lot']], saved('ss_art', 'str', '0.55')) + '</span>' + chk('imp', '✨ Improve my prompt', saved('ss_art', 'imp', '1') === '1', 'The AI on this PC rewrites your words into the most detailed prompt the engine reads best') + chk('ref', '📷 Reference photo', saved('ss_art', 'ref', '0') === '1', 'Find a photograph of the subject on the internet and let the picture follow its shapes, colours and light. Needs internet access switched on in Settings, and the picture model (not Qwen drawing).'),
     wire: async el => { remember(el, 'ss_art'); const s = await astat(); const k = el.querySelector('[data-c=edit] option[value=kontext]'); if (!s.edit && k) { k.disabled = true; k.textContent = '🪄 Precise (edit model not installed)'; el.querySelector('[data-c=edit]').value = 'sd'; } const f = el.querySelector('[data-c=eng] option[value=flux]'); if (!s.edit && f) f.disabled = true; },
-    onAttach: (host, on) => { const e = host.querySelector('[data-c-edit]'); if (e) e.hidden = !on; ['style', 'shape', 'eng'].forEach(k => { const c = host.querySelector('[data-c=' + k + ']'); if (c) c.closest('label').hidden = on; }); },
-    read: el => ({ style: val(el, 'style'), shape: val(el, 'shape'), steps: +val(el, 'q'), eng: val(el, 'eng'), edit: val(el, 'edit'), strength: +val(el, 'str'), improve: val(el, 'imp') }),
-    label: (o, att) => att ? (o.edit === 'kontext' ? '🪄 Precise edit' : '🎨 Quick redraw, change: ' + o.strength) : [ART_STYLES.find(s => s[0] === o.style)[1], o.shape, o.eng === 'flux' ? 'FLUX' : o.eng === 'svg' ? 'Qwen vector' : o.steps === 4 ? 'detailed' : 'fast'].filter(x => x && x !== 'No style').join(' · '),
-    check: async (o, att) => { const s = await astat(); if (att) { if (o.edit === 'kontext' && !s.edit) return 'The precise edit model is not installed. Pick Quick redraw.'; if (o.edit !== 'kontext' && !s.sd) return 'The picture model is not installed.'; } else if (o.eng === 'sd' && !s.sd) return 'The picture model is not installed: pick Qwen vector drawing, or run install-art-model.ps1.'; else if (o.eng === 'flux' && !s.edit) return 'FLUX is not installed.'; return ''; },
+    onAttach: (host, on) => { const e = host.querySelector('[data-c-edit]'); if (e) e.hidden = !on; ['style', 'shape', 'eng', 'ref'].forEach(k => { const c = host.querySelector('[data-c=' + k + ']'); if (c) c.closest('label').hidden = on; }); },
+    read: el => ({ style: val(el, 'style'), shape: val(el, 'shape'), steps: +val(el, 'q'), eng: val(el, 'eng'), edit: val(el, 'edit'), strength: +val(el, 'str'), improve: val(el, 'imp'), ref: !!val(el, 'ref') }),
+    label: (o, att) => att ? (o.edit === 'kontext' ? '🪄 Precise edit' : '🎨 Quick redraw, change: ' + o.strength) : [ART_STYLES.find(s => s[0] === o.style)[1], o.shape, o.eng === 'flux' ? 'FLUX' : o.eng === 'svg' ? 'Qwen vector' : o.steps === 4 ? 'detailed' : 'fast', o.ref ? '📷 from a web photo' : ''].filter(x => x && x !== 'No style').join(' · '),
+    check: async (o, att) => { const s = await astat(); if (o.ref && !att) { if (!A.net || !A.net.on()) return 'Internet access is switched off, so there is no reference photo to read. Turn it on in Settings, AI & power, or untick 📷 Reference photo.'; if (o.eng === 'svg' || o.eng === 'flux') return 'Reference photos work with the picture model. Set Made by to “Picture model (seconds)”, or untick 📷 Reference photo.'; } if (att) { if (o.edit === 'kontext' && !s.edit) return 'The precise edit model is not installed. Pick Quick redraw.'; if (o.edit !== 'kontext' && !s.sd) return 'The picture model is not installed.'; } else if (o.eng === 'sd' && !s.sd) return 'The picture model is not installed: pick Qwen vector drawing, or run install-art-model.ps1.'; else if (o.eng === 'flux' && !s.edit) return 'FLUX is not installed.'; return ''; },
     working: 'Drawing…',
     run: async (o, signal, progress) => {
       let prompt = o.prompt, neg = '', used = '';
@@ -178,6 +178,25 @@
       }
       if (o.improve && o.eng !== 'svg') { const r = await improve('image', o.prompt, progress); prompt = r.prompt; neg = r.neg || ''; used = r.prompt; }
       const [w, h] = String(o.shape || '512x512').split('x').map(Number), styled = prompt + (o.style ? (AIArt.SUFFIX[o.style] || '') : '');
+      /* 📷 reference photo: a photograph of the subject is found online, and the picture model redraws it at a low
+         strength, so the result keeps the photo's shapes, colours and light while following the words */
+      if (o.ref && o.eng === 'sd') {
+        progress('Looking for a reference photo of ' + o.prompt.slice(0, 40) + '…');
+        const found = await A.net.images(o.prompt, 4).catch(() => null), pick = found && found.images && found.images[0];
+        if (!pick) progress('No reference photo came back, drawing from your words…');
+        else {
+          try {
+            progress('Downloading a photo of ' + String(pick.title || 'the subject').slice(0, 40) + '…');
+            const ref = await A.net.photo(pick.thumb);
+            progress('Drawing from the reference photo…');
+            const r = await AIArt.edit(ref, styled, { engine: 'sd', strength: 0.45, neg, signal });
+            const credit = [pick.source, pick.author, pick.license].filter(Boolean).join(' · ');
+            return { media: [{ type: 'image', blob: r.blob }, { type: 'image', blob: ref }],
+              text: '📷 Reference photo: ' + (pick.page ? '[' + pick.title + '](' + pick.page + ')' : pick.title) + (credit ? '\n\n' + credit : '') + (used ? '\n\n*Prompt used:* ' + used : ''),
+              meta: { engine: 'SDXL Turbo from a web photo', size: w + '×' + h, seed: r.seed } };
+          } catch (e) { progress('The reference photo could not be used (' + e.message + '), drawing from your words…'); }
+        }
+      }
       if (o.eng === 'svg') { progress('Qwen is drawing…'); const r = await AIArt.svg(o.prompt + (o.style ? ' (' + o.style + ' style)' : '')); const blob = await (await fetch(r.url)).blob(); return { media: [{ type: 'image', blob }], meta: { engine: 'Qwen vector drawing' } }; }
       if (o.eng === 'flux') { progress('FLUX is drawing (1 to 7 minutes; slowest when memory is nearly full)…'); const blob = await blobPost('/api/art/flux', { prompt: styled, w, h }, signal, 'The picture'); return { media: [{ type: 'image', blob }], text: used ? '*Prompt used:* ' + used : '', meta: { engine: 'FLUX', size: w + '×' + h } }; }
       progress('Drawing…'); const r = await AIArt.image(prompt, { style: o.style, neg, w, h, steps: o.steps || 4, signal });

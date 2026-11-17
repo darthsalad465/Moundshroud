@@ -536,7 +536,17 @@ if (url === '/api/chat' && req.method === 'POST') {
       return json(res, 200, k === 'import' ? await tv.importVlc() : k === 'add' ? await tv.add(b) : k === 'remove' ? tv.remove(b.id) : k === 'rename' ? tv.rename(b.id, b.name) : k === 'names' ? await tv.names() : await tv.open(b.id));
     }
     if (url === '/api/news/sources' && req.method === 'POST') { const b = await jbody(req, 2e5); news.savePrefs(b || {}); return json(res, 200, news.snapshot()); }
-    if (url === '/api/net/lookup' && req.method === 'POST') { const b = await jbody(req, 1e5); return json(res, 200, await net.lookup(b.q, b.n)); }
+    if (url === '/api/net/lookup' && req.method === 'POST') { const b = await jbody(req, 1e5); return json(res, 200, await net.lookup(b.q, b.n, { pages: b.pages, chars: b.chars, total: b.total })); }
+    /* reference photos for the picture tools: a list of photographs, then the bytes of the one that was chosen */
+    if (url === '/api/net/images' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, await net.images(b.q, b.n)); }
+    if (url === '/api/net/photo') {
+      net.photo(q.get('url') || '').then(r => {
+        if (r.error) return json(res, 404, { error: r.error });
+        res.writeHead(200, { 'Content-Type': r.type, 'Content-Length': r.buffer.length, 'Cache-Control': 'private, max-age=3600' });
+        res.end(r.buffer);
+      }).catch(e => json(res, 500, { error: String(e.message || e) }));
+      return;
+    }
     if (url === '/api/chats') {
       if (req.method === 'GET') return json(res, 200, U.readJson(CHATS, []));
       if (req.method === 'POST') { const v = await jbody(req); U.writeJson(CHATS, v.slice(0, 200)); return json(res, 200, { ok: true }); }
@@ -822,8 +832,8 @@ if (url === '/api/chat' && req.method === 'POST') {
         const appDir = path.join(tmpDir, 'Moundshroud');
         fs.mkdirSync(appDir, { recursive: true });
         
-        // Copy essential files (exclude node_modules, data, .git, tmp, releases, logs)
-        const exclude = ['node_modules', 'data', '.git', 'tmp', 'releases', '*.log', '*.zip', 'Moundshroud-*', '.vscode', '.idea'];
+        // Copy essential files
+        const exclude = ['node_modules', 'data', '.git', 'tmp', 'releases', '*.log', '*.zip', 'Moundshroud-*', '.vscode', '.idea', 'edge-profile', 'chrome-profile', 'browser-profile', 'firefox-profile'];
         function copyRecursive(src, dest) {
           if (!fs.existsSync(src)) return;
           const rel = path.relative(ROOT, src);
@@ -833,18 +843,17 @@ if (url === '/api/chat' && req.method === 'POST') {
             fs.mkdirSync(dest, { recursive: true });
             for (const f of fs.readdirSync(src)) copyRecursive(path.join(src, f), path.join(dest, f));
           } else {
-            fs.copyFileSync(src, dest);
+            try { fs.copyFileSync(src, dest); } catch (e) { /* skip locked files */ }
           }
         }
         copyRecursive(ROOT, appDir);
         
         // Create zip using PowerShell Compress-Archive (available on Windows)
         const zipPath = path.join(extra.TMP, zipName);
-        const psScript = `
-          $ErrorActionPreference = 'Stop'
-          Compress-Archive -Path "${appDir.replace(/\\/g, '\\\\')}\\*" -DestinationPath "${zipPath.replace(/\\/g, '\\\\')}" -Force
-        `;
-        cp.execSync('powershell -NoProfile -Command ' + JSON.stringify(psScript), { timeout: 60000, encoding: 'utf8' });
+        const psScriptPath = path.join(tmpDir, 'zip.ps1');
+        const psScript = `$ErrorActionPreference = 'Stop'\nCompress-Archive -Path "${appDir.replace(/\\/g, '\\\\')}\\*" -DestinationPath "${zipPath.replace(/\\/g, '\\\\')}" -Force`;
+        fs.writeFileSync(psScriptPath, psScript, 'utf8');
+        cp.execSync('powershell -NoProfile -ExecutionPolicy Bypass -File "' + psScriptPath.replace(/"/g, '\\"') + '"', { timeout: 120000, encoding: 'utf8', windowsHide: true });
         
         // Cleanup temp dir
         extra.rm(tmpDir);
@@ -930,6 +939,15 @@ if (url === '/api/chat' && req.method === 'POST') {
       return ollamaUp(up => { const done = models => json(res, 200, Object.assign(s, { models })); if (!up) return done([]); http.get({ ...OLLAMA, path: '/api/tags' }, r => { let b = ''; r.on('data', c => b += c); r.on('end', () => { try { done((JSON.parse(b).models || []).map(m => m.name)); } catch (e) { done([]); } }); }).on('error', () => done([])); });
     }
     if (url === '/api/prep/stock/get' && req.method === 'POST') return json(res, 200, await prep.getStock((await jbody(req, 1e4)).id));
+    if (url === '/api/prep/stock/get-all' && req.method === 'POST') {
+      const inventory = require('./lib/inventory');
+      const coreTools = ['stockfish', 'cyberchef', 'kiwix-tools', 'torbrowser', 'imggen', 'christiantexts', 'musicgen', 'whisper'];
+      let started = 0;
+      for (const id of coreTools) {
+        try { const r = await inventory.get(id); if (r && !r.error) started++; } catch (e) { }
+      }
+      return json(res, 200, { started, total: coreTools.length });
+    }
     /* ---- everything downloaded: the list, removing (the page asks first) and getting things (back) ---- */
     if (url === '/api/appmap') return json(res, 200, await appmap.build(PORT));
     if (url === '/api/inv') return json(res, 200, await inventory.list());

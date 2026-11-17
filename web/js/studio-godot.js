@@ -103,6 +103,7 @@ html.god-filled body{overflow:hidden}html.god-filled body>*:not(main){visibility
       '<div class="god-grid"><div class="god-side">' +
       '<div class="god-card"><div class="god-h">New game</div><textarea id="gdp" rows="4" placeholder="e.g. A top-down horror walk through dark woods with a torch, a cabin to find, and something that follows me"></textarea>' +
       '<div class="god-ideas">' + IDEAS.map((x, i) => '<button class="god-idea" data-idea="' + i + '" title="' + esc(x[2]) + '">' + x[0] + ' ' + esc(x[1]) + '</button>').join('') + '</div>' +
+      '<div id="gdref" style="margin:0 0 10px"></div>' +
       '<button class="god-go" id="gdnew">✨ Write this game</button><div class="god-note">One AI request per press. The whole project is written at once, so a weaker model may stop early; a bigger one makes better games.</div></div>' +
       '<div class="god-card" id="gdedit" hidden><div class="god-h">Change this game</div><textarea id="gdc" rows="3" placeholder="e.g. make the enemy faster, add a health bar, make it night time with rain"></textarea>' +
       '<div class="god-row"><button class="god-go" id="gdchg">🔁 Ask for the change</button></div><div class="god-note" id="gdhint"></div></div>' +
@@ -113,6 +114,23 @@ html.god-filled body{overflow:hidden}html.god-filled body>*:not(main){visibility
       '<div id="gdmsg"></div></div></div>';
     const $ = id => root.querySelector('#' + id), msg = $('gdmsg');
     let cur = null, busy = false, ctl = null, engine = null, home = '';
+    /* 📷 reference photo: a picture of the subject from the web. It is written into the project as reference_photo.gd
+       (the photo as text, which GDScript turns back into a Texture2D), and its colours are given to the AI too. */
+    let ref = null, refUi = null;
+    if (window.RefPhoto) refUi = RefPhoto.panel($('gdref'), { query: () => $('gdp').value, onPick: it => { ref = it; } });
+    /* the picture box follows the description while it is still empty, and keeps whatever is typed into it */
+    $('gdp').addEventListener('input', () => { if (refUi) refUi.fill(); });
+    /* the plain rules forbid every image file; the photo is the one exception, and it is written into the system prompt
+       because a small model follows the rule it read first */
+    const sysNow = () => SYS + (ref ? '\n- EXCEPTION: reference_photo.gd already exists in this project and holds the reference photo as text (const JPG_B64). It is not an imported image and it must not be written by you. Turn it into a texture with Image.load_jpg_from_buffer(Marshalls.base64_to_raw(preload("res://reference_photo.gd").JPG_B64)) and ImageTexture.create_from_image(), and use it for the background, the title screen or a sprite.' : '');
+    const refNote = () => ref ? '\n\nA reference photo is saved with this project in reference_photo.gd, which already exists and looks like:\n' +
+      'extends RefCounted\nconst JPG_B64 := "..."\n' +
+      'Get its texture in GDScript with:\n' +
+      'var img := Image.new()\nimg.load_jpg_from_buffer(Marshalls.base64_to_raw(preload("res://reference_photo.gd").JPG_B64))\nvar tex := ImageTexture.create_from_image(img)\n' +
+      'Use it: a TextureRect for the background or the title screen, a Sprite2D for a sprite, or color2d sampling for colours. Match its colours and mood. Reference: "' + ref.title + '" (' + ref.credit + '). Its main colours: ' + ref.colors.join(', ') + '. Do not write reference_photo.gd yourself.' : '';
+    /* the photo as a project file: text only, so it is saved with the code in the same write (a project save must carry
+       project.godot, so the photo is added to the list of files being written rather than sent on its own) */
+    const hasRefFile = () => ((cur && cur.files) || []).some(f => /reference_photo\.gd$/i.test(f.path));
     const say = (kind, html) => { msg.innerHTML = html ? '<div class="god-msg god-' + kind + '">' + html + '</div>' : ''; };
 
     /* models: the same list as Studio > Game maker */
@@ -258,11 +276,13 @@ html.god-filled body{overflow:hidden}html.god-filled body>*:not(main){visibility
       $('gdstop').onclick = () => { try { ctl.abort(); } catch (e) { } };
       const wait = setInterval(() => { const p = $('gdprog'); if (!busy || !p) return clearInterval(wait); if (/^Asking|^Waiting/.test(p.textContent)) p.textContent = 'Waiting for the AI engine, ' + Math.round((Date.now() - t0) / 1000) + ' s. It may be loading the model.'; }, 1000);
       const onLen = n => { const p = $('gdprog'), b = $('gdbar'); if (p) p.textContent = 'Writing the project: ' + Math.round(n / 1000 * 10) / 10 + ' kB, ' + Math.round((Date.now() - t0) / 1000) + ' s'; if (b) b.style.width = Math.min(96, n / (cap * 3.4) * 100) + '%'; };
-      const msgs = [{ role: 'system', content: SYS }], files = {};
-      if (kind === 'new') msgs.push({ role: 'user', content: 'Make this game: ' + text });
+      const msgs = [{ role: 'system', content: sysNow() }], files = {};
+      if (kind === 'new') msgs.push({ role: 'user', content: 'Make this game: ' + text + refNote() });
       else {
         let used = 0, pack = '';
         for (const f of cur.files.filter(f => !f.dir)) {
+          /* the photo is a wall of base64: it stays out of the request, and the AI is told that it is there */
+          if (/reference_photo\.gd$/i.test(f.path)) { pack += '=== FILE: ' + f.path + ' ===\n(the reference photo, left out of the request because it is a picture as text)\n'; continue; }
           try { const j = await (await fetch('/api/godot/file?name=' + encodeURIComponent(cur.name) + '&file=' + encodeURIComponent(f.path))).json(); if (!j.ok) continue; const body = j.text.slice(0, 18000); if (used + body.length > KEEP_CHARS) { pack += '=== FILE: ' + f.path + ' ===\n(file left out to stay inside the length limit)\n'; continue; } used += body.length; files[f.path] = body; pack += '=== FILE: ' + f.path + ' ===\n' + body + '\n'; } catch (e) { }
         }
         msgs.push({ role: 'user', content: 'Here is my current Godot project:\n' + pack + '\nChange it like this: ' + text + '\nKeep everything else working. Reply with every file of the project again, complete, in the same format.' });
@@ -277,10 +297,14 @@ html.god-filled body{overflow:hidden}html.god-filled body>*:not(main){visibility
         }
         const out = extract(await ask(msgs, cap, onLen)); if (out.err) throw new Error(out.err);
         const nm = nameOf(out.files) || (kind === 'new' ? text.replace(/[^a-z0-9 ]/gi, ' ').trim().split(/\s+/).slice(0, 5).join(' ') : cur.name);
-        const j = await (await fetch('/api/godot/save', { method: 'POST', body: JSON.stringify({ name: nm, files: out.files }) })).json();
+        const refFile = ref && (kind === 'new' || !hasRefFile()) && out.files.some(f => /(^|\/)project\.godot$/i.test(f.path))
+          ? { path: 'reference_photo.gd', content: RefPhoto.godotFile(ref) } : null;
+        const saveFiles = refFile ? out.files.concat([refFile]) : out.files;
+        const j = await (await fetch('/api/godot/save', { method: 'POST', body: JSON.stringify({ name: nm, files: saveFiles }) })).json();
         if (!j.ok) throw new Error(j.error || 'Could not save the project.');
+        const withRef = !!refFile;
         await openProject(j.name);
-        say('ok', '✓ ' + (kind === 'new' ? 'Wrote' : 'Changed') + ' ' + j.count + ' file' + (j.count === 1 ? '' : 's') + ' in ' + Math.round((Date.now() - t0) / 1000) + ' s' + (engine ? '' : ' — install Godot to play it (the box above has the command)') + '. Read any file on the right.' + (triedPatch ? '<div class="god-note">The AI rewrote the project instead of patching it: its small edit did not fit the files.</div>' : ''));
+        say('ok', '✓ ' + (kind === 'new' ? 'Wrote' : 'Changed') + ' ' + j.count + ' file' + (j.count === 1 ? '' : 's') + ' in ' + Math.round((Date.now() - t0) / 1000) + ' s' + (withRef ? ' (including reference_photo.gd, the reference photo)' : '') + (engine ? '' : ' — install Godot to play it (the box above has the command)') + '. Read any file on the right.' + (triedPatch ? '<div class="god-note">The AI rewrote the project instead of patching it: its small edit did not fit the files.</div>' : ''));
       } catch (e) { if (e.name === 'AbortError') say('warn', 'Stopped. Nothing was saved.'); else say('err', '<b>The game could not be written.</b> ' + esc(e.message)); }
       busy = false; ctl = null; show(); load(false);
     }
