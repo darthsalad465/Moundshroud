@@ -60,6 +60,8 @@
       '</ul></div></div></div></section></div>';
     const $ = id => b.querySelector('#' + id);
     const post = async (u, body) => { try { return await A.api(u, body || {}); } catch (e) { return { ok: false, error: String(e.message || e) }; } };
+    /* a line of the conversation that is the agent talking to you about itself, not the model talking */
+    const say = html => { const d = document.createElement('div'); d.className = 'agnote'; d.innerHTML = html; $('hmsgs').appendChild(d); toEnd(); };
 
     /* ---------- settings (also shown as the chips under the message box) ---------- */
     const dirLine = () => { const d = get(); $('agdir').textContent = d || 'Its own workspace folder (inside the agent folder).'; $('agreset').style.display = d ? '' : 'none'; chips(); };
@@ -148,7 +150,7 @@
     $('agcreach').onclick = () => { $('agguard').checked = !$('agguard').checked; lsPut(GKEY, $('agguard').checked ? '1' : ''); chips(); later(); };
 
     /* ---------- the pages of the main column: the live conversation, an earlier one, a routine running, routines, settings ---------- */
-    let seq = 0, H = null, starting = false, view = 'live', recId = '', rec = null, rseq = 0, SESS = [], RT = null, rform = null;
+    let seq = 0, H = null, starting = false, view = 'live', recId = '', rec = null, rseq = 0, SESS = [], RT = null, rform = null, NS = 0;
     const timers = [];
     b._cleanup = () => { alive = false; timers.forEach(clearInterval); ro && ro.disconnect(); };
     function show(v, opts) {
@@ -310,7 +312,15 @@
         liveFoot(s, box); if (stick) toEnd();
       }
       head();
+      if (frame++ % 3 === 0) notesTick();      // a pull finishing, a craft run: lines that arrive after the command answered
       if (!was || was.sessionId !== s.sessionId || was.running !== s.running || was.title !== s.title || (was.busy && !s.busy)) loadList();
+    }
+    /* the lines a long command leaves behind once it has answered */
+    let frame = 0;
+    async function notesTick() {
+      let r; try { r = await A.api('/api/harness/notes?since=' + NS); } catch (e) { return; }
+      if (!alive || !r || !r.notes || !r.notes.length) return;
+      r.notes.forEach(n => { NS = Math.max(NS, n.seq); say('<span class="mute">' + esc(n.text) + '</span>'); });
     }
     async function rtick() {
       if (view !== 'rlive') return;
@@ -340,6 +350,7 @@
     $('hstop').onclick = async () => { if (view === 'rlive') { await post('/api/routines/stop'); loadRoutines(); return; } await post('/api/harness/stop'); tick(); };
     async function sendNow() {
       const t = $('hin').value.trim(); if (!t || starting) return;
+      if (t.startsWith('/')) { $('hin').value = ''; await cmd(t); return; }      // a command acts here, and is never sent to the model
       if (view === 'rec') {
         if (busyElsewhere() && !confirm('The agent is working on “' + (H.title || 'another session') + '”. Stop it and pick this one up instead?')) return;
         const x = await post('/api/harness/show', { id: recId }); if (!x.ok) { A.toast(x.error || 'Could not open that conversation.'); return; }
@@ -350,6 +361,131 @@
       if (!r.ok) { A.toast(r.error || 'The message was not sent.'); return; }
       $('hin').value = ''; await tick(); toEnd();
     }
+    /* ---------- the commands the terminal window has, in this box ----------
+       Everything that acts on the agent is here: /model, /chat, /code, /autonomy, /reach, /net, /think, /pull,
+       /craft, /stats, /new, /stop, /dir, /help. They are answered here and never sent to the model. The terminal's
+       own cosmetics (/theme, /color, /anim, /music) belong to the console and say so.                          */
+    const CMD_HELP = [
+      ['/model', 'the models this PC has · /model qwen switches'],
+      ['/chat', 'talk only: it answers, it changes nothing'],
+      ['/code', 'the coding agent, with its tools'],
+      ['/autonomy', 'how strictly it asks · careful · normal · auto'],
+      ['/pull', 'one GGUF model from Hugging Face · /pull user/repo[:Q4_K_M]'],
+      ['/think', 'what the model works out, above its answer · on · off'],
+      ['/net', 'internet access for it · /net on · /net off'],
+      ['/reach', 'this folder only, or the whole PC · /reach pc'],
+      ['/craft', 'study a website, app or game and rebuild it · Craft Anything'],
+      ['/stats', 'what this session has done, and what it is driving'],
+      ['/new', 'a fresh conversation'],
+      ['/stop', 'stop the turn that is running'],
+      ['/dir', 'the folder it works in · /dir C:\\work changes it'],
+      ['/help', 'this list'],
+    ];
+    async function cmd(line) {
+      const parts = line.trim().split(/\s+/), c = String(parts.shift() || '').toLowerCase(), arg = parts.join(' ').trim();
+      const on = !(arg === 'off' || arg === 'no' || arg === '0');
+      const ctl = (what, value) => post('/api/harness/control', { cmd: what, value });
+      const live = () => { const s = H || {}; return !!(s.running || s.sessionId); };
+      const folder = () => (H && H.dir) || get() || 'its own workspace';
+
+      if (c === '/help' || c === '?') {
+        say('<b>Commands</b><div class="small" style="margin-top:4px">' + CMD_HELP.map(([k, d]) => '<div><b>' + esc(k) + '</b> <span class="mute">' + esc(d) + '</span></div>').join('') + '</div>' +
+          '<div class="small mute" style="margin-top:6px">The terminal window also has /theme, /color, /anim and /music, which only change how the console itself is drawn.</div>');
+        return;
+      }
+      if (c === '/model' || c === '/models') {
+        const list = (st && st.models) || [];
+        if (!list.length) { say('Ollama is not running, so there is no list to show.'); return; }
+        if (!arg) {
+          say('<b>Models on this PC</b><div class="small" style="margin-top:4px">' + list.map(m => (bare(m.name) === modelNow() ? '▸ ' : '· ') + esc(bare(m.name)) + (m.tools ? '' : ' <span class="mute">(chat only)</span>')).join('<br>') + '</div>' +
+            '<div class="small mute" style="margin-top:6px">/model qwen switches. A session that is already running keeps the model it started with.</div>');
+          return;
+        }
+        const want = arg.toLowerCase();
+        const hit = list.filter(m => m.tools && (bare(m.name).toLowerCase().includes(want) || m.name.toLowerCase() === want))[0];
+        if (!hit) { say('There is no model like “' + esc(arg) + '” on this PC that can use tools. /model lists them.'); return; }
+        $('agmodel').value = hit.name; lsPut(MKEY, hit.name); modelNote(); chips();
+        say('Driving <b>' + esc(bare(hit.name)) + '</b>' + (live() ? ' — from the next session you start. The one running keeps its own until you stop it.' : '.'));
+        return;
+      }
+      if (c === '/chat' || c === '/code') {
+        const r = await ctl('mode', c === '/chat' ? 'chat' : 'code');
+        say(r.ok ? (c === '/chat' ? 'Chat mode — it talks, and changes nothing.' : 'Code mode — the full agent, with its tools.') : esc(r.error || 'That did not work.'));
+        return;
+      }
+      if (c === '/autonomy' || c === '/strict' || c === '/trust') {
+        if (!arg) { say('Autonomy · ' + esc((H && H.autonomy) || 'normal') + ' — /autonomy careful · normal · auto'); return; }
+        const lvl = arg.toLowerCase();
+        if (!['careful', 'normal', 'auto'].includes(lvl)) { say('Use careful, normal or auto.'); return; }
+        const r = await ctl('autonomy', lvl);
+        say(r.ok ? 'Autonomy · ' + lvl + (lvl === 'careful' ? ' — it asks before every change.' : lvl === 'normal' ? ' — it asks before commands that change the PC.' : ' — it only asks when something is forbidden, and still never does the forbidden things.') : esc(r.error || 'That did not work.'));
+        return;
+      }
+      if (c === '/net' || c === '/web') {
+        if (!arg) { say('Internet · ' + ((H && H.web) ? 'on — it may read public pages and APIs' : 'off — nothing it does leaves this PC') + '   —   /net on · /net off'); return; }
+        const r = await ctl('web', on);
+        say(r.ok ? (on ? 'Internet on — it may read public pages and APIs, and still nothing on this PC.' : 'Internet off — nothing leaves this PC.') : esc(r.error || 'That did not work.'));
+        return;
+      }
+      if (c === '/think' || c === '/thoughts') {
+        if (!arg) { say('Thinking · ' + ((H && H.think) ? 'shown' : 'hidden') + '   —   /think on · /think off'); return; }
+        const r = await ctl('think', on);
+        say(r.ok ? (on ? 'Thinking shown — what it works out comes above its answer.' : 'Thinking hidden — only the answer is shown.') : esc(r.error || 'That did not work.'));
+        return;
+      }
+      if (c === '/reach') {
+        if (!arg) { say('Reach · ' + ($('agguard').checked ? 'the whole PC, still guarded' : 'this folder only') + '   —   /reach pc · /reach folder'); return; }
+        const whole = /^(pc|whole|all|on|yes)$/.test(arg.toLowerCase());
+        $('agguard').checked = whole; lsPut(GKEY, whole ? '1' : ''); chips();
+        const r = live() ? await ctl('reach', whole) : { ok: true };
+        say((whole ? 'Whole PC — it may read anywhere, and Windows, this app and your keys stay shut.' : 'This folder only — ' + esc(folder()) + '.') + (live() && r.ok ? ' In force now.' : live() && !r.ok ? ' ' + esc(r.error || '') : ' Used by the next session you start.'));
+        return;
+      }
+      if (c === '/dir') {
+        if (!arg) { say('Folder · ' + esc(folder()) + (get() ? '   (next session: ' + esc(get()) + ')' : '   (its own workspace)')); return; }
+        put(arg); dirLine();
+        say('Folder for the next session · ' + esc(arg) + (live() ? '. The one running keeps its own until you stop it.' : '.'));
+        return;
+      }
+      if (c === '/new') { await $('hnew').onclick(); return; }
+      if (c === '/stop') {
+        if ($('hstop').style.display === 'none') { say('Nothing is running.'); return; }
+        await $('hstop').onclick();
+        return;
+      }
+      if (c === '/pull' || c === '/hf') {
+        if (!arg) { say('Pull a GGUF model from Hugging Face · /pull user/repo  ·  /pull user/repo:Q4_K_M  ·  add :smallest for the littlest file'); return; }
+        const r = await post('/api/harness/pull', { spec: arg });
+        say(esc(r.note || r.error || 'Started.'));
+        return;
+      }
+      if (c === '/craft' || c === '/craft-anything') {
+        say(arg ? '<span class="mute">craft anything · ' + esc(arg) + ' — running…</span>' : '<span class="mute">craft anything — checking the install…</span>');
+        const r = await post('/api/harness/craft', { args: arg });
+        if (!r.ok && !r.text) { say(esc(r.error || 'Craft Anything did not run.')); return; }
+        const body = String(r.text || '').split('\n').slice(0, 24).join('\n');
+        say('<b>craft anything' + (arg ? ' · ' + esc(arg) : '') + '</b>' + (body ? '<pre style="white-space:pre-wrap;margin:6px 0 0;max-height:340px;overflow:auto">' + esc(body) + '</pre>' : ''));
+        return;
+      }
+      if (c === '/stats' || c === '/usage' || c === '/about') {
+        const s = H || {}, tools = {};
+        [...$('hmsgs').querySelectorAll('.agtool b')].forEach(b => { const n = b.textContent || '?'; tools[n] = (tools[n] || 0) + 1; });
+        const calls = Object.values(tools).reduce((a, b) => a + b, 0);
+        say('<b>This session</b><div class="small" style="margin-top:4px">' +
+          esc(s.sessionId ? 'id ' + s.sessionId : 'not started yet') + '<br>' +
+          'driving ' + esc(bare(s.model || modelNow())) + ' · ' + Math.round((s.ctx || 0) / 1024) + 'k memory · ' + (s.guard ? 'whole PC, guarded' : 'this folder only') + '<br>' +
+          calls + ' tool call' + (calls === 1 ? '' : 's') + (calls ? ' · ' + esc(Object.entries(tools).map(([k, v]) => k + ' ' + v).join(', ')) : '') + '<br>' +
+          'folder ' + esc(folder()) + '</div>');
+        return;
+      }
+      if (['/theme', '/color', '/colour', '/anim', '/ui', '/music', '/quit', '/exit'].includes(c)) {
+        say('<b>' + esc(c) + '</b> is the terminal window’s own — the palette, the glow and the music belong to that console. ' +
+          (c === '/quit' || c === '/exit' ? 'There is nothing to quit here: the session keeps running until you stop it or start a new one.' : '/help lists the commands that work here.'));
+        return;
+      }
+      say('No such command. /help lists them.');
+    }
+
     $('hsend').onclick = sendNow;
     $('hin').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendNow(); } });
 

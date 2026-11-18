@@ -30,9 +30,11 @@
 !/install-song-tools.ps1
 !/install-godot.ps1
 !/install-godot-templates.ps1
+!/install-mcode.ps1
 !/requirements.txt
 !/lib/
 !/agent/
+!/bin/
 !/py/
 !/web/
 !/tests/

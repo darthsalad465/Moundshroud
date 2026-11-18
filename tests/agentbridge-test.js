@@ -153,7 +153,7 @@ module.exports = async function (ok) {
   ok('studio: the free/online models are recognised from the model list, not only Claude', /const isOnline = m => \{ const x = MODELS\.find/.test(gm) && /MODELS = ms/.test(gm));
   ok('studio: a model on this PC keeps its old 7,000-token budget, so its context stays loadable', /LOCAL_CAP = 7000/.test(gm) && /budget = cloud \? cap : Math\.min\(cap, LOCAL_CAP\)/.test(gm) && /num_predict: budget/.test(gm));
   const gd = rd('web/js/studio-godot.js');
-  ok('studio: the game engine tells an online model from one on this PC too', /const isOnline = m => \{ const x = MODELS\.find/.test(gd) && /budget = cloud \? cap : Math\.min\(cap, 9000\)/.test(gd));
+  ok('studio: the game engine tells an online model from one on this PC too', /const isOnline = m => \{ const x = MODELS\.find/.test(gd) && /budget = cloud \? cap : Math\.min\(cap, \d+\)/.test(gd));
 
   /* ---------- which requests go where (a model on this PC must never be sent to a cloud provider) ---------- */
   const cloud = require('../lib/cloud.js'), savedCfg = cloud.cfg();

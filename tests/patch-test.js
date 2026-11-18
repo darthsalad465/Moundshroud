@@ -61,7 +61,8 @@ module.exports = async ok => {
   /* ---------- where it is wired in ---------- */
   const html = read('web/index.html'), gm = read('web/js/studio-games.js'), gd = read('web/js/studio-godot.js');
   ok('patch: the engine is loaded by the app', /web\/js\/patch\.js/.test(html));
-  ok('game maker: a change or a fix is patched before the file is written again', gm.indexOf('patchFix(text, t0, op)') > 0 && gm.indexOf('patchFix(text, t0, op)') < gm.indexOf('const msgs = [{ role: \'system\', content: SYS }]'));
+  const gmSys = gm.search(/const msgs = \[\{ role: 'system', content: sys(?:Now\(\))? \}\]/);
+  ok('game maker: a change or a fix is patched before the file is written again', gm.indexOf('patchFix(text, t0, op)') > 0 && gmSys > 0 && gm.indexOf('patchFix(text, t0, op)') < gmSys);
   ok('game maker: the AI is told not to rewrite the game', /Do NOT rewrite it, do NOT repeat it/.test(gm));
   ok('game maker: a bug fix sends the error, not a new game brief', /Find the cause in that code and fix it\./.test(gm));
   ok('game maker: the fallback says the file was rewritten instead of patched', /rewrote the file instead of patching it/.test(gm));

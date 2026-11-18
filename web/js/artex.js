@@ -29,7 +29,7 @@
         '<div style="margin:14px 0"><button class="pri" id="axgo" style="font-size:15px;padding:10px 18px">▶ Start ARTEX</button></div>') +
       '<div class="gmk-msg gmk-warn" style="margin-top:8px"><b>⚖ Only your own targets.</b> Scanning or attacking computers, sites or networks you do not own or have <b>written permission</b> to test is a crime in most countries. Practise on your own machines, your own lab, or authorised bug-bounty targets within their rules.</div>' +
       '</div></div>';
-    const go = wrap.querySelector('#axgo'); if (go) go.onclick = async () => { starting(wrap); try { await A.api('/api/artex/start', {}); } catch (e) { } poll(wrap, 60); };
+    const go = wrap.querySelector('#axgo'); if (go) go.onclick = async () => { starting(wrap); try { const currentModel = ls.get('model', ''); await A.api('/api/artex/start', { model: currentModel }); } catch (e) { } poll(wrap, 60); };
   }
   async function stop(wrap) { try { await A.api('/api/artex/stop', {}); } catch (e) { } const st = await A.api('/api/artex/status').catch(() => ({})); idle(wrap, st); }
   async function poll(wrap, tries) {

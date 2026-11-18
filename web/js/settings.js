@@ -63,7 +63,7 @@
       row('Back up characters', 'Save or restore everything the characters remember, the communities and the voices you set. (The AI Commons chats are meant to disappear, so they are not included.)', '<button class="ib" data-a="cbak">Export</button><button class="ib" data-a="cimp">Import</button>', 'backup export import restore characters memory community'));
     h += sec('ai', '🧠', 'AI & power',
       row('Low-power mode', 'A smaller AI model, no animations and shorter model memory. Good on battery.', tog('lp', A.power && A.power.on), 'battery power small model') +
-      row('Agent harness', 'The program that drives the AI in Chat › Agent. <b>Claude Code</b> (default) asks you before each guarded action. <b>jcode</b> is a fast open-source harness; it runs its own tools and asks only when it decides to. Both use your local models through Ollama. Switching ends the running agent session.', '<select id="hkind" class="ib"><option value="claude">Claude Code</option><option value="jcode">jcode</option></select><span class="small mute" id="hkindst"></span>', 'agent harness claude code jcode coding agent switch engine') +
+      row('Agent harness', 'The program that drives the AI in Chat › Agent. <b>Claude Code</b> (default) asks you before each guarded action. <b>jcode</b> is a fast open-source harness; it runs its own tools and asks only when it decides to. <b>Moundshroud Code</b> is built into this app: it has no outside program, works only in the folder you chose unless you allow the whole PC, and stops before anything that could damage the PC. All three use your local models through Ollama, or the free frontier AI if you pick it. Switching ends the running agent session.', '<select id="hkind" class="ib"><option value="claude">Claude Code</option><option value="jcode">jcode</option><option value="native">Moundshroud Code</option></select><span class="small mute" id="hkindst"></span>', 'agent harness claude code jcode moundshroud code built in coding agent switch engine') +
       row('Delete all chat history', 'Removes every saved chat in the Chat tab.', '<button class="ib dang" data-a="clrchat">Delete chats</button>', 'chats history delete') +
       row('Opponents and players reply from the AI', 'Chess opponents, poker players, club members and friends answer with the local AI. Turn off for short canned lines.', tog('olai', bool('olai', true)), 'opponent chat ai replies') +
       row('Internet access for the assistant', 'Off by default. Switched on, the chat can search the web and read pages when you tick <b>&#127760; Web</b> under the message box, and Moundshroud shows what it read as sources you can click. Searches leave this PC from your own connection, and Moundshroud refuses to fetch anything on your own network (the router, other devices, itself).', '<label class="chk" style="margin:0;gap:7px"><input type="checkbox" id="cweb"> <span class="small mute">Allow</span></label><button class="ib" data-a="webtest">Try a search</button>', 'internet online web search look up network privacy firewall') +
@@ -423,9 +423,10 @@
     });
     frget();
     { const hk = $$('#hkind'), st = $$('#hkindst');
+      const hname = k => k === 'jcode' ? 'jcode' : k === 'native' ? 'Moundshroud Code' : 'Claude Code';
       if (hk) {
         A.api('/api/harness/kind').then(r => { hk.value = r.kind || 'claude'; if (!r.jcode) { hk.querySelector('option[value="jcode"]').disabled = true; st.textContent = 'jcode is not installed'; } }).catch(() => { });
-        hk.onchange = async () => { const r = await A.api('/api/harness/kind', { kind: hk.value }); if (r.ok) { st.textContent = ''; A.toast('Agent harness: ' + (hk.value === 'jcode' ? 'jcode' : 'Claude Code')); } else { A.toast(r.error || 'Could not switch.'); const g = await A.api('/api/harness/kind'); hk.value = g.kind; } };
+        hk.onchange = async () => { const r = await A.api('/api/harness/kind', { kind: hk.value }); if (r.ok) { st.textContent = ''; A.toast('Agent harness: ' + hname(hk.value)); } else { A.toast(r.error || 'Could not switch.'); const g = await A.api('/api/harness/kind'); hk.value = g.kind; } };
       } }
     if (A.privacyPage) A.privacyPage($$('#prvbox'), cset);
     if (A.remotePage) A.remotePage($$('#rmbox'));
@@ -709,9 +710,10 @@
     });
     frget();
     { const hk = $$('#hkind'), st = $$('#hkindst');
+      const hname = k => k === 'jcode' ? 'jcode' : k === 'native' ? 'Moundshroud Code' : 'Claude Code';
       if (hk) {
         A.api('/api/harness/kind').then(r => { hk.value = r.kind || 'claude'; if (!r.jcode) { hk.querySelector('option[value="jcode"]').disabled = true; st.textContent = 'jcode is not installed'; } }).catch(() => { });
-        hk.onchange = async () => { const r = await A.api('/api/harness/kind', { kind: hk.value }); if (r.ok) { st.textContent = ''; A.toast('Agent harness: ' + (hk.value === 'jcode' ? 'jcode' : 'Claude Code')); } else { A.toast(r.error || 'Could not switch.'); const g = await A.api('/api/harness/kind'); hk.value = g.kind; } };
+        hk.onchange = async () => { const r = await A.api('/api/harness/kind', { kind: hk.value }); if (r.ok) { st.textContent = ''; A.toast('Agent harness: ' + hname(hk.value)); } else { A.toast(r.error || 'Could not switch.'); const g = await A.api('/api/harness/kind'); hk.value = g.kind; } };
       } }
     if (A.privacyPage) A.privacyPage($$('#prvbox'), cset);
     if (A.remotePage) A.remotePage($$('#rmbox'));
