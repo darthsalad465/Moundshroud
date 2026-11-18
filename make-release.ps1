@@ -21,10 +21,10 @@ function Zip($dest, $files) {                                      # entry by en
   try { foreach ($f in $files) { $rel = $f.FullName.Substring($stage.Length + 1).Replace('\', '/'); $en = $za.CreateEntry($rel, [IO.Compression.CompressionLevel]::Optimal); $en.LastWriteTime = $f.LastWriteTime; $es = $en.Open(); $in = [IO.File]::OpenRead($f.FullName); try { $in.CopyTo($es) } finally { $in.Dispose(); $es.Dispose() } } } finally { $za.Dispose(); $fs.Dispose() }
 }
 try {
-  foreach ($f in 'server.js', 'Listener.cs', 'open-moundshroud.ps1', 'ocr.ps1', 'pc-volume.ps1', 'snapshot.ps1', 'restore-snapshot.ps1', 'apply-update.ps1', 'update.json', 'SNAPSHOTS.txt', 'README.md', 'LICENSE', 'START-HERE.txt', 'VERSION', 'setup.ps1', 'Setup-Moundshroud.bat') {
+  foreach ($f in 'server.js', 'Listener.cs', 'install-mcode.ps1', 'open-moundshroud.ps1', 'ocr.ps1', 'pc-volume.ps1', 'snapshot.ps1', 'restore-snapshot.ps1', 'apply-update.ps1', 'update.json', 'SNAPSHOTS.txt', 'README.md', 'LICENSE', 'START-HERE.txt', 'VERSION', 'setup.ps1', 'Setup-Moundshroud.bat') {
     $p = Join-Path $root $f; if (Test-Path $p) { Copy-Item $p (Join-Path $pkg $f) -Force } else { Write-Host "  (missing, skipped: $f)" -ForegroundColor Yellow }
   }
-  foreach ($d in 'lib', 'py', 'web') { Copy-Item (Join-Path $root $d) (Join-Path $pkg $d) -Recurse -Force }
+  foreach ($d in 'bin', 'lib', 'py', 'web') { Copy-Item (Join-Path $root $d) (Join-Path $pkg $d) -Recurse -Force }
   Remove-Item (Join-Path $pkg 'web\music') -Recurse -Force -ErrorAction SilentlyContinue                      # the songs are large and are fetched separately
   Get-ChildItem (Join-Path $pkg 'py') -Recurse -Directory -Filter '__pycache__' | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
   New-Item -ItemType Directory -Force (Join-Path $pkg 'data') | Out-Null

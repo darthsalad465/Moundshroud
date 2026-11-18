@@ -58,6 +58,7 @@ function cleanup() {
   try { gateway.stop(); } catch (e) {}
   try { harnesses.claude.stop(); } catch (e) {}   // the hidden Claude Code process of the in-app agent
   try { harnesses.jcode.stop(); jcodeLib.stopDaemon(); } catch (e) {}   // and jcode, with its background server
+  try { harnesses.native.stop(); } catch (e) {}   // Moundshroud Code, which runs inside this server
   try { require('./lib/agentbridge').stop(); } catch (e) {}   // the free-agent bridge the harnesses use for free models
   try { routines.shutdown(); } catch (e) {}  // and a routine's, if one is running
   try { remote.stop(); } catch (e) {}        // and the phone server
@@ -152,15 +153,29 @@ const bibleLib = require('./lib/bible').create(DATA, path.join(WEB, 'data'));   
 /* pictures, music, voices and video: the engines live in lib/media.js; teams and swarms in lib/swarm.js */
 const media = require('./lib/media'), swarm = require('./lib/swarm'), swarmModel = require('./lib/swarm-model');
 const safeDir = require('./lib/safe-dir'), harnessLib = require('./lib/harness');
-const harnessStore = harnessLib.store(DATA), jcodeLib = require('./lib/harness-jcode');
-/* two agent harnesses, Claude Code (default) and jcode; Settings picks one and every /api/harness route uses it */
-const harnesses = { claude: harnessLib.create({ save: rec => harnessStore.save(rec) }), jcode: jcodeLib.create({ save: rec => harnessStore.save(rec) }) };
+const harnessStore = harnessLib.store(DATA), jcodeLib = require('./lib/harness-jcode'), nativeLib = require('./lib/harness-native');
+const hfLib = require('./lib/hf-gguf');
+/* the lines a command leaves behind after it has answered (a model finishing its pull, a craft run): the Agent tab
+   asks for the new ones as it polls, so a long job can report while the page is still open */
+const CMDNOTE = { seq: 0, list: [] };
+let cmdPullBusy = false;
+function cmdNote(text) {
+  CMDNOTE.seq++;
+  CMDNOTE.list.push({ seq: CMDNOTE.seq, at: Date.now(), text: String(text).slice(0, 4000) });
+  if (CMDNOTE.list.length > 400) CMDNOTE.list.splice(0, CMDNOTE.list.length - 400);
+  return CMDNOTE.seq;
+}
+const cmdNotes = since => { const n = +since || 0; return { seq: CMDNOTE.seq, notes: CMDNOTE.list.filter(x => x.seq > n) }; };
+/* three agent harnesses: Claude Code (default), jcode, and Moundshroud Code, the one built into this app;
+   Settings picks one and every /api/harness route uses it */
+const harnesses = { claude: harnessLib.create({ save: rec => harnessStore.save(rec) }), jcode: jcodeLib.create({ save: rec => harnessStore.save(rec) }), native: nativeLib.create({ save: rec => harnessStore.save(rec), dataDir: DATA }) };
 const HKIND_FILE = path.join(DATA, 'harness-kind.json');
 let harnessKind = (() => { try { const k = JSON.parse(fs.readFileSync(HKIND_FILE, 'utf8')).kind; return harnesses[k] ? k : 'claude'; } catch (e) { return 'claude'; } })();
 const harness = ['start', 'send', 'answer', 'stop', 'state', 'show', 'clear'].reduce((o, k) => { o[k] = (...a) => { const r = harnesses[harnessKind][k](...a); if (k === 'state' && r && !r.harness) r.harness = 'claude'; return r; }; return o; }, {});
 function setHarnessKind(k) {
   if (!harnesses[k]) return { ok: false, error: 'Unknown harness.' };
   if (k === 'jcode' && !jcodeLib.installed()) return { ok: false, error: 'jcode is not installed in runtime\\jcode.' };
+  /* Moundshroud Code is part of the app, so it is always ready to use */
   if (k !== harnessKind) { try { harnesses[harnessKind].stop(); } catch (e) { } harnessKind = k; try { fs.writeFileSync(HKIND_FILE, JSON.stringify({ kind: k })); } catch (e) { } }
   return { ok: true, kind: k };
 }
@@ -217,10 +232,26 @@ const remote = require('./lib/remote').create({ dataDir: DATA, webDir: WEB, main
   'POST /api/routines/run': async x => x.send(200, await routines.run(String(x.b.id || ''))),
   'POST /api/routines/seen': async x => x.send(200, routines.seen(null)),
 } });
+const zlib = require('zlib');
+/* Static files are compressed once and then remembered, and a reload asks "has this changed?" instead of downloading it
+   again. Opening the window used to pull ~7 MB and 250 files off the disk every single time; now the text files come
+   across gzipped (about a fifth of the size) and an unchanged one is a 304 with no body at all. Nothing is cached for
+   longer than the file on disk stays the same, so an updated panel is still picked up on the next load. */
+const ZCACHE = new Map(); let ZBYTES = 0; const ZMAX = 40 * 1024 * 1024, ZFILE = 6 * 1024 * 1024;
+const ZTYPES = new Set(['text/html; charset=utf-8', 'text/javascript; charset=utf-8', 'text/css; charset=utf-8', 'application/json', 'image/svg+xml', 'text/plain; charset=utf-8', 'application/manifest+json']);
+function packed(f, key) {
+  const hit = ZCACHE.get(key); if (hit) return hit;
+  const buf = zlib.gzipSync(fs.readFileSync(f), { level: 6 });
+  ZCACHE.set(key, buf); ZBYTES += buf.length;
+  for (const [k, v] of ZCACHE) { if (ZBYTES <= ZMAX || ZCACHE.size <= 2) break; ZCACHE.delete(k); ZBYTES -= v.length; }
+  return buf;
+}
 function serveFile(res, root, rel, req) {
   const f = path.normalize(path.join(root, rel)), inside = path.relative(root, f);          // must really be inside the folder (not just share its first letters)
   if (String(rel).includes('\0') || inside.startsWith('..') || path.isAbsolute(inside) || !fs.existsSync(f) || !fs.statSync(f).isFile()) { res.writeHead(404); return res.end('not found'); }
-  const type = MIME[path.extname(f).toLowerCase()] || 'application/octet-stream', size = fs.statSync(f).size, h = { 'Content-Type': type, 'Cache-Control': 'no-store', 'Accept-Ranges': 'bytes' };
+  const st = fs.statSync(f), type = MIME[path.extname(f).toLowerCase()] || 'application/octet-stream', size = st.size;
+  const etag = 'W/"' + size.toString(16) + '-' + Math.floor(st.mtimeMs).toString(36) + '"', inm = req && req.headers && req.headers['if-none-match'];
+  const h = { 'Content-Type': type, 'Cache-Control': 'no-cache', 'Accept-Ranges': 'bytes', 'ETag': etag, 'Last-Modified': st.mtime.toUTCString(), 'Vary': 'Accept-Encoding' };
   // byte ranges, so audio can show its length and be seeked
   const m = req && req.headers && req.headers.range ? /^bytes=(\d*)-(\d*)$/.exec(req.headers.range) : null;
   if (m && (m[1] !== '' || m[2] !== '')) {
@@ -229,7 +260,14 @@ function serveFile(res, root, rel, req) {
     res.writeHead(206, Object.assign(h, { 'Content-Range': 'bytes ' + a + '-' + b + '/' + size, 'Content-Length': b - a + 1 }));
     return fs.createReadStream(f, { start: a, end: b }).pipe(res);
   }
+  if (inm && String(inm).split(',').some(t => { t = t.trim(); return t === etag || t === '*'; })) { res.writeHead(304, { 'ETag': etag, 'Cache-Control': 'no-cache', 'Vary': 'Accept-Encoding' }); return res.end(); }
+  const ae = String((req && req.headers && req.headers['accept-encoding']) || '');
+  if (ZTYPES.has(type) && size > 700 && size <= ZFILE && /\bgzip\b/i.test(ae)) {
+    let buf = null; try { buf = packed(f, etag + '|' + f); } catch (e) { buf = null; }
+    if (buf) { res.writeHead(200, Object.assign(h, { 'Content-Encoding': 'gzip', 'Content-Length': buf.length })); return res.end(req && req.method === 'HEAD' ? undefined : buf); }
+  }
   h['Content-Length'] = size; res.writeHead(200, h);
+  if (req && req.method === 'HEAD') return res.end();
   fs.createReadStream(f).pipe(res);
 }
 function chatsSearch(q) {
@@ -717,7 +755,7 @@ if (url === '/api/chat' && req.method === 'POST') {
     /* ---- the local coding agent (Gemma in Ollama): report whether it is set up, open it in its own window ---- */
     /* ---- the in-app agent: Claude Code runs hidden and the Agent tab shows the conversation (lib/harness.js) ---- */
     if (url === '/api/harness/kind' && req.method === 'POST') { const b = await jbody(req, 1e3); return json(res, 200, setHarnessKind(String((b || {}).kind || ''))); }
-    if (url === '/api/harness/kind') return json(res, 200, { kind: harnessKind, jcode: jcodeLib.installed() });
+    if (url === '/api/harness/kind') return json(res, 200, { kind: harnessKind, jcode: jcodeLib.installed(), native: true, name: nativeLib.NAME });
     if (url === '/api/harness/state') return json(res, 200, harness.state(q.get('since')));
     if (url === '/api/harness/sessions') return json(res, 200, { sessions: harnessStore.list() });
     if (url === '/api/harness/record') { const rec = harnessStore.get(String(q.get('id') || '')); return json(res, 200, rec ? { ok: true, record: rec } : { ok: false, error: 'That conversation is no longer kept.' }); }
@@ -729,6 +767,51 @@ if (url === '/api/chat' && req.method === 'POST') {
     if (url === '/api/harness/start' && req.method === 'POST') {
       const b = await jbody(req, 1e4);
       return json(res, 200, await startHarness(b));
+    }
+    /* ---- the same commands the terminal window has, run against whichever harness is chosen ----
+       /chat /code /autonomy /net /reach /think are the harness's own switches; only Moundshroud Code has them, so a
+       different harness answers honestly instead of pretending. ---- */
+    if (url === '/api/harness/control' && req.method === 'POST') {
+      const b = await jbody(req, 4e3), h = harnesses[harnessKind], cmd = String(b.cmd || ''), v = b.value;
+      const only = { ok: false, error: 'That switch belongs to Moundshroud Code, the harness built into this app. Settings › Agent › Harness chooses it.' };
+      if (cmd === 'mode') { if (!h.setMode) return json(res, 200, only); return json(res, 200, h.setMode(v === 'chat' ? 'chat' : 'code')); }
+      if (cmd === 'autonomy') { if (!h.setAutonomy) return json(res, 200, only); return json(res, 200, h.setAutonomy(String(v || 'normal'))); }
+      if (cmd === 'web') { if (!h.setWeb) return json(res, 200, only); return json(res, 200, h.setWeb(!!v)); }
+      if (cmd === 'reach') { if (!h.setReach) return json(res, 200, only); return json(res, 200, h.setReach(!!v)); }
+      if (cmd === 'think') { if (!h.setThink) return json(res, 200, only); return json(res, 200, h.setThink(!!v)); }
+      return json(res, 200, { ok: false, error: 'No such switch.' });
+    }
+    /* lines that arrive after a command has answered: a pull finishing, a craft run, progress between the two */
+    if (url === '/api/harness/notes') return json(res, 200, cmdNotes(q.get('since')));
+    if (url === '/api/harness/craft' && req.method === 'POST') {
+      const b = await jbody(req, 8e3), line = String(b.args || '').trim();
+      if (!nativeLib.craft.path()) return json(res, 200, { ok: false, error: nativeLib.craft.how });
+      let r; try { r = nativeLib.craft.run(line || '--version', /rebuild|triage|report|chat/i.test(line) ? 20 * 60000 : 120000); } catch (e) { r = { ok: false, error: String(e.message || e) }; }
+      if (!r.ok && r.missing) return json(res, 200, { ok: false, error: nativeLib.craft.how });
+      return json(res, 200, { ok: !!r.ok, text: String(r.whole || r.text || r.error || '').slice(0, 6000) });
+    }
+    if (url === '/api/harness/pull' && req.method === 'POST') {
+      const b = await jbody(req, 2e3), spec = String(b.spec || '');
+      const t = hfLib.parse(spec);
+      if (!t) return json(res, 200, { ok: false, error: 'Give a Hugging Face repo: /pull owner/name:Q4_K_M   (add :smallest for the littlest file)' });
+      if (cmdPullBusy) return json(res, 200, { ok: false, error: 'A model is already coming down. Wait for it.' });
+      cmdPullBusy = true;
+      cmdNote('pull · ' + t.repo + (t.quant ? ' · ' + t.quant : '') + ' — looking for a GGUF file');
+      (async () => {
+        try {
+          let last = 0;
+          const r = await hfLib.pull(t, {
+            onNote: n => cmdNote('pull · ' + n),
+            onPct: (got, total) => {
+              const pct = total ? Math.round(got / total * 100) : 0;
+              if (pct >= last + 20) { last = pct; cmdNote('pull · ' + pct + '%  ' + hfLib.mb(got) + (total ? ' of ' + hfLib.mb(total) : '')); }
+            },
+          });
+          cmdNote(r.ok ? 'pull · added ' + r.name + ' · ' + r.quant + ' · ' + hfLib.mb(r.bytes) + ' — pick it with /model ' + r.name : 'pull · failed: ' + (r.error || 'unknown problem'));
+        } catch (e) { cmdNote('pull · failed: ' + String((e && e.message) || e)); }
+        cmdPullBusy = false;
+      })();
+      return json(res, 200, { ok: true, note: 'Pulling ' + t.repo + (t.quant ? ' · ' + t.quant : '') + ' — this can take a while. A line will appear here when it is done.' });
     }
     /* ---- agent routines (lib/routines.js) ---- */
     if (url === '/api/routines') return json(res, 200, routines.list());
@@ -748,6 +831,7 @@ if (url === '/api/chat' && req.method === 'POST') {
     if (url === '/api/wake') { const W = path.join(DATA, 'wake-on'); if (req.method === 'POST') { const b = await jbody(req, 1e3); if (b.on) fs.writeFileSync(W, '1'); else { try { fs.unlinkSync(W); } catch (e) { } } } let status = ''; try { status = fs.readFileSync(path.join(DATA, 'wake-status.txt'), 'utf8').trim(); } catch (e) { } return json(res, 200, { on: fs.existsSync(W), status }); }
     if (url === '/api/harness/clear' && req.method === 'POST') return json(res, 200, harness.clear());
     if (url === '/api/agent/status') return agent.status(s => json(res, 200, s));
+    /* opens the chosen harness in a console window of its own, Moundshroud Code included (lib/moundshroud-code.js) */
     if (url === '/api/agent/launch' && req.method === 'POST') { const b = await jbody(req, 1e4); return agent.list(async (up, models) => json(res, 200, await agent.launch(b.dir, { model: b.model, guard: !!b.guard, ctx: b.ctx, harness: harnessKind }, models))); }
     if (url === '/api/pick-folder' && req.method === 'POST') {
       const ps = "Add-Type -AssemblyName System.Windows.Forms; $f=New-Object System.Windows.Forms.FolderBrowserDialog; $f.Description='Choose a folder for your assistant to read'; $f.ShowNewFolderButton=$false; if($f.ShowDialog() -eq 'OK'){ [Console]::Out.Write($f.SelectedPath) }";

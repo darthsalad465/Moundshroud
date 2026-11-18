@@ -7,7 +7,10 @@
   let running = false;
   async function run() {
     if (running) return; running = true; const t0 = Date.now(), errs = []; let cur = '';
-    const onErr = e => { const t = e.target; const m = e.message ? e.message + (e.filename ? ' (' + String(e.filename).split('/').pop() + ':' + e.lineno + ')' : '') : t && (t.src || t.href) ? 'could not load ' + String(t.src || t.href).split('/').slice(-2).join('/') : 'error'; errs.push([cur, m]); };
+    /* a picture or a sound that does not arrive is not a broken page: news photographs are fetched only while internet
+       access is on, and the library art is allowed to be missing. The problem log already ignores these; the test had
+       been counting them, which made a healthy tab look broken. */
+    const onErr = e => { const t = e.target; if (t && t !== window && /^(IMG|SOURCE|TRACK|VIDEO|AUDIO|LINK)$/.test(t.tagName || '')) return; const m = e.message ? e.message + (e.filename ? ' (' + String(e.filename).split('/').pop() + ':' + e.lineno + ')' : '') : t && (t.src || t.href) ? 'could not load ' + String(t.src || t.href).split('/').slice(-2).join('/') : 'error'; errs.push([cur, m]); };
     const onRej = e => errs.push([cur, 'promise rejected: ' + String((e.reason && e.reason.message) || e.reason).slice(0, 160)]);
     window.addEventListener('error', onErr, true); window.addEventListener('unhandledrejection', onRej);
     const back = A.cur, rows = [], add = (name, ok, note) => { rows.push({ name, ok, note: note || '' }); paint(); };

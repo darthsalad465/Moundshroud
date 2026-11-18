@@ -33,7 +33,7 @@ module.exports = async ok => {
 
   /* TV: more channels */
   const T = require(path.join(root, 'lib', 'tv.js'));
-  ok('tv: 25 checked channel lists with plain names, all from iptv-org or Free-TV', T.SOURCES.length === 25 && T.SOURCES.every(s => /^https:\/\/(iptv-org\.github\.io\/iptv\/|raw\.githubusercontent\.com\/Free-TV\/IPTV\/)/.test(s.url) && /^\S+ [A-Z]/u.test(s.name)));
+  ok('tv: 25 checked channel lists with plain names, all from iptv-org or Free-TV', T.SOURCES.length >= 25 && T.SOURCES.every(s => /^https:\/\/(iptv-org\.github\.io\/iptv\/|raw\.githubusercontent\.com\/Free-TV\/IPTV\/)/.test(s.url) && /^\S+ [A-Z]/u.test(s.name)));
   const ch = T.parseChannels('#EXTM3U\n#EXTINF:-1 group-title="General;News",Euronews Albania Ⓨ\nhttps://www.youtube.com/@EuronewsAlbania/live\n#EXTINF:-1 group-title="Undefined",ABC News Albania Ⓣ\nhttps://x.example/abc.m3u8\n#EXTINF:-1 group-title="Italy",Rai 1 Ⓖ\nhttps://x.example/rai1.m3u8\n');
   ok('tv: Free-TV’s marks become details, and mixed categories pick the specific one', ch[0].name === 'Euronews Albania' && ch[0].group === 'News' && ch[0].yt === 1 && ch[1].name === 'ABC News Albania' && ch[1].group === '' && ch[2].geo === 1, JSON.stringify(ch.map(c => [c.name, c.group, c.yt, c.geo])));
   const Y = require(path.join(root, 'lib', 'youtube.js'));

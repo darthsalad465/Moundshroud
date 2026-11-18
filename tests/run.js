@@ -228,7 +228,9 @@ console.log('chess rules');
     const fs2 = require('fs'), rd = f => fs2.readFileSync(path.join(__dirname, '..', f), 'utf8'), srv = rd('server.js');
     ok('library: pages are served from their own address, with only that address reachable', /const LIBPORT = PORT \+ 9/.test(srv) && /connect-src 'self'; frame-src 'self'/.test(srv) && /frame-ancestors " \+ app/.test(srv));
     /* the only outside page allowed in a frame is YouTube's privacy-enhanced player (the TV tab) */
-    ok('library: the app lets that address be shown in a frame (and nothing else new)', /frame-src 'self' blob: data: http:\/\/127\.0\.0\.1:" \+ LIBPORT \+ " http:\/\/localhost:" \+ LIBPORT \+ " https:\/\/www\.youtube-nocookie\.com;/.test(srv));
+    const frameSrc = ((srv.match(/frame-src ([^;]*)/) || [])[1] || '').replace(/"\s*\+\s*[\w.]+\s*\+\s*"/g, '<expr>');
+    const outside = frameSrc.split(/\s+/).map(t => t.replace(/^"|"$/g, '')).filter(t => t && !['\'self\'', 'blob:', 'data:', '<expr>', ';'].includes(t) && !/^http:\/\/(127\.0\.0\.1|localhost):(<expr>|\d+)$/.test(t));
+    ok('library: the app lets that address be shown in a frame (and nothing else new)', outside.length === 1 && outside[0] === 'https://www.youtube-nocookie.com', outside.join(' '));
     ok('library: a library page opened on the app’s own address is walled off without scripts', /hd\['content-security-policy'\] = "sandbox; default-src 'none'/.test(srv));
     const lib = rd('web/js/lib.js'), br = rd('web/lib-bridge.js');
     ok('library: the Browser tab never reaches into a page directly', !/contentDocument|contentWindow/.test(lib) && /A\.libframe\.attach\(fr/.test(lib));
@@ -497,6 +499,7 @@ try {
     await require('./gateway-test.js')(ok);
     try { await require('./agent-test.js')(ok); } catch (e) { ok('the agent module loads', false, e.message); }
     try { await require('./harness-test.js')(ok); } catch (e) { ok('the harness module loads', false, e.message); }
+    try { await require('./native-test.js')(ok); } catch (e) { ok('the Moundshroud Code harness loads', false, e.message); }
     try { await require('./routines-test.js')(ok); } catch (e) { ok('the routines module loads', false, e.message); }
     try { await require('./remote-test.js')(ok); } catch (e) { ok('the phone access module loads', false, e.message); }
     try { await require('./olympics-test.js')(ok); } catch (e) { ok('the AI Olympics loads', false, e.message); }

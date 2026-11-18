@@ -1,0 +1,12 @@
+#!/bin/sh
+# mcode - open Moundshroud Code, the coding agent, in any terminal (Git Bash, WSL, macOS, Linux).
+# The program itself is lib/moundshroud-code.js in the folder above; this only hands over to Node.
+here=$(cd "$(dirname "$0")" && pwd)
+if [ ! -f "$here/../lib/moundshroud-code.js" ]; then
+  echo "mcode: Moundshroud is not where this launcher expects it - looked in $here/../lib" >&2
+  exit 1
+fi
+export MS_FORCE_TTY=1
+# Uncomment the next line to debug input issues:
+# export MS_DEBUG_INPUT=1
+exec node "$here/../lib/moundshroud-code.js" "$@"
