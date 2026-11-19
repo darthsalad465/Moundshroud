@@ -27,6 +27,7 @@
 !/.github/workflows/
 /.github/workflows/*
 !/.github/workflows/refresh-readme.yml
+!/.github/workflows/github-safety.yml
 !/restore-progress.ps1
 !/install-art-model.ps1
 !/install-music-model.ps1
@@ -51,9 +52,18 @@
 /scripts/*
 !/scripts/auto-commit.ps1
 !/scripts/update-readme.js
+!/scripts/check-github-safety.js
+!/scripts/install-git-safety.ps1
+!/.githooks/
+/.githooks/*
+!/.githooks/pre-push
 !/.dev/
 /.dev/*
 !/.dev/settings.json
+!/.github/
+!/desktop/
+/desktop/node_modules/
+/desktop/dist/
 
 # inside the allowed folders
 /web/music/

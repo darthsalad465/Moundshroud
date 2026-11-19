@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Starting Moundshroud…</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+    background:radial-gradient(circle at 50% 35%,#142147 0%,#080d1e 65%,#040711 100%);
+    color:#f1f5f9;font-family:"Segoe UI",system-ui,sans-serif;overflow:hidden;
+    border:1px solid rgba(99,102,241,.35);border-radius:16px;-webkit-app-region:drag;user-select:none
+  }
+  .orb{
+    width:72px;height:72px;border-radius:20px;display:grid;place-items:center;
+    background:linear-gradient(135deg,#0ea5e9,#6366f1);
+    box-shadow:0 0 36px rgba(99,102,241,.48),inset 0 1px 0 rgba(255,255,255,.32);
+    font-size:34px;animation:pulse 1.8s ease-in-out infinite
+  }
+  @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+  h1{font-size:21px;font-weight:700;letter-spacing:.02em}
+  p{font-size:12.5px;color:#94a3b8}
+  .bar{width:220px;height:4px;border-radius:99px;background:rgba(148,163,184,.18);overflow:hidden;margin-top:4px}
+  .bar i{display:block;height:100%;width:45%;border-radius:99px;background:linear-gradient(90deg,#38bdf8,#818cf8);animation:slide 1.2s ease-in-out infinite}
+  @keyframes slide{0%{transform:translateX(-110%)}100%{transform:translateX(260%)}}
+  .tag{font-size:10.5px;color:#34d399;letter-spacing:.08em;text-transform:uppercase;font-weight:700;opacity:.9}
+</style>
+</head>
+<body>
+  <div class="orb">✦</div>
+  <h1>Moundshroud</h1>
+  <p>Starting local on-device engine…</p>
+  <div class="bar"><i></i></div>
+  <div class="tag">100% Private · On-Device First</div>
+</body>
+</html>
