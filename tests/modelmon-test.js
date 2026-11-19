@@ -224,7 +224,7 @@ module.exports = async ok => {
   patch.a.hp = 20;
   C.resolveTurn(patch, { kind: 'item', item: 'patch' }, { kind: 'move', index: 0 });
   eq('modelmon: a Cache Patch is spent', patch.bag.a.patch, 1);
-  ok('modelmon: a Cache Patch restores 50 HP', patch.log.some(l => /restored 50 HP/.test(l)), patch.log.join(' | '));
+  { const want = Math.min(patch.a.maxHp - 20, Math.round(patch.a.maxHp * .35)); ok('modelmon: a Cache Patch restores 35% of max HP', patch.log.some(l => l.includes('restored ' + want + ' HP')), 'wanted ' + want + ': ' + patch.log.join(' | ')); }
   const reset = C.createBattle(teamA.slice(0, 1), [roster[5]], { seed: 12, player: 'a' });
   reset.a.hp = 20;
   reset.a.status.scorch = 3;
@@ -327,4 +327,117 @@ module.exports = async ok => {
   ok('modelmon: a missing model record falls back safely', unknown.name === 'unknown' && unknown.maxHp > 0);
   const noTeams = (() => { try { C.createBattle([], [roster[0]]); return 'no error'; } catch (e) { return e.message; } })();
   ok('modelmon: an empty team is refused', noTeams !== 'no error', noTeams);
+
+  /* ---------------- the circuit fields its own squads ---------------- */
+  const order = ['ember', 'tide', 'bloom', 'storm', 'frost', 'stone', 'champion'];
+  ok('modelmon: Curator levels rise along the circuit', order.every((k, i) => i === 0 || C.curatorLevel(k, 1) > C.curatorLevel(order[i - 1], 1)), order.map(k => C.curatorLevel(k, 1)).join(','));
+  const own = C.buildCuratorSquad('ember', { difficulty: 1 });
+  eq('modelmon: the Ember Curator squad has two monsters', own.length, 2);
+  ok('modelmon: a Curator squad is its own, not the player roster', own.every(m => !roster.some(r => r.name === m.name)), own.map(m => m.name).join(','));
+  ok('modelmon: the Ember Curator fields Ember monsters', own.every(m => m.type === 'ember' || m.type2 === 'ember'), own.map(m => m.type).join(','));
+  ok('modelmon: a Curator squad fights at the Curator level', own.every(m => m.lv >= C.curatorLevel('ember', 1) - 1), own.map(m => m.lv).join(','));
+  eq('modelmon: the champion squad has six', C.buildCuratorSquad('champion', { difficulty: 1 }).length, 6);
+  ok('modelmon: Hard Curators are higher level than Easy ones', C.curatorLevel('tide', 2) > C.curatorLevel('tide', 0));
+  ok('modelmon: every Curator but the champion has a Core reward', order.slice(0, 6).every(k => C.CURATOR_REWARD[k] && C.CURATOR_REWARD[k].text));
+  ok('modelmon: a new trainer has three squad slots', C.squadSlots(0) === 3);
+  ok('modelmon: the first Core opens a fourth slot', C.squadSlots(1) === 4 && C.squadSlots(2) === 4);
+  ok('modelmon: the third and fifth Cores open slots five and six', C.squadSlots(3) === 5 && C.squadSlots(5) === 6 && C.squadSlots(6) === 6);
+  ok('modelmon: every slot names the Cores it needs', C.coresForSlot(3) === 0 && C.coresForSlot(4) === 1 && C.coresForSlot(6) === 5);
+  ok('modelmon: six slots are open before the Champion', C.squadSlots(6) >= C.curatorTeamSize('champion', 1, 6));
+  ok('modelmon: dolphin models are not typed as Phi', C.typeFor('dolphin-llama3:8b', 'llama') === 'ember');
+
+  /* ---------------- pacing at trainer level 1 ---------------- */
+  {
+    const fresh = roster.slice(0, 6).map(m => C.applyLevel(C.buildMonster(m.meta), 1));
+    let turns = [], timeouts = 0;
+    for (let i = 0; i < 30; i++) {
+      const a = C.buildQuickTeam(fresh, 3, { seed: i * 7 + 1 }), b = C.buildQuickTeam(fresh, 3, { seed: i * 13 + 5 });
+      const bt = C.createBattle(a, b, { seed: i });
+      while (!bt.over) {
+        if (bt.pendingSwitch) { C.chooseSwitch(bt, 'a', C.aiChooseSwitch(bt, 'a', 1)); continue; }
+        C.resolveTurn(bt, C.aiChooseAction(bt, 'a', 1), C.aiChooseAction(bt, 'b', 1));
+      }
+      turns.push(bt.turn); if (bt.log.some(l => /Time!/.test(l))) timeouts++;
+    }
+    turns.sort((x, y) => x - y);
+    ok('modelmon: a fresh Lv 1 three-on-three ends in reasonable time', turns[15] <= 25, 'median ' + turns[15]);
+    eq('modelmon: no fresh Lv 1 battle hits the turn limit', timeouts, 0);
+  }
+  ok('modelmon: trainer level raises the fighting level and stats', (() => { const lo = C.applyLevel(C.buildMonster(roster[0].meta), 1), hi = C.applyLevel(C.buildMonster(roster[0].meta), 50); return hi.level > lo.level && hi.stats.atk > lo.stats.atk; })());
+  ok('modelmon: a tiny F16 model is not a Defence wall', C.buildMonster({ name: 'gpt2-tiny', parameters: 5.3e6, size: 1.1e7, quantization_level: 'F16', context: 1024 }).stats.def < 90);
+
+  /* ---------------- every kind of AI model ---------------- */
+  eq('modelmon: an embedder is an embedding model', C.kindFor({ name: 'nomic-embed-text', capabilities: ['embedding'] }), 'embedding');
+  eq('modelmon: whisper is a speech model', C.kindFor({ name: 'whisper-large-v3' }), 'speech');
+  eq('modelmon: a reranker is a reranker', C.kindFor({ name: 'bge-reranker-v2-m3' }), 'reranker');
+  eq('modelmon: CLIP is a vision encoder', C.kindFor({ name: 'openai/clip-vit-large-patch14' }), 'encoder');
+  eq('modelmon: Stable Diffusion is an image generator', C.kindFor({ name: 'stable-diffusion-v1-5' }), 'diffusion');
+  eq('modelmon: a chat model is a language model', C.kindFor({ name: 'llama3.2:3b' }), 'llm');
+  const emb = C.buildMonster({ name: 'nomic-embed-text', family: 'nomic-bert', parameters: 1.37e8, size: 2.7e8, quantization_level: 'F16', context: 2048, capabilities: ['embedding'] });
+  ok('modelmon: an embedder battles with its own signature', emb.moves[3].name === 'Nearest Neighbour' && emb.ability.key === 'vectorspace');
+  const lm = C.buildMonster({ name: 'Qwen2.5-1.5B-Instruct-Q4_K_M', source: 'lmstudio', parameters: 1.5e9, size: 1e9, quantization_level: 'Q4_K_M' });
+  ok('modelmon: an LM Studio model builds a monster and keeps its source', lm.meta.source === 'lmstudio' && lm.type === 'tide');
+
+  /* ---------------- Heretic and crafted models ---------------- */
+  const plainMeta = { name: 'qwen3:4b', family: 'qwen3', parameters: 4e9, size: 2.5e9, quantization_level: 'Q4_K_M', context: 40960 };
+  const plain = C.buildMonster(plainMeta), her = C.buildMonster(Object.assign({}, plainMeta, { name: 'qwen3-4b-heretic' }));
+  ok('modelmon: a -heretic name makes a Heretic', her.meta.heretic && !plain.meta.heretic);
+  ok('modelmon: abliterated models count as Heretic', C.isHeretic({ name: 'llama3.1:8b-abliterated' }));
+  ok('modelmon: a Heretic hits harder', her.stats.atk > plain.stats.atk && her.stats.spa > plain.stats.spa, her.stats.atk + ' vs ' + plain.stats.atk);
+  ok('modelmon: a Heretic guards less', her.stats.def < plain.stats.def && her.stats.spd < plain.stats.spd);
+  ok('modelmon: a Heretic is Unchained with Refusal Bypass', her.ability.key === 'unchained' && her.moves[3].name === 'Refusal Bypass' && her.moves[3].pierce);
+  {
+    const bt = C.createBattle([her], [plain], { seed: 3 });
+    bt.b.ability = Object.assign({}, bt.b.ability); bt.a.status.throttle = 0;
+    const fake = { fx: { status: 'throttle' } };
+    C.resolveTurn(bt, { kind: 'move', index: 0 }, { kind: 'move', index: 0 });
+    bt.b.moves[1] = Object.assign({}, bt.b.moves[1], { name: 'Static Noise', kind: 'status', fx: fake.fx, pp: 5, maxPp: 5 });
+    if (!bt.over) C.resolveTurn(bt, { kind: 'move', index: 0 }, { kind: 'move', index: 1 });
+    eq('modelmon: an Unchained monster cannot be throttled', bt.a.status.throttle, 0);
+  }
+  const hot = C.buildMonster(Object.assign({}, plainMeta, { name: 'qwen3-hot', crafted: true, craftTemp: 1.2 }));
+  const cold = C.buildMonster(Object.assign({}, plainMeta, { name: 'qwen3-cold', crafted: true, craftTemp: .3 }));
+  ok('modelmon: a hot crafted model has more Attack than a cold one', hot.stats.atk > cold.stats.atk && cold.stats.def > hot.stats.def);
+
+  /* ---------------- learned moves ---------------- */
+  {
+    const m = C.buildMonster(plainMeta);
+    ok('modelmon: learned moves are locked at Lv 1', C.movePool(m, 1).filter(x => x.learned).every(x => x.locked));
+    ok('modelmon: Lv 14 unlocks two type moves', C.movePool(m, 14).filter(x => x.learned && !x.locked).length === 2);
+    C.equipMoves(m, 14, ['Undertow', 'Context Flood']);
+    ok('modelmon: equipping puts learned moves in slots 2 and 3', m.moves[1].name === 'Undertow' && m.moves[2].name === 'Context Flood' && m.moves[0].name === 'Token Tap');
+    const s2 = C.buildMonster(plainMeta); C.equipMoves(s2, 1, ['Undertow', 'Prompt Refresh']);
+    ok('modelmon: a locked move cannot be equipped', s2.moves[1].name !== 'Undertow');
+    const s3 = C.buildMonster(plainMeta); const born = [s3.moves[1].name, s3.moves[2].name]; C.equipMoves(s3, 1, [born[1], born[0]]);
+    ok('modelmon: slots 2 and 3 can swap', s3.moves[1].name === born[1] && s3.moves[2].name === born[0]);
+  }
+
+  /* ---------------- the wild zone ---------------- */
+  {
+    const enc = C.wildEncounters(42, 10, 3);
+    eq('modelmon: three wild models are out', enc.length, 3);
+    ok('modelmon: wild encounters never repeat a model', new Set(enc.map(w => w.meta.name)).size === 3);
+    ok('modelmon: the same hour gives the same wild models', C.wildEncounters(42, 10, 3).map(w => w.meta.name).join() === enc.map(w => w.meta.name).join());
+    const foe = C.applyLevel(C.buildMonster(enc[0].meta), 5);
+    const full = C.catchChance(foe), worn = (() => { const f = JSON.parse(JSON.stringify(foe)); f.hp = 1; return C.catchChance(f); })();
+    ok('modelmon: a worn-down wild model is easier to catch', worn > full, worn + ' vs ' + full);
+    let caughtOne = false;
+    for (let seed = 1; seed < 40 && !caughtOne; seed++) {
+      const bt = C.createBattle([C.applyLevel(C.buildMonster(plainMeta), 10)], [C.applyLevel(C.buildMonster(enc[0].meta), 3)], { seed, wild: true });
+      bt.b.hp = 1;
+      C.resolveTurn(bt, { kind: 'item', item: 'capture' }, { kind: 'move', index: 0 });
+      if (bt.caught) { caughtOne = bt.over && bt.winner === 'a'; }
+    }
+    ok('modelmon: a Capture Cache can catch a wild model and end the battle', caughtOne);
+    const notWild = C.createBattle([plain], [her], { seed: 2 });
+    eq('modelmon: no Capture Caches outside the wild', notWild.bag.a.capture, 0);
+    const wildB = C.createBattle([plain], [her], { seed: 2, wild: true, foePatches: 0, foeResets: 0 });
+    ok('modelmon: a wild model carries no items', wildB.bag.b.patch === 0 && wildB.bag.b.reset === 0 && wildB.bag.a.capture === 3);
+    ok('modelmon: the log marks the wild side', wildB.log.some(l => /^A wild /.test(l)));
+  }
+  {
+    const mirror = C.createBattle([plain], [C.buildMonster(plainMeta)], { seed: 5 });
+    C.resolveTurn(mirror, { kind: 'move', index: 0 }, { kind: 'move', index: 0 });
+    ok('modelmon: a mirror match marks the foe in the log', mirror.log.some(l => l.startsWith('Foe qwen3:4b')) && mirror.log.some(l => l.startsWith('qwen3:4b')), mirror.log.join(' | '));
+  }
 };

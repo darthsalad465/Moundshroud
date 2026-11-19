@@ -394,8 +394,51 @@ async function readModelRoster(fresh) {
     }
   };
   await Promise.all(Array.from({ length: Math.min(6, list.length) }, worker));
-  mmStatsCache = { at: Date.now(), models: out };
+  out.forEach(m => { if (m) m.source = 'ollama'; });
+  const all2 = out.filter(Boolean).concat(mmOtherModels(out));
+  mmStatsCache = { at: Date.now(), models: all2 };
+  return all2;
+}
+/* Model Monsters: models that are on this PC but not in Ollama (LM Studio GGUFs and the Hugging Face cache).
+   Their metadata is read from the file name and size: no model is loaded. */
+function mmOtherModels(ollamaList) {
+  let found = [];
+  try { found = heretic.downloadedModels({ all: true, skipOllama: true, dataDir: DATA }) || []; } catch (e) { found = []; }
+  const have = new Set((ollamaList || []).filter(Boolean).map(m => String(m.name).toLowerCase().replace(/:latest$/, '')));
+  const out = [];
+  for (const f of found) {
+    if (!f || (f.source !== 'lmstudio' && f.source !== 'hf-cache')) continue;
+    const name = String(f.name || '').trim(); if (!name || have.has(name.toLowerCase())) continue;
+    have.add(name.toLowerCase());
+    const base = name.split('/').pop();
+    const qm = /(IQ\d_[A-Z]+|Q\d_K_[SML]|Q\d_K|Q\d_\d|BF16|F16|F32|MXFP4)/i.exec(base);
+    const quant = qm ? qm[1].toUpperCase() : f.source === 'hf-cache' ? 'BF16' : '';
+    const pm = /(\d+(?:\.\d+)?)\s*([bm])(?![a-z])/i.exec(base.replace(/[-_]/g, ' '));
+    const params = pm ? parseFloat(pm[1]) * (pm[2].toLowerCase() === 'b' ? 1e9 : 1e6) : Math.max(1e7, (f.size || 0) * 8 / mmQuantBits(quant || 'Q4'));
+    const fam = (/(deepseek|qwen|gemma|mistral|mixtral|phi|llama|granite|falcon|command|smollm|olmo|whisper|clip|siglip|bert|nomic|bge|stable-diffusion|flux)/i.exec(base) || [])[1] || '';
+    const entry = {
+      name, size: f.size || 0, digest: '', modified_at: '', source: f.source, path: f.ggufPath || f.localPath || '',
+      family: fam.toLowerCase(), families: [], parameter_size: '', parameters: params, quantization_level: quant, quant_bits: mmQuantBits(quant),
+      context: 0, capabilities: [], vision: false, tools: false, thinking: false, embedding: /embed|bge|nomic|e5-|gte-|minilm/i.test(base), experts: 0
+    };
+    try { const fighter = monsterRules.buildMonster(entry); entry.battleProfile = { type: fighter.type, tier: fighter.tier, level: fighter.level, signature: fighter.moves[3].name }; } catch (e) { }
+    out.push(entry);
+  }
   return out;
+}
+/* Heretic models (from Studio > Heretic jobs, or named heretic/abliterated) and Model Lab builds carry their origin */
+function mmTagOrigins(list) {
+  let hereticNames = new Set(), recipes = {};
+  try { (heretic.listJobs() || []).forEach(j => { if (j && j.ollamaModel) hereticNames.add(String(j.ollamaModel).toLowerCase().replace(/:latest$/, '')); }); } catch (e) { }
+  try { recipes = modellab.recipes() || {}; } catch (e) { recipes = {}; }
+  return (list || []).filter(Boolean).map(m => {
+    const key = String(m.name).toLowerCase().replace(/:latest$/, '');
+    const r = recipes[key] || recipes[m.name];
+    return Object.assign({}, m, {
+      heretic: hereticNames.has(key) || /heretic|abliterat|uncensor|decensor|derestrict|unfiltered|unaligned/i.test(m.name),
+      crafted: !!r, craftTemp: r && isFinite(+r.temperature) ? +r.temperature : null, craftBase: r ? r.base : ''
+    });
+  });
 }
 // Detect completed downloads from any Ollama client without starting the model engine.
 setInterval(() => { scanModelRoster().catch(() => {}); }, 60000).unref();
@@ -589,7 +632,7 @@ if (url === '/api/models') {
 }
 if (url === '/api/models/stats' && req.method === 'GET') {
   try {
-    const models = await scanModelRoster(q.get('fresh') === '1');
+    const models = mmTagOrigins(await scanModelRoster(q.get('fresh') === '1'));
     return json(res, 200, { ok: true, models, updated: mmStatsCache.at });
   } catch (error) {
     return json(res, 200, { ok: false, error: error.message, models: [] });

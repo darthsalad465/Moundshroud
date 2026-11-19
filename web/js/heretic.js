@@ -259,6 +259,13 @@
         note.textContent = downloaded.length ? 'Enter any Hugging Face model ID or browse to a local model folder below.' : 'No downloaded local models detected yet — enter any Hugging Face model ID below.';
       }
     };
+    /* another screen (Model Monsters' Model Maker) can ask for a model to be preselected: A.heretic.want = 'ollama:name' */
+    if (q('#hrlocal') && A.heretic && A.heretic.want) {
+      const want = String(A.heretic.want).toLowerCase(), sel = q('#hrlocal');
+      const opt = [...sel.options].find(o => o.value.toLowerCase() === want || o.value.toLowerCase() === want + ':latest');
+      if (opt) sel.value = opt.value;
+      A.heretic.want = '';
+    }
     if (q('#hrlocal')) { q('#hrlocal').onchange = syncLocalSelection; syncLocalSelection(); }
     if (q('#hrrefm')) q('#hrrefm').onclick = async () => { await refresh(el); A.toast('Refreshed downloaded models.'); };
 
