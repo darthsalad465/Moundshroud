@@ -4,9 +4,14 @@
 (() => {
   const P = A.play, C = window.ModelMon; if (!P || !C) return;
   const REC_KEY = 'mm_record', SPEED_KEY = 'mm_speed', STATS_KEY = 'mm_stats', SQUAD_KEY = 'mm_squad',
-    CORES_KEY = 'mm_cores', CHAMP_KEY = 'mm_champ', REG_KEY = 'mm_reg', PLAY_KEY = 'mm_play';
+    CORES_KEY = 'mm_cores', CHAMP_KEY = 'mm_champ', REG_KEY = 'mm_reg', PLAY_KEY = 'mm_play',
+    CAUGHT_KEY = 'mm_caught', MAKER_KEY = 'mm_maker';
   /* everything the game remembers about your monsters; Reset progress clears exactly these */
-  const WIPE_KEYS = [REC_KEY, SPEED_KEY, STATS_KEY, SQUAD_KEY, CORES_KEY, CHAMP_KEY, REG_KEY, PLAY_KEY];
+  const WIPE_KEYS = [REC_KEY, SPEED_KEY, STATS_KEY, SQUAD_KEY, CORES_KEY, CHAMP_KEY, REG_KEY, PLAY_KEY, CAUGHT_KEY, MAKER_KEY];
+  /* the Model Maker opens once any monster reaches this trainer level */
+  const MAKER_LV = 10;
+  /* playground experience a monster can earn per day: battles are where levels come from */
+  const PG_DAILY_XP = 160;
   const STAT_MAX = { hp: 280, atk: 155, def: 135, spa: 150, spd: 150, spe: 165 };
   const STAT_LABEL = { hp: 'HP', atk: 'Attack', def: 'Defence', spa: 'Sp. Atk', spd: 'Sp. Def', spe: 'Speed' };
   const STAT_SHORT = { hp: 'HP', atk: 'ATK', def: 'DEF', spa: 'SPA', spd: 'SPD', spe: 'SPE' };
@@ -24,8 +29,8 @@
      A registered monster starts at trainer level 1 and grows by battling and by spending time with you. The level it
      fights at is derived from that (a fresh one is genuinely weaker), its stats grow with it, and friendship adds a
      small bonus on top. Nothing here is stored on the model itself: the metadata in Ollama never changes. */
-  const MAX_LV = 100, MAX_FR = 400;
-  const xpNeed = lv => 30 + lv * 22;
+  const MAX_LV = C.MAX_LV || 100, MAX_FR = 400;
+  const xpNeed = lv => 20 + lv * 12;
   const FRIEND = [
     { at: 0, name: 'Stranger', icon: '·', bonus: 0 },
     { at: 40, name: 'Curious', icon: '🌱', bonus: .03 },
@@ -35,9 +40,7 @@
   ];
   const clampNum = (n, a, b) => Math.max(a, Math.min(b, +n || 0));
   const frTier = fr => { let t = FRIEND[0]; for (const x of FRIEND) if (fr >= x.at) t = x; return t; };
-  /* the level a monster fights at: 20 at trainer level 1, 100 at trainer level 100 */
-  const battleLevel = lv => 20 + Math.round((clampNum(lv, 1, MAX_LV) - 1) * 80 / (MAX_LV - 1));
-  const levelMul = lv => 1 + (clampNum(lv, 1, MAX_LV) - 1) / (MAX_LV - 1) * .35;
+  /* the level a monster fights at and its stat growth live in modelmon-core.js (battleLevel, levelMul, applyLevel) */
 
   /* models that stand in when this PC has none: the same rules, the same stats-from-metadata, nothing to install */
   const SAMPLE = [
@@ -92,6 +95,9 @@
     let cores = loadJson(CORES_KEY, []) || [];
     if (!Array.isArray(cores)) cores = [];
     let champ = ls.get(CHAMP_KEY, '') === '1';
+    let caught = loadJson(CAUGHT_KEY, []) || [];
+    if (!Array.isArray(caught)) caught = [];
+    let realModels = [], makerTab = 'wild', makerSeen = ls.get(MAKER_KEY, '') === '1';
     const view = { q: '', tier: 'all' };
     const ui = { menu: 'root', forced: false, log: false };
 
@@ -101,8 +107,7 @@
 
     const saved = loadJson(STATS_KEY, null);
     if (saved && Array.isArray(saved.models) && saved.models.length) {
-      models = cleanModels(saved.models);
-      rebuild();
+      setModels(cleanModels(saved.models));
       paintHome();
     }
     loadModels(false);
@@ -117,11 +122,19 @@
       const best = P.best ? P.best('modelmon') : null;
       api.hud('W ' + rec.w + ' · L ' + rec.l + (rec.streak ? ' · 🔥 ' + rec.streak : '') + ' · 🏅 ' + cores.length + '/6' + (champ ? ' · 🏆' : '') + (best != null ? ' · ⚡ ' + best + ' turns' : ''));
     }
+    /* every AI model on this PC can become a monster: chat models, embedders, rerankers, speech, vision encoders,
+       image generators, Heretic and Model Lab builds, from Ollama, LM Studio or the Hugging Face cache.
+       Only cloud models stay out: they do not live on this PC. */
     function cleanModels(list) {
-      const agent = /(^|[-_.])agent($|[-_.:])/i, embed = /(^|[\/:_-])(embed|embedding|bge|nomic|e5|gte|minilm|rerank)([\/:_-]|$)/i;
-      let out = (list || []).filter(m => m && m.name && !m.cloud && !m.embedding && !agent.test(m.name) && !embed.test(m.name));
-      if (!out.length) out = (list || []).filter(m => m && m.name && !m.cloud);
-      return out.slice(0, 40);
+      const seen = new Set();
+      return (list || []).filter(m => m && m.name && !m.cloud && !seen.has(m.name) && seen.add(m.name)).slice(0, 120);
+    }
+    /* the real models plus every wild model caught in the Model Maker */
+    function setModels(list) {
+      realModels = list || [];
+      const names = new Set(realModels.map(m => m.name));
+      models = realModels.concat(caught.filter(m => m && m.name && !names.has(m.name)).map(m => Object.assign({}, m, { wild: true })));
+      rebuild();
     }
     function rebuild() {
       reg = registry();
@@ -151,11 +164,33 @@
       mon.nick = (e && e.nick) || '';
       mon.lv = lv; mon.xp = e ? +e.xp || 0 : 0; mon.fr = fr;
       mon.friend = frTier(fr); mon.registered = !!e;
-      mon.level = battleLevel(lv);
-      const mul = levelMul(lv) * (1 + mon.friend.bonus);
-      ['hp', 'atk', 'def', 'spa', 'spd', 'spe'].forEach(k => { if (mon.stats[k]) mon.stats[k] = Math.max(1, Math.round(mon.stats[k] * mul)); });
-      mon.maxHp = mon.stats.hp; mon.hp = mon.maxHp;
+      C.applyLevel(mon, lv, mon.friend.bonus);
+      mon.xp = e ? +e.xp || 0 : 0;
+      if (e && Array.isArray(e.moves) && e.moves.length) C.equipMoves(mon, lv, e.moves);
       return mon;
+    }
+    /* what a monster is beyond its type: Heretic, crafted, caught, or not a chat model at all */
+    function originChips(mon) {
+      const m = mon.meta || {}, out = [];
+      if (m.heretic) out.push('<span class="mm-origin heretic" title="A Heretic model: refusals stripped out. Hits harder, guards less.">⚗️ Heretic</span>');
+      if (m.crafted) out.push('<span class="mm-origin crafted" title="Built in Model Lab from a recipe">🧠 Crafted</span>');
+      if (m.wild && mon.registered) out.push('<span class="mm-origin wild" title="Caught in the wild zone. Install ' + esc(m.pull || m.name) + ' in Ollama to make it real.">🕸️ Caught</span>');
+      if (m.kind && m.kind !== 'llm' && C.KINDS[m.kind]) out.push('<span class="mm-origin kind">' + C.KINDS[m.kind].icon + ' ' + esc(C.KINDS[m.kind].name) + '</span>');
+      if (m.source === 'lmstudio') out.push('<span class="mm-origin src">LM Studio</span>');
+      else if (m.source === 'hf-cache') out.push('<span class="mm-origin src">HF cache</span>');
+      return out.join('');
+    }
+    /* only a chat model that Ollama can run can talk back, read typed commands or be benchmarked */
+    function canChat(mon) { const m = mon && mon.meta; return !!m && !m.sample && !m.wild && (m.source || 'ollama') === 'ollama' && (m.kind || 'llm') === 'llm'; }
+    function topLevel() { return owned().reduce((a, m) => Math.max(a, m.lv || 1), 0); }
+    function makerOpen() { return topLevel() >= MAKER_LV; }
+    /* what the six Cores give, in every battle that follows */
+    function perks() {
+      const has = k => cores.includes(k);
+      return {
+        patches: 2 + (has('ember') ? 1 : 0), resets: 1 + (has('tide') ? 1 : 0), xp: has('bloom') ? 1.15 : 1,
+        captures: 3 + (has('storm') ? 1 : 0), catchBonus: has('frost') ? .1 : 0, patchPct: has('stone') ? .5 : .35
+      };
     }
     /* only registered monsters can battle: a new arrival has to be scanned first */
     function owned() { return roster.filter(m => m.registered); }
@@ -163,10 +198,13 @@
     function reconcileSquad() {
       if (!Array.isArray(squadNames)) squadNames = owned().slice(0, Math.min(3, owned().length)).map(m => m.name);
       const seen = new Set();
-      squad = squadNames.map(byName).filter(m => m && m.registered && !seen.has(m.name) && seen.add(m.name)).slice(0, 6);
+      squad = squadNames.map(byName).filter(m => m && m.registered && !seen.has(m.name) && seen.add(m.name)).slice(0, slots());
       squadNames = squad.map(m => m.name);
       saveSquad();
     }
+    /* squad slots open as Curators fall: 3 to start, then one more for the 1st, 3rd and 5th Core */
+    function slots() { return C.squadSlots(cores.length); }
+    function slotNeed(i) { const n = C.coresForSlot(i + 1); return 'Win ' + n + (n === 1 ? ' Core' : ' Cores'); }
     function byName(name) { return roster.find(m => m.name === name) || null; }
     function inSquad(name) { return squad.some(m => m.name === name); }
     function saveSquad() { ls.set(SQUAD_KEY, JSON.stringify(squadNames)); }
@@ -204,17 +242,15 @@
         if (stopped) return;
         if (!list.length) {
           /* no Ollama, no models: the game still plays, with sample monsters the same rules built */
-          models = SAMPLE.slice();
-          rebuild();
+          setModels(SAMPLE.slice());
           if (screen === 'home') paintHome();
           if (force) A.toast('No local models found — playing with sample monsters. Install a model and Rescan to add the real thing.', 6000);
           return;
         }
-        models = list;
-        ls.set(STATS_KEY, JSON.stringify({ at: Date.now(), models }));
-        rebuild();
+        ls.set(STATS_KEY, JSON.stringify({ at: Date.now(), models: list }));
+        setModels(list);
         if (screen === 'home') paintHome();
-        if (force) A.toast('Read ' + roster.length + ' local models from Ollama', 3000);
+        if (force) A.toast('Read ' + realModels.length + ' AI models on this PC (Ollama, LM Studio and the Hugging Face cache)', 3500);
       } catch (e) {
         if (stopped) return;
         if (!roster.length) paintEmpty(e.message || 'The model list could not be read.');
@@ -249,6 +285,7 @@
           '<button class="mm-info" data-dex="' + esc(mon.name) + '" title="Stats, moves and model details" aria-label="Details for ' + esc(nm(mon)) + '">ⓘ</button>' +
           '<div class="mm-cardtop"><span class="mm-ava">' + esc(mon.icon) + '</span><div class="mm-cname"><b title="' + esc(mon.name) + '">' + esc(nm(mon)) + '</b><span>' + typeChips(mon) + ' <span class="mm-tier">Lv ' + mon.lv + ' · ' + tierChip(mon) + '</span></span>' +
           '<span class="small mute" style="font-size:10px">' + (mon.nick ? esc(mon.name) + ' · ' : '') + mon.friend.icon + ' ' + esc(mon.friend.name) + '</span></div></div>' +
+          (originChips(mon) ? '<div class="mm-origins">' + originChips(mon) + '</div>' : '') +
           '<div class="mm-s6row">' + stats + '</div>' +
           '<div class="mm-cardmeta"><span>' + C.formatParams(mon.meta.parameters) + ' params</span><span>' + esc(mon.meta.quantization_level || '?') + '</span><span>' + C.formatContext(mon.meta.context) + ' ctx</span><span>' + C.formatGigabytes(mon.meta.size) + ' GB</span></div>' +
           '<div class="mm-cardfoot"><span class="small mute">' + speedNote(mon) + '</span><span class="mm-add">' + (inS ? '✓ In squad' : '＋ Squad') + '</span></div>' +
@@ -259,11 +296,12 @@
       let out = '';
       for (let i = 0; i < 6; i++) {
         const mon = squad[i];
+        if (i >= slots()) { out += '<div class="mm-slot empty locked" title="This slot opens when you have ' + C.coresForSlot(i + 1) + ' Curator Cores"><span class="mm-slotplus">🔒</span><span class="mute">' + slotNeed(i) + '</span></div>'; continue; }
         if (mon) out += '<div class="mm-slot' + (i === 0 ? ' lead' : '') + '" style="--mmc:' + monColor(mon) + '">' +
           '<span class="mm-slotava">' + esc(mon.icon) + '</span>' +
-          '<span class="mm-slotinfo"><b>' + esc(mon.name) + '</b><span>' + typeChips(mon) + '</span></span>' +
-          (i === 0 ? '<span class="mm-leadtag">LEAD</span>' : '<button class="mm-slotbtn" data-lead="' + i + '" title="Make lead" aria-label="Make ' + esc(mon.name) + ' the lead">★</button>') +
-          '<button class="mm-slotbtn x" data-remove="' + i + '" title="Remove from squad" aria-label="Remove ' + esc(mon.name) + ' from squad">✕</button></div>';
+          '<span class="mm-slotinfo" title="' + esc(nm(mon) + (mon.nick ? ' (' + mon.name + ')' : '') + ' · Lv ' + mon.lv) + '"><b>' + esc(nm(mon)) + '</b><span>' + typeChips(mon) + '<span class="mm-slotlv">Lv ' + mon.lv + '</span></span></span>' +
+          (i === 0 ? '<span class="mm-leadtag">LEAD</span>' : '<button class="mm-slotbtn" data-lead="' + i + '" title="Make lead" aria-label="Make ' + esc(nm(mon)) + ' the lead">★</button>') +
+          '<button class="mm-slotbtn x" data-remove="' + i + '" title="Remove from squad" aria-label="Remove ' + esc(nm(mon)) + ' from squad">✕</button></div>';
         else out += '<div class="mm-slot empty"><span class="mm-slotplus">＋</span><span class="mute">Add from the Box</span></div>';
       }
       return out;
@@ -278,14 +316,17 @@
       const t = c.champion ? { color: '#ffd166', icon: '🏆' } : C.typeInfo(c.type);
       const earned = cores.includes(c.key);
       const locked = c.champion && cores.length < 6 && !champ;
-      const size = C.curatorTeamSize(c, api.level, roster.length);
+      const size = C.curatorTeamSize(c, api.level, 6);
+      const lv = C.curatorLevel(c, api.level), reward = C.CURATOR_REWARD[c.key];
+      const next = !earned && !locked && nextCuratorKey() === c.key;
       const status = c.champion
         ? (champ ? '🏆 Champion beaten · rematch' : locked ? '🔒 Beat all six Curators' : '⚔ Challenge the Champion')
-        : (earned ? '🏅 Core earned · rematch' : '⚔ Challenge');
-      return '<button class="mm-curator' + (earned ? ' earned' : '') + (locked ? ' locked' : '') + (c.champion ? ' champ' : '') + '"' + (locked ? ' disabled' : ' data-cur="' + c.key + '"') + ' style="--mmc:' + t.color + '">' +
+        : (earned ? '🏅 Core earned · rematch' : next ? '⚔ Next challenge' : '⚔ Challenge');
+      return '<button class="mm-curator' + (earned ? ' earned' : '') + (locked ? ' locked' : '') + (c.champion ? ' champ' : '') + (next ? ' next' : '') + '"' + (locked ? ' disabled' : ' data-cur="' + c.key + '"') + ' style="--mmc:' + t.color + '">' +
         '<span class="mm-curicon">' + t.icon + '</span>' +
         '<span class="mm-curbody"><b>' + esc(c.name) + '</b><span>' + esc(c.title) + '</span><i>' + esc(c.line) + '</i>' +
-        '<span class="mm-cursize">' + (size ? 'Team of ' + size : 'No models available') + (c.champion ? '' : ' · ' + t.icon + ' ' + esc(C.typeInfo(c.type).name)) + '</span></span>' +
+        '<span class="mm-cursize">Team of ' + size + ' · Lv ' + lv + (c.champion ? '' : ' · ' + t.icon + ' ' + esc(C.typeInfo(c.type).name)) + '</span>' +
+        (reward && !c.champion ? '<span class="mm-curreward' + (earned ? ' on' : '') + '">🏅 Core: ' + esc(reward.text) + '</span>' : '') + '</span>' +
         '<span class="mm-curfoot">' + status + '</span></button>';
     }
     function recordHTML() {
@@ -306,16 +347,18 @@
         '<div class="mm-head"><div class="mm-title"><h2><span class="mm-logo">⚔️</span> Model Monsters</h2>' +
         '<div class="small mute">Build a squad of your local AI models and battle the six Curators. Every stat is the model\'s real size, parameters, quantization, context and speed.</div></div>' +
         recordHTML() + '</div>' +
-        '<div class="mm-squadbox"><div class="mm-squadhead"><b>Your squad</b><span>' + squad.length + ' / 6</span>' +
+        '<div class="mm-squadbox"><div class="mm-squadhead"><b>Your squad</b><span>' + squad.length + ' / ' + slots() + (slots() < 6 ? ' · next slot: ' + slotNeed(slots()).toLowerCase() : '') + '</span>' +
         (squad.length ? '<span class="mm-leadnote">Lead: <b>' + esc(nm(squad[0])) + '</b></span>' : '<span class="mm-leadnote">Pick at least one scanned model from your collection.</span>') +
         '</div><div class="mm-slots">' + squadHTML() + '</div>' +
         '<div class="mm-squadtools"><button class="ib" data-squad="auto">✨ Auto squad</button><button class="ib" data-squad="clear">Clear</button>' +
         '<button class="pri" data-quick="1"' + (owned().length ? '' : ' disabled') + '>⚔ Quick battle</button>' +
         '<button class="ib" data-watch="1"' + (owned().length >= 2 ? '' : ' disabled') + '>👀 Watch a fight</button>' +
         '<button class="ib" data-pg="1"' + (owned().length ? '' : ' disabled') + '>🎮 Playground</button>' +
+        (makerOpen() ? '<button class="ib mm-makerbtn" data-maker="1" title="Catch wild models, craft new ones and make Heretic models">🧪 Model Maker</button>'
+          : '<button class="ib" disabled title="Get any monster to trainer Lv ' + MAKER_LV + ' to open the Model Maker">🔒 Model Maker · Lv ' + MAKER_LV + '</button>') +
         '<button class="ib" data-reset="1" title="Delete all Model Monsters progress">🧹 Reset progress</button></div></div>' +
         arrivalsHTML() +
-        '<div class="mm-section"><div class="mm-sechead"><div><h3>The Benchmark Circuit</h3><div class="small mute">Beat all six Curators to earn their Cores, then face The Curator.</div></div><div class="mm-corebar">' + corePips() + '</div></div>' +
+        '<div class="mm-section"><div class="mm-sechead"><div><h3>The Benchmark Circuit</h3><div class="small mute">Beat all six Curators to earn their Cores, then face The Curator. Your 1st, 3rd and 5th Core each open a squad slot.</div></div><div class="mm-corebar">' + corePips() + '</div></div>' +
         '<div class="mm-curators">' + C.CURATORS.map(curatorCard).join('') + '</div></div>' +
         '<div class="mm-section"><div class="mm-sechead"><div><h3>Your collection</h3><div class="small mute">Scanned monsters. Click one to add it to your squad; ⓘ opens the ModelDex.</div></div><div class="mm-count" id="mmcount"></div></div>' +
         '<div class="mm-toolbar"><input type="search" id="mmsrch" placeholder="Search models, families, types…" value="' + esc(view.q) + '" autocomplete="off" aria-label="Search models">' +
@@ -345,12 +388,10 @@
         curator = C.curatorByKey(key);
         if (!curator) return;
         if (curator.champion && cores.length < 6 && !champ) { A.toast('Beat all six Curators first.', 3500); return; }
-        teamB = C.buildCuratorTeam(owned(), curator.key, { difficulty: api.level });
+        teamB = C.buildCuratorSquad(curator.key, { difficulty: api.level });
         teamA = squad.slice();
       } else if (kind === 'quick') {
-        const size = Math.max(1, Math.min(6, squad.length || 3));
-        const spare = owned().filter(m => !squad.some(s => s.name === m.name));
-        teamB = C.buildQuickTeam(spare.length >= size ? spare : owned(), size);
+        teamB = rivalTeam(Math.max(1, Math.min(slots(), squad.length || 3)));
         teamA = squad.slice();
       } else {
         const size = Math.min(3, owned().length);
@@ -362,6 +403,23 @@
       if (!teamA.length || !teamB.length) { A.toast('Two squads are needed for a battle.', 3000); return; }
       pending = { kind, curator, teamA, teamB, lead: 0 };
       paintPreview();
+    }
+    /* a rival trainer's squad: random open models from the circuit and the wild, at your squad's level */
+    function rivalTeam(size, seed) {
+      const pool = [];
+      Object.keys(C.CURATOR_ROSTERS).forEach(k => C.CURATOR_ROSTERS[k].forEach(m => pool.push(m)));
+      C.WILD.forEach(m => { if ((m.rarity || 1) <= 3) pool.push(m); });
+      const uniq = [], seen = new Set();
+      pool.forEach(m => { if (!seen.has(m.name)) { seen.add(m.name); uniq.push(m); } });
+      const avg = squad.length ? Math.round(squad.reduce((a, m) => a + (m.lv || 1), 0) / squad.length) : 1;
+      let s = (seed == null ? (Date.now() ^ (Math.random() * 0xffffffff)) : seed) >>> 0;
+      const rnd = () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; };
+      const out = [];
+      while (out.length < size && uniq.length) {
+        const meta = uniq.splice(Math.floor(rnd() * uniq.length), 1)[0];
+        out.push(C.applyLevel(C.buildMonster(meta), Math.max(1, avg - 1 + Math.floor(rnd() * 3))));
+      }
+      return out;
     }
     function paintPreview() {
       if (!pending) return;
@@ -407,6 +465,7 @@
     }
     function closeModal() {
       const m = el.querySelector('#mmmodal'); if (m) m.remove();
+      scanTok++; scanBusy = false;
       const back = modalReturn; modalReturn = null;
       if (back && back.isConnected && back.focus) { try { back.focus({ preventScroll: true }); } catch (e) { } }
     }
@@ -425,12 +484,21 @@
     /* ---------- the battle ---------- */
     function startBattle(teamA, teamB, opts) {
       opts = opts || {};
-      lastBattle = { teamA: teamA.slice(), teamB: teamB.slice(), curator: opts.curator || null, watch: !!opts.watch };
-      battle = C.createBattle(teamA, teamB, { player: 'a', trainer: opts.curator || null, aiLevel: opts.watch ? 2 : api.level });
+      lastBattle = { teamA: teamA.slice(), teamB: teamB.slice(), curator: opts.curator || null, watch: !!opts.watch, wild: opts.wild || null };
+      const pk = perks();
+      battle = C.createBattle(teamA, teamB, {
+        player: 'a', trainer: opts.wild ? null : (opts.curator || null), aiLevel: opts.watch ? 2 : api.level,
+        patches: opts.watch ? 2 : pk.patches, resets: opts.watch ? 1 : pk.resets, patchPct: opts.watch ? .35 : pk.patchPct,
+        wild: !!opts.wild, captures: pk.captures, catchBonus: pk.catchBonus,
+        foePatches: opts.wild ? 0 : null, foeResets: opts.wild ? 0 : null
+      });
+      if (opts.wild) battle.wildInfo = opts.wild;
       watchMode = !!opts.watch; auto = watchMode; busy = false; finished = false;
       ui.menu = 'root'; ui.forced = false; ui.log = false;
       screen = 'battle';
-      currentMessage = battle.log[battle.log.length - 1] || 'What will ' + battle.a.name + ' do?';
+      const c = opts.curator;
+      currentMessage = c && !c.quick && c.line ? c.icon + ' ' + c.name + ': “' + c.line + '”'
+        : battle.log[battle.log.length - 1] || 'What will ' + nm(battle.a) + ' do?';
       visibleLog = battle.log.slice();
       paintBattle();
       updateHud();
@@ -441,14 +509,14 @@
       const t = battle.trainer;
       el.innerHTML = '<div class="mm-battle">' +
         '<div class="mm-bhead"><button class="ib" id="mmleave">← Leave</button>' +
-        '<div class="mm-btitle">' + (t ? '<span class="mm-bcur">' + t.icon + ' ' + esc(t.name) + '</span> <span class="mute">· ' + esc(t.title) + '</span>' : 'Team battle') + (watchMode ? ' <span class="mm-watch">👀 exhibition</span>' : '') + '</div>' +
+        '<div class="mm-btitle">' + (t ? '<span class="mm-bcur">' + t.icon + ' ' + esc(t.name) + '</span> <span class="mute">· ' + esc(t.title) + '</span>' : battle.wild ? '<span class="mm-bcur">🌿 Wild encounter</span> <span class="mute">· ' + esc((battle.wildInfo && battle.wildInfo.rarityName) || 'Wild') + '</span>' : 'Team battle') + (watchMode ? ' <span class="mm-watch">👀 exhibition</span>' : '') + '</div>' +
         '<span class="mm-turn" id="mmturn">Turn ' + battle.turn + '</span>' +
         '<button class="ib" id="mmlogbtn" aria-pressed="false">📜 Log</button>' +
         '<button class="ib" id="mmauto">' + (auto ? '⏸ Auto' : '▶ Auto') + '</button></div>' +
         '<div id="mmarena"></div>' +
         '<div class="mm-command" id="mmcommand"></div>' +
         '<div class="mm-cli"><span class="mm-clilabel">Say or type</span>' +
-        '<input id="mmcmd" type="text" maxlength="200" autocomplete="off" spellcheck="false" placeholder="e.g. use Heavy Surge · switch to Flora · heal · attack" aria-label="Tell your monster what to do">' +
+        '<input id="mmcmd" type="text" maxlength="200" autocomplete="off" spellcheck="false" placeholder="' + esc(cmdExample()) + '" aria-label="Tell your monster what to do">' +
         '<button class="ib" id="mmmic" title="Speak your command" aria-label="Speak your command">🎙</button>' +
         '<button class="pri" id="mmsend" title="Send">➤</button></div>' +
         '<div class="mm-logwrap" id="mmlogwrap" style="display:none"><div class="mm-log" id="mmlog"></div></div>' +
@@ -461,9 +529,9 @@
       const box = el.querySelector('#mmarena'); if (!box || !battle) return;
       const a = battle.a, b = battle.b;
       box.innerHTML = '<div class="mm-arena">' +
-        '<div class="mm-trainertag">' + (battle.trainer ? battle.trainer.icon + ' ' + esc(battle.trainer.name) : 'Foe') + ' <span>· ' + C.teamAlive(battle, 'b') + ' left</span></div>' +
+        '<div class="mm-trainertag">' + (battle.trainer ? battle.trainer.icon + ' ' + esc(battle.trainer.name) : battle.wild ? '🌿 Wild' : 'Foe') + ' <span>· ' + C.teamAlive(battle, 'b') + ' left</span></div>' +
         sideHTML(b, 'b') + sideHTML(a, 'a') +
-        '<div class="mm-partylane foe"><span class="mm-partylabel">' + (battle.trainer ? esc(battle.trainer.name) : 'Foe') + '</span>' + partyHTML('b') + '</div>' +
+        '<div class="mm-partylane foe"><span class="mm-partylabel">' + (battle.trainer ? esc(battle.trainer.name) : battle.wild ? 'Wild' : 'Foe') + '</span>' + partyHTML('b') + '</div>' +
         '<div class="mm-partylane you"><span class="mm-partylabel">Your squad</span>' + partyHTML('a') + '</div>' +
         '<div class="mm-arenafloor" aria-hidden="true"></div></div>';
       updateBattle();
@@ -501,7 +569,12 @@
       if (!battle) return '';
       if (battle.over) return battle.winner === battle.player ? 'Victory!' : battle.winner ? 'Defeat…' : 'A draw.';
       if (battle.pendingSwitch) return 'Choose your next monster.';
-      return 'What will ' + battle.a.name + ' do?';
+      return 'What will ' + nm(battle.a) + ' do?';
+    }
+    function cmdExample() {
+      if (!battle) return '';
+      const mv = battle.a.moves[1] || battle.a.moves[0], mate = battle.teams.a.find((m, i) => i !== battle.active.a);
+      return 'e.g. use ' + (mv ? mv.name : 'a move') + (mate ? ' · switch to ' + nm(mate) : '') + ' · heal · attack' + (battle.wild ? ' · catch' : '');
     }
     function paintCommand() {
       const box = el.querySelector('#mmcommand'); if (!box || !battle) return;
@@ -518,8 +591,9 @@
       const lock = busy || auto || battle.over;
       return '<button data-menu="act"' + (lock ? ' disabled' : '') + '><b>⚔ Act</b><span>Choose a move</span></button>' +
         '<button data-menu="team"' + (lock ? ' disabled' : '') + '><b>👥 Team</b><span>Swap a monster</span></button>' +
-        '<button data-menu="kit"' + (lock ? ' disabled' : '') + '><b>🎒 Kit</b><span>' + (battle.bag.a.patch + battle.bag.a.reset) + ' items left</span></button>' +
-        '<button data-menu="run"' + (lock ? ' disabled' : '') + '><b>🏳 Forfeit</b><span>Give up the battle</span></button>';
+        '<button data-menu="kit"' + (lock ? ' disabled' : '') + '><b>🎒 Kit</b><span>' + (battle.bag.a.patch + battle.bag.a.reset + (battle.wild ? battle.bag.a.capture : 0)) + ' items left' + (battle.wild ? ' · 🕸️ ' + battle.bag.a.capture : '') + '</span></button>' +
+        (battle.wild ? '<button data-menu="run"' + (lock ? ' disabled' : '') + '><b>🏃 Run</b><span>Leave, no loss</span></button>'
+          : '<button data-menu="run"' + (lock ? ' disabled' : '') + '><b>🏳 Forfeit</b><span>Give up the battle</span></button>');
     }
     function movesHTML() {
       const mv = battle.a.moves.map((m, i) => {
@@ -547,11 +621,13 @@
     }
     function kitHTML() {
       const bag = battle.bag.a, f = battle.a;
-      const rows = Object.keys(C.ITEMS).map(k => {
+      const rows = Object.keys(C.ITEMS).filter(k => battle.wild || !C.ITEMS[k].wildOnly).map(k => {
         const item = C.ITEMS[k], n = bag[k] || 0;
         const useless = k === 'patch' && f.hp >= f.maxHp;
+        const desc = k === 'capture' ? 'Catch chance now: ' + Math.round(C.catchChance(battle.b, { bonus: battle.catchBonus }) * 100) + '%. Wear it down and give it a status to raise it.'
+          : k === 'patch' ? 'Restores ' + Math.round(((battle.patchPct && battle.patchPct.a) || item.pct) * 100) + '% HP.' : item.desc;
         return '<button class="mm-item" data-item="' + k + '"' + (busy || auto || battle.over || !n || useless ? ' disabled' : '') + '>' +
-          '<span class="mm-itemicon">' + item.icon + '</span><span class="mm-iteminfo"><b>' + esc(item.name) + ' ×' + n + '</b><span>' + esc(item.desc) + '</span></span></button>';
+          '<span class="mm-itemicon">' + item.icon + '</span><span class="mm-iteminfo"><b>' + esc(item.name) + ' ×' + n + '</b><span>' + esc(desc) + '</span></span></button>';
       }).join('');
       return '<div class="mm-paneltitle">Kit</div>' + rows + '<div class="mm-panelnote">Using an item costs your turn.</div><button class="mm-back" data-back="1"' + (busy || auto ? ' disabled' : '') + '>← Back</button>';
     }
@@ -631,6 +707,14 @@
       box.classList.remove('mm-hit'); void box.offsetWidth; box.classList.add('mm-hit');
       setTimeout(() => { try { box.classList.remove('mm-hit'); } catch (e) { } }, 380);
     }
+    /* game feel: the attacker lunges, a crit or super-effective hit flashes and pauses, a fainted monster drops */
+    function pulse(side, cls, ms) {
+      const box = el.querySelector('.mm-side[data-side="' + side + '"]'); if (!box) return;
+      box.classList.remove(cls); void box.offsetWidth; box.classList.add(cls);
+      if (cls !== 'mm-faint') setTimeout(() => { try { box.classList.remove(cls); } catch (e) { } }, ms || 420);
+    }
+    function lunge(side) { pulse(side, 'mm-lunge', 300); }
+    function flash(side, kind) { pulse(side, kind === 'crit' ? 'mm-flashcrit' : 'mm-flashsuper', 360); }
     async function playEvents(events, disp, fast) {
       for (const ev of events) {
         if (stopped) return;
@@ -640,11 +724,13 @@
           disp[ev.side] = Math.max(0, (disp[ev.side] == null ? battle[ev.side].hp : disp[ev.side]) - ev.amount);
           floatText(ev.side, '-' + ev.amount, ev.crit ? 'crit' : ev.self ? 'self' : 'dmg');
           shake(ev.side); sfx(ev.crit ? 'boom' : 'bonk');
+          if (ev.crit || ev.mult > 1) { flash(ev.side, ev.crit ? 'crit' : 'super'); await wait(fast ? 60 : 140); }
         } else if (ev.k === 'heal' && ev.amount) {
           disp[ev.side] = Math.min(battle[ev.side].maxHp, (disp[ev.side] == null ? battle[ev.side].hp : disp[ev.side]) + ev.amount);
           floatText(ev.side, '+' + ev.amount, 'heal'); sfx('good');
-        } else if (ev.k === 'move') sfx('whoosh');
-        else if (ev.k === 'faint') sfx('bad');
+        } else if (ev.k === 'move') { lunge(ev.side); sfx('whoosh'); }
+        else if (ev.k === 'capture') { pulse('b', ev.escaped ? 'mm-escape' : 'mm-caught'); sfx(ev.escaped ? 'bad' : 'win'); }
+        else if (ev.k === 'faint') { pulse(ev.side, 'mm-faint'); sfx('bad'); }
         else if (ev.k === 'status') sfx('ping');
         else if (ev.k === 'switch') { disp[ev.side] = battle[ev.side].hp; paintArena(); sfx('switch'); }
         else if (ev.k === 'item') sfx('good');
@@ -751,58 +837,96 @@
       updateBattle();
       const won = battle.winner === battle.player, draw = !battle.winner;
       const winner = battle.winner ? battle[battle.winner] : null;
-      let newCore = null, newChamp = false, gained = [];
+      const wild = !!battle.wild, caughtMon = battle.caught;
+      let newCore = null, newChamp = false, gained = [], firstWin = false, newCatch = null;
+      const makerBefore = makerOpen(), slotsBefore = slots();
       if (!watchMode) {
         if (won) { rec.w++; rec.streak++; }
         else if (!draw) { rec.l++; rec.streak = 0; }
         else rec.streak = 0;
         if (won && battle.trainer && !battle.trainer.quick) {
-          if (battle.trainer.champion) { if (!champ) { champ = true; newChamp = true; ls.set(CHAMP_KEY, '1'); } }
-          else if (!cores.includes(battle.trainer.key)) { cores.push(battle.trainer.key); newCore = battle.trainer; ls.set(CORES_KEY, JSON.stringify(cores)); }
+          if (battle.trainer.champion) { if (!champ) { champ = true; newChamp = true; firstWin = true; ls.set(CHAMP_KEY, '1'); } }
+          else if (!cores.includes(battle.trainer.key)) { cores.push(battle.trainer.key); newCore = battle.trainer; firstWin = true; ls.set(CORES_KEY, JSON.stringify(cores)); }
         }
-        gained = awardBattles(won, draw);
+        if (caughtMon) newCatch = keepCatch(caughtMon, battle.wildInfo);
+        gained = awardBattles(won, draw, firstWin);
         saveRecord(rec); updateHud();
-        if (won) {
+        if (won && !wild) {
           const nb = api.submit(battle.turn, true);
           if (nb && battle.turn > 1) A.toast('⚡ New fastest win: ' + battle.turn + ' turns', 4000);
         }
       }
       sfx(won ? 'win' : draw ? 'draw' : 'lose');
-      const title = draw ? 'A draw!' : watchMode ? esc(winner ? winner.name : 'Nobody') + ' wins!' : won ? 'Victory!' : 'Defeat';
-      const sub = won && battle.trainer && !battle.trainer.quick ? 'You defeated ' + esc(battle.trainer.name) + '.' : winner ? esc(winner.name) + ' wins after ' + battle.turn + ' turns.' : 'Neither squad could finish the other.';
+      const title = draw ? 'A draw!' : watchMode ? esc(winner ? nm(winner) : 'Nobody') + ' wins!' : newCatch ? 'Caught!' : won ? 'Victory!' : 'Defeat';
+      const sub = newCatch ? esc(nm(caughtMon)) + ' joined your collection at Lv ' + newCatch.lv + '.'
+        : won && battle.trainer && !battle.trainer.quick ? 'You defeated ' + esc(battle.trainer.name) + '.'
+          : wild && won ? 'The wild ' + esc(nm(battle.b)) + ' fainted before it could be caught.'
+            : winner ? esc((battle.winner !== battle.player && !watchMode ? (wild ? 'Wild ' : 'Foe ') : '') + nm(winner)) + ' wins after ' + battle.turn + ' turns.' : 'Neither squad could finish the other.';
       const notes = [];
       if (watchMode) notes.push('This was an exhibition, so it does not change your record.');
       else {
-        if (won) notes.push('+1 win · squad left ' + C.teamAlive(battle, 'a') + ' of ' + battle.teams.a.length);
-        if (newCore) notes.push('🏅 ' + C.typeInfo(newCore.type).icon + ' ' + esc(C.typeInfo(newCore.type).name) + ' Core earned!');
+        if (won && !newCatch) notes.push('+1 win · squad left ' + C.teamAlive(battle, 'a') + ' of ' + battle.teams.a.length);
+        if (newCatch && newCatch.dup) notes.push('You already had ' + nm(caughtMon) + ', so it gained experience instead.');
+        if (newCatch && caughtMon.meta && caughtMon.meta.pull) notes.push('Install ' + caughtMon.meta.pull + ' in Ollama to make it a real model on this PC.');
+        if (newCore) notes.push('🏅 ' + C.typeInfo(newCore.type).icon + ' ' + C.typeInfo(newCore.type).name + ' Core earned: ' + ((C.CURATOR_REWARD[newCore.key] || {}).text || ''));
         if (newChamp) notes.push('🏆 You beat the Champion. The circuit is complete.');
-        if (!won && !draw) notes.push('No core this time. The squad is healed for a rematch.');
+        if (slots() > slotsBefore) notes.push('🔓 New squad slot: your squad can hold ' + slots() + ' monsters now.');
+        if (firstWin) notes.push('✨ First win against this Curator: double experience.');
+        if (!won && !draw && battle.trainer && !battle.trainer.quick) notes.push('No core this time. The squad is healed for a rematch.');
         gained.forEach(g => notes.push('⬆ ' + g));
+        if (!makerBefore && makerOpen()) { notes.push('🧪 The Model Maker is open: catch wild models, craft new ones and make Heretic models.'); sfx('win'); }
       }
       const next = !watchMode && won && (newCore || newChamp) ? nextCuratorKey() : null;
       const b = el.querySelector('.mm-battle'); if (!b) return;
       b.insertAdjacentHTML('beforeend', '<div class="mm-overlay" id="mmresult"><div class="mm-result ' + (won ? 'win' : draw ? 'draw' : 'lose') + '">' +
         '<div class="mm-rico">' + (won ? '🏆' : draw ? '🤝' : '💥') + '</div><h2>' + title + '</h2><p>' + sub + '</p>' +
         '<div class="mm-resultnote">' + notes.map(esc).join('<br>') + '</div>' +
-        '<div class="mm-actions"><button class="pri" data-r="again">↻ Rematch</button><button class="ib" data-r="home">🏠 Circuit</button>' +
+        '<div class="mm-actions">' + (wild ? '<button class="pri" data-r="maker">🧪 Back to the wild zone</button>' : '<button class="pri" data-r="again">↻ Rematch</button>') + '<button class="ib" data-r="home">🏠 Circuit</button>' +
         (next ? '<button class="ib" data-r="next">⚔ Next Curator</button>' : '') + '</div></div></div>');
       const btn = el.querySelector('#mmresult .pri'); if (btn) { try { btn.focus({ preventScroll: true }); } catch (e) { } }
     }
     /* every monster that fought earns experience, and a win is worth more than a loss */
-    function awardBattles(won, draw) {
-      const out = [], seen = new Set();
-      (battle.teams.a || []).forEach(f => {
+    /* Experience follows the strength of what you beat: the foe's average trainer level, doubled the first time
+       you beat a Curator, plus the Bloom Core bonus. A loss still teaches a little. */
+    function awardBattles(won, draw, firstWin) {
+      const out = [], seen = new Set(), team = battle.teams.a || [];
+      const foes = battle.teams.b || [];
+      const foeLv = foes.length ? foes.reduce((a, m) => a + (m.lv || 1), 0) / foes.length : 1;
+      const share = 1 / Math.sqrt(Math.max(1, team.length));
+      const base = (40 + 8 * foeLv) * (won ? 1 : draw ? .6 : .35) * (firstWin ? 2 : 1) * perks().xp * share;
+      team.forEach(f => {
         if (!f || seen.has(f.name)) return;
         seen.add(f.name);
         const e = entryOf(reg, f.name); if (!e) return;
         e.fr = clampNum((+e.fr || 0) + (won ? 4 : 2), 0, MAX_FR);
-        const base = won ? 70 + battle.turn * 2 : draw ? 45 : 30 + battle.turn;
-        const up = giveXp(e, base * (1 + frTier(e.fr).bonus) / Math.max(1, battle.teams.a.length * .6));
+        const before = e.lv;
+        const up = giveXp(e, base * (1 + frTier(e.fr).bonus));
         reg[f.name] = e;
-        if (up) out.push(nm(f) + ' reached Lv ' + e.lv);
+        if (up) {
+          out.push(nm(f) + ' reached Lv ' + e.lv);
+          const mon = byName(f.name);
+          if (mon) C.movePool(mon, e.lv).forEach(mv => { if (mv.learned && mv.unlock > before && mv.unlock <= e.lv) out.push(nm(f) + ' can learn ' + mv.name + ' (ModelDex ⓘ)'); });
+        }
       });
-      if (out.length) { saveRegistry(reg); rebuild(); }
+      saveRegistry(reg); rebuild();
       return out;
+    }
+    /* a caught wild model joins the collection at the level it was caught; catching one you already have
+       turns into experience for it */
+    function keepCatch(foe, info) {
+      const name = foe.name, lv = (info && info.lv) || foe.lv || 1;
+      const e = entryOf(reg, name);
+      if (e) { giveXp(e, 60 + lv * 10); reg[name] = e; saveRegistry(reg); return { lv: e.lv, dup: true }; }
+      const meta = (info && info.meta) || C.WILD.find(m => m.name === name);
+      if (meta && !caught.some(m => m.name === name) && !realModels.some(m => m.name === name)) {
+        caught.push(Object.assign({}, meta, { wild: true, caughtAt: Date.now() }));
+        ls.set(CAUGHT_KEY, JSON.stringify(caught));
+      }
+      reg[name] = { nick: '', lv, xp: 0, fr: 20, seen: Date.now(), acts: {}, at: Date.now(), scans: 1, caught: true };
+      saveRegistry(reg);
+      setModels(realModels);
+      if (squad.length < slots() && !inSquad(name)) { const m = byName(name); if (m) { squad.push(m); squadNames = squad.map(x => x.name); saveSquad(); } }
+      return { lv, dup: false };
     }
     function nextCuratorKey() {
       const missing = C.CURATORS.find(c => !c.champion && !cores.includes(c.key));
@@ -817,6 +941,11 @@
         if (!(await A.confirm('Stop watching this exhibition?'))) return;
         battle = null; paintHome(); return;
       }
+      /* running from a wild model is free: no loss on the record */
+      if (battle.wild) {
+        if (!(await A.confirm('Run away from the wild ' + nm(battle.b) + '?'))) return;
+        battle = null; clearTimeout(autoTimer); auto = false; paintMaker(); return;
+      }
       if (!(await A.confirm('Forfeit this battle?\n\nIt counts as a loss.'))) return;
       C.forfeit(battle, 'a');
       finishBattle();
@@ -826,30 +955,79 @@
       leaveBattle();
     }
 
-    /* ---------- new arrivals and the scan ---------- */
+    /* ---------- new arrivals and the scanner ---------- */
+    /* Waiting models are not spread over the home screen: there is one scanner station you open,
+       and inside it you load a single specimen from a list before the sweep starts. */
+    let scanPick = '', scanTok = 0;
+
     function arrivalsHTML() {
       const list = unscanned();
       if (!list.length) return '';
-      return '<div class="mm-section"><div class="mm-sechead"><div><h3>New arrivals</h3><div class="small mute">Models on this PC that have not been scanned yet. A scan reads the type, stats, ability and moves straight from the model\'s own metadata, and then you give it a name.</div></div><span class="mm-count">' + list.length + ' to scan</span></div>' +
-        '<div class="mm-grid">' + list.map(mon => '<div class="mm-card mm-new" style="--mmc:#7b88ab">' +
-          '<div class="mm-cardtop"><span class="mm-ava">❔</span><div class="mm-cname"><b title="' + esc(mon.name) + '">' + esc(mon.name) + '</b>' +
-          '<span class="small mute">Unscanned · ' + esc(mon.meta.family || 'unknown family') + '</span></div></div>' +
-          '<div class="mm-cardmeta"><span>' + C.formatParams(mon.meta.parameters) + ' params</span><span>' + esc(mon.meta.quantization_level || '?') + '</span><span>' + C.formatContext(mon.meta.context) + ' ctx</span><span>' + C.formatGigabytes(mon.meta.size) + ' GB</span></div>' +
-          '<div class="mm-cardfoot"><span class="small mute">' + (mon.meta.sample ? 'sample monster' : 'in Ollama, not in your collection') + '</span>' +
-          '<button class="pri" data-scan="' + esc(mon.name) + '">🔬 Scan</button></div></div>').join('') + '</div></div>';
+      return '<div class="mm-section"><div class="mm-sechead"><div><h3>New arrivals</h3><div class="small mute">Models on this PC that have not been scanned yet. Open the scanner, load one model into the bay, and it reads the type, stats, ability and moves from the model\'s own metadata. Then you name it.</div></div><span class="mm-count">' + list.length + ' to scan</span></div>' +
+        '<div class="mm-station">' +
+        '<div class="mm-stationbed" aria-hidden="true"><span class="mm-bedgrid"></span><span class="mm-bedsweep"></span><span class="mm-bedicon">🔬</span><span class="mm-bedlabel">SPECIMEN BAY</span></div>' +
+        '<div class="mm-stationinfo"><b>Model Scanner</b>' +
+        '<div class="small mute">One specimen at a time. The bay reads the file, the family, the type chart and the stat block from the files already on this PC, then it lets you register the creature.</div>' +
+        '<div class="mm-stationmeta"><span>📦 ' + list.length + ' waiting</span><span>🔌 offline</span><span>🧪 one at a time</span></div>' +
+        '<div class="mm-stationfoot"><button class="pri" data-scanner="1">🔬 Open scanner</button><span class="small mute">Registration is free — the monster starts at Lv 1.</span></div></div>' +
+        '</div></div>';
     }
+
+    function openScanner() {
+      if (!el.querySelector('#mmmodal')) modalReturn = document.activeElement;
+      const old = el.querySelector('#mmmodal'); if (old) old.remove();
+      scanPick = '';
+      el.insertAdjacentHTML('beforeend', '<div class="mm-modal" id="mmmodal" role="dialog" aria-modal="true" aria-label="Model scanner">' +
+        '<div class="mm-dialog mm-scan"><div class="mm-device">' +
+        '<div class="mm-mhead"><div><h2>Model Scanner</h2><div class="small mute" id="mmscanstatus">Idle · no specimen loaded</div></div><button class="ib" data-close="1" aria-label="Close the scanner">✕</button></div>' +
+        '<div class="mm-devicescreen" id="mmscanscreen"></div>' +
+        '<div class="mm-devicefoot" id="mmscanfoot"></div>' +
+        '</div></div></div>');
+      paintScanner();
+    }
+
+    function paintScanner() {
+      const scr = el.querySelector('#mmscanscreen'); if (!scr) return;
+      const st = el.querySelector('#mmscanstatus'), foot = el.querySelector('#mmscanfoot');
+      const list = unscanned();
+      scanBusy = false;
+      if (!list.length) {
+        if (st) st.textContent = 'Idle · nothing left to scan';
+        scr.innerHTML = '<div class="mm-devempty"><span>✓</span>Every model on this PC is already registered.<div class="small mute">A model you install in Ollama shows up here after a rescan.</div></div>';
+        if (foot) foot.innerHTML = '<span class="small mute">The bay is empty.</span><button class="ib" data-close="1">Close</button>';
+        return;
+      }
+      if (!list.some(m => m.name === scanPick)) scanPick = '';
+      if (st) st.textContent = scanPick ? 'Specimen loaded · ' + scanPick : 'Idle · choose a specimen';
+      scr.innerHTML = '<div class="mm-devlabel"><span>Specimen bay</span><span>' + list.length + ' waiting</span></div>' +
+        '<div class="mm-devlist" role="listbox" aria-label="Models waiting to be scanned">' +
+        list.map(m => '<button type="button" class="mm-devrow' + (m.name === scanPick ? ' on' : '') + '" role="option" aria-selected="' + (m.name === scanPick) + '" data-pick="' + esc(m.name) + '">' +
+          '<span class="mm-devdot"></span>' +
+          '<span class="mm-devname"><b>' + esc(m.name) + ' ' + originChips(m) + '</b><span class="small mute">' + esc(m.meta.family || 'unknown family') + ' · ' + C.formatParams(m.meta.parameters) + ' params · ' + esc(m.meta.quantization_level || '?') + ' · ' + C.formatContext(m.meta.context) + ' ctx · ' + C.formatGigabytes(m.meta.size) + ' GB</span></span>' +
+          '<span class="mm-devchk">◉</span></button>').join('') +
+        '</div>';
+      if (foot) foot.innerHTML = '<span class="small mute">' + (scanPick ? 'Loaded: ' + esc(scanPick) : 'Load a model, then run the scan.') + '</span>' +
+        '<span class="row" style="gap:6px">' + (list.length > 1 ? '<button class="ib" data-scanall="1" title="Register every waiting model at once">⚡ Scan all ' + list.length + '</button>' : '') +
+        '<button class="pri" data-runscan="1"' + (scanPick ? '' : ' disabled') + '>🔬 Scan specimen</button></span>';
+    }
+
     async function openScan(name) {
       const mon = byName(name); if (!mon || scanBusy) return;
       scanBusy = true;
-      if (!el.querySelector('#mmmodal')) modalReturn = document.activeElement;
-      const old = el.querySelector('#mmmodal'); if (old) old.remove();
-      el.insertAdjacentHTML('beforeend', '<div class="mm-modal" id="mmmodal" role="dialog" aria-modal="true" aria-label="Scan a model"><div class="mm-dialog mm-scan">' +
-        '<div class="mm-mhead"><div><h2>Scanning</h2><div class="small mute">' + esc(mon.name) + '</div></div><button class="ib" data-close="1" aria-label="Cancel">✕</button></div>' +
+      const tok = ++scanTok;
+      if (!el.querySelector('#mmscanscreen')) openScanner();
+      const st = el.querySelector('#mmscanstatus'), foot = el.querySelector('#mmscanfoot'), scr = el.querySelector('#mmscanscreen');
+      if (!scr) { scanBusy = false; return; }
+      scanPick = mon.name;
+      if (st) st.textContent = 'Scanning · ' + mon.name;
+      if (foot) foot.innerHTML = '<span class="small mute">Reading metadata…</span><button class="ib" data-close="1">Cancel</button>';
+      scr.innerHTML = '<div class="mm-devlabel"><span>Scanning</span><span>' + esc(mon.name) + '</span></div>' +
+        '<div class="mm-devgrid"><span class="mm-devbeam"></span></div>' +
         '<div class="mm-scanbar"><i id="mmscanfill" style="width:0%"></i></div>' +
-        '<div class="mm-scanlines" id="mmscanlines"></div><div id="mmscanend"></div></div></div>');
+        '<div class="mm-scanlines" id="mmscanlines"></div><div id="mmscanend"></div>';
       const lines = el.querySelector('#mmscanlines'), fill = el.querySelector('#mmscanfill');
       const step = async (pct, html) => {
-        if (stopped) return;
+        if (stopped || tok !== scanTok) return;
         if (fill) fill.style.width = pct + '%';
         if (lines) lines.insertAdjacentHTML('beforeend', '<div class="mm-scanline">' + html + '</div>');
         sfx('ping');
@@ -861,10 +1039,14 @@
       await step(60, '🔥 Type: <b style="color:' + ti.color + '">' + ti.icon + ' ' + esc(ti.name) + '</b>' + (t2 ? ' · second type <b style="color:' + t2.color + '">' + t2.icon + ' ' + esc(t2.name) + '</b>' : ''));
       await step(80, '📊 Stats: HP ' + mon.stats.hp + ' · ATK ' + mon.stats.atk + ' · DEF ' + mon.stats.def + ' · SPA ' + mon.stats.spa + ' · SPD ' + mon.stats.spd + ' · SPE ' + mon.stats.spe);
       await step(92, '🧠 Ability: <b>' + esc(mon.ability.name) + '</b> — ' + esc(mon.ability.desc));
-      if (stopped) return;
+      if (originChips(mon)) await step(96, '🏷️ Origin: ' + originChips(mon) + (mon.meta.heretic ? ' Refusals stripped: harder hits, thinner guard.' : ''));
+      if (stopped || tok !== scanTok) return;
       if (fill) fill.style.width = '100%';
+      if (st) st.textContent = 'Scan complete · ' + mon.name;
+      if (foot) foot.innerHTML = '<span class="small mute">Name it and register it.</span><button class="ib" data-close="1">Cancel</button>';
       const end = el.querySelector('#mmscanend');
       if (end) {
+        end.className = 'mm-devresult';
         end.innerHTML = '<div class="mm-ptitle">Registered as</div><div class="row" style="gap:8px;flex-wrap:wrap"><input id="mmnick" type="text" maxlength="24" value="' + esc(mon.name) + '" aria-label="Name this monster" style="flex:1;min-width:180px"><button class="pri" data-register="' + esc(mon.name) + '">✓ Register</button></div>' +
           '<div class="small mute" style="margin-top:6px">It starts at level 1 and grows as you battle and spend time with it. You can rename it any time.</div>';
         const inp = el.querySelector('#mmnick'); if (inp) setTimeout(() => { try { inp.focus(); inp.select(); } catch (e) { } }, 30);
@@ -879,10 +1061,49 @@
       reg[name] = e; saveRegistry(reg);
       rebuild();
       const fresh = byName(name);
+      /* a small squad fills itself: the first three scanned monsters join it */
+      if (fresh && squad.length < 3 && !inSquad(name)) { squad.push(fresh); squadNames = squad.map(m => m.name); saveSquad(); }
       closeModal();
       paintHome(name);
-      A.toast('🔬 ' + nm(fresh) + ' joined your collection at Lv 1', 4000);
+      A.toast('🔬 ' + nm(fresh) + ' joined your collection at Lv 1' + (inSquad(name) ? ' and your squad' : ''), 4000);
       sfx('win');
+      /* keep the scanner going while specimens are waiting */
+      if (unscanned().length) openScanner();
+    }
+    /* register every waiting model at once with its own name, after one quick sweep */
+    async function scanAll() {
+      const list = unscanned(); if (!list.length || scanBusy) return;
+      scanBusy = true;
+      const tok = ++scanTok;
+      const scr = el.querySelector('#mmscanscreen'), st = el.querySelector('#mmscanstatus'), foot = el.querySelector('#mmscanfoot');
+      if (st) st.textContent = 'Sweeping the bay · ' + list.length + ' specimens';
+      if (foot) foot.innerHTML = '<span class="small mute">Reading every model…</span>';
+      if (scr) scr.innerHTML = '<div class="mm-devlabel"><span>Sweep</span><span>' + list.length + ' specimens</span></div><div class="mm-scanbar"><i id="mmscanfill" style="width:0%"></i></div><div class="mm-scanlines" id="mmscanlines"></div>';
+      const fill = el.querySelector('#mmscanfill'), lines = el.querySelector('#mmscanlines');
+      const now = Date.now();
+      for (let i = 0; i < list.length; i++) {
+        if (stopped || tok !== scanTok) { scanBusy = false; return; }
+        const m = list[i], ti = C.typeInfo(m.type);
+        reg[m.name] = Object.assign({ nick: '', lv: 1, xp: 0, fr: 0, acts: {}, seen: now, at: now, scans: 1 }, reg[m.name] || {});
+        if (fill) fill.style.width = Math.round((i + 1) / list.length * 100) + '%';
+        if (lines) { lines.insertAdjacentHTML('beforeend', '<div class="mm-scanline">' + esc(m.icon) + ' <b>' + esc(m.name) + '</b> · <span style="color:' + ti.color + '">' + ti.icon + ' ' + esc(ti.name) + '</span> ' + originChips(m) + '</div>'); lines.scrollTop = lines.scrollHeight; }
+        sfx('ping');
+        await wait(90);
+      }
+      saveRegistry(reg); rebuild();
+      list.forEach(m => { const f = byName(m.name); if (f && squad.length < 3 && !inSquad(m.name)) squad.push(f); });
+      squadNames = squad.map(m => m.name); saveSquad();
+      scanBusy = false;
+      if (st) st.textContent = 'Sweep complete · ' + list.length + ' registered';
+      if (foot) foot.innerHTML = '<span class="small mute">All registered at Lv 1. Rename any of them in the ModelDex.</span><button class="pri" data-close="1">Done</button>';
+      sfx('win');
+      paintHomeBehind();
+    }
+    /* repaint the home screen without closing the open dialog */
+    function paintHomeBehind() {
+      const modal = el.querySelector('#mmmodal'); if (modal) modal.remove();
+      paintHome();
+      if (modal) el.appendChild(modal);
     }
     async function renameMonster(name) {
       const mon = byName(name); if (!mon) return;
@@ -901,8 +1122,17 @@
       feed: { icon: '🍖', name: 'Feed', note: 'A warm snack of tokens', fr: 6, xp: 9, cd: 25 },
       play: { icon: '🎾', name: 'Play', note: 'Fetch with a syntax error', fr: 9, xp: 14, cd: 40 },
       train: { icon: '🏋️', name: 'Train', note: 'Spar with a benchmark set', fr: 4, xp: 28, cd: 60 },
-      talk: { icon: '💬', name: 'Talk', note: 'Say something to it', fr: 5, xp: 12, cd: 15 }
+      talk: { icon: '💬', name: 'Talk', note: 'Say something to it', fr: 5, xp: 12, cd: 30 }
     };
+    /* playground experience is capped per monster per day; friendship has no cap */
+    function pgLeft(e) { const day = new Date().toDateString(); return e && e.pgDay === day ? Math.max(0, PG_DAILY_XP - (+e.pgXp || 0)) : PG_DAILY_XP; }
+    function pgXp(e, amount) {
+      const day = new Date().toDateString();
+      if (e.pgDay !== day) { e.pgDay = day; e.pgXp = 0; }
+      const give = Math.max(0, Math.min(Math.round(amount), PG_DAILY_XP - (+e.pgXp || 0)));
+      e.pgXp = (+e.pgXp || 0) + give;
+      return give ? giveXp(e, give) : 0;
+    }
     const ACT_LINES = {
       feed: ['hums happily and nuzzles the cache.', 'eats every token and asks for the prompt back.', 'chews thoughtfully, then wags its parameters.'],
       play: ['chases a runaway bracket around the garden.', 'fetches the same sentence six times, delighted.', 'wins the game and does a small victory loop.'],
@@ -920,7 +1150,7 @@
       if (left) { A.toast(nm(mon) + ' is resting for another ' + left + 's.', 2500); return; }
       e.acts = Object.assign({}, e.acts, { [kind]: Date.now() });
       e.fr = clampNum((+e.fr || 0) + ACTIONS[kind].fr, 0, MAX_FR);
-      const up = giveXp(e, ACTIONS[kind].xp * (1 + frTier(e.fr).bonus));
+      const up = pgXp(e, ACTIONS[kind].xp * (1 + frTier(e.fr).bonus));
       reg[pgName] = e; saveRegistry(reg);
       const lines = ACT_LINES[kind] || ['seems pleased.'];
       pgLog.unshift({ text: nm(mon) + ' ' + lines[Math.floor(Math.random() * lines.length)], at: Date.now() });
@@ -949,7 +1179,7 @@
       const box = el.querySelector('#mmtalkline');
       if (box) box.textContent = nm(mon) + ' is thinking…';
       let reply = '';
-      if (!mon.meta.sample && !aiBusy) {
+      if (canChat(mon) && !aiBusy) {
         aiBusy = true;
         try {
           const r = await A.api('/api/chat', {
@@ -965,7 +1195,7 @@
       if (stopped) return;
       e.acts = Object.assign({}, e.acts, { talk: Date.now() });
       e.fr = clampNum((+e.fr || 0) + ACTIONS.talk.fr, 0, MAX_FR);
-      const up = giveXp(e, ACTIONS.talk.xp * (1 + frTier(e.fr).bonus));
+      const up = pgXp(e, ACTIONS.talk.xp * (1 + frTier(e.fr).bonus));
       reg[pgName] = e; saveRegistry(reg);
       pgLog.unshift({ text: nm(mon) + ': ' + reply, at: Date.now() });
       pgLog = pgLog.slice(0, 10);
@@ -998,16 +1228,118 @@
         '<div class="mm-ptypes">' + typeChips(mon) + '</div>' +
         '<div class="mm-pgbar"><span>Lv ' + mon.lv + '</span><i><em style="width:' + xpPct + '%"></em></i><span>' + (mon.lv >= MAX_LV ? 'max' : (mon.xp | 0) + ' / ' + need) + '</span></div>' +
         '<div class="mm-pgbar fr"><span>' + mon.friend.icon + ' ' + esc(mon.friend.name) + '</span><i><em style="width:' + frPct + '%"></em></i><span>' + Math.round(mon.fr) + '</span></div>' +
-        '<div class="small mute" style="margin-top:8px">Friendship adds +' + Math.round(mon.friend.bonus * 100) + '% to every stat. Battles and time spent together raise it.</div>' +
+        '<div class="small mute" style="margin-top:8px">Friendship adds +' + Math.round(mon.friend.bonus * 100) + '% to every stat. Battles and time spent together raise it. Playground XP left today: ' + pgLeft(e) + ' of ' + PG_DAILY_XP + '.</div>' +
         '<div class="row" style="gap:8px;margin-top:10px"><button class="ib" data-rename="' + esc(mon.name) + '">✏ Rename</button><button class="ib" data-dex="' + esc(mon.name) + '">ⓘ ModelDex</button></div></div>' +
         '<div class="mm-pgactions">' + acts +
         '<div class="mm-talkbox"><b>' + ACTIONS.talk.icon + ' Talk to ' + esc(nm(mon)) + '</b>' +
         '<div class="row" style="gap:6px;margin-top:6px"><input id="mmtalk" type="text" maxlength="200" placeholder="' + (talkLeft ? 'Resting ' + talkLeft + 's…' : 'Say something to ' + esc(nm(mon)) + '…') + '"' + (talkLeft ? ' disabled' : '') + ' value="' + esc(pgDraft) + '" aria-label="Talk to your monster"><button class="pri" id="mmtalksend"' + (talkLeft ? ' disabled' : '') + '>Say</button></div>' +
-        '<div class="small mute" id="mmtalkline" style="margin-top:6px">' + (mon.meta.sample ? 'This one is a sample monster, so it answers from a script.' : 'It answers with the model on this PC, in its own voice.') + '</div></div>' +
+        '<div class="small mute" id="mmtalkline" style="margin-top:6px">' + (canChat(mon) ? 'It answers with the model on this PC, in its own voice.' : 'This one cannot run as a chat model here, so it answers from a script.') + '</div></div>' +
         '</div></div>' +
         '<div class="mm-pglog">' + (pgLog.length ? pgLog.map(x => '<div class="mm-logline">' + esc(x.text) + '</div>').join('') : '<div class="small mute">Nothing has happened yet. Feed it, play with it, or talk to it.</div>') + '</div>' +
         '</div>';
       updateHud();
+    }
+
+    /* ---------- the Model Maker ----------
+       Opens at trainer Lv 10. Three benches: the wild zone (catch models you do not have), the craft bench (Model Lab
+       bakes a real new Ollama model from one of yours) and the Heretic bench (Studio > Heretic strips refusals out of a
+       real model; the result scans in with Heretic stats). */
+    const RECIPES = [
+      { key: 'scholar', icon: '📘', name: 'Scholar', temp: .3, note: 'Cold and careful: +10% Defence and Sp. Def, a little slower.', system: 'You are a careful, precise scholar. Answer accurately and clearly, check your reasoning, and say when you are unsure.' },
+      { key: 'balanced', icon: '⚖️', name: 'All-rounder', temp: .7, note: 'Steady tuning: +4% to every stat.', system: 'You are a helpful, balanced assistant. Be clear, friendly and concise.' },
+      { key: 'berserker', icon: '🔥', name: 'Berserker', temp: 1.2, note: 'Hot and wild: +10% Attack and Sp. Atk, guards a little less.', system: 'You are bold, creative and energetic. Take big swings with ideas and never be dull.' }
+    ];
+    function wildSeed() { return Math.floor(Date.now() / 3600000) * 2654435761 >>> 0; }
+    function paintMaker() {
+      if (!makerOpen()) { paintHome(); A.toast('Get any monster to trainer Lv ' + MAKER_LV + ' to open the Model Maker.', 4000); return; }
+      screen = 'maker'; battle = null; busy = false;
+      if (!makerSeen) { makerSeen = true; ls.set(MAKER_KEY, '1'); }
+      const tabs = [['wild', '🌿 Wild zone'], ['craft', '🧠 Craft'], ['heretic', '⚗️ Heretic']];
+      el.innerHTML = '<div class="mm-shell mm-maker">' +
+        '<div class="mm-head"><div class="mm-title"><h2><span class="mm-logo">🧪</span> Model Maker</h2><div class="small mute">Catch wild models, craft new ones from yours, and turn real models into Heretics. Everything you make or catch can be scanned and battled.</div></div>' +
+        '<div class="mm-actions"><button class="ib" data-home="1">🏠 Circuit</button></div></div>' +
+        '<div class="mm-makertabs" role="tablist">' + tabs.map(t => '<button class="ib' + (makerTab === t[0] ? ' on' : '') + '" role="tab" aria-selected="' + (makerTab === t[0]) + '" data-mtab="' + t[0] + '">' + t[1] + '</button>').join('') + '</div>' +
+        '<div id="mmmakerbody">' + (makerTab === 'craft' ? craftHTML() : makerTab === 'heretic' ? hereticHTML() : wildHTML()) + '</div></div>';
+      updateHud();
+    }
+    function wildHTML() {
+      const enc = C.wildEncounters(wildSeed(), topLevel(), 3);
+      const mins = 60 - new Date().getMinutes();
+      const pk = perks();
+      return '<div class="small mute" style="margin:4px 0 10px">Three wild models are out. They change in ' + mins + ' min. Wear one down with your squad, then throw a Capture Cache from the Kit (' + pk.captures + ' per encounter). Lower HP and a status make the catch likelier.</div>' +
+        '<div class="mm-wildgrid">' + enc.map((w, i) => {
+          const mon = C.buildMonster(w.meta), ti = C.typeInfo(mon.type);
+          const have = roster.some(m => m.name === w.meta.name && m.registered);
+          return '<div class="mm-wild r' + w.rarity + '" style="--mmc:' + ti.color + '">' +
+            '<div class="mm-wildtop"><span class="mm-ava">' + esc(mon.icon) + '</span><div><b>' + esc(w.meta.name) + '</b><div>' + typeChips(mon) + ' <span class="mm-tier">Lv ' + w.lv + '</span></div></div><span class="mm-rarity">' + esc(w.rarityName) + '</span></div>' +
+            (originChips(mon) ? '<div class="mm-origins">' + originChips(mon) + '</div>' : '') +
+            '<div class="mm-cardmeta"><span>' + C.formatParams(mon.meta.parameters) + ' params</span><span>' + esc(mon.meta.quantization_level) + '</span><span>' + C.formatContext(mon.meta.context) + ' ctx</span><span>' + C.formatGigabytes(mon.meta.size) + ' GB</span></div>' +
+            '<div class="small mute">' + esc(mon.ability.icon + ' ' + mon.ability.name + ' · ' + mon.moves[3].name) + '</div>' +
+            '<div class="mm-cardfoot"><span class="small mute">' + (have ? '✓ In your collection' : 'Not caught yet') + '</span><button class="pri" data-wild="' + i + '"' + (squad.length ? '' : ' disabled title="Pick a squad first"') + '>⚔ Encounter</button></div></div>';
+        }).join('') + '</div>';
+    }
+    function startWild(i) {
+      const w = C.wildEncounters(wildSeed(), topLevel(), 3)[i];
+      if (!w) return;
+      if (!squad.length) { A.toast('Pick at least one monster for your squad first.', 3000); return; }
+      const foe = C.applyLevel(C.buildMonster(w.meta), w.lv);
+      startBattle(squad.slice(), [foe], { wild: w });
+    }
+    function craftHTML() {
+      const bases = owned().filter(canChat);
+      if (!bases.length) return '<div class="mm-empty small">Crafting needs a scanned chat model that runs in Ollama. Sample and caught monsters cannot be crafted.</div>';
+      const pick = bases[0].name;
+      return '<div class="small mute" style="margin:4px 0 10px">Craft bakes a real new model in Ollama with Model Lab: the base model\'s weights plus a personality and a temperature. It takes a few seconds and almost no disk space, because it shares the base model\'s file. Scan it afterwards: crafted monsters get the recipe\'s stat shape.</div>' +
+        '<div class="mm-craft"><label class="small">Base monster</label><select id="mmcraftbase">' + bases.map(m => '<option value="' + esc(m.name) + '"' + (m.name === pick ? ' selected' : '') + '>' + esc(m.icon + ' ' + nm(m) + ' · Lv ' + m.lv) + '</option>').join('') + '</select>' +
+        '<label class="small">Recipe</label><div class="mm-recipes">' + RECIPES.map((r, i) => '<label class="mm-recipe"><input type="radio" name="mmrecipe" value="' + r.key + '"' + (i === 1 ? ' checked' : '') + '><span><b>' + r.icon + ' ' + r.name + '</b> <span class="mute">temperature ' + r.temp + '</span><br><span class="small mute">' + esc(r.note) + '</span></span></label>').join('') + '</div>' +
+        '<label class="small" for="mmcraftname">New model name</label><input id="mmcraftname" maxlength="40" value="' + esc(craftName(pick, 'balanced')) + '" spellcheck="false">' +
+        '<div class="mm-actions" style="margin-top:10px"><button class="pri" data-craft="1">🧠 Craft model</button><span class="small mute" id="mmcraftnote"></span></div></div>';
+    }
+    function craftName(base, key) { return (String(base).replace(/:latest$/, '').replace(/[^a-z0-9._-]+/gi, '-').toLowerCase().slice(0, 28) + '-' + key).replace(/^-+/, ''); }
+    async function doCraft() {
+      const base = (el.querySelector('#mmcraftbase') || {}).value, r = RECIPES.find(x => x.key === ((el.querySelector('input[name="mmrecipe"]:checked') || {}).value)) || RECIPES[1];
+      const name = String((el.querySelector('#mmcraftname') || {}).value || '').trim().toLowerCase().replace(/[^a-z0-9._-]/g, '-').replace(/^-+/, '').slice(0, 40);
+      if (!base || !name) { A.toast('Pick a base monster and a name.', 3000); return; }
+      if (realModels.some(m => m.name.replace(/:latest$/, '') === name)) { A.toast('A model called ' + name + ' already exists.', 3500); return; }
+      if (!(await A.confirm('Craft a new model called ' + name + '?\n\nModel Lab creates it in Ollama from ' + base + ' with the ' + r.name + ' recipe. It shares the base model\'s file, so it uses almost no disk space. You can delete it later in Studio > Model Lab.'))) return;
+      const btn = el.querySelector('[data-craft]'), note = el.querySelector('#mmcraftnote');
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ Crafting…'; }
+      if (note) note.textContent = 'Ollama is building the model…';
+      const res = await A.api('/api/modellab/build', { name, base, system: r.system, temperature: r.temp, num_ctx: 0, examples: [] }).catch(e => ({ ok: false, error: e.message }));
+      if (stopped) return;
+      if (!res || !res.ok) {
+        A.toast('Crafting failed: ' + ((res && res.error) || 'no answer'), 6000);
+        if (btn) { btn.disabled = false; btn.textContent = '🧠 Craft model'; }
+        if (note) note.textContent = '';
+        return;
+      }
+      A.toast('🧠 ' + res.name + ' is ready. It is waiting in the scanner.', 5000);
+      sfx('win');
+      await loadModels(true);
+      if (stopped) return;
+      paintHome(); openScanner();
+    }
+    function hereticHTML() {
+      const her = owned().filter(m => m.meta.heretic);
+      const bases = owned().filter(m => !m.meta.heretic && !m.meta.sample && !m.meta.wild && (m.meta.kind || 'llm') === 'llm');
+      const mul = C.HERETIC_MUL, pct = k => (mul[k] >= 1 ? '+' : '') + Math.round((mul[k] - 1) * 100) + '%';
+      return '<div class="small mute" style="margin:4px 0 10px">A Heretic model has its refusals removed by <b>Studio › Heretic</b> (directional ablation). It runs on this PC and needs a GPU and some time. When the new <code>-heretic</code> model lands in Ollama, rescan and scan it: it fights with Heretic stats.</div>' +
+        '<div class="mm-heretic"><div class="mm-hstats"><b>⚗️ Heretic stats</b><span>Attack ' + pct('atk') + '</span><span>Sp. Atk ' + pct('spa') + '</span><span>Speed ' + pct('spe') + '</span><span>Defence ' + pct('def') + '</span><span>Sp. Def ' + pct('spd') + '</span>' +
+        '<span>Ability: ⚗️ Unchained (ignores defensive buffs, never throttled)</span><span>Signature: Refusal Bypass (96 power, ignores buffs, small recoil)</span></div>' +
+        (bases.length ? '<label class="small">Model to turn Heretic</label><div class="row" style="gap:8px;flex-wrap:wrap"><select id="mmherbase" style="flex:1;min-width:200px">' + bases.map(m => '<option value="' + esc(m.name) + '">' + esc(m.icon + ' ' + nm(m) + ' · ' + C.formatParams(m.meta.parameters)) + '</option>').join('') + '</select><button class="pri" data-heretic="1">⚗️ Open in Studio › Heretic</button></div>'
+          : '<div class="small mute">No scanned real chat model to start from yet.</div>') +
+        '<div class="small mute" style="margin-top:8px">Heretic, abliterated and "uncensored" models are recognised by name too, so any you download count. Wild Heretics also turn up in the wild zone.</div>' +
+        '<h3 style="margin-top:14px">Your Heretics</h3>' + (her.length ? '<div class="mm-trows">' + her.map(m => '<div class="mm-trow" style="--mmc:' + monColor(m) + '"><span class="mm-ticon">' + esc(m.icon) + '</span><span class="mm-tinfo"><b>' + esc(nm(m)) + '</b><span>' + typeChips(m) + '</span></span><span class="mm-tlv">Lv ' + m.lv + '</span></div>').join('') + '</div>' : '<div class="small mute">None yet.</div>') + '</div>';
+    }
+    async function openHeretic() {
+      const name = (el.querySelector('#mmherbase') || {}).value; if (!name) return;
+      const mon = byName(name);
+      try {
+        if (A.lazy && A.lazy.load) await A.lazy.load('studio');
+        if (A.heretic) A.heretic.want = mon && mon.meta.source === 'lmstudio' ? '' : 'ollama:' + String(name).replace(/:latest$/, '');
+        if (A.studio && A.studio.go) { A.studio.go('heretic'); return; }
+      } catch (e) { }
+      A.toast('Studio › Heretic could not be opened here.', 4000);
     }
 
     /* ---------- wipe everything ---------- */
@@ -1032,6 +1364,7 @@
       if (/^(help|\?|commands)$/.test(t)) return { kind: 'help' };
       if (/(forfeit|give up|run away|flee|surrender|quit|leave)/.test(t)) return { kind: 'forfeit' };
       if (/(\bauto\b|watch|let (it|him|her|them) decide|you decide)/.test(t)) return { kind: 'auto' };
+      if (/(catch|capture|throw)/.test(t)) return battle.wild ? { kind: 'item', item: 'capture' } : { kind: 'help' };
       if (/(heal|patch|bandage|repair|restore)/.test(t)) return { kind: 'item', item: 'patch' };
       if (/(cure|cleanse|reset|antidote)/.test(t)) return { kind: 'item', item: 'reset' };
       const num = t.match(/^(?:use |move |go )?([1-4])$/);
@@ -1061,7 +1394,7 @@
     }
     /* your monster itself reads a command it did not recognise, using the model on this PC */
     async function aiInterpret(text) {
-      const f = battle && battle.a; if (!f || !f.meta || f.meta.sample || aiBusy) return null;
+      const f = battle && battle.a; if (!f || !canChat(f) || aiBusy) return null;
       aiBusy = true;
       try {
         const moves = f.moves.map((m, i) => i + ': ' + m.name + ' (' + m.type + ', ' + m.kind + (m.kind === 'status' ? '' : ', ' + m.power + ' power') + ')').join('\n');
@@ -1143,15 +1476,41 @@
         '<div class="mm-mhead"><div class="mm-dexhead"><span class="mm-ava big" style="--mmc:' + ti.color + '">' + esc(mon.icon) + '</span><div><h2>' + esc(nm(mon)) + '</h2><div>' + typeChips(mon) + ' <span class="mm-tier">Lv ' + mon.lv + ' · ' + tier.icon + ' ' + tier.name + '</span></div><div class="small mute">' + (mon.nick ? 'model ' + esc(mon.name) + ' · ' : '') + esc(mon.meta.family || 'unknown family') + ' · ' + C.formatParams(mon.meta.parameters) + ' parameters</div></div></div><button class="ib" data-close="1" aria-label="Close">✕</button></div>' +
         '<div class="mm-pgbar fr"><span>' + mon.friend.icon + ' ' + esc(mon.friend.name) + '</span><i><em style="width:' + Math.round(mon.fr / MAX_FR * 100) + '%"></em></i><span>' + Math.round(mon.fr) + '</span></div>' +
         '<div class="small mute">Battle level ' + mon.level + ' · ' + mon.xp + ' / ' + xpNeed(mon.lv) + ' XP to the next trainer level</div>' +
+        (originChips(mon) ? '<div class="mm-origins">' + originChips(mon) + (mon.meta.pull ? ' <span class="small mute">Ollama tag: ' + esc(mon.meta.pull) + '</span>' : '') + '</div>' : '') +
         '<div class="mm-abilitybox"><span class="mm-abilityicon">' + mon.ability.icon + '</span><div><b>' + esc(mon.ability.name) + '</b><div class="small mute">' + esc(mon.ability.desc) + '</div></div></div>' +
         '<div class="mm-dstats">' + stats + '</div>' +
         '<div class="mm-dmeta"><span><b>File</b> ' + C.formatGigabytes(mon.meta.size) + ' GB</span><span><b>Quantization</b> ' + esc(mon.meta.quantization_level || 'unknown') + '</span><span><b>Context</b> ' + C.formatContext(mon.meta.context) + '</span><span><b>Speed</b> ' + speed + '</span><span><b>Capabilities</b> ' + esc(caps) + '</span><span><b>Digest</b> ' + esc(String(mon.meta.digest || '').slice(0, 12) || '—') + '</span></div>' +
         '<div class="mm-matchtip">Strong against <b>' + strong.icon + ' ' + strong.name + '</b>. Weak to <b>' + weak.icon + ' ' + weak.name + '</b>.' + (mon.type2 ? ' Its second type is <b>' + C.typeInfo(mon.type2).icon + ' ' + C.typeInfo(mon.type2).name + '</b>.' : '') + '</div>' +
         '<h3>Moves</h3><div class="mm-movelist">' + moves + '</div>' +
-        '<div class="mm-actions"><button class="' + (inS ? 'ib' : 'pri') + '" data-squad-dex="' + esc(mon.name) + '">' + (inS ? '✕ Remove from squad' : '＋ Add to squad') + '</button><button class="ib" data-rename="' + esc(mon.name) + '">✏ Rename</button><button class="ib" data-bench="' + esc(mon.name) + '">⚡ Measure tokens/sec</button><button class="ib" data-close="1">Close</button></div>' +
-        '<div class="small mute" style="margin-top:6px">Measuring loads the model into memory and asks it for a few tokens. The first run can take a minute; the result is saved on this PC.</div>' +
+        (mon.registered ? learnHTML(mon) : '') +
+        '<div class="mm-actions"><button class="' + (inS ? 'ib' : 'pri') + '" data-squad-dex="' + esc(mon.name) + '">' + (inS ? '✕ Remove from squad' : '＋ Add to squad') + '</button><button class="ib" data-rename="' + esc(mon.name) + '">✏ Rename</button>' + (canChat(mon) ? '<button class="ib" data-bench="' + esc(mon.name) + '">⚡ Measure tokens/sec</button>' : '') + '<button class="ib" data-close="1">Close</button></div>' +
+        (canChat(mon) ? '<div class="small mute" style="margin-top:6px">Measuring loads the model into memory and asks it for a few tokens. The first run can take a minute; the result is saved on this PC.</div>' : '') +
         '</div></div>');
       const cb = el.querySelector('#mmmodal [data-close]'); if (cb) cb.focus();
+    }
+
+    /* the moves a monster has learned: slots 2 and 3 can hold any unlocked move */
+    function learnHTML(mon) {
+      const pool = C.movePool(mon, mon.lv);
+      const row = mv => {
+        const mt = C.typeInfo(mv.type || mon.type);
+        const inSlot = mon.moves.findIndex(m => m.name === mv.name);
+        const meta = mv.kind === 'status' ? 'Status' : (mv.kind === 'special' ? 'Sp. Atk' : 'Physical') + ' · ' + mv.power + ' · ' + (mv.acc == null ? 100 : mv.acc) + '%';
+        const btns = mv.locked ? '<span class="mm-lock">🔒 Lv ' + mv.unlock + '</span>'
+          : [1, 2].map(sl => '<button class="ib' + (inSlot === sl ? ' on' : '') + '" data-equip="' + esc(mon.name) + '" data-slot="' + sl + '" data-move="' + esc(mv.name) + '"' + (inSlot === sl ? ' disabled' : '') + ' title="Put it in slot ' + (sl + 1) + '">Slot ' + (sl + 1) + '</button>').join('');
+        return '<div class="mm-learn' + (mv.locked ? ' locked' : '') + '" style="--mmc:' + mt.color + '"><div><b>' + esc(mv.name) + '</b> ' + typeChip(mv.type || mon.type) + ' <span class="mm-mmeta">' + meta + ' · ' + (mv.maxPp || 10) + ' CHG</span><div class="small mute">' + esc(mv.desc || '') + '</div></div><div class="mm-learnbtns">' + btns + '</div></div>';
+      };
+      return '<h3>Move tutor</h3><div class="small mute">Slots 2 and 3 can hold any move this monster knows. New moves unlock at trainer Lv 6, 14, 22 and 30.</div><div class="mm-learnlist">' + pool.map(row).join('') + '</div>';
+    }
+    function equipMove(name, slot, move) {
+      const mon = byName(name), e = entryOf(reg, name); if (!mon || !e || (slot !== 1 && slot !== 2)) return;
+      const picks = [mon.moves[1].name, mon.moves[2].name];
+      const other = picks[slot === 1 ? 1 : 0];
+      if (other === move) picks[slot === 1 ? 1 : 0] = picks[slot - 1];
+      picks[slot - 1] = move;
+      e.moves = picks; reg[name] = e; saveRegistry(reg); rebuild();
+      sfx('good'); openDex(name);
+      if (screen === 'home') paintHomeBehind();
     }
 
     /* ---------- benchmark ---------- */
@@ -1193,7 +1552,7 @@
       const at = squad.findIndex(m => m.name === name);
       if (at >= 0) squad.splice(at, 1);
       else {
-        if (squad.length >= 6) { A.toast('Your squad is full. Remove one first.', 3000); return; }
+        if (squad.length >= slots()) { A.toast(slots() < 6 ? 'All ' + slots() + ' squad slots are full. Beat more Curators to open more, or remove one first.' : 'Your squad is full. Remove one first.', 4000); return; }
         squad.push(mon);
       }
       squadNames = squad.map(m => m.name);
@@ -1215,8 +1574,10 @@
       if (sd) { toggleSquad(sd.dataset.squadDex); return; }
       const cl = t.closest('[data-close]');
       if (cl) { closeModal(); return; }
-      const scanBtn = t.closest('[data-scan]');
-      if (scanBtn) { openScan(scanBtn.dataset.scan); return; }
+      if (t.closest('[data-scanner]')) { openScanner(); return; }
+      const pickRow = t.closest('[data-pick]');
+      if (pickRow) { scanPick = pickRow.dataset.pick; paintScanner(); return; }
+      if (t.closest('[data-runscan]')) { if (scanPick) openScan(scanPick); return; }
       const regBtn = t.closest('[data-register]');
       if (regBtn) { const ni = el.querySelector('#mmnick'); registerMonster(regBtn.dataset.register, ni ? ni.value : ''); return; }
       const pgSel = t.closest('[data-pgsel]');
@@ -1226,9 +1587,19 @@
       const renBtn = t.closest('[data-rename]');
       if (renBtn) { renameMonster(renBtn.dataset.rename); return; }
       if (t.closest('[data-home]')) { paintHome(); return; }
+      if (t.closest('[data-maker]')) { paintMaker(); return; }
+      const mtab = t.closest('[data-mtab]');
+      if (mtab) { makerTab = mtab.dataset.mtab; paintMaker(); return; }
+      const wildBtn = t.closest('[data-wild]');
+      if (wildBtn) { startWild(+wildBtn.dataset.wild); return; }
+      if (t.closest('[data-craft]')) { doCraft(); return; }
+      if (t.closest('[data-heretic]')) { openHeretic(); return; }
+      if (t.closest('[data-scanall]')) { scanAll(); return; }
+      const eq = t.closest('[data-equip]');
+      if (eq) { equipMove(eq.dataset.equip, +eq.dataset.slot, eq.dataset.move); return; }
       if (t.closest('[data-pg]')) { paintPlayground(); return; }
       if (t.closest('[data-reset]')) { resetProgress(); return; }
-      if (t.closest('[data-sample]')) { models = SAMPLE.slice(); rebuild(); paintHome(); A.toast('Sample monsters loaded — scan one to begin.', 4000); return; }
+      if (t.closest('[data-sample]')) { setModels(SAMPLE.slice()); paintHome(); A.toast('Sample monsters loaded — scan one to begin.', 4000); return; }
       if (t.closest('#mmsend')) { const ci = el.querySelector('#mmcmd'); runCommand(ci ? ci.value : ''); return; }
       if (t.closest('#mmmic')) { micCommand(); return; }
       if (t.closest('#mmtalksend')) { const ti2 = el.querySelector('#mmtalk'); talkTo(ti2 ? ti2.value : ''); return; }
@@ -1245,16 +1616,14 @@
       if (rm) { squad.splice(+rm.dataset.remove, 1); squadNames = squad.map(m => m.name); saveSquad(); paintHome(); return; }
       const lead = t.closest('[data-lead]');
       if (lead) { const i = +lead.dataset.lead; const m = squad.splice(i, 1)[0]; if (m) squad.unshift(m); squadNames = squad.map(x => x.name); saveSquad(); paintHome(); return; }
-      if (t.closest('[data-squad="auto"]')) { squad = owned().slice(0, Math.min(6, owned().length)); squadNames = squad.map(m => m.name); saveSquad(); paintHome(); return; }
+      if (t.closest('[data-squad="auto"]')) { squad = owned().slice(0, Math.min(slots(), owned().length)); squadNames = squad.map(m => m.name); saveSquad(); paintHome(); return; }
       if (t.closest('[data-squad="clear"]')) { squad = []; squadNames = []; saveSquad(); paintHome(); return; }
 
       const start = t.closest('[data-start]');
       if (start) { startPending(); return; }
       const reroll = t.closest('[data-reroll]');
       if (reroll && pending) {
-        const size = pending.teamB.length || 3;
-        const spare = owned().filter(m => !squad.some(s => s.name === m.name));
-        pending.teamB = C.buildQuickTeam(spare.length >= size ? spare : owned(), size, { seed: (Date.now() ^ 0x27d4eb2f) >>> 0 });
+        pending.teamB = rivalTeam(pending.teamB.length || 3, (Date.now() ^ 0x27d4eb2f) >>> 0);
         paintPreview(); return;
       }
       const lp = t.closest('[data-leadpick]');
@@ -1285,7 +1654,12 @@
       if (r) {
         const what = r.dataset.r;
         if (what === 'home') { paintHome(); }
-        else if (what === 'again') { if (lastBattle) startBattle(lastBattle.teamA, lastBattle.teamB, { curator: lastBattle.curator, watch: lastBattle.watch }); else paintHome(); }
+        else if (what === 'maker') { makerTab = 'wild'; paintMaker(); }
+        else if (what === 'again') {
+          /* the rematch uses your monsters as they are now, with any levels just gained */
+          if (lastBattle) startBattle(lastBattle.watch ? lastBattle.teamA : lastBattle.teamA.map(m => byName(m.name) || m), lastBattle.teamB, { curator: lastBattle.curator, watch: lastBattle.watch });
+          else paintHome();
+        }
         else if (what === 'next') { const k = nextCuratorKey(); if (k) { paintHome(); openPreview('curator', k); } }
         return;
       }
@@ -1296,6 +1670,10 @@
     }
     function onChange(e) {
       if (e.target.id === 'mmtier') { view.tier = e.target.value; updateGrid(); }
+      if (e.target.id === 'mmcraftbase' || e.target.name === 'mmrecipe') {
+        const b = el.querySelector('#mmcraftbase'), r = el.querySelector('input[name="mmrecipe"]:checked'), n = el.querySelector('#mmcraftname');
+        if (b && r && n) n.value = craftName(b.value, r.value);
+      }
     }
     function onKey(e) {
       if (stopped || A.cur !== 'play') return;
