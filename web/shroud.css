@@ -239,7 +239,7 @@ html.sh .rise { animation: shRise 440ms var(--e-out) both; }
 :where(html.sh) .guide td, :where(html.sh) .guide th, :where(html.sh) .oltab td, :where(html.sh) .oltab th, :where(html.sh) .am-t td, :where(html.sh) .am-t th { border-color: var(--hair); padding: 8px 11px; }
 
 /* dialogs, menus, notices */
-html.sh #ov { background: color-mix(in srgb, var(--bg) 62%, rgba(0, 0, 0, .4)); backdrop-filter: blur(12px) saturate(1.2); padding-top: 7vh; z-index: 200; }
+html.sh #ov { background: rgba(6, 8, 16, .74); padding-top: 7vh; z-index: 200; }
 @keyframes shFade { from { opacity: 0 } to { opacity: 1 } }
 @keyframes shDlg { from { opacity: 0; transform: translateY(calc(18px * var(--mv, 1))) scale(.965) } to { opacity: 1; transform: none } }
 html.sh #ov.on { animation: shFade var(--d2) ease-out; }
@@ -249,11 +249,11 @@ html.sh .dlg .hd { padding: 16px 22px 14px; border-bottom-color: var(--hair); ba
 html.sh .dlg .hd > b:first-child { font: 600 19px/1.2 var(--f-display); letter-spacing: -.01em; }
 html.sh .dlg .bd { padding: 16px 22px 20px; }
 @keyframes shPop { from { opacity: 0; transform: translateY(calc(-6px * var(--mv, 1))) scale(.97) } to { opacity: 1; transform: none } }
-html.sh #pop { border-radius: 15px; padding: 8px; border: 1px solid var(--border-hi); background: color-mix(in srgb, var(--panel) 92%, transparent); backdrop-filter: blur(20px) saturate(1.35); box-shadow: var(--sh-3); animation: shPop 190ms var(--e-out) both; }
+html.sh #pop { border-radius: 15px; padding: 8px; border: 1px solid var(--border-hi); background: color-mix(in srgb, var(--panel) 97%, var(--bg)); box-shadow: var(--sh-3); animation: shPop 190ms var(--e-out) both; }
 html.sh #pop .hit { border-radius: 9px; padding: 8px 11px; transition: background-color var(--d1), color var(--d1); }
 html.sh #pop .hit:hover { background: var(--wash2); }
 html.sh #pop .ni { width: 20px; display: grid; place-items: center; color: var(--mute); }
-html.sh .nt { border-radius: 15px; border-color: var(--border-hi); background: color-mix(in srgb, var(--panel) 92%, transparent); backdrop-filter: blur(18px) saturate(1.35); box-shadow: var(--sh-3); }
+html.sh .nt { border-radius: 15px; border-color: var(--border-hi); background: color-mix(in srgb, var(--panel) 97%, var(--bg)); box-shadow: var(--sh-3); }
 html.sh .cmdbox { border-radius: var(--r-xl); border-color: var(--border-hi); background: linear-gradient(180deg, color-mix(in srgb, var(--panel2) 40%, var(--panel)), color-mix(in srgb, var(--panel) 96%, var(--bg))); box-shadow: var(--sh-3); }
 html.sh #cmdx { backdrop-filter: blur(10px) saturate(1.15); }
 html.sh #cmdx .hit { transition: background-color var(--d1); border-radius: 11px; }
@@ -587,7 +587,7 @@ html.sh .m .tools span { border-color: var(--hair); background: var(--wash); pad
 html.sh .m .tools span:hover { background: var(--wash2); border-color: color-mix(in srgb, var(--acc) 45%, var(--line)); transform: translateY(-1px); }
 html.sh .src { border-color: var(--hair); background: var(--wash); transition: border-color var(--d2), background-color var(--d2); }
 /* the message box floats over the foot of the page */
-html.sh #p-chat > .composer { flex: none; align-self: center; width: min(900px, calc(100% - 32px)); margin: 0 0 16px; padding: 10px 13px 9px; border: 1px solid var(--border-hi); border-radius: 22px; background: linear-gradient(180deg, color-mix(in srgb, var(--panel2) 45%, var(--panel)), color-mix(in srgb, var(--panel) 95%, transparent)); backdrop-filter: blur(18px) saturate(1.3); box-shadow: var(--sh-2); transition: border-color var(--d2), box-shadow var(--d3); }
+html.sh #p-chat > .composer { flex: none; align-self: center; width: min(900px, calc(100% - 32px)); margin: 0 0 16px; padding: 10px 13px 9px; border: 1px solid var(--border-hi); border-radius: 22px; background: linear-gradient(180deg, color-mix(in srgb, var(--panel2) 55%, var(--panel)), color-mix(in srgb, var(--panel) 98%, var(--bg))); box-shadow: var(--sh-2); transition: border-color var(--d2), box-shadow var(--d3); }
 html.sh #p-chat > .composer:focus-within { border-color: color-mix(in srgb, var(--acc) 60%, var(--line)); box-shadow: 0 0 0 4px color-mix(in srgb, var(--acc) 14%, transparent), var(--sh-2); }
 html.sh #in { border: 0; background: transparent; box-shadow: none !important; padding: 9px 6px; font-size: 15px; border-radius: 10px; }
 html.sh #go { height: 38px; padding: 0 18px; border-radius: 12px; }

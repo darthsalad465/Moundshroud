@@ -38,10 +38,10 @@ async function run(ok) {
     !srv.includes("'0.0.0.0'") && srv.includes('Permissions-Policy') && srv.includes('allowedCaller(req)'));
 
   const pushSlice = srv.slice(srv.indexOf("url === '/api/git/push'"), srv.indexOf("url === '/api/app/share'"));
-  const shareSlice = srv.slice(srv.indexOf("url === '/api/app/share'"), srv.indexOf("url === '/api/app/share'") + 2500);
-  ok('security: /api/git/push and /api/app/share use execFileSync (zero shell execSync injection), enforce pre-push secret scan & exclude .author-copy/secrets',
-    !pushSlice.includes('execSync(') && pushSlice.includes("execFileSync('git'") && pushSlice.includes('secGuard.scanRepo') && pushSlice.includes('secGuard.scanStaged') &&
-    !shareSlice.includes('execSync(') && shareSlice.includes("execFileSync('powershell.exe'") && shareSlice.includes('.author-copy') && shareSlice.includes('*.key'));
+  const shareSlice = srv.slice(srv.indexOf("url === '/api/app/share'"), srv.indexOf("url === '/api/app/share'") + 3000);
+  ok('security: /api/git/push and /api/app/share use async execFile (zero shell injection & zero event-loop blocking), enforce pre-push secret scan & exclude .author-copy/secrets',
+    !pushSlice.includes('execSync(') && !pushSlice.includes('execFileSync(') && pushSlice.includes("execFile('git'") && pushSlice.includes('secGuard.scanRepo') && pushSlice.includes('secGuard.scanStaged') &&
+    !shareSlice.includes('execSync(') && !shareSlice.includes('execFileSync(') && shareSlice.includes("execFile('powershell.exe'") && shareSlice.includes('.author-copy') && shareSlice.includes('*.key'));
 
   ok('security: lib/globe.js blocks non-HTTPS, credentialed, loopback, and private-IP SSRF URLs/redirects',
     globeMod.isSafePublicHttpsUrl('https://tile.openstreetmap.org/0/0/0.png') &&

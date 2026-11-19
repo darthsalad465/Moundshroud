@@ -23,8 +23,7 @@
   const css = `
 #cmpc{
   position:fixed;left:16px;bottom:92px;z-index:9990;width:368px;max-width:calc(100vw - 28px);height:445px;max-height:66vh;
-  background:linear-gradient(180deg,color-mix(in srgb,var(--panel2) 55%,var(--panel)),color-mix(in srgb,var(--panel) 96%,var(--bg)));
-  backdrop-filter:blur(22px) saturate(1.4);-webkit-backdrop-filter:blur(22px) saturate(1.4);
+  background:linear-gradient(180deg,color-mix(in srgb,var(--panel2) 65%,var(--panel)),color-mix(in srgb,var(--panel) 99%,var(--bg)));
   border:1px solid color-mix(in srgb,var(--acc) 42%,var(--line));border-radius:20px;
   box-shadow:0 22px 58px -12px rgba(0,0,0,.65),0 0 0 1px rgba(255,255,255,.06) inset;
   display:none;flex-direction:column;overflow:hidden;

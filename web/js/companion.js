@@ -38,10 +38,10 @@
     '#cmp .cb.spin{animation:cmpspin .68s cubic-bezier(.22,1,.36,1)}' +
     '#cmp .cb-tag{position:absolute;bottom:-7px;left:50%;transform:translateX(-50%);padding:1px 7px;border-radius:99px;background:color-mix(in srgb,var(--panel) 95%,#000);border:1px solid color-mix(in srgb,var(--bcol,var(--acc)) 50%,var(--line));font-size:10px;font-weight:700;letter-spacing:.02em;color:var(--text);white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.4);pointer-events:none;transition:opacity .2s,transform .2s}' +
     '#cmp .cb:hover .cb-tag{transform:translateX(-50%) scale(1.06);border-color:var(--bcol,var(--acc))}' +
-    '#cmp .bub{pointer-events:auto;max-width:268px;padding:10px 14px;border-radius:16px 16px 16px 4px;background:linear-gradient(180deg,color-mix(in srgb,var(--panel2) 60%,var(--panel)),color-mix(in srgb,var(--panel) 96%,var(--bg)));backdrop-filter:blur(16px);border:1px solid color-mix(in srgb,var(--bcol,var(--acc)) 55%,var(--line));box-shadow:0 12px 32px -6px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.08);font-size:13.5px;line-height:1.45;color:var(--text);opacity:0;transform:translateY(8px) scale(.96);transition:opacity .22s ease,transform .25s cubic-bezier(.34,1.45,.5,1);display:none;cursor:pointer}' +
+    '#cmp .bub{pointer-events:auto;max-width:268px;padding:10px 14px;border-radius:16px 16px 16px 4px;background:linear-gradient(180deg,color-mix(in srgb,var(--panel2) 65%,var(--panel)),color-mix(in srgb,var(--panel) 98%,var(--bg)));border:1px solid color-mix(in srgb,var(--bcol,var(--acc)) 55%,var(--line));box-shadow:0 12px 32px -6px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.08);font-size:13.5px;line-height:1.45;color:var(--text);opacity:0;transform:translateY(8px) scale(.96);transition:opacity .22s ease,transform .25s cubic-bezier(.34,1.45,.5,1);display:none;cursor:pointer}' +
     '#cmp.flip-bub .bub{border-radius:16px 16px 4px 16px}' +
     '#cmp .bub.on{opacity:1;transform:none;display:block}' +
-    '#cmpm{position:fixed;left:14px;bottom:88px;z-index:9998;min-width:225px;background:color-mix(in srgb,var(--panel) 94%,transparent);backdrop-filter:blur(20px) saturate(1.3);border:1px solid color-mix(in srgb,var(--text) 16%,var(--line));border-radius:16px;padding:7px;box-shadow:0 22px 56px rgba(0,0,0,.65),inset 0 1px 0 rgba(255,255,255,.08);display:none;animation:cmpMenuIn .18s cubic-bezier(.16,1,.3,1)}' +
+    '#cmpm{position:fixed;left:14px;bottom:88px;z-index:9998;min-width:225px;background:color-mix(in srgb,var(--panel) 98%,var(--bg));border:1px solid color-mix(in srgb,var(--text) 16%,var(--line));border-radius:16px;padding:7px;box-shadow:0 22px 56px rgba(0,0,0,.65),inset 0 1px 0 rgba(255,255,255,.08);display:none;animation:cmpMenuIn .18s cubic-bezier(.16,1,.3,1)}' +
     '#cmpm .cm-hd{padding:5px 10px 6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mute);border-bottom:1px solid color-mix(in srgb,var(--line) 65%,transparent);margin-bottom:4px;display:flex;justify-content:space-between;align-items:center}' +
     '#cmpm div[data-a]{padding:7px 11px;border-radius:10px;cursor:pointer;white-space:nowrap;font-size:13px;display:flex;align-items:center;gap:9px;color:var(--text);transition:background .12s}' +
     '#cmpm div[data-a]:hover{background:color-mix(in srgb,var(--acc) 16%,var(--panel2))}' +
@@ -333,16 +333,21 @@
   }
   function wake() { lastAct = Date.now(); if (asleep) { asleep = false; mood(null); } }
 
-  /* Eye tracking & follow-cursor mode */
-  let eyeRaf = 0, mx = 0, my = 0, followT = 0;
+  /* Eye tracking & follow-cursor mode (cached bounding rect — zero per-frame layout flushes) */
+  let eyeRaf = 0, mx = 0, my = 0, followT = 0, cbCenter = null, cbCenterAt = 0;
+  addEventListener('resize', () => { cbCenter = null; }, { passive: true });
   addEventListener('pointermove', e => {
-    if (!S.on || document.hidden) return;
+    if (!S.on || document.hidden || asleep || A.cur === 'brain' || A.cur === 'globe') return;
     mx = e.clientX; my = e.clientY;
     if (!eyeRaf) eyeRaf = requestAnimationFrame(() => {
       eyeRaf = 0;
-      const r = cb.getBoundingClientRect();
-      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-      const dx = mx - cx, dy = my - cy, d = Math.hypot(dx, dy) || 1;
+      const now = performance.now();
+      if (!cbCenter || walkRaf || now - cbCenterAt > 600) {
+        const r = cb.getBoundingClientRect();
+        cbCenter = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+        cbCenterAt = now;
+      }
+      const dx = mx - cbCenter.x, dy = my - cbCenter.y, d = Math.hypot(dx, dy) || 1;
       const max = 2.6, scale = Math.min(max, d / 45);
       cb.style.setProperty('--ex', ((dx / d) * scale).toFixed(2) + 'px');
       cb.style.setProperty('--ey', ((dy / d) * scale).toFixed(2) + 'px');

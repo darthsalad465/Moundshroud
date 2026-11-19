@@ -10,14 +10,15 @@
   const contrast = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + .05) / (Math.min(x, y) + .05); };
   let strikes = 0;
   const health = () => {
-    if (root.classList.contains('nopro')) return; const h = document.querySelector('header'), n = document.getElementById('nav'); if (!h || !n) return;
+    if (document.hidden || root.classList.contains('nopro') || root.classList.contains('sh')) return;
+    const h = document.querySelector('header'), n = document.getElementById('nav'); if (!h || !n) return;
     const bs = [...n.querySelectorAll('button')], hr = h.getBoundingClientRect(), nr = n.getBoundingClientRect(), shown = bs.filter(b => { const r = b.getBoundingClientRect(), s = getComputedStyle(b); return r.width > 4 && r.height > 8 && s.visibility !== 'hidden' && +s.opacity > .1; });
     const bg = getComputedStyle(document.body).backgroundColor, readable = shown.filter(b => contrast(getComputedStyle(b).color, bg) > 1.6).length;
     const broken = hr.height < 28 || nr.height < 22 || bs.length < 5 || shown.length < 3 || readable < 2;
     strikes = broken ? strikes + 1 : 0;
     if (strikes >= 2) { root.classList.add('nopro'); ls.set('nopro', '1'); try { A.toast('The top bar looked wrong, so Moundshroud switched back to the classic look. You can turn the new look on again in Settings → Appearance.', 7000); } catch (e) { } }
   };
-  setTimeout(health, 1800); setInterval(health, 4000);
+  setTimeout(health, 2000); setTimeout(health, 7000);
   const BARS = { '#nav': 'line', '#tsub': 'seg', '#psub': 'bar', '#ssub': 'glow', '#plsub': 'tile', '#fasub': 'serif', '#actabs': 'rail', '#hbar': 'seg', '#snav': 'side' };
   const place = c => {
     const a = c.querySelector(':scope > button.on, :scope > .on'); if (!a) { c.style.setProperty('--ink-w', '0px'); return; }
@@ -53,6 +54,16 @@
     c.addEventListener('wheel', e => { if (kind === 'side' || c.scrollWidth <= c.clientWidth + 4 || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return; c.scrollLeft += e.deltaY; e.preventDefault(); }, { passive: false });
     addEventListener('resize', later); later();
   };
-  const scan = () => { Object.keys(BARS).forEach(sel => document.querySelectorAll(sel).forEach(c => bind(c, BARS[sel]))); labels(); const n = document.getElementById('nav'); if (n) arrows(n); };
-  scan(); setInterval(() => { if (!A.awake || A.awake()) scan(); }, 1200); document.addEventListener('click', () => setTimeout(scan, 60), true); addEventListener('focus', scan);   // idle and unfocused: stop re-scanning; refresh the moment focus returns
+  let scanT = 0;
+  const scan = () => {
+    if (document.hidden) return;
+    Object.keys(BARS).forEach(sel => document.querySelectorAll(sel).forEach(c => bind(c, BARS[sel])));
+    labels();
+    if (!root.classList.contains('sh')) { const n = document.getElementById('nav'); if (n) arrows(n); }
+  };
+  const scanSoon = ms => { clearTimeout(scanT); scanT = setTimeout(scan, ms || 80); };
+  scan(); setTimeout(scan, 1000);
+  document.addEventListener('click', () => scanSoon(80), true);
+  addEventListener('resize', () => scanSoon(120), { passive: true });
+  addEventListener('focus', () => scanSoon(60));
 })();

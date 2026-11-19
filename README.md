@@ -4,6 +4,62 @@ Moundshroud is a Windows desktop assistant that brings local AI, research tools,
 
 > **Launch tip:** If Moundshroud does not open on the first try, wait a few seconds and try launching it **two more times**. If it still will not open, run `Setup-Moundshroud.bat` again and follow the troubleshooting steps below.
 
+<!-- BEGIN GENERATED APP REFERENCE -->
+## Live app reference
+
+- **App version:** 1.3.0
+- **In-app Guide last updated:** 2026-11-16
+
+### Main sections
+
+- Today
+- News
+- Chat
+- 3D Brain
+- 3D Globe
+- Browser
+- Calendar
+- Library
+- My Files
+- Notes
+- Mail
+- Documents
+- Office files
+- Calculator
+- Scanner
+- Meeting notes
+- Reminders & timers
+- Clipboard
+- Study
+- Languages
+- Writing
+- Practice
+- Teach me
+- Sky
+- Lab
+- Studio
+- Cyber
+- Tools
+- Prepare
+- Kitchen
+- Garden
+- Money
+- Journal
+- Albums
+- Games
+- Music
+- Radio
+- TV
+- Photos
+- Spiritual
+- App map
+- Guide
+- Edit the app
+- Coding
+
+> This section is generated from the app version, navigation, and Guide metadata whenever a release is built or code is pushed to GitHub. Edit the surrounding README sections for setup, privacy, and feature explanations.
+<!-- END GENERATED APP REFERENCE -->
+
 ## What’s included
 
 Moundshroud opens to **Today**. Its main areas include:
@@ -130,6 +186,7 @@ Changes under `web/` generally appear after reloading the app page. Changes to `
 - No `npm install` is needed for the core server.
 - `data/`, browser profiles, downloaded models and libraries, snapshots, and release builds may contain personal or generated data. Review `.gitignore` and the files you plan to share before publishing a copy.
 - `make-release.ps1` builds packaged releases. `Setup-Moundshroud.bat` runs `setup.ps1`.
+- `node scripts/update-readme.js` refreshes the generated app reference in this README. The release builder runs it automatically, and GitHub Actions runs it after pushes.
 
 ## AI-generated code note
 
