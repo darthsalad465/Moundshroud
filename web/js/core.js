@@ -6,6 +6,9 @@ const ls = {
   set(k, v) { try { localStorage.setItem('oa_' + k, v); } catch (e) {} }
 };
 const A = { caps: {}, tabs: {}, order: [], cur: 'home', ready: [], version: '1.1.0', built: '2026-10-27' };
+/* the helpers pages reach for most often. `esc` lives on A as well as at the top level, because half the pages call
+   A.esc() inside a virtual-list renderer; without it those lists drew nothing at all. */
+A.esc = esc;
 
 const nowMs = () => (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
 A.api = async (path, body) => {
@@ -341,4 +344,80 @@ A.debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTim
 A.copy = async t => { try { await navigator.clipboard.writeText(t); A.toast('Copied'); } catch (e) { A.toast('Could not copy'); } };
 
 /* a tiny event bus so tabs can talk to each other */
-A.bus = {}; A.on = (e, f) => { (A.bus[e] = A.bus[e] || []).push(f); }; A.emit = (e, d) => (A.bus[e] || []).forEach(f => f(d));
+A.bus = {}; A.on = (e, f) => { (A.bus[e] = A.bus[e] || []).push(f); return () => A.off(e, f); }; A.off = (e, f) => { if (A.bus[e]) A.bus[e] = A.bus[e].filter(x => x !== f); }; A.emit = (e, d) => (A.bus[e] || []).slice().forEach(f => { try { f(d); } catch (x) { } });
+
+/* model ordering: largest first by default, or the user's chosen default model (Settings › AI & power) pinned first */
+A.modelOrder = (() => {
+  const bare = n => String(n || '').replace(/:latest$/, '');
+  const gb = n => !n ? '' : n >= 107374182 ? (n / 1073741824).toFixed(1) + ' GB' : Math.max(1, Math.round(n / 1048576)) + ' MB';
+  const paramScore = s => {
+    const t = String(s || '');
+    const mx = /\b(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)\s*b\b/i.exec(t);
+    if (mx) return (+mx[1]) * (+mx[2]) * 1e9;
+    const b = /(?:^|[^a-z0-9])e?(\d+(?:\.\d+)?)\s*b(?![a-z0-9])/i.exec(t);
+    if (b) return (+b[1]) * 1e9;
+    const m = /(?:^|[^a-z0-9])(\d+(?:\.\d+)?)\s*m(?![a-z0-9])/i.exec(t);
+    if (m) return (+m[1]) * 1e6;
+    return 0;
+  };
+  const keyOf = m => (m && typeof m === 'object') ? String(m.name || m.id || '') : String(m || '');
+  const matches = (m, want) => {
+    if (!want) return false;
+    const k = keyOf(m);
+    if (k === want || bare(k) === bare(want)) return true;
+    if ((want === 'free-auto' && k === 'free-agent') || (want === 'free-agent' && k === 'free-auto')) return true;
+    return false;
+  };
+  const get = () => ls.get('default_model', '');
+  const sync = serverDefault => {
+    if (typeof serverDefault === 'string') ls.set('default_model', serverDefault);
+    return get();
+  };
+  const set = async name => {
+    const v = String(name == null ? '' : name).trim();
+    ls.set('default_model', v);
+    /* changing the default model in Settings takes effect across tabs right away */
+    try { localStorage.removeItem('agentmodel'); localStorage.removeItem('bible_model'); } catch (e) { }
+    ['cmp_ai_model', 'gm_model', 'gd_model'].forEach(k => ls.set(k, ''));
+    if (v) { ls.set('model', v); if (!/^claude-|free-auto|free-agent/i.test(v)) ls.set('local_model', v); }
+    try { await A.api('/api/default-model', { model: v }); } catch (e) { }
+    A.emit('default-model', v);
+    return v;
+  };
+  const isDefault = (m, defOverride) => {
+    const def = defOverride !== undefined ? String(defOverride || '') : get();
+    return !!def && matches(m, def) && (!m || m.tools !== false);
+  };
+  const sort = (list, defOverride) => {
+    const arr = Array.isArray(list) ? list.slice() : [];
+    const def = defOverride !== undefined ? String(defOverride || '') : get();
+    return arr.sort((a, b) => {
+      const aDef = !!def && matches(a, def) && (!a || a.tools !== false);
+      const bDef = !!def && matches(b, def) && (!b || b.tools !== false);
+      if (aDef !== bDef) return aDef ? -1 : 1;
+      const aCloud = !!(a && (a.cloud || a.free));
+      const bCloud = !!(b && (b.cloud || b.free));
+      if (aCloud !== bCloud) return aCloud ? 1 : -1;
+      const as = +(a && a.size) || 0, bs = +(b && b.size) || 0;
+      if (as !== bs) return bs - as;
+      if (!as && !bs) {
+        const ap = paramScore(keyOf(a) + ' ' + ((a && a.label) || ''));
+        const bp = paramScore(keyOf(b) + ' ' + ((b && b.label) || ''));
+        if (ap !== bp) return bp - ap;
+      }
+      return 0;
+    });
+  };
+  const label = (m, opts) => {
+    opts = opts || {};
+    const cloud = !!(m && (m.cloud || m.free));
+    let txt = cloud ? (m.label || m.name || '') : bare(m && m.name);
+    if (!cloud && m && m.size) txt += ' · ' + gb(m.size);
+    if (opts.custom && m && m.custom) txt += ' (yours)';
+    if (opts.showWhere) txt += cloud ? ' (online)' : ' (on this PC)';
+    if (opts.toolsNote && m && m.tools === false) txt += ' · cannot use tools';
+    if (!opts.noDefaultTag && isDefault(m, opts.defaultModel)) txt += ' · default';
+    return txt;
+  };
+  return { bare, gb, paramScore, matches, get, sync, set, isDefault, sort, label };
+})();

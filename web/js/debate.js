@@ -50,16 +50,18 @@
     host.querySelector('#dbbody').innerHTML = '<div class="mute">Finding the models on this PC…</div>';
     MODELS = (await A.olympics.models()).filter(m => m.chat); draw();
     host._onShow = () => draw();
+    if (A.on && !host._defWired) { host._defWired = true; A.on('default-model', () => { if (root === host && host.isConnected && !D) draw(); }); }
   }
   async function draw() {
     const b = root && root.querySelector('#dbbody'); if (!b) return;
     if (!D) {
-      const ms = MODELS || [], opt = sel => ms.map(m => '<option value="' + esc(m.name) + '"' + (m.name === sel ? ' selected' : '') + '>' + esc(m.label) + '</option>').join('');
-      const big = ms.filter(m => !m.cloud).sort((x, y) => y.size - x.size);
+      const ms = A.modelOrder ? A.modelOrder.sort(MODELS || []) : (MODELS || []);
+      const opt = sel => ms.map(m => '<option value="' + esc(m.name) + '"' + (m.name === sel ? ' selected' : '') + '>' + esc(A.modelOrder ? A.modelOrder.label(m) : m.label) + '</option>').join('');
+      const picks = ms.filter(m => !m.cloud || (A.modelOrder && A.modelOrder.isDefault(m)));
       let past = []; try { past = await A.api('/api/kv?name=debates'); } catch (e) { } if (!Array.isArray(past)) past = [];
       b.innerHTML = '<div class="card"><b>The motion</b><div class="olsug" style="margin-top:6px">' + TOPICS.slice(0, 12).map(t => '<button class="chip" data-t="' + esc(t) + '">' + esc(t) + '</button>').join('') + '</div>' +
         '<div class="row" style="gap:6px;margin-top:8px"><input id="dbt" placeholder="Type your own motion, e.g. Robots should pay taxes" style="flex:1"><button class="ib" data-a="rt" title="A random motion">🎲 Random topic</button></div></div>' +
-        '<div class="card"><div class="row" style="gap:10px;flex-wrap:wrap;align-items:flex-end"><label class="small">For the motion<br><select id="dba">' + opt((big[0] || {}).name) + '</select></label><span style="font-size:20px">⚔️</span><label class="small">Against<br><select id="dbb">' + opt((big[1] || big[0] || {}).name) + '</select></label><button class="ib" data-a="rm" title="Two random models">🎲 Random pair</button><label class="small">Judge<br><select id="dbj">' + opt((big[2] || big[0] || {}).name) + '</select></label></div>' +
+        '<div class="card"><div class="row" style="gap:10px;flex-wrap:wrap;align-items:flex-end"><label class="small">For the motion<br><select id="dba">' + opt((picks[0] || ms[0] || {}).name) + '</select></label><span style="font-size:20px">⚔️</span><label class="small">Against<br><select id="dbb">' + opt((picks[1] || picks[0] || ms[0] || {}).name) + '</select></label><button class="ib" data-a="rm" title="Two random models">🎲 Random pair</button><label class="small">Judge<br><select id="dbj">' + opt((picks[2] || picks[0] || ms[0] || {}).name) + '</select></label></div>' +
         '<div class="row" style="gap:8px;margin-top:12px"><button class="pri" data-a="go">🗣 Start the debate</button><span class="small mute">Three rounds each, then the verdict. A few minutes.</span></div></div>' +
         (past.length ? '<h3>Past debates</h3>' + past.slice(0, 12).map(p => '<div class="card small"><b>' + esc(p.topic) + '</b><div>' + esc(bare(p.a)) + ' (for) vs ' + esc(bare(p.b)) + ' (against) · winner <b>' + esc(bare(p.winner)) + '</b>' + (p.overruled ? ' (you overruled the judge)' : '') + ' · ' + new Date(p.at).toLocaleDateString() + '</div></div>').join('') : '');
       return;

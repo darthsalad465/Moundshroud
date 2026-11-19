@@ -9,6 +9,12 @@
 // and PRESETS set all of them at once. Any shape works with any finish and any board.
 (() => {
   const KEY = 'chset';
+  const MODE_KEY = 'chess_experience';
+  const BOOK_KEY = 'chess_opening_book';
+  let experience = 'modern';
+  let openingBook = true;
+  try { experience = localStorage.getItem(MODE_KEY) === 'legacy' ? 'legacy' : 'modern'; } catch (e) { }
+  try { openingBook = localStorage.getItem(BOOK_KEY) !== '0'; } catch (e) { }
   const DEF = { size: 0, maxsz: 92, theme: 'app', lightC: '#eeeed2', darkC: '#769656', tex: 'flat', frame: 'thin', radius: 10, grid: 0,
     pieces: 'classic', finish: '', flair: '#c0392b', pw: '', pb: '', outline: 'auto', pscale: 100, pshadow: 1,
     coords: 'in', coordSize: 100, hl: 'yellow', dots: 'dot', legal: 1, check: 1, anim: 'normal', sound: 1, vol: 70 };
@@ -491,7 +497,7 @@
   const sound = (kind, opp) => { if (!cfg.sound) return; try { if (typeof A !== 'undefined' && A.sfx) A.sfx.chess(kind, !!opp, cfg.vol / 100); } catch (e) { } };
   const animMs = () => ({ off: 0, fast: 120, normal: 240, slow: 440 }[cfg.anim] || 0);
 
-  window.ChessSet = { cfg: () => cfg, DEF, THEMES, THEMEGROUPS, HL, SHAPES, FINISHES, TEX, FRAMES, SETD,
+  window.ChessSet = { cfg: () => cfg, experience: (v) => { if (v === undefined) return experience; experience = v === 'legacy' ? 'legacy' : 'modern'; try { localStorage.setItem(MODE_KEY, experience); } catch (e) { } window.dispatchEvent(new CustomEvent('chess:experience', { detail: experience })); return experience; }, openingBook: (v) => { if (v === undefined) return openingBook; openingBook = !!v; try { localStorage.setItem(BOOK_KEY, openingBook ? '1' : '0'); } catch (e) { } return openingBook; }, DEF, THEMES, THEMEGROUPS, HL, SHAPES, FINISHES, TEX, FRAMES, SETD,
     SETS: SHAPES, LOOKS, SHAPEDEF, FINNAME, SHAPENAME, shapeOf, finDef, finishOf, set, setMany, look, reset, surprise, apply, html, labels, sound, animMs, boards, GL,
     exportJson: () => JSON.stringify(cfg), importJson: s => { const j = JSON.parse(s), n = {}; for (const k in DEF) if (k in j && typeof j[k] === typeof DEF[k]) n[k] = j[k]; cfg = Object.assign({}, DEF, n); if (!SHAPENAME[cfg.pieces]) cfg.pieces = 'classic'; if (cfg.finish && !ALLFIN.includes(cfg.finish)) cfg.finish = ''; save(); apply(); redraw(); } };
   apply();

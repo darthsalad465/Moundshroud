@@ -8,7 +8,16 @@
   let localCache = null;
   async function localModel() {
     if (localCache) return localCache;
-    try { const ms = ((await (await fetch('/api/models')).json()).models || []).filter(m => !m.cloud).map(m => m.name); const saved = ls.get('local_model', ''); localCache = ms.includes(saved) ? saved : (ms.find(m => !/embed/i.test(m)) || ''); } catch (e) { }
+    try {
+      const r = await (await fetch('/api/models')).json();
+      const def = A.modelOrder ? A.modelOrder.sync(r.defaultModel) : '';
+      const raw = (r.models || []).filter(m => !m.cloud);
+      const sorted = A.modelOrder ? A.modelOrder.sort(raw, def) : raw;
+      const ms = sorted.map(m => m.name);
+      const saved = ls.get('local_model', '');
+      const defHit = def && sorted.find(m => A.modelOrder && A.modelOrder.matches(m, def));
+      localCache = (defHit && defHit.name) || (ms.includes(saved) ? saved : (ms.find(m => !/embed/i.test(m)) || ''));
+    } catch (e) { }
     return localCache || '';
   }
   async function pick(opts) { const m = opts.model || model(); if (opts.private && isCloud(m) && !allowed(opts.private)) { const l = await localModel(); if (l) return l; throw new Error('This uses private material, which is not sent to Claude, and no AI model is installed on this PC.'); } return m; }
@@ -26,7 +35,9 @@
     return null;
   }
   const once = async (messages, opts) => stream(messages, null, null, opts);
-  A.ai = { stream, json, once, model, isCloud, allowed, localModel };
+  const refreshModels = () => A.chat && A.chat.loadModels && A.chat.loadModels();
+  A.ai = { stream, json, once, model, isCloud, allowed, localModel, refreshModels };
+  if (A.on) A.on('default-model', () => { localCache = null; });
   /* remember the last model on this PC, so the private fallback uses the one you chose */
   document.addEventListener('change', e => { if (e.target && e.target.id === 'model' && !isCloud(e.target.value)) { try { ls.set('local_model', e.target.value); localCache = null; } catch (x) { } } });
 })();

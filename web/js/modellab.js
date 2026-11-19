@@ -39,8 +39,12 @@
 
     const loadModels = async () => {
       const r = await A.api('/api/modellab/models').catch(() => ({ models: [] }));
+      if (A.modelOrder && typeof r.defaultModel === 'string') A.modelOrder.sync(r.defaultModel);
       const recs = (await A.api('/api/modellab/recipes').catch(() => ({ recipes: {} }))).recipes || {};
-      const sel = q('#mlbase'); sel.innerHTML = (r.models || []).map(m => '<option value="' + esc(m.name) + '">' + esc(m.name) + (m.custom ? ' (yours)' : '') + '</option>').join('') || '<option value="">no models found</option>';
+      const sorted = A.modelOrder ? A.modelOrder.sort(r.models || []) : (r.models || []);
+      const sel = q('#mlbase'); sel.innerHTML = sorted.map(m => '<option value="' + esc(m.name) + '">' + esc(A.modelOrder ? A.modelOrder.label(m, { custom: true }) : (m.name + (m.custom ? ' (yours)' : ''))) + '</option>').join('') || '<option value="">no models found</option>';
+      const gsel = el.querySelector('#gymmodel');
+      if (gsel) gsel.innerHTML = sorted.map(m => '<option value="' + esc(m.name) + '">' + esc(A.modelOrder ? A.modelOrder.label(m) : m.name) + '</option>').join('');
       const list = q('#mllist'), names = Object.keys(recs);
       list.innerHTML = names.length ? names.map(n => '<div class="card" style="display:flex;gap:10px;align-items:center"><div style="flex:1"><b>' + esc(n) + '</b><div class="mute">from ' + esc(recs[n].base) + ' · ' + (recs[n].examples || []).length + ' examples · temp ' + recs[n].temperature + '</div></div><button class="ib2 mledit" data-n="' + esc(n) + '">Edit</button> <button class="ib2 mldel" data-n="' + esc(n) + '">Delete</button></div>').join('') : '<div class="mute" style="margin-top:6px">None yet. Build one above.</div>';
       list.querySelectorAll('.mldel').forEach(b => b.onclick = async () => { if (!confirm('Delete model "' + b.dataset.n + '"? This removes it from Ollama.')) return; const res = await A.api('/api/modellab/remove', { name: b.dataset.n }); A.toast(res.ok ? 'Deleted.' : (res.error || 'Could not delete.')); loadModels(); });
@@ -56,6 +60,7 @@
     };
     addEx('What is a variable?', 'A variable is a labelled box that holds a value. Example: score = 0. You can read it or change it later. Want to try naming one?');
     loadModels();
+    if (A.on) A.on('default-model', () => { if (el.isConnected) loadModels(); });
     renderFT();
     renderGym();
 
@@ -64,10 +69,12 @@
       const host = el.querySelector('#mlgym'); if (!host) return;
       const g = s => host.querySelector(s);
       const [mr, rr] = await Promise.all([A.api('/api/modellab/models').catch(() => ({ models: [] })), A.api('/api/practice/runs').catch(() => ({ runs: [], count: 40 }))]);
+      if (A.modelOrder && typeof mr.defaultModel === 'string') A.modelOrder.sync(mr.defaultModel);
+      const gymMs = A.modelOrder ? A.modelOrder.sort(mr.models || []) : (mr.models || []);
       const n = rr.count || 40;
       host.innerHTML = '<div class="card"><h3 style="margin:0 0 6px">🏋 Practice gym (the AI trains itself)</h3>' +
         '<div class="mute">One of your models works through ' + n + ' Python exercises on its own. Each answer runs in a sealed sandbox (its own throwaway folder, no internet, 10 second limit) and hidden tests grade it. Answers that pass become lessons: load them as examples below, fine-tune, then send the tuned model back to the gym and compare scores.</div>' +
-        '<div class="row2" style="margin-top:10px"><div><label>Model that practises</label><select id="gymmodel">' + (mr.models || []).map(m => '<option value="' + esc(m.name) + '">' + esc(m.name) + '</option>').join('') + '</select></div>' +
+        '<div class="row2" style="margin-top:10px"><div><label>Model that practises</label><select id="gymmodel">' + gymMs.map(m => '<option value="' + esc(m.name) + '">' + esc(A.modelOrder ? A.modelOrder.label(m) : m.name) + '</option>').join('') + '</select></div>' +
         '<div><label>Tries per exercise</label><input id="gymtries" type="number" min="1" max="4" value="2"></div>' +
         '<div><label>Exercises</label><select id="gymlimit"><option value="10">10 (quick)</option><option value="20">20</option><option value="' + n + '" selected>all ' + n + '</option></select></div></div>' +
         '<div style="margin:12px 0"><button class="btn" id="gymgo">▶ Start practice</button> <button class="ib2" id="gymstop" style="display:none">■ Stop</button> <span class="mute" id="gymstat"></span></div>' +

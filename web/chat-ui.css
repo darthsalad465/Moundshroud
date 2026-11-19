@@ -1,0 +1,1021 @@
+/* ==========================================================================
+   Moundshroud Unified Chat UI Polish (web/chat-ui.css)
+   Elevates EVERY chat surface in the app — Main Chat, Coding Agent, Swarm,
+   Debate, AI Olympics, Bible Expert, Companion HUD, 3D Brain Agent, Practice
+   Roleplay, Photos AI Chat, Ask Everything, and Voice Mode — using active
+   theme variables so every light and dark theme looks cohesive and refined.
+   ========================================================================== */
+
+/* ---------- 1. Main Chat Canvas & Ambient Depth ---------- */
+#p-chat {
+  background:
+    radial-gradient(880px 380px at 50% -6%, color-mix(in srgb, var(--acc) 10%, transparent), transparent 68%),
+    radial-gradient(620px 320px at 88% 92%, color-mix(in srgb, var(--acc2) 7%, transparent), transparent 65%);
+}
+
+/* Segmented sub-tab pill bar (Chat · Agent · Swarm · Olympics · Debate) */
+#chattabs,
+html.sh #chattabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  width: fit-content;
+  max-width: calc(100% - 28px);
+  margin: 12px auto 6px !important;
+  padding: 4px !important;
+  border: 1px solid color-mix(in srgb, var(--line) 78%, rgba(255, 255, 255, .08));
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--panel2) 55%, var(--panel));
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, .2), 0 4px 16px -8px rgba(0, 0, 0, .4);
+  flex: none;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+#chattabs::-webkit-scrollbar { display: none; }
+#chattabs .ib,
+html.sh #chattabs .ib {
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 11px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--mute);
+  box-shadow: none;
+  transition: color .18s ease, background-color .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+#chattabs .ib:hover,
+html.sh #chattabs .ib:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  transform: none;
+}
+#chattabs .ib.on,
+html.sh #chattabs .ib.on {
+  color: var(--text) !important;
+  font-weight: 600;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--acc) 22%, var(--panel2)), color-mix(in srgb, var(--panel) 94%, var(--bg)));
+  border-color: color-mix(in srgb, var(--acc) 42%, var(--line));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .1),
+    inset 0 -2px 0 var(--acc),
+    0 6px 16px -8px rgba(0, 0, 0, .55);
+}
+
+/* ---------- 2. Centered Editorial Message Stream ---------- */
+#msgs {
+  padding: 20px 20px 18px;
+  scroll-behavior: smooth;
+}
+#msgs > .m,
+#msgs > #empty {
+  width: 100%;
+  max-width: 820px;
+  margin-left: auto;
+  margin-right: auto;
+}
+#msgs > .m {
+  position: relative;
+  margin-bottom: 20px;
+  animation: chatMsgArrive .28s cubic-bezier(.16, 1, .3, 1) both;
+}
+@keyframes chatMsgArrive {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* User message bubble — right-aligned inside the 820px column */
+#msgs > .m.u,
+#bbbody .m.u {
+  width: fit-content;
+  max-width: min(82%, 640px);
+  margin-left: auto;
+  margin-right: max(0px, calc((100% - 820px) / 2));
+  padding: 12px 17px;
+  border-radius: 20px 20px 6px 20px;
+  border: 1px solid color-mix(in srgb, var(--acc) 40%, var(--line));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--acc) 32%, var(--panel2)),
+    color-mix(in srgb, var(--acc) 14%, var(--user, var(--panel2)))
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .14),
+    0 8px 24px -12px rgba(0, 0, 0, .48);
+  color: var(--text);
+  font-size: 14.8px;
+  line-height: 1.58;
+}
+#msgs > .m.u .tools {
+  justify-content: flex-end;
+}
+
+/* Assistant message — clean editorial prose with subtle Moundshroud header crest */
+#msgs > .m.a,
+#bbbody .m.a {
+  max-width: 820px;
+  padding: 14px 18px 12px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--line) 65%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--panel) 84%, transparent),
+    color-mix(in srgb, var(--panel) 62%, transparent)
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .045),
+    0 8px 26px -16px rgba(0, 0, 0, .42);
+  font-size: 15.2px;
+  line-height: 1.72;
+}
+#msgs > .m.a::before {
+  content: "✦ MOUNDSHROUD";
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  color: color-mix(in srgb, var(--acc) 78%, var(--text));
+  background: linear-gradient(90deg, color-mix(in srgb, var(--acc) 16%, transparent), color-mix(in srgb, var(--acc2) 10%, transparent));
+  border: 1px solid color-mix(in srgb, var(--acc) 26%, transparent);
+}
+#msgs > .m.a.pending {
+  border-color: color-mix(in srgb, var(--acc) 36%, var(--line));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .06),
+    0 10px 30px -14px color-mix(in srgb, var(--acc) 28%, transparent);
+}
+#msgs > .m.a.pending .tools {
+  display: none;
+}
+
+/* Rich editorial markdown inside assistant replies */
+.m.a .bd > :first-child { margin-top: 0; }
+.m.a .bd > :last-child { margin-bottom: 0; }
+.m.a .bd p { margin: .55em 0; }
+.m.a .bd h3 {
+  margin: 1em 0 .4em;
+  font-size: 15.5px;
+  font-weight: 680;
+  letter-spacing: -.01em;
+  color: var(--text);
+  padding-bottom: 4px;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+}
+.m.a .bd ul,
+.m.a .bd ol {
+  margin: .5em 0;
+  padding-left: 1.45em;
+}
+.m.a .bd li {
+  margin: .26em 0;
+}
+.m.a .bd li::marker {
+  color: var(--acc);
+  font-weight: 650;
+}
+.m.a .bd b,
+.m.a .bd strong {
+  color: color-mix(in srgb, var(--text) 96%, #fff);
+  font-weight: 650;
+}
+.m.a .bd code {
+  font-family: "Cascadia Mono", Consolas, ui-monospace, monospace;
+  font-size: 12.8px;
+  padding: 1.5px 6px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--acc) 20%, var(--line));
+  background: color-mix(in srgb, var(--bg) 70%, var(--panel2));
+  color: color-mix(in srgb, var(--acc2) 32%, var(--text));
+}
+
+/* IDE-grade fenced code cards inside chat & agent */
+.m.a pre,
+.agtext pre {
+  position: relative;
+  margin: .8em 0;
+  padding: 36px 14px 13px;
+  border-radius: 13px;
+  border: 1px solid color-mix(in srgb, var(--line) 85%, rgba(255, 255, 255, .06));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg) 82%, #000) 0, color-mix(in srgb, var(--bg) 82%, #000) 28px, color-mix(in srgb, var(--bg) 92%, #000) 28px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05), 0 10px 24px -14px rgba(0, 0, 0, .6);
+  font: 12.8px/1.55 "Cascadia Mono", Consolas, ui-monospace, monospace;
+}
+.m.a pre[data-lang]::before {
+  content: attr(data-lang);
+  position: absolute;
+  top: 6px;
+  left: 12px;
+  font: 650 10.5px/1.4 var(--f-ui, system-ui, sans-serif);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--mute);
+  pointer-events: none;
+}
+.m.a pre:not([data-lang])::before {
+  content: "CODE";
+  position: absolute;
+  top: 6px;
+  left: 12px;
+  font: 650 10.5px/1.4 var(--f-ui, system-ui, sans-serif);
+  letter-spacing: .08em;
+  color: var(--mute);
+  pointer-events: none;
+}
+.m.a pre code {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 12.8px;
+}
+.m.a pre .cp {
+  top: 4px;
+  right: 7px;
+  padding: 3px 9px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--panel2) 85%, transparent);
+  border: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+  color: var(--mute);
+  transition: color .15s, border-color .15s, background-color .15s;
+}
+.m.a pre .cp:hover {
+  color: var(--text);
+  border-color: var(--acc);
+  background: color-mix(in srgb, var(--acc) 18%, var(--panel2));
+}
+.m.a pre .cp.runbtn {
+  right: 64px;
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 36%, var(--line));
+}
+.m.a pre .cp.runbtn:hover {
+  background: color-mix(in srgb, var(--ok) 18%, var(--panel2));
+  color: var(--text);
+}
+
+/* Collapsible Thinking drawer & Code Interpreter runbox */
+.m.a > details:not(.runbox) {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--acc) 26%, var(--line));
+  border-left: 3px solid var(--acc);
+  background: color-mix(in srgb, var(--acc) 6%, var(--panel2));
+  font-size: 12.8px;
+}
+.m.a > details:not(.runbox) > summary {
+  font-weight: 600;
+  color: color-mix(in srgb, var(--acc) 75%, var(--text));
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.m.a > details:not(.runbox) > summary::before {
+  content: "💭";
+  font-size: 13px;
+}
+.m.a > details:not(.runbox) > summary::-webkit-details-marker { display: none; }
+.m.a > details:not(.runbox) > div {
+  margin-top: 8px;
+  padding-left: 10px;
+  border-left: 2px solid color-mix(in srgb, var(--acc) 35%, var(--line));
+  color: var(--mute);
+  line-height: 1.55;
+  max-height: 280px;
+  overflow: auto;
+}
+.m.a details.runbox {
+  margin: 10px 0 4px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--acc2) 28%, var(--line));
+  background: color-mix(in srgb, var(--bg) 52%, var(--panel2));
+  font-size: 12.5px;
+}
+.m.a details.runbox summary {
+  font-weight: 600;
+  color: var(--text);
+}
+.m.a .runfig {
+  display: block;
+  max-width: 100%;
+  border-radius: 12px;
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 24px -10px rgba(0, 0, 0, .5);
+}
+
+/* Generated images in chat */
+.chatimg {
+  margin-top: 10px;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--line) 85%, transparent);
+  background: color-mix(in srgb, var(--bg) 45%, var(--panel2));
+}
+.chatimg img {
+  max-width: min(100%, 440px);
+  border-radius: 11px;
+  cursor: zoom-in;
+  display: block;
+}
+
+/* Aurora typing / waiting indicator */
+.dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+.dots::before,
+.dots::after {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--acc), var(--acc2));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--acc) 65%, transparent);
+  animation: chatAuroraPulse 1.1s ease-in-out infinite alternate;
+}
+.dots::after {
+  animation-delay: .35s;
+  background: var(--acc2);
+}
+@keyframes chatAuroraPulse {
+  from { opacity: .28; transform: scale(.72); }
+  to { opacity: 1; transform: scale(1.18); }
+}
+.stl {
+  font-size: 13.5px;
+  color: var(--mute);
+  font-weight: 500;
+}
+
+/* Floating message action bar (.tools) */
+.m .tools {
+  opacity: 0;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid color-mix(in srgb, var(--line) 42%, transparent);
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  transition: opacity .18s ease;
+}
+.m.u .tools {
+  border-top: 0;
+  padding-top: 2px;
+  margin-top: 6px;
+}
+.m:hover .tools,
+.m:focus-within .tools,
+#msgs > .m.a:last-of-type .tools {
+  opacity: 1;
+}
+.m .tools span {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11.8px;
+  font-weight: 550;
+  color: var(--mute);
+  border: 1px solid color-mix(in srgb, var(--line) 75%, transparent);
+  background: color-mix(in srgb, var(--panel2) 65%, transparent);
+  cursor: pointer;
+  transition: color .15s, border-color .15s, background-color .15s, transform .12s;
+}
+.m .tools span:hover {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--acc) 55%, var(--line));
+  background: color-mix(in srgb, var(--acc) 16%, var(--panel2));
+  transform: translateY(-1px);
+}
+
+/* Source citation chips */
+.m.a .chips {
+  gap: 6px;
+  margin-top: 10px;
+}
+.src {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 11px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  background: color-mix(in srgb, var(--acc) 10%, var(--panel2));
+  border: 1px solid color-mix(in srgb, var(--acc) 28%, var(--line));
+  color: var(--text);
+  transition: transform .14s ease, border-color .15s, background-color .15s, box-shadow .15s;
+}
+.src:hover {
+  transform: translateY(-1px);
+  border-color: var(--acc);
+  background: color-mix(in srgb, var(--acc) 20%, var(--panel2));
+  box-shadow: 0 4px 12px -6px color-mix(in srgb, var(--acc) 55%, transparent);
+}
+.mtime {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--mute);
+  background: color-mix(in srgb, var(--text) 4.5%, transparent);
+}
+
+/* ---------- 3. Stunning Empty / Welcome State ---------- */
+#empty {
+  max-width: 720px !important;
+  padding: 24px 8px 18px !important;
+  text-align: center;
+}
+#empty .reactor {
+  width: 96px;
+  height: 96px;
+  margin: 6px auto 14px;
+}
+#empty .big {
+  font-family: var(--f-display, Georgia, serif);
+  font-size: clamp(26px, 3.6vw, 36px) !important;
+  font-weight: 650;
+  letter-spacing: -.018em;
+  line-height: 1.15;
+  margin: 8px 0 6px;
+  background: linear-gradient(135deg, var(--text) 20%, color-mix(in srgb, var(--acc) 62%, var(--text)) 68%, color-mix(in srgb, var(--acc2) 70%, var(--text)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+#empty #brief .card {
+  text-align: left;
+  margin-top: 16px !important;
+  padding: 14px 18px;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--acc) 24%, var(--line));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--acc) 8%, var(--panel)), color-mix(in srgb, var(--acc2) 5%, var(--panel)));
+  box-shadow: 0 10px 28px -16px rgba(0, 0, 0, .45);
+}
+#empty .starters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+#empty .starters .chip {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 32px 13px 15px;
+  border-radius: 15px;
+  border: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--panel2) 65%, var(--panel)), color-mix(in srgb, var(--panel) 95%, transparent));
+  text-align: left;
+  font-size: 13.4px;
+  font-weight: 500;
+  line-height: 1.38;
+  box-shadow: 0 4px 14px -8px rgba(0, 0, 0, .4);
+  transition: transform .18s cubic-bezier(.16, 1, .3, 1), border-color .18s, background-color .18s, box-shadow .18s;
+}
+#empty .starters .chip::after {
+  content: "→";
+  position: absolute;
+  right: 12px;
+  color: var(--mute);
+  opacity: .45;
+  transition: transform .18s ease, opacity .18s ease, color .18s ease;
+}
+#empty .starters .chip:hover {
+  transform: translateY(-2.5px);
+  border-color: color-mix(in srgb, var(--acc) 62%, var(--line));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--acc) 16%, var(--panel2)), color-mix(in srgb, var(--acc2) 8%, var(--panel)));
+  box-shadow: 0 12px 26px -12px color-mix(in srgb, var(--acc) 45%, rgba(0, 0, 0, .5));
+}
+#empty .starters .chip:hover::after {
+  opacity: 1;
+  color: var(--acc);
+  transform: translateX(3px);
+}
+
+/* ---------- 4. Floating Glass Command Composer ---------- */
+#sel,
+#calcchip,
+#attach {
+  width: min(840px, calc(100% - 32px));
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+#sel {
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--acc) 45%, var(--line));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--acc) 12%, var(--panel)), var(--panel));
+  box-shadow: 0 10px 28px -12px rgba(0, 0, 0, .45);
+}
+#attach span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px 4px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--acc) 35%, var(--line));
+  background: color-mix(in srgb, var(--acc) 12%, var(--panel2));
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+#p-chat > .composer,
+html.sh #p-chat > .composer {
+  flex: none;
+  align-self: center;
+  width: min(840px, calc(100% - 28px));
+  margin: 4px auto 16px;
+  padding: 11px 14px 10px;
+  border-radius: 22px;
+  border: 1px solid color-mix(in srgb, var(--text) 14%, var(--line));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--panel2) 56%, var(--panel)),
+    color-mix(in srgb, var(--panel) 95%, var(--bg))
+  );
+  backdrop-filter: blur(20px) saturate(1.35);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .08),
+    0 20px 44px -18px rgba(0, 0, 0, .65);
+  transition: border-color .2s ease, box-shadow .24s ease;
+}
+#p-chat > .composer:focus-within,
+html.sh #p-chat > .composer:focus-within {
+  border-color: color-mix(in srgb, var(--acc) 68%, var(--line));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .1),
+    0 0 0 4px color-mix(in srgb, var(--acc) 15%, transparent),
+    0 22px 48px -18px rgba(0, 0, 0, .7);
+}
+#p-chat #row {
+  gap: 6px;
+  align-items: flex-end;
+}
+#p-chat #in {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 9px 8px;
+  font-size: 15px;
+  line-height: 1.5;
+}
+#p-chat #mic,
+#p-chat #clip,
+#p-chat #prm {
+  height: 38px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  color: var(--mute);
+  transition: background-color .16s, color .16s, border-color .16s, transform .12s;
+}
+#p-chat #mic:hover,
+#p-chat #clip:hover,
+#p-chat #prm:hover {
+  background: color-mix(in srgb, var(--acc) 15%, var(--panel2));
+  border-color: color-mix(in srgb, var(--acc) 35%, var(--line));
+  color: var(--text);
+}
+#p-chat #go {
+  height: 38px;
+  padding: 0 20px;
+  border-radius: 13px;
+  font-weight: 650;
+  letter-spacing: .01em;
+}
+#p-chat #meta {
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid color-mix(in srgb, var(--line) 48%, transparent);
+  gap: 6px;
+}
+#p-chat #meta label.chk {
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--line) 75%, transparent);
+  background: color-mix(in srgb, var(--panel2) 48%, transparent);
+  font-size: 11.8px;
+  font-weight: 500;
+  color: var(--mute);
+  transition: color .15s, border-color .15s, background-color .15s;
+}
+#p-chat #meta label.chk:hover {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--acc) 45%, var(--line));
+}
+#p-chat #meta label.chk:has(input:checked) {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--acc) 55%, var(--line));
+  background: color-mix(in srgb, var(--acc) 16%, transparent);
+}
+#p-chat #status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 4.5%, transparent);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+#p-chat #status::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--ok) 65%, transparent);
+}
+#p-chat #status[data-k="busy"]::before {
+  background: var(--acc2);
+  box-shadow: 0 0 10px var(--acc2);
+  animation: chatAuroraPulse .9s infinite alternate;
+}
+#p-chat #status[data-k="err"]::before {
+  background: var(--bad);
+  box-shadow: 0 0 8px var(--bad);
+}
+
+/* Jump-to-latest pill */
+#tolatest {
+  border-radius: 999px !important;
+  padding: 7px 15px !important;
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+  border: 1px solid color-mix(in srgb, var(--acc) 40%, var(--line)) !important;
+  background: color-mix(in srgb, var(--panel2) 92%, transparent) !important;
+  backdrop-filter: blur(14px);
+  box-shadow: 0 10px 28px -8px rgba(0, 0, 0, .65) !important;
+}
+
+/* ---------- 5. Coding Agent Chat (#agentpane / .agx) ---------- */
+.agx {
+  background:
+    radial-gradient(860px 360px at 56% -12%, color-mix(in srgb, var(--acc) 11%, transparent), transparent 65%),
+    radial-gradient(540px 300px at 90% 100%, color-mix(in srgb, var(--acc2) 7%, transparent), transparent 60%);
+}
+.agside {
+  width: 256px;
+  background: color-mix(in srgb, var(--panel) 78%, var(--bg));
+  border-right: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+}
+.agnew {
+  width: 100%;
+  padding: 9px 13px;
+  border-radius: 12px;
+  font-weight: 600;
+  color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--acc) 40%, var(--line));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--acc) 20%, var(--panel2)), color-mix(in srgb, var(--acc2) 10%, var(--panel2)));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1), 0 6px 16px -10px color-mix(in srgb, var(--acc) 55%, transparent);
+}
+.agnew:hover {
+  border-color: var(--acc);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--acc) 28%, var(--panel2)), color-mix(in srgb, var(--acc2) 14%, var(--panel2)));
+}
+.agrow {
+  border-radius: 10px;
+  padding: 8px 28px 8px 11px;
+  margin: 2px 0;
+  transition: background-color .15s, box-shadow .15s;
+}
+.agrow.on {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--acc) 20%, transparent), color-mix(in srgb, var(--acc) 6%, transparent));
+  box-shadow: inset 3px 0 0 var(--acc);
+}
+.aghead {
+  padding: 10px 16px;
+  background: color-mix(in srgb, var(--panel) 80%, transparent);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 75%, transparent);
+}
+.agstat {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--line) 65%, transparent);
+  font-size: 12px;
+  font-weight: 500;
+}
+.agtx {
+  max-width: 840px;
+  padding: 20px 20px 32px;
+}
+.aguser {
+  padding: 12px 17px;
+  border-radius: 20px 20px 6px 20px;
+  border: 1px solid color-mix(in srgb, var(--acc) 38%, var(--line));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--acc) 30%, var(--panel2)), color-mix(in srgb, var(--acc) 13%, var(--user, var(--panel2))));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12), 0 8px 22px -12px rgba(0, 0, 0, .45);
+}
+.agtext {
+  padding: 13px 17px;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--panel) 84%, transparent), color-mix(in srgb, var(--panel) 65%, transparent));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .04), 0 8px 24px -16px rgba(0, 0, 0, .42);
+  font-size: 14.8px;
+  line-height: 1.66;
+}
+.agtool {
+  margin: 8px 0;
+  padding: 4px 12px;
+  border-radius: 13px;
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-left: 3px solid var(--acc);
+  background: color-mix(in srgb, var(--panel2) 55%, var(--panel));
+  box-shadow: 0 3px 12px -8px rgba(0, 0, 0, .4);
+}
+.agtool.ok {
+  border-left-color: var(--ok);
+}
+.agtool.bad {
+  border-left-color: var(--bad);
+}
+.agcomp {
+  padding: 6px 18px 16px;
+}
+.agbox {
+  max-width: 840px;
+  border-radius: 22px;
+  padding: 11px 14px 10px;
+  border: 1px solid color-mix(in srgb, var(--text) 14%, var(--line));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--panel2) 56%, var(--panel)), color-mix(in srgb, var(--panel) 95%, var(--bg)));
+  backdrop-filter: blur(18px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08), 0 18px 40px -18px rgba(0, 0, 0, .62);
+}
+.agbox:focus-within {
+  border-color: color-mix(in srgb, var(--acc) 68%, var(--line));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1), 0 0 0 4px color-mix(in srgb, var(--acc) 15%, transparent), 0 20px 44px -18px rgba(0, 0, 0, .7);
+  transform: none;
+}
+.agchips {
+  padding-top: 7px;
+  margin-top: 4px;
+  border-top: 1px solid color-mix(in srgb, var(--line) 48%, transparent);
+  gap: 6px;
+}
+.agchip,
+select.agchip {
+  border-radius: 999px;
+  padding: 4px 11px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  background: color-mix(in srgb, var(--panel2) 65%, transparent);
+  color: var(--text);
+}
+.agchip:hover,
+select.agchip:hover {
+  border-color: var(--acc);
+  background: color-mix(in srgb, var(--acc) 14%, var(--panel2));
+}
+.agsend {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  font-size: 16px;
+}
+.agwel .agex .chip {
+  padding: 12px 15px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--panel2) 60%, var(--panel)), var(--panel));
+}
+.agwel .agex .chip:hover {
+  border-color: var(--acc);
+  transform: translateY(-2px);
+}
+
+/* ---------- 6. Debate, Swarm & AI Olympics ---------- */
+.olhead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 11px 18px;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 75%, transparent);
+  background: color-mix(in srgb, var(--panel) 82%, transparent);
+  backdrop-filter: blur(12px);
+}
+.olhead > b:first-child {
+  font-family: var(--f-display, Georgia, serif);
+  font-size: 17px;
+  letter-spacing: -.01em;
+}
+#dbbody,
+#swarmpane > .scroll > div {
+  max-width: 920px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.olsug {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.dbturn {
+  margin: 14px 0;
+  padding: 15px 18px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+  background: color-mix(in srgb, var(--panel) 86%, transparent);
+  box-shadow: 0 8px 24px -14px rgba(0, 0, 0, .48);
+  animation: chatMsgArrive .28s cubic-bezier(.16, 1, .3, 1) both;
+}
+.dbturn.for {
+  border-left: 4px solid #38bdf8;
+  background: linear-gradient(135deg, rgba(56, 189, 248, .09), color-mix(in srgb, var(--panel) 90%, transparent));
+  margin-right: 6%;
+}
+.dbturn.against {
+  border-left: 4px solid #f43f5e;
+  background: linear-gradient(135deg, rgba(244, 63, 94, .09), color-mix(in srgb, var(--panel) 90%, transparent));
+  margin-left: 6%;
+}
+.dbturn > .small.mute:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  margin-bottom: 8px;
+  border-radius: 999px;
+  font-weight: 650;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  color: var(--text);
+}
+.dbtext {
+  font-size: 14.8px;
+  line-height: 1.68;
+}
+.dbverdict {
+  margin-top: 16px;
+  padding: 16px 20px !important;
+  border-radius: 18px !important;
+  border: 1px solid color-mix(in srgb, #f2c75c 55%, var(--line)) !important;
+  background: linear-gradient(135deg, rgba(242, 199, 92, .14), color-mix(in srgb, var(--acc) 10%, var(--panel))) !important;
+  box-shadow: 0 14px 36px -14px rgba(242, 199, 92, .25) !important;
+}
+
+/* ---------- 7. Bible Expert Chat (#bbbody) ---------- */
+#bbbody {
+  padding: 20px 20px 18px !important;
+}
+#bbbody > .card,
+#bbbody > .m {
+  max-width: 820px;
+  margin-left: auto;
+  margin-right: auto;
+}
+#bbbody > .m.a::before {
+  content: "✝ BIBLE EXPERT";
+  display: inline-flex;
+  padding: 2px 9px;
+  margin-bottom: 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  color: color-mix(in srgb, #ecc35f 78%, var(--text));
+  background: color-mix(in srgb, #ecc35f 14%, transparent);
+  border: 1px solid color-mix(in srgb, #ecc35f 32%, transparent);
+}
+#bbbody + .composer {
+  width: min(840px, calc(100% - 28px));
+  margin: 4px auto 16px;
+  padding: 10px 13px;
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--text) 14%, var(--line));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--panel2) 55%, var(--panel)), color-mix(in srgb, var(--panel) 95%, var(--bg)));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .07), 0 16px 36px -16px rgba(0, 0, 0, .55);
+}
+#bbbody + .composer textarea {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* ---------- 8. Companion HUD Chat (#cmpc) ---------- */
+#cmpc {
+  border-radius: 22px !important;
+  border: 1px solid color-mix(in srgb, var(--acc) 48%, var(--line)) !important;
+  box-shadow:
+    0 26px 68px -14px rgba(0, 0, 0, .72),
+    0 0 0 1px rgba(255, 255, 255, .08) inset !important;
+}
+#cmpc .lg {
+  padding: 13px !important;
+  gap: 9px !important;
+}
+#cmpc .m.u {
+  border-radius: 16px 16px 5px 16px !important;
+  padding: 9px 13px !important;
+  box-shadow: 0 4px 14px -6px rgba(0, 0, 0, .4) !important;
+}
+#cmpc .m.b {
+  border-radius: 16px 16px 16px 5px !important;
+  padding: 9px 13px !important;
+}
+#cmpc .f {
+  padding: 10px 11px !important;
+  gap: 7px !important;
+}
+#cmpc .f input {
+  border-radius: 13px !important;
+  padding: 8px 12px !important;
+}
+
+/* ---------- 9. Photos AI Chat, Practice Chat & Ask Everything ---------- */
+.ph-msgs {
+  gap: 8px !important;
+  padding: 4px 2px;
+}
+.ph-msg {
+  padding: 9px 12px !important;
+  border-radius: 14px !important;
+  font-size: 13px !important;
+}
+.ph-msg.me {
+  border-bottom-right-radius: 4px !important;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--acc) 32%, var(--panel2)), color-mix(in srgb, var(--acc) 16%, var(--panel2))) !important;
+  border: 1px solid color-mix(in srgb, var(--acc) 36%, transparent);
+}
+.ph-msg.ai {
+  border-bottom-left-radius: 4px !important;
+  background: color-mix(in srgb, var(--panel) 88%, transparent) !important;
+}
+#pmsg > div {
+  padding: 11px 15px !important;
+  border-radius: 16px !important;
+  box-shadow: 0 4px 14px -8px rgba(0, 0, 0, .38);
+  animation: chatMsgArrive .24s cubic-bezier(.16, 1, .3, 1) both;
+}
+#aaout .card {
+  border-radius: 16px;
+}
+
+/* Also polish the 3D Brain AI Agent chat dock without adding GPU-heavy backdrop blur */
+.brn-msg {
+  padding: 9px 13px !important;
+  border-radius: 15px !important;
+  line-height: 1.5 !important;
+}
+.brn-msg.u {
+  border-bottom-right-radius: 5px !important;
+  border: 1px solid rgba(56, 189, 248, .35);
+}
+.brn-msg.a {
+  border-bottom-left-radius: 5px !important;
+  border-left: 2.5px solid #38bdf8;
+}
+.brn-ag-foot input {
+  border-radius: 12px !important;
+}
+
+/* ---------- 10. Light Theme & Reduced Motion / Low Power Safety ---------- */
+html[style*="color-scheme: light"] #msgs > .m.u,
+html[style*="color-scheme: light"] .aguser {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--acc) 22%, #fff), color-mix(in srgb, var(--acc) 10%, var(--panel2)));
+  border-color: color-mix(in srgb, var(--acc) 36%, var(--line));
+}
+html[style*="color-scheme: light"] .m.a pre,
+html[style*="color-scheme: light"] .agtext pre {
+  background: #f6f7fb;
+  color: #1c2030;
+  border-color: #dce1ee;
+}
+html[style*="color-scheme: light"] .m.a pre code {
+  color: #1c2030;
+}
+@media (max-width: 720px) {
+  #msgs { padding: 14px 10px 12px; }
+  #msgs > .m.a { padding: 12px 13px; }
+  #p-chat > .composer { width: calc(100% - 16px); margin-bottom: 10px; border-radius: 18px; }
+  .dbturn.for { margin-right: 0; }
+  .dbturn.against { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #msgs > .m, .dbturn, #pmsg > div { animation: none !important; }
+}

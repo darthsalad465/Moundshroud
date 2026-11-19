@@ -25,9 +25,24 @@
 
   async function pickModels() {
     if (!A.olympics || !A.olympics.models) return [];
-    try { return (await A.olympics.models()).filter(m => m.chat && !m.cloud); } catch (e) { return []; }
+    try { const ms = (await A.olympics.models()).filter(m => m.chat && !m.cloud); return A.modelOrder ? A.modelOrder.sort(ms) : ms; } catch (e) { return []; }
   }
-  const bestModel = ms => { const want = lsGet('bible_model'); if (want && ms.some(m => m.name === want)) return want; const g = ms.find(m => /^gemma4:12b/.test(m.name)); return (g || ms.slice().sort((x, y) => y.size - x.size)[0] || {}).name || ''; };
+  const bestModel = (ms, preferDefault) => {
+    const def = A.modelOrder ? A.modelOrder.get() : '';
+    const defHit = def && ms.find(m => A.modelOrder.matches(m, def));
+    if (preferDefault && defHit) return defHit.name;
+    const want = lsGet('bible_model');
+    if (want && ms.some(m => m.name === want)) return want;
+    if (defHit) return defHit.name;
+    return (ms[0] || {}).name || '';
+  };
+  function fillModelSel(preferDefault) {
+    const sel = root && root.querySelector('#bbm'); if (!sel || !MODELS) return;
+    const sorted = A.modelOrder ? A.modelOrder.sort(MODELS) : MODELS;
+    MODELS = sorted;
+    const cur = bestModel(sorted, preferDefault);
+    sel.innerHTML = sorted.length ? sorted.map(m => '<option value="' + esc(m.name) + '"' + (m.name === cur ? ' selected' : '') + '>' + esc(A.modelOrder ? A.modelOrder.label(m) : (m.label || bare(m.name))) + '</option>').join('') : '<option value="">No local model found</option>';
+  }
 
   async function render(host) {
     root = host;
@@ -37,11 +52,12 @@
     host.addEventListener('click', onClick);
     const inp = host.querySelector('#bbin');
     inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); ask(); } });
-    host._onShow = () => { refresh(); paint(); };
+    host._onShow = () => { refresh(); fillModelSel(); paint(); };
     MODELS = await pickModels();
-    const sel = host.querySelector('#bbm'), cur = bestModel(MODELS);
-    sel.innerHTML = MODELS.length ? MODELS.map(m => '<option value="' + esc(m.name) + '"' + (m.name === cur ? ' selected' : '') + '>' + esc(m.label || bare(m.name)) + '</option>').join('') : '<option value="">No local model found</option>';
+    const sel = host.querySelector('#bbm');
+    fillModelSel();
     sel.onchange = () => lsPut('bible_model', sel.value);
+    if (A.on && !host._defWired) { host._defWired = true; A.on('default-model', () => { if (root === host && host.isConnected) fillModelSel(true); }); }
     await refresh(); paint();
   }
   async function refresh() {

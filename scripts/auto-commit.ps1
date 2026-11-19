@@ -1,5 +1,5 @@
 # Auto-commit the working tree. Safe to run often: it commits only when there are changes and no merge,
-# rebase or cherry-pick is in progress, and it never pushes or switches branches. Used by a Claude Code Stop hook
+# rebase or cherry-pick is in progress, and it never pushes or switches branches. Wired to the Stop hook in .dev/settings.json
 # (every session's turn end) and runnable by hand. Nothing is lost: each run is one snapshot commit.
 $ErrorActionPreference = 'SilentlyContinue'
 $repo = Split-Path -Parent $PSScriptRoot

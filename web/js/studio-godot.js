@@ -177,8 +177,25 @@ html.god-filled body{overflow:hidden}html.god-filled body>*:not(main){visibility
     const hasRefFile = () => ((cur && cur.files) || []).some(f => /reference_photo\.gd$/i.test(f.path));
     const say = (kind, html) => { msg.innerHTML = html ? '<div class="god-msg god-' + kind + '">' + html + '</div>' : ''; };
 
-    /* models: the same list as Studio > Game maker */
-          (async () => { const sel = $('gdm'); try { const ms = ((await (await fetch('/api/models')).json()).models || []).filter(m => !/embed/i.test(m.name)); MODELS = ms; const top = A.ai.model(), saved = ls.get('gd_model', ''); const pick = ms.some(m => m.name === saved) ? saved : top; sel.innerHTML = ms.map(m => '<option value="' + esc(m.name) + '"' + (m.name === pick ? ' selected' : '') + '>' + esc(m.label || m.name) + (m.cloud ? ' (online)' : ' (on this PC)') + '</option>').join(''); } catch (e) { sel.innerHTML = '<option value="">Top bar model</option>'; } sel.onchange = () => ls.set('gd_model', sel.value); })();
+    /* models: ordered largest first unless a default is chosen in Settings */
+    (() => {
+      const sel = $('gdm'); let rawMs = null;
+      const paint = preferDefault => {
+        if (!sel || !sel.isConnected || !rawMs) return;
+        const ms = A.modelOrder ? A.modelOrder.sort(rawMs) : rawMs;
+        MODELS = ms;
+        const def = A.modelOrder ? A.modelOrder.get() : '', defHit = def && ms.find(m => A.modelOrder.matches(m, def));
+        const top = A.ai.model(), saved = ls.get('gd_model', '');
+        const pick = (preferDefault && defHit) ? defHit.name : (ms.some(m => m.name === saved) ? saved : (defHit ? defHit.name : (ms.some(m => m.name === top) ? top : (ms[0] && ms[0].name) || '')));
+        sel.innerHTML = ms.map(m => '<option value="' + esc(m.name) + '"' + (m.name === pick ? ' selected' : '') + '>' + esc(A.modelOrder ? A.modelOrder.label(m, { showWhere: true }) : ((m.label || m.name) + (m.cloud ? ' (online)' : ' (on this PC)'))) + '</option>').join('');
+      };
+      (async () => {
+        try { const r = await (await fetch('/api/models')).json(); if (A.modelOrder && typeof r.defaultModel === 'string') A.modelOrder.sync(r.defaultModel); rawMs = (r.models || []).filter(m => !/embed/i.test(m.name)); paint(); }
+        catch (e) { sel.innerHTML = '<option value="">Top bar model</option>'; }
+        sel.onchange = () => ls.set('gd_model', sel.value);
+        if (A.on) A.on('default-model', () => paint(true));
+      })();
+    })();
 
     function banner() {
       $('gdbanner').innerHTML = engine ? '' : '<div class="god-warnbox"><b>Godot is not installed on this PC yet.</b> The AI can still write the project, and it is saved as real files, but nothing can play or open it until the engine is here. Run this once (about 82 MB, then it is offline for good):<div class="god-cmd"><code>' + esc(INSTALL) + '</code><button class="god-btn" id="gdcopy">Copy</button><button class="god-btn" id="gdcheck">I ran it</button></div></div>';

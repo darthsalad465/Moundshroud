@@ -145,8 +145,9 @@
     let s; try { s = await api('/status'); } catch (e) { return; }
     if (!s.ok) return showLock();
     $('lock').hidden = true; $('app').hidden = false;
-    const want = store.get('ms_model', ''), ms = s.models || [];
-    $('model').innerHTML = ms.map(m => '<option' + (m === want ? ' selected' : '') + '>' + esc(m) + '</option>').join('') || '<option value="">No models on the PC</option>';
+    const ms = s.models || [], def = s.defaultModel || '', saved = store.get('ms_model', '');
+    const want = (def && ms.includes(def)) ? def : (ms.includes(saved) ? saved : (ms[0] || ''));
+    $('model').innerHTML = ms.map(m => '<option value="' + esc(m) + '"' + (m === want ? ' selected' : '') + '>' + esc(m) + (def && m === def ? ' · default' : '') + '</option>').join('') || '<option value="">No models on the PC</option>';
     $('hstat').textContent = s.agent.running ? '🤖 ' + (s.agent.busy ? 'agent working' : 'agent ready') : '';
     $('rbadge').hidden = !s.routines.unread; $('rbadge').textContent = s.routines.unread || '';
     drawChat();

@@ -47,7 +47,11 @@
     adv(lsGet('swarmadv', '') === '1'); $('swadvbtn').onclick = () => adv($('swadv').style.display === 'none');
 
     const opt = (v, label, sel, dis) => '<option value="' + esc(v) + '"' + (sel ? ' selected' : '') + (dis ? ' disabled' : '') + '>' + esc(label) + '</option>';
-    const modelOpts = cur => { const names = D.models.map(m => m.name); return (names.includes(cur) || !cur ? '' : opt(cur, cur + ' (not on this PC)', true)) + D.models.map(m => opt(m.name, m.name.replace(/:latest$/, '') + (m.tools ? '' : ' · cannot use tools'), m.name === cur, !m.tools)).join(''); };
+    const modelOpts = cur => {
+      const list = A.modelOrder ? A.modelOrder.sort(D.models) : D.models;
+      const names = list.map(m => m.name);
+      return (names.includes(cur) || !cur ? '' : opt(cur, cur + ' (not on this PC)', true)) + list.map(m => opt(m.name, A.modelOrder ? A.modelOrder.label(m, { toolsNote: true }) : (m.name.replace(/:latest$/, '') + (m.tools ? '' : ' · cannot use tools')), m.name === cur, !m.tools)).join('');
+    };
 
     function pickers() {
       if (!D.teams.some(t => t.id === teamId)) teamId = (D.teams[0] || {}).id || '';
@@ -181,8 +185,10 @@
       if (!alive) return;
       if (!d || !d.teams) { $('swmsg').innerHTML = '<span class="bad">Moundshroud could not load the teams.</span>'; return; }
       D = d;
+      if (A.modelOrder && typeof d.defaultModel === 'string') A.modelOrder.sync(d.defaultModel);
       if (!d.ollama) $('swmsg').textContent = 'Ollama is not running yet. Open the Agent tab once and it starts.';
       redraw(); watch();
+      if (A.on) A.on('default-model', () => { if (alive && b.isConnected && D) redraw(); });
     })();
   }
 

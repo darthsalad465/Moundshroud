@@ -62,6 +62,8 @@
       row('Communities', 'The Chess Community (chess tab) keeps chatting whether or not you are there. Turn the AI model off for chatter to use quick built-in lines instead (lighter on the PC).', '<button class="ib" data-a="ccai">AI chatter: ' + (ls.get('cmai', '1') !== '0' ? 'On' : 'Off') + '</button>' + ' <button class="ib" data-a="cnote">Message alerts: ' + (ls.get('cmnote', '1') !== '0' ? 'On' : 'Off') + '</button>', 'community chat chatter ai town hollow creek') +
       row('Back up characters', 'Save or restore everything the characters remember, the communities and the voices you set. (The AI Commons chats are meant to disappear, so they are not included.)', '<button class="ib" data-a="cbak">Export</button><button class="ib" data-a="cimp">Import</button>', 'backup export import restore characters memory community'));
     h += sec('ai', '🧠', 'AI & power',
+      row('Default model', 'Every model dropdown in the app lists your models from largest to smallest. Pick a default model here to pin it to the top and use it by default everywhere; leave on Automatic to order strictly by size.', '<select id="sdefmodel" style="max-width:300px"><option value="">Automatic (largest first)</option></select>', 'default model order size largest smallest sort dropdown chat ai') +
+      row('Sync Ollama models to LM Studio', 'Whenever you pull or create a local model in Ollama, automatically link its GGUF into LM Studio (zero extra disk space) so it appears in LM Studio right away.<div id="slmsyncst" style="margin-top:3px"></div>', '<label class="chk" style="margin:0;gap:7px"><input type="checkbox" id="slmsync" checked> <span class="small mute" id="slmsynclbl">On</span></label><button class="ib" id="slmsyncnow" type="button">Sync now</button>', 'lm studio lmstudio ollama sync pull models gguf hardlink mirror') +
       row('Low-power mode', 'A smaller AI model, no animations and shorter model memory. Good on battery.', tog('lp', A.power && A.power.on), 'battery power small model') +
       row('Agent harness', 'The program that drives the AI in Chat › Agent. <b>Claude Code</b> (default) asks you before each guarded action. <b>jcode</b> is a fast open-source harness; it runs its own tools and asks only when it decides to. <b>Moundshroud Code</b> is built into this app: it has no outside program, works only in the folder you chose unless you allow the whole PC, and stops before anything that could damage the PC. All three use your local models through Ollama, or the free frontier AI if you pick it. Switching ends the running agent session.', '<select id="hkind" class="ib"><option value="claude">Claude Code</option><option value="jcode">jcode</option><option value="native">Moundshroud Code</option></select><span class="small mute" id="hkindst"></span>', 'agent harness claude code jcode moundshroud code built in coding agent switch engine') +
       row('Delete all chat history', 'Removes every saved chat in the Chat tab.', '<button class="ib dang" data-a="clrchat">Delete chats</button>', 'chats history delete') +
@@ -140,6 +142,51 @@
     let r; try { r = await A.api('/api/wake', { on: !cur.on }); } catch (e) { A.toast('Could not change the wake word.'); return; }
     wakeShow(r); if (r.on) { A.toast('Say “Hey Moundshroud” to open voice mode.'); setTimeout(wakeShow, 5000); }
   }
+  async function initDefModel($$) {
+    const sel = $$('#sdefmodel'); if (!sel || !A.modelOrder) return;
+    try {
+      const r = await A.api('/api/models');
+      const cur = A.modelOrder.sync(r && typeof r.defaultModel === 'string' ? r.defaultModel : undefined);
+      const list = A.modelOrder.sort((r && r.models) || [], '');
+      const isCopy = m => !m.cloud && /-agent(-\d+k)?(:|$)/i.test(m.name);
+      const main = list.filter(m => !isCopy(m)), copies = list.filter(isCopy);
+      const opt = m => '<option value="' + esc(m.name) + '"' + (A.modelOrder.matches(m, cur) ? ' selected' : '') + '>' + esc(A.modelOrder.label(m, { noDefaultTag: true })) + '</option>';
+      const hasCur = !cur || list.some(m => A.modelOrder.matches(m, cur));
+      sel.innerHTML = '<option value=""' + (!cur ? ' selected' : '') + '>Automatic (largest first)</option>' +
+        (hasCur ? '' : '<option value="' + esc(cur) + '" selected>' + esc(A.modelOrder.bare(cur)) + ' (saved)</option>') +
+        (copies.length ? '<optgroup label="Models">' + main.map(opt).join('') + '</optgroup><optgroup label="Agent tab copies">' + copies.map(opt).join('') + '</optgroup>' : main.map(opt).join(''));
+    } catch (e) { }
+    sel.onchange = async () => {
+      const v = sel.value;
+      await A.modelOrder.set(v);
+      A.toast(v ? ('Default model set to ' + A.modelOrder.bare(v) + '.') : 'Default model set to Automatic (largest first).');
+    };
+  }
+  async function initLmSync($$) {
+    const chk = $$('#slmsync'), lbl = $$('#slmsynclbl'), btn = $$('#slmsyncnow'), st = $$('#slmsyncst');
+    if (!chk || !btn) return;
+    const draw = r => {
+      if (!r) return;
+      chk.checked = r.enabled !== false;
+      if (lbl) lbl.textContent = chk.checked ? 'On' : 'Off';
+      if (st) st.textContent = !r.installed ? 'LM Studio folder not found on this PC.' : (r.synced ? r.synced + ' Ollama model' + (r.synced === 1 ? '' : 's') + ' linked in ' + r.targetDir + (r.watching ? ' (watching live)' : '') : (r.targetDir ? 'Target: ' + r.targetDir : ''));
+    };
+    try { draw(await A.api('/api/lmstudio/status')); } catch (e) { }
+    chk.onchange = async () => {
+      const r = await A.api('/api/lmstudio/sync', { enabled: chk.checked }).catch(() => null);
+      draw(r);
+      A.toast(chk.checked ? 'LM Studio auto-sync is on.' : 'LM Studio auto-sync is off.');
+    };
+    btn.onclick = async () => {
+      btn.disabled = true;
+      const r = await A.api('/api/lmstudio/sync', {}).catch(() => null);
+      btn.disabled = false;
+      draw(r);
+      if (!r) return A.toast('Could not sync to LM Studio.');
+      if (!r.installed) return A.toast('LM Studio was not found on this PC.');
+      A.toast(r.linked ? ('Added ' + r.linked + ' new model' + (r.linked === 1 ? '' : 's') + ' to LM Studio.') : ('LM Studio is up to date (' + (r.synced || 0) + ' models).'));
+    };
+  }
   function open(sectionId) {
     close(); root = document.createElement('div'); root.id = 'setx'; root.style.cssText = 'position:fixed;inset:0;z-index:150;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:2vh 2vw';
     const initSec = sectionId || SECS[0][0], initLabel = (SECS.find(s => s[0] === initSec) || SECS[0])[2];
@@ -177,6 +224,8 @@
     if ($$('#sxempclr')) $$('#sxempclr').onclick = () => { $$('#sq').value = ''; filter(''); $$('#sq').focus(); };
     const TH = window.OA_THEMES;
     wakeShow(); setTimeout(wakeShow, 6000);
+    initDefModel($$);
+    initLmSync($$);
     if ($$('#sst')) $$('#sst').onclick = e => { const b = e.target.closest('.stl'); if (!b) return; TH.applyStyle(b.dataset.s); $$('#sst').querySelectorAll('.stl').forEach(x => { const on = x === b; x.classList.toggle('on', on); x.style.borderColor = on ? 'var(--acc)' : 'var(--line)'; const ck = x.querySelector('.row span:last-child'); if (ck) ck.textContent = on ? '✓' : ''; }); };
     if ($$('#sth')) $$('#sth').onclick = e => { const b = e.target.closest('.thm'); if (!b) return; TH.apply(b.dataset.t2); $$('#sth').querySelectorAll('.thm').forEach(x => { const on = x === b; x.classList.toggle('on', on); x.style.borderColor = on ? 'var(--acc)' : 'var(--line)'; }); };
     if ($$('#smot') && A.motion) {
@@ -295,7 +344,7 @@
         'grok-(xai)': [{id:'grok-2',name:'Grok 2',note:'131K ctx, $25/mo free credits'},{id:'grok-2-mini',name:'Grok 2 Mini',note:'131K ctx, $25/mo free credits'}],
         'opencode': [{id:'big-pickle',name:'Big Pickle',note:'No context limit'},{id:'nemotron-3.5-lightning-free',name:'Nemotron 3.5 Lightning',note:'262K ctx'},{id:'deepseek-v4-flash',name:'DeepSeek V4 Flash',note:'1M ctx'}],
       };
-      const modelsForProvider = isAnthropic ? (st.models || []) : (recommendedModels[prov] || []);
+      const modelsForProvider = A.modelOrder ? A.modelOrder.sort(isAnthropic ? (st.models || []) : (recommendedModels[prov] || []), '') : (isAnthropic ? (st.models || []) : (recommendedModels[prov] || []));
       const providerOptions = hasProviders
         ? st.providers.map(p => '<option value="' + esc(p.id) + '"' + (p.id === prov ? ' selected' : '') + '>' + esc(providerLabels[p.id] || p.name) + (p.hasKey ? ' ✓' : '') + (p.freeModels ? ' (' + p.freeModels + ' free)' : '') + '</option>').join('')
         : Object.keys(providerLabels).map(p => '<option value="' + esc(p) + '"' + (p === prov ? ' selected' : '') + '>' + esc(providerLabels[p]) + '</option>').join('');
@@ -350,7 +399,7 @@
       if (!nkBox) return;
       const prov = st.provider || 'glhf-chat';
       const provLabel = noKeyProviderLabels[prov] || prov;
-      const modelsForProvider = noKeyRecommendedModels[prov] || [];
+      const modelsForProvider = A.modelOrder ? A.modelOrder.sort(noKeyRecommendedModels[prov] || [], '') : (noKeyRecommendedModels[prov] || []);
       const providerOptions = nkProviders.map(p => '<option value="' + esc(p.id) + '"' + (p.id === prov ? ' selected' : '') + '>' + esc(noKeyProviderLabels[p.id] || p.name) + '</option>').join('');
       nkBox.innerHTML =
         (st.error ? '<div class="small" style="color:var(--bad);border:1px solid var(--bad);border-radius:8px;padding:8px 10px;margin-bottom:8px;line-height:1.5">⚠ ' + esc(st.error) + '</div>' : '') +
@@ -464,6 +513,8 @@
     // Re-initialize all handlers (same as success case)
     const TH = window.OA_THEMES;
     wakeShow(); setTimeout(wakeShow, 6000);
+    initDefModel($$);
+    initLmSync($$);
     if ($$('#sst')) $$('#sst').onclick = e => { const b = e.target.closest('.stl'); if (!b) return; TH.applyStyle(b.dataset.s); $$('#sst').querySelectorAll('.stl').forEach(x => { const on = x === b; x.classList.toggle('on', on); x.style.borderColor = on ? 'var(--acc)' : 'var(--line)'; const ck = x.querySelector('.row span:last-child'); if (ck) ck.textContent = on ? '✓' : ''; }); };
     if ($$('#sth')) $$('#sth').onclick = e => { const b = e.target.closest('.thm'); if (!b) return; TH.apply(b.dataset.t2); $$('#sth').querySelectorAll('.thm').forEach(x => { const on = x === b; x.classList.toggle('on', on); x.style.borderColor = on ? 'var(--acc)' : 'var(--line)'; }); };
     if ($$('#smot') && A.motion) {
@@ -582,7 +633,7 @@
         'grok-(xai)': [{id:'grok-2',name:'Grok 2',note:'131K ctx, $25/mo free credits'},{id:'grok-2-mini',name:'Grok 2 Mini',note:'131K ctx, $25/mo free credits'}],
         'opencode': [{id:'big-pickle',name:'Big Pickle',note:'No context limit'},{id:'nemotron-3.5-lightning-free',name:'Nemotron 3.5 Lightning',note:'262K ctx'},{id:'deepseek-v4-flash',name:'DeepSeek V4 Flash',note:'1M ctx'}],
       };
-      const modelsForProvider = isAnthropic ? (st.models || []) : (recommendedModels[prov] || []);
+      const modelsForProvider = A.modelOrder ? A.modelOrder.sort(isAnthropic ? (st.models || []) : (recommendedModels[prov] || []), '') : (isAnthropic ? (st.models || []) : (recommendedModels[prov] || []));
       const providerOptions = hasProviders
         ? st.providers.map(p => '<option value="' + esc(p.id) + '"' + (p.id === prov ? ' selected' : '') + '>' + esc(providerLabels[p.id] || p.name) + (p.hasKey ? ' ✓' : '') + (p.freeModels ? ' (' + p.freeModels + ' free)' : '') + '</option>').join('')
         : Object.keys(providerLabels).map(p => '<option value="' + esc(p) + '"' + (p === prov ? ' selected' : '') + '>' + esc(providerLabels[p]) + '</option>').join('');
@@ -637,7 +688,7 @@
       if (!nkBox) return;
       const prov = st.provider || 'glhf-chat';
       const provLabel = noKeyProviderLabels[prov] || prov;
-      const modelsForProvider = noKeyRecommendedModels[prov] || [];
+      const modelsForProvider = A.modelOrder ? A.modelOrder.sort(noKeyRecommendedModels[prov] || [], '') : (noKeyRecommendedModels[prov] || []);
       const providerOptions = nkProviders.map(p => '<option value="' + esc(p.id) + '"' + (p.id === prov ? ' selected' : '') + '>' + esc(noKeyProviderLabels[p.id] || p.name) + '</option>').join('');
       nkBox.innerHTML =
         (st.error ? '<div class="small" style="color:var(--bad);border:1px solid var(--bad);border-radius:8px;padding:8px 10px;margin-bottom:8px;line-height:1.5">⚠ ' + esc(st.error) + '</div>' : '') +

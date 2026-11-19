@@ -5,14 +5,14 @@
   const root = $('p-tools');
   let sub = 'sys', chefLoaded = false;
   root.innerHTML = '<div class="row" style="padding:8px 12px;gap:6px;border-bottom:1px solid var(--line);flex-wrap:wrap" id="tsub"></div><div id="tbody" style="flex:1;min-height:0;display:flex;flex-direction:column"></div>';
-  const SUBS = [['sys', 'System'], ['conv', '🔄 Converter'], ['repos', '📦 Repositories'], ['apis', '🌐 API Explorer'], ['safe', '🛡 File safety'], ['opt', '✨ Prompt optimizer']];   // the Agent moved to Chat > Agent (web/js/agent.js)
+  const SUBS = [['sys', 'System'], ['conv', '🔄 Converter'], ['md', '📝 MarkItDown'], ['repos', '📦 Repositories'], ['apis', '🌐 API Explorer'], ['safe', '🛡 File safety'], ['opt', '✨ Prompt optimizer']];   // the Agent moved to Chat > Agent (web/js/agent.js)
   /* a tool is still running only while the page it was opened in is the one on screen */
   const live = b => !!(b && b.isConnected && b.closest('.panel.on'));
   function tabs() { $('tsub').innerHTML = SUBS.filter(s => s[0] !== 'chef' || A.caps.chef).map(s => '<button class="ib' + (sub === s[0] ? ' on' : '') + '" data-s="' + s[0] + '">' + s[1] + '</button>').join(''); }
   $('tsub').onclick = e => { const b = e.target.closest('[data-s]'); if (b) go(b.dataset.s); };
   let tok = 0;
   /* the one list of pages: the Tools buttons (go) and the other tabs (A.tools.show) both read it, so a page added here works in both */
-  const RENDER = () => ({ docs: (x, my) => A.docs.render(x, my), office: x => A.officeEdit.render(x), sys, repos, apis: x => A.apiExplorer.render(x), safe, calc, rem, trans, clip, prm, cyber: x => A.cyber.render(x), codes: x => A.cbLab.render(x), course: x => A.cybercourse.render(x), conv: x => A.converter.render(x), opt: x => A.promptOpt.render(x), agent: x => A.agent.render(x), scan: x => A.scanner.render(x), meet: x => A.meetings.render(x), vault: x => A.vault.render(x), puzz: x => A.puzzlemaker.render(x), journal: x => A.journal.render(x), storage: x => A.storage.render(x), chef });
+  const RENDER = () => ({ docs: (x, my) => A.docs.render(x, my), office: x => A.officeEdit.render(x), sys, repos, apis: x => A.apiExplorer.render(x), safe, calc, rem, trans, clip, prm, cyber: x => A.cyber.render(x), codes: x => A.cbLab.render(x), course: x => A.cybercourse.render(x), conv: x => A.converter.render(x), md: x => A.markitdown && A.markitdown.render(x), opt: x => A.promptOpt.render(x), agent: x => A.agent.render(x), scan: x => A.scanner.render(x), meet: x => A.meetings.render(x), vault: x => A.vault.render(x), puzz: x => A.puzzlemaker.render(x), journal: x => A.journal.render(x), storage: x => A.storage.render(x), chef });
   function go(s) { if (s === 'agent' && A.agent && A.agent.open) return A.agent.open(); if (!SUBS.some(x => x[0] === s)) s = 'sys'; sub = s; tabs(); const b = $('tbody'); const f = RENDER()[s] || sys; A.keep(b, s, el => f(el, ++tok)); }
 
   /* ---- system dashboard ---- */
@@ -39,6 +39,26 @@
       '<div class="small" id="rpst"></div><div id="rplist" style="margin-top:10px;max-width:900px"></div></div>';
     const kb = n => n >= 1073741824 ? (n / 1073741824).toFixed(1) + ' GB' : n >= 1048576 ? Math.round(n / 1048576) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
     let timer = null;
+    const integrationDialog = repo => {
+      const sections = (A.order || []).filter(id => A.tabs && A.tabs[id] && !A.tabs[id].hidden).map(id => [id, A.tabs[id].label || id]);
+      A.dlg('<div class="hd"><b>✨ Add ' + A.esc(repo.name) + ' to Moundshroud</b></div><div class="bd" style="max-height:76vh;overflow:auto">' +
+        '<div class="small mute" style="line-height:1.55;margin-bottom:10px">Moundshroud maps the repo and the app section first, using your saved default if it is a local model with tool support, or the top-ranked available local tool model otherwise. It keeps the standard fast context unless more is needed. It can choose a good section automatically, or you can pick one and describe how you want it customized.</div>' +
+        '<label class="small">Where should it go?<select id="riwhere" style="display:block;width:100%;margin-top:4px"><option value="">Let Moundshroud choose the best section</option>' + sections.map(x => '<option value="' + A.esc(x[0]) + '">' + A.esc(x[1]) + '</option>').join('') + '</select></label>' +
+        '<label class="small" style="display:block;margin-top:10px">How should it fit? <span class="mute">(optional)</span><textarea id="rinotes" rows="3" maxlength="1600" placeholder="For example: keep it simple, add it as a new Studio tool, and match the existing controls." style="display:block;width:100%;margin-top:4px;resize:vertical"></textarea></label>' +
+        '<div class="card" style="margin:12px 0;border-color:var(--warn);background:color-mix(in srgb,var(--warn) 7%,var(--panel))"><b>⚠️ This can change the app</b><div class="small" style="margin-top:4px;line-height:1.5">The coding agent will edit Moundshroud’s files. AI changes can be wrong and might accidentally break the app. Review or back up your work first. It treats repo files as untrusted, will not install dependencies or run setup scripts, and will inspect relevant checks before asking you to approve any command.</div></div>' +
+        '<div class="row" style="gap:8px;justify-content:flex-end"><button class="ib" id="riclose">Cancel</button><button class="pri" id="riask">Ask Moundshroud to add it</button></div><div class="small mute" id="rist" role="status" style="margin-top:8px"></div></div>', true);
+      document.getElementById('riclose').onclick = A.closeDlg;
+      document.getElementById('riask').onclick = async () => {
+        const button = document.getElementById('riask'), status = document.getElementById('rist'), id = document.getElementById('riwhere').value;
+        const target = id ? (A.tabs[id] && A.tabs[id].label || id) + ' section (' + id + ')' : '';
+        const notes = document.getElementById('rinotes').value;
+        button.disabled = true; status.textContent = 'Opening the Agent and preparing the integration…';
+        A.closeDlg();
+        const result = A.agent && A.agent.integrate ? await A.agent.integrate({ slug: repo.slug, target, notes }) : { ok: false, error: 'The Agent is not available. Reload Moundshroud and try again.' };
+        if (!result || !result.ok) A.toast((result && result.error) || 'Could not start the integration.', 7000);
+        else A.toast('The Agent is mapping ' + repo.name + (result.model ? ' with ' + result.model : '') + '. Watch Chat › Agent for its file references, plan, and progress.', 7500);
+      };
+    };
 const paint = async () => {
       if (my !== tok) return;
       const r = await A.api('/api/refs').catch(() => ({ refs: [] }));
@@ -50,7 +70,7 @@ const paint = async () => {
         '<div class="small mute" style="margin-top:2px">' + A.esc(x.about || '') + ' <span class="mute">' + A.esc(x.repo) + '</span></div>' +
         (x.installed ? '<div class="small" style="margin-top:2px">🛡 ' + (!x.safety || !x.safety.level ? 'not checked yet' : x.safety.level === 'danger' ? '⛔ ' + x.safety.counts.danger + ' serious finding(s)' : x.safety.level === 'warn' ? '⚠️ ' + x.safety.counts.warn + ' to look at' : '✅ nothing risky stood out') + '</div>' : '') +
         (x.job && (x.job.state === 'running' || x.job.state === 'refreshing') ? '<div class="small" style="margin-top:4px">' + (x.job.state === 'refreshing' ? 'Refreshing' : 'Downloading') + '… ' + x.job.pct + '% <span class="mute">' + A.esc(x.job.said || '') + '</span></div>' : x.job && x.job.state === 'failed' ? '<div class="small warn" style="margin-top:4px">' + A.esc(x.job.said || 'It failed.') + '</div>' : '') + '</div>' +
-        (x.installed ? '<button class="ib" data-rf="' + A.esc(x.slug) + '"' + (busy ? ' disabled' : '') + '>Refresh</button><button class="ib dang" data-rm="' + A.esc(x.slug) + '">Remove</button>' : '<button class="pri" data-dl="' + A.esc(x.slug) + '"' + (busy ? ' disabled' : '') + '>Download</button>') + '</div></div>', { itemHeight: 160 });
+        (x.installed ? '<button class="pri" data-int="' + A.esc(x.slug) + '">✨ Add to a section</button><button class="ib" data-rf="' + A.esc(x.slug) + '"' + (busy ? ' disabled' : '') + '>Refresh</button><button class="ib dang" data-rm="' + A.esc(x.slug) + '">Remove</button>' : '<button class="pri" data-dl="' + A.esc(x.slug) + '"' + (busy ? ' disabled' : '') + '>Download</button>') + '</div></div>', { itemHeight: 160 });
       if (busy && !timer) timer = setInterval(paint, 1500);
       if (!busy && timer) { clearInterval(timer); timer = null; }
     };
@@ -64,8 +84,9 @@ const paint = async () => {
       paint();
     };
     b.onclick = async e => {
-      const d = e.target.closest('[data-dl]'), f = e.target.closest('[data-rf]'), rm = e.target.closest('[data-rm]');
-      if (d) { const r = await A.api('/api/refs/install', { slug: d.dataset.dl }); if (r.error) A.toast(r.error, 6000); paint(); }
+      const add = e.target.closest('[data-int]'), d = e.target.closest('[data-dl]'), f = e.target.closest('[data-rf]'), rm = e.target.closest('[data-rm]');
+      if (add) { const r = await A.api('/api/refs'); const repo = (r.refs || []).find(x => x.slug === add.dataset.int && x.installed); if (repo) integrationDialog(repo); else A.toast('Download that repository first.'); }
+      else if (d) { const r = await A.api('/api/refs/install', { slug: d.dataset.dl }); if (r.error) A.toast(r.error, 6000); paint(); }
       else if (e.target.closest('[data-rsf]')) { const r = await A.api('/api/refs/check', { slug: e.target.closest('[data-rsf]').dataset.rsf }); if (r.error) A.toast(r.error, 6000); paint(); }
       else if (f) { const r = await A.api('/api/refs/update', { slug: f.dataset.rf }); if (r.error) A.toast(r.error, 6000); paint(); }
       else if (rm) { if (!confirm('Delete this repository from this PC? You can download it again later.')) return; const r = await A.api('/api/refs/remove', { slug: rm.dataset.rm }); if (r.error) A.toast(r.error, 6000); paint(); }

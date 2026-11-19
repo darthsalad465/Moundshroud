@@ -79,9 +79,21 @@
     };
     const play = (m, think) => { const l = gp.legal(), san = gp.san(m, l), f = m & 63, t = (m >> 6) & 63, u = gp.uci(m); const mover = gp.side, before = gp.fen(); if (mover === human) { try { window.ChessLearn && ChessLearn.learn(gp, m, hist.length); } catch (e) { } } gp.make(m); hist.push({ u, san, f, t, key: gp.key() }); try { ChessAch.event('move', { san, mine: mover === human, ply: hist.length }); } catch (e) { } if (clock) { clock[mover > 0 ? 'w' : 'b'] += clock.inc; clock.last = performance.now(); } view = null; save(); try { bots && bots.event('move', { san, mine: mover === human, u, before }); } catch (e) { } check(); };
     const engineMs = () => { if (!clock) return elo >= 3000 ? 5000 : AN() && elo >= 1800 ? 3000 : 1600; const mine = clock[gp.side > 0 ? 'w' : 'b']; return Math.max(250, Math.min(elo >= 3000 ? 6000 : elo >= 1800 ? 3500 : 2000, mine * 1000 / 25 + clock.inc * 300)); };
+    const bookMove = () => {
+      if (!window.ChessSet || ChessSet.experience() === 'legacy' || !ChessSet.openingBook() || sfen !== C.START || !AN() || !AN().LINES) return null;
+      const played = hist.map(h => h.san), choices = new Map();
+      for (const [, line] of AN().LINES) {
+        if (line.length <= played.length || !played.every((san, i) => line[i] === san)) continue;
+        const san = line[played.length]; choices.set(san, (choices.get(san) || 0) + 1);
+      }
+      const legal = gp.legal(), candidates = [];
+      for (const [san, weight] of choices) { const m = legal.find(x => gp.san(x, legal) === san); if (m !== undefined) for (let i = 0; i < weight; i++) candidates.push(m); }
+      return candidates.length ? candidates[Math.random() * candidates.length | 0] : null;
+    };
     const engineMove = () => {
       const my = ++token; thinking = true; refresh(); const fen = gp.fen(), ms = engineMs(), t0 = performance.now();
       const done = mv => { if (my !== token || over || dead) return; thinking = false; const l = gp.legal(); if (!l.length) return check(); const m = l.find(x => x === mv) ?? l[0]; const wait = Math.max(0, (elo < 1000 ? 500 : 250) - (performance.now() - t0)); setTimeout(() => { if (my === token && !over && !dead) play(m); }, wait); };
+      const bm = bookMove(); if (bm !== null) { done(bm); return; }
       const dflt = () => eng.ask({ fen, elo, ms, style: window.ChessBots && ChessBots.style ? ChessBots.style(elo) : undefined }).then(r => { try { if (r && typeof r.score === 'number' && bots) bots.event('score', { score: r.score }); } catch (e) { } done(r && r.move); }).catch(() => done(null));
       if (window.ChessLearn) ChessLearn.choose({ gp, eng, elo, human, hist, ms }).then(r => { if (r && r.move) { if (r.note) { try { ChessBots.say(r.note, 100); } catch (e) { } } done(r.move); } else dflt(); }).catch(dflt); else dflt();
     };
