@@ -101,7 +101,8 @@
     const serve = () => { ball = { x: px + 32, y: Ht - 38, vx: 0, vy: 0, r: 6, stuck: true }; };
     const newGame = () => { px = Wd / 2 - 32; lives = [5, 3, 2][api.level]; score = 0; level = 1; state = 'play'; make(); serve(); api.hud('Score 0 · Lives ' + lives); };
     const launch = () => { if (ball.stuck) { ball.stuck = false; const sp = (3.6 + level * 0.3) * [.85, 1, 1.2][api.level]; ball.vx = (Math.random() < .5 ? -1 : 1) * sp * 0.6; ball.vy = -sp; } else if (state !== 'play') newGame(); };
-    const frame = () => {
+    /* one 1/60 s of play: the same at 60, 120 or 144 Hz */
+    const step = () => {
       if (state === 'play') {
         if (keyL) px -= 6; if (keyR) px += 6; px = Math.max(0, Math.min(Wd - 64, px));
         if (ball.stuck) { ball.x = px + 32; ball.y = Ht - 38; } else {
@@ -112,6 +113,11 @@
           if (ball.y > Ht + 10) { lives--; api.hud('Score ' + score + ' · Lives ' + lives); if (lives <= 0) { state = 'over'; api.submit(score); } else serve(); }
         }
       }
+    };
+    const STEP = 1000 / 60; let last = 0, acc = 0;
+    const frame = ts => {
+      const dt = ts ? Math.min(100, ts - (last || ts)) : STEP; last = ts || last;
+      acc += dt; for (let n = 0; acc >= STEP && n < 4; n++) { acc -= STEP; step(); }
       cx.fillStyle = CSS('--panel'); cx.fillRect(0, 0, Wd, Ht); bricks.forEach(b => { if (!b.dead) { cx.fillStyle = 'hsl(' + b.hue + ',70%,60%)'; cx.beginPath(); cx.roundRect(b.x, b.y, b.w, b.h, 4); cx.fill(); } });
       cx.fillStyle = CSS('--acc'); cx.beginPath(); cx.roundRect(px, Ht - 24, 64, 10, 5); cx.fill(); cx.fillStyle = '#fff'; cx.beginPath(); cx.arc(ball.x, ball.y, ball.r, 0, 7); cx.fill();
       if (state === 'over') { cx.fillStyle = 'rgba(8,10,16,.7)'; cx.fillRect(0, 0, Wd, Ht); cx.fillStyle = '#fff'; cx.font = '600 24px Segoe UI'; cx.textAlign = 'center'; cx.fillText('Game over - ' + score, Wd / 2, Ht / 2); cx.font = '14px Segoe UI'; cx.fillText('Click or press Space to play again', Wd / 2, Ht / 2 + 24); }
@@ -120,6 +126,6 @@
     cv.addEventListener('mousemove', e => { const r = cv.getBoundingClientRect(); px = Math.max(0, Math.min(Wd - 64, (e.clientX - r.left) * (Wd / r.width) - 32)); }); cv.addEventListener('click', launch);
     const off = keys(e => { if (e.key === 'ArrowLeft' || e.key === 'a') keyL = true; if (e.key === 'ArrowRight' || e.key === 'd') keyR = true; if (e.key === ' ') launch(); });
     const up = e => { if (e.key === 'ArrowLeft' || e.key === 'a') keyL = false; if (e.key === 'ArrowRight' || e.key === 'd') keyR = false; }; document.addEventListener('keyup', up);
-    newGame(); frame(); return () => { cancelAnimationFrame(raf); off(); document.removeEventListener('keyup', up); };
+    newGame(); raf = requestAnimationFrame(frame); return () => { cancelAnimationFrame(raf); off(); document.removeEventListener('keyup', up); };
   });
 })();

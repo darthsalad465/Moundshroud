@@ -678,10 +678,19 @@ function readBudget(m) {
       const list = A.modelOrder ? A.modelOrder.sort(r.models, def) : r.models;
       const saved = ls.get('model', ''), pref = list.map(m => m.name);
       /* each model shows its size (ordered largest-first, or with the Settings default pinned first), and Agent copies sit in their own group */
-      const opt = m => '<option value="' + esc(m.name) + '">' + esc(A.modelOrder ? A.modelOrder.label(m, { defaultModel: def }) : (m.cloud ? (m.label || m.name) : m.name.replace(/:latest$/, '') + (m.size ? ' · ' + (m.size / 1073741824).toFixed(1) + ' GB' : ''))) + '</option>';
+      /* what this model will do on this PC: the server reports its memory, so a model is marked before it is chosen */
+      const hw = r.hardware || {};
+      const fit = m => {
+        if (m.cloud || !m.size) return '';
+        const gb = m.size / 1073741824;
+        if (hw.vramGB && gb <= hw.vramGB * .92) return ' · ⚡ fast';
+        if (hw.ramGB && gb <= hw.ramGB * .7) return ' · 🐢 in RAM';
+        return ' · ⚠ too big';
+      };
+      const opt = m => '<option value="' + esc(m.name) + '">' + esc(A.modelOrder ? A.modelOrder.label(m, { defaultModel: def }) : (m.cloud ? (m.label || m.name) : m.name.replace(/:latest$/, '') + (m.size ? ' · ' + (m.size / 1073741824).toFixed(1) + ' GB' : ''))) + fit(m) + '</option>';
       const isCopy = m => !m.cloud && /-agent(-\d+k)?(:|$)/i.test(m.name), main = list.filter(m => !isCopy(m)), copies = list.filter(isCopy);
       $('model').innerHTML = copies.length ? '<optgroup label="Models">' + main.map(opt).join('') + '</optgroup><optgroup label="Agent tab copies (same models, larger memory)">' + copies.map(opt).join('') + '</optgroup>' : main.map(opt).join('');
-      $('model').title = 'The AI model that answers in Chat. Models are ordered largest first unless you choose a default in Settings.';
+      $('model').title = 'The AI model that answers in Chat. Models are ordered largest first unless you choose a default in Settings.' + (hw.vramGB ? ' ⚡ fast = fits in the graphics memory (' + hw.vramGB + ' GB), 🐢 in RAM = works but slower, ⚠ too big = more memory than this PC has.' : ' 🐢 in RAM = works but slower, ⚠ too big = more memory than this PC has.');
       const defHit = def && list.find(m => A.modelOrder && A.modelOrder.matches(m, def));
       const biggestLocal = main.find(m => !m.cloud) || list.find(m => !m.cloud);
       const pick = defHit ? defHit.name : ((!fromSettings && pref.includes(saved)) ? saved : ((biggestLocal && biggestLocal.name) || pref[0]));

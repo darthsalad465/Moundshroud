@@ -2128,7 +2128,7 @@
 
       map.on('mousemove', e => {
         coordsEl.textContent = fmtCoord(e.lngLat.lat, e.lngLat.lng) + ' · z' + map.getZoom().toFixed(1);
-        const query = id => map.getLayer(id) ? map.querySelectorRenderedFeatures(e.point, { layers: [id] }) : [];
+        const query = id => map.getLayer(id) ? map.queryRenderedFeatures(e.point, { layers: [id] }) : [];
 
         const satH = query('osint-sats-dots');
         if (satH.length) { const p = satH[0].properties; return showTip(e.point, '🛰️ <b>' + esc(p.name) + '</b> <span style="color:#c084fc">· ALT ' + esc(p.altKm) + ' km</span>'); }
@@ -2180,7 +2180,7 @@
           syncMeasureOnMap();
           return;
         }
-        const query = id => map.getLayer(id) ? map.querySelectorRenderedFeatures(e.point, { layers: [id] }) : [];
+        const query = id => map.getLayer(id) ? map.queryRenderedFeatures(e.point, { layers: [id] }) : [];
 
         const satH = query('osint-sats-dots');
         if (satH.length) {

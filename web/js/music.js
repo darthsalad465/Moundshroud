@@ -57,6 +57,10 @@
     whack: { name: 'Carnival Mole', key: 'A', sc: 'maj', bpm: 144, prog: [1, 4, 1, 5], lead: { i: 'calliope', rng: [69, 91], feel: 'dense', seed: 211, vol: .26, rv: .15 }, arp: { i: 'calliope', pat: '..c...c...c...c.', oct: 3, vol: .1 }, bass: { i: 'tuba', pat: '1...5...1...5...', oct: 1, vol: .45 }, drums: 'polka', dv: .65, rv: .15 },
     reaction: { name: 'Hair Trigger', key: 'E', sc: 'phr', bpm: 112, prog: [1, 1, 2, 1], lead: { i: 'pluck', rng: [64, 82], feel: 'sparse', seed: 221, vol: .18, dl: .35, rv: .25 }, arp: { i: 'sub', pat: '1...1...1...1...', oct: 2, vol: .3 }, pad: { i: 'drone', vol: .08 }, drums: 'pulse', dv: .45, rv: .22 },
     typing: { name: 'Words Per Minute', key: 'D', sc: 'maj', bpm: 156, prog: [1, 5, 6, 4], lead: { i: 'guitar', rng: [62, 86], feel: 'dense', seed: 231, vol: .26, rv: .15 }, arp: { i: 'power', pat: 'c.cc.cc.c.cc.cc.', oct: 3, vol: .12 }, bass: { i: 'bass', pat: '1.1.1.1.1.1.1.1.', oct: 2, vol: .42 }, drums: 'punk', dv: .8, rv: .12 },
+    modelmon: { name: 'Relay at Sundown', key: 'D', sc: 'dor', bpm: 136, prog: [1, 4, 6, 5],
+      melodyA: ['1 . 3 5 - 4 3 .', '6 - 4 . 3 2 4 .', '1 . 3 6 - 5 3 .', '2 4 5 . 2 - 1 .'],
+      lead: { i: 'sq', rng: [62, 83], feel: 'sync', seed: 719, vol: .22 }, arp: { i: 'pluck', pat: '1.3.5.8.5.3.5.3.', oct: 4, vol: .12 },
+      bass: { i: 'tri', pat: '1..5..1.8..5.3..', oct: 2, vol: .42 }, drums: 'chip', dv: .55, rv: .12 },
     chess: { name: 'Quiet Pawn', key: 'D', sc: 'maj', bpm: 56, meter: 3, ch7: 1, rub: .045, drift: .025, noIntroHook: 1, form: [['A', 8], ['B', 8], ['A2', 8]], prog: [1, 4, 1, 4, 6, 5, 4, 1], progB: [2, 5, 1, 6, 4, 3, 2, 5],
       melodyA: ['3 - 5 - 3 -', '6 - 4 - 3 -', '1 - 3 - 5 -', "6 - 1' - 6 -", "1' - 6 - 5 -", '5 - 7 - 5 -', "4 - 6 - 1' -", '7 - 5 - 3 -'],
       melodyB: ["2' - 1' - 6 -", "5 - 7 - 2' -", "3' - 2' - 1' -", "6 - 1' - 3' -", "4' - 3' - 1' -", '7 - 5 - 3 -', '2 - 4 - 6 -', "5 - 7 - 2' -"],
@@ -313,7 +317,7 @@
   const synthPlay = Mx.play, synthStop = Mx.stop, synthDuck = Mx.duck, volDesc = Object.getOwnPropertyDescriptor(Mx, 'vol');
   const getSrc = () => ls.get('mx_src', 'piano') === 'synth' ? 'synth' : 'piano';
   Mx.play = function (id, forceSynth) {
-    if (forceSynth || getSrc() === 'synth') { Pn.stop(true); return synthPlay.call(Mx, id); }
+    if (id === 'modelmon' || forceSynth || getSrc() === 'synth') { Pn.stop(true); return synthPlay.call(Mx, id); }
     lastOn = id; if (!getOn() || !T[id]) return; synthStop.call(Mx, true); Pn.play(id);
   };
   Mx.stop = function (quick) { Pn.stop(quick); return synthStop.call(Mx, quick); };

@@ -114,6 +114,7 @@
       try {
         let r = percents(t) || convertUnits(t) || timeZones(t) || dates(t); if (r) return r;
         const e = t.replace(/^=\s*/, '').replace(/\?$/, '').replace(/^what('s| is)\s+/i, '');
+        if (/^\d{4}-\d{1,2}(-\d{1,2})?$|^\d{1,2}-\d{1,2}-\d{4}$/.test(e)) return null;   /* a date is not a subtraction */
         if (!/^[\d\s+\-*/^().,%×÷a-z_]+$/i.test(e) || !/\d/.test(e)) return null;
         if (!/[+\-*/^×÷%]|\b(sqrt|sin|cos|tan|log|ln|abs|round|floor|ceil|exp|min|max|pow)\b/i.test(e.replace(/^-/, ''))) return null;
         if (/[a-z]{4,}/i.test(e.replace(/\b(sqrt|round|floor|ceil|pow|min|max|sin|cos|tan|log|abs|exp)\b/gi, ''))) return null;

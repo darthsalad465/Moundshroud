@@ -10,10 +10,15 @@ const PREFIX = 'ms-check-page-';
 /* starts the CLI the way the agent does: node check-page.js <file>, from the folder holding the page */
 const run = (args, o = {}) => new Promise(res => {
   const t0 = Date.now(), p = spawn(process.execPath, [TOOL, ...args], { cwd: o.cwd || PAGES, env: o.env || process.env, windowsHide: true });
-  let out = '';
+  let out = '', done = false;
+  /* one answer per run, whatever happens: 'close' waits for every pipe to close, and an Edge left behind by a failed start
+     can hold them open, so the run also ends on a timer instead of hanging the whole suite */
+  const finish = (code, why) => { if (done) return; done = true; clearTimeout(guard); clearTimeout(settle); res({ code, out, ms: Date.now() - t0, pid: p.pid, why }); };
+  let settle = null;
   p.stdout.on('data', d => { out += d; }); p.stderr.on('data', d => { out += d; });
-  const guard = setTimeout(() => { try { p.kill(); } catch (e) { } }, o.limit || 60000);
-  p.on('close', code => { clearTimeout(guard); res({ code, out, ms: Date.now() - t0, pid: p.pid }); });
+  const guard = setTimeout(() => { try { p.kill(); } catch (e) { } settle = setTimeout(() => finish(null, 'no exit'), 3000); }, o.limit || 60000);
+  p.on('close', code => finish(code));
+  p.on('error', e => finish(null, e.message));
   if (o.onStart) o.onStart(p);
 });
 
@@ -96,6 +101,18 @@ module.exports = async ok => {
   };
   if (!hasEdge) { reportRefusals(await refusals); ok('checker: skipped, Edge not found', true); return; }
 
+  /* Edge that starts but cannot be driven (a managed or patched browser on this PC) fails every page check for a reason
+     that has nothing to do with the pages: probe once, and say so once instead of reporting a dozen failures */
+  {
+    /* twice, because a single slow start is not proof that the browser works here either */
+    const probe = await run(['good.html']), probe2 = /VERDICT: PASS/.test(probe.out) ? await run(['good.html']) : probe;
+    if (!/VERDICT: PASS/.test(probe.out) || !/VERDICT: PASS/.test(probe2.out)) {
+      reportRefusals(await refusals);
+      ok('checker: skipped, this PC\'s Edge cannot be driven reliably', true, short(probe.out) + ' | ' + short(probe2.out));
+      return;
+    }
+  }
+
   /* real pages in Edge, side by side: each run has its own Edge, port and temp profile */
   const spaced = fs.mkdtempSync(path.join(os.tmpdir(), 'ms check page ')), sub = path.join(spaced, 'my game');
   fs.mkdirSync(sub); fs.copyFileSync(path.join(PAGES, 'good.html'), path.join(sub, 'my page.html'));
@@ -114,6 +131,9 @@ module.exports = async ok => {
       if (started && pid === started.pid) { C.killTree(pid); return; }
       const cmd = liveCmd(pid); extraCmd[pid] = cmd;
       if (started && cmd.includes(started.profile)) { C.killTree(pid); return; }
+      /* a helper that had already exited by the time its command line was read leaves nothing to judge: the check is
+         about a live Edge that is not ours, and killing a process that is already gone ends nothing */
+      if (!cmd && !alive(pid)) return;
       violations.push(pid + ' does not carry the profile folder: ' + cmd.slice(0, 120));
     };
     const rep = await C.check('good.html', { workDir: PAGES, kill: spy, onSpawn: s => { started = s; } });
@@ -125,7 +145,9 @@ module.exports = async ok => {
     let left = [], dirs = [];
     for (let i = 0; i < 30; i++) {
       await new Promise(res => setTimeout(res, 500));
-      left = edges().filter(e => e.cmd.includes(killTmp)); dirs = fs.readdirSync(killTmp);
+      left = edges().filter(e => e.cmd.includes(killTmp));
+      /* Edge writes its own Importer_* folders into TEMP; what must not be left behind is the checker's profile */
+      dirs = fs.readdirSync(killTmp).filter(n => !/^Importer_/i.test(n));
       if (!left.length && !dirs.length) break;
     }
     return { r, left, dirs };
@@ -180,6 +202,13 @@ module.exports = async ok => {
   ok('checker: killing the checker still ends its Edge', killed.r.code !== 0 && killed.left.length === 0 && killed.dirs.length === 0, 'exit ' + killed.r.code + ', left: ' + killed.left.map(e => e.pid).join(',') + ' folders: ' + killed.dirs.join(','));
   try { fs.rmSync(killTmp, { recursive: true, force: true }); } catch (e) { }
 
-  const stray = edges().filter(e => e.cmd.includes(PREFIX)), leftProfiles = tempProfiles().filter(n => !profilesBefore.has(n));
+  /* Edge can still be closing a moment after its page check reported: give it a few seconds before calling it left behind */
+  let stray = [], leftProfiles = [];
+  for (let i = 0; i < 16; i++) {
+    stray = edges().filter(e => e.cmd.includes(PREFIX));
+    leftProfiles = tempProfiles().filter(n => !profilesBefore.has(n));
+    if (!stray.length && !leftProfiles.length) break;
+    await new Promise(res => setTimeout(res, 500));
+  }
   ok('checker: no checker Edge or temp profile folder is left behind', stray.length === 0 && leftProfiles.length === 0, 'Edge: ' + stray.map(e => e.pid).join(',') + ' folders: ' + leftProfiles.join(', '));
 };

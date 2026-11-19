@@ -13,7 +13,8 @@
     const cv = $('pc'), cx = cv.getContext('2d'); let me, ai, ball, sc, over, raf, up = 0, dn = 0, serve;
     const reset = () => { me = H / 2 - 30; ai = H / 2 - 30; sc = [0, 0]; over = false; spawn(1); };
     const spawn = d => { ball = { x: W / 2, y: H / 2, vx: 4 * d, vy: (Math.random() * 4 - 2) }; serve = 40; };
-    const frame = () => {
+    /* one 1/60 s of play, so the ball moves at the same speed on a 60, 120 or 144 Hz screen */
+    const step = () => {
       if (!over) {
         if (up) me -= 6; if (dn) me += 6; me = Math.max(0, Math.min(H - 60, me)); const sp = +$('pl').value; const tgt = ball.y - 30; ai += Math.max(-sp, Math.min(sp, tgt - ai)) * (ball.vx > 0 ? 1 : .4); ai = Math.max(0, Math.min(H - 60, ai));
         if (serve > 0) serve--; else { ball.x += ball.vx; ball.y += ball.vy; }
@@ -23,6 +24,12 @@
         if (ball.x < -10) { sc[1]++; spawn(1); } else if (ball.x > W + 10) { sc[0]++; spawn(-1); }
         api.hud(sc[0] + ' : ' + sc[1]); if (sc[0] >= 7 || sc[1] >= 7) { over = true; if (sc[0] > sc[1]) api.submit(sc[0] - sc[1]); }
       }
+    };
+    const STEP = 1000 / 60; let last = 0, acc = 0;
+    const frame = ts => {
+      const dt = ts ? Math.min(100, ts - (last || ts)) : STEP; last = ts || last;
+      acc = over ? 0 : acc + dt;
+      for (let n = 0; acc >= STEP && !over && n < 4; n++) { acc -= STEP; step(); }
       cx.fillStyle = CSS('--panel'); cx.fillRect(0, 0, W, H); cx.strokeStyle = 'rgba(255,255,255,.15)'; cx.setLineDash([6, 8]); cx.beginPath(); cx.moveTo(W / 2, 0); cx.lineTo(W / 2, H); cx.stroke(); cx.setLineDash([]);
       cx.fillStyle = CSS('--acc'); cx.beginPath(); cx.roundRect(10, me, 8, 60, 4); cx.fill(); cx.fillStyle = CSS('--acc2'); cx.beginPath(); cx.roundRect(W - 18, ai, 8, 60, 4); cx.fill(); cx.fillStyle = '#fff'; cx.beginPath(); cx.arc(ball.x, ball.y, 6, 0, 7); cx.fill();
       cx.fillStyle = 'rgba(255,255,255,.5)'; cx.font = '700 30px Segoe UI'; cx.textAlign = 'center'; cx.fillText(sc[0], W / 2 - 40, 38); cx.fillText(sc[1], W / 2 + 40, 38);
@@ -31,18 +38,26 @@
     };
     cv.addEventListener('mousemove', e => { const r = cv.getBoundingClientRect(); me = Math.max(0, Math.min(H - 60, (e.clientY - r.top) * (H / r.height) - 30)); });
     const off = keysOn(e => { if (e.key === 'ArrowUp' || e.key === 'w') up = 1; if (e.key === 'ArrowDown' || e.key === 's') dn = 1; }); const ku = e => { if (e.key === 'ArrowUp' || e.key === 'w') up = 0; if (e.key === 'ArrowDown' || e.key === 's') dn = 0; }; document.addEventListener('keyup', ku);
-    $('pn').onclick = reset; reset(); frame(); return () => { cancelAnimationFrame(raf); off(); document.removeEventListener('keyup', ku); };
+    $('pn').onclick = reset; reset(); raf = requestAnimationFrame(frame); return () => { cancelAnimationFrame(raf); off(); document.removeEventListener('keyup', ku); };
   });
 
   /* ================= FLAP ================= */
   reg('flap', 'Flap', '🐦', 'Tap, click or press Space to flap through the gaps. Do not touch the pipes!', (el, api) => {
     const W = 360, H = 480; el.innerHTML = '<canvas id="fc" width="' + W + '" height="' + H + '" style="border:1px solid var(--line);border-radius:12px;background:#4fa8e0;max-width:100%;touch-action:none"></canvas>';
-    const cv = $('fc'), cx = cv.getContext('2d'); let y, vy, pipes, score, over, started, raf, t;
-    const reset = () => { y = H / 2; vy = 0; pipes = []; score = 0; over = false; started = false; t = 0; api.hud('Score 0'); };
-    const flap = () => { if (over) { reset(); return; } started = true; vy = -6.2; };
-    const frame = () => {
-      if (started && !over) { t++; vy += 0.38; y += vy; if (t % 88 === 1) pipes.push({ x: W, gap: [150, 120, 100][api.level] + rnd([70, 60, 45][api.level]), top: 60 + rnd(H - 260), scored: false }); pipes.forEach(p => { p.x -= [2.2, 2.6, 3.0][api.level]; if (!p.scored && p.x + 50 < 80) { p.scored = true; score++; api.hud('Score ' + score); } }); pipes = pipes.filter(p => p.x > -60);
-        if (y > H - 20 || y < 0) over = true; for (const p of pipes) if (80 + 12 > p.x && 80 - 12 < p.x + 50 && (y - 12 < p.top || y + 12 > p.top + p.gap)) over = true; if (over) api.submit(score); }
+    const cv = $('fc'), cx = cv.getContext('2d'); let y, vy, pipes, score, over, started, raf, t, last = 0, acc = 0;
+    const STEP = 1000 / 60;      // the game was tuned at 60 frames a second; stepping it in fixed slices keeps the same speed on a 30, 60, 120 or 144 Hz screen
+    const reset = () => { y = H / 2; vy = 0; pipes = []; score = 0; over = false; started = false; t = 0; last = 0; acc = 0; api.hud('Score 0'); };
+    const flap = () => { if (over) reset(); started = true; vy = -6.2; };
+    const step = () => {
+      t++; vy += 0.38; y += vy;
+      if (t % 88 === 1) { const gap = [150, 120, 100][api.level] + rnd([70, 60, 45][api.level]); pipes.push({ x: W, gap, top: 60 + rnd(Math.max(1, Math.min(279, H - 24 - gap) - 60)), scored: false }); }
+      pipes.forEach(p => { p.x -= [2.2, 2.6, 3.0][api.level]; if (!p.scored && p.x + 50 < 80) { p.scored = true; score++; api.hud('Score ' + score); } }); pipes = pipes.filter(p => p.x > -60);
+      if (y > H - 20 || y < 0) over = true; for (const p of pipes) if (80 + 12 > p.x && 80 - 12 < p.x + 50 && (y - 12 < p.top || y + 12 > p.top + p.gap)) over = true;
+      if (over) api.submit(score);
+    };
+    const frame = now => {
+      const nowT = now || performance.now(), dt = last ? Math.min(nowT - last, 100) : STEP; last = nowT;
+      if (started && !over) { acc += dt; for (let n = 0; started && !over && acc >= STEP && n < 4; n++) { step(); acc -= STEP; } }
       cx.fillStyle = '#4fa8e0'; cx.fillRect(0, 0, W, H); cx.fillStyle = 'rgba(255,255,255,.7)'; for (let i = 0; i < 4; i++) { const x = ((i * 130 - t * .5) % (W + 60)); cx.beginPath(); cx.arc(x < -40 ? x + W + 60 : x, 70 + i * 55, 22, 0, 7); cx.fill(); }
       cx.fillStyle = '#3fa65a'; pipes.forEach(p => { cx.fillRect(p.x, 0, 50, p.top); cx.fillRect(p.x, p.top + p.gap, 50, H); cx.fillStyle = '#2c8244'; cx.fillRect(p.x - 3, p.top - 14, 56, 14); cx.fillRect(p.x - 3, p.top + p.gap, 56, 14); cx.fillStyle = '#3fa65a'; });
       cx.fillStyle = '#d9b46a'; cx.fillRect(0, H - 8, W, 8); cx.save(); cx.translate(80, y); cx.rotate(Math.max(-.5, Math.min(1, vy / 10))); cx.fillStyle = '#ffd24a'; cx.beginPath(); cx.arc(0, 0, 13, 0, 7); cx.fill(); cx.fillStyle = '#fff'; cx.beginPath(); cx.arc(5, -4, 4, 0, 7); cx.fill(); cx.fillStyle = '#111'; cx.beginPath(); cx.arc(6, -4, 2, 0, 7); cx.fill(); cx.fillStyle = '#e8483f'; cx.beginPath(); cx.moveTo(10, 2); cx.lineTo(20, 5); cx.lineTo(10, 8); cx.fill(); cx.restore();

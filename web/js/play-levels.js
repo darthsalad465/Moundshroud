@@ -20,6 +20,7 @@
     mancala: D('How many moves ahead the computer looks', ['Easy', 'Normal', 'Hard']),
     backgammon: D('How well the computer chooses its moves', ['Easy', 'Normal', 'Hard']),
     hearts: D('How carefully the computer passes and plays', ['Easy', 'Normal', 'Hard']),
-    bastion: D('Starting gold, lives and how tough the enemies are', ['Easy', 'Normal', 'Hard'])
+    bastion: D('Starting gold, lives and how tough the enemies are', ['Easy', 'Normal', 'Hard']),
+    modelmon: D('How well the computer chooses its moves: relaxed, sensible, or ruthless', ['Easy', 'Normal', 'Hard'])
   });
 })();
