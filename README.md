@@ -1,5 +1,7 @@
 # Moundshroud
 
+**Install on Windows 10 or 11 (x64).** Download the `Moundshroud-Setup` executable from [GitHub Releases](https://github.com/darthsalad465/Moundshroud/releases/latest), run the setup wizard, then open **Moundshroud** from Start. You can remove it from Windows Settings under **Apps**. The installer includes the desktop window and server. Local AI chat requires Ollama and a downloaded model. The desktop edition omits ARTEX.
+
 Moundshroud is a Windows desktop assistant that brings local AI, research tools, creative work, and everyday utilities into one app. It runs its interface in Microsoft Edge app mode and uses a small Node.js server on your own PC. With Ollama and a local model installed, AI chat can run on-device. Online services are optional and controlled through the app’s settings.
 
 > **Launch tip:** If Moundshroud does not open on the first try, wait a few seconds and try launching it **two more times**. If it still will not open, run `Setup-Moundshroud.bat` again and follow the troubleshooting steps below.
