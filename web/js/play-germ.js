@@ -223,17 +223,17 @@
     const over = () => '<div class="card" style="margin-bottom:8px;border-color:' + (S.won ? 'var(--bad)' : 'var(--ok)') + '"><b>' + (S.won ? '☠️ You win in ' + S.day + ' days' + (S.best ? ' (new best!)' : '') : '💉 Humanity survived') + '</b><div class="small">' + esc(S.news[0] ? S.news[0][1] : '') + '</div><div style="margin-top:6px"><button class="pri" data-new="1">New game</button></div></div>';
     const news = () => { const n = el.querySelector('#gtnews'); if (n) n.innerHTML = S.news.slice(0, 4).map(x => '<div><span class="mute">Day ' + x[0] + ':</span> ' + esc(x[1]) + '</div>').join('') || '<div class="mute">News will appear here.</div>'; };
 
-    el.onclick = e => { const t = e.target;
+    el.onclick = async e => { const t = e.target;
       const ty = t.closest('[data-ty]'), df = t.closest('[data-df]'), go = t.closest('[data-go]'), rg = t.closest('[data-r]'), tb = t.closest('[data-tab]'), u = t.closest('[data-u]'), sp = t.closest('[data-sp]'), nw = t.closest('[data-new]'), sl = t.closest('[data-sel]');
       if (ty || df) { const nm = el.querySelector('#gtname'); if (nm) setup.name = nm.value; if (ty) setup.type = ty.dataset.ty; else setup.diff = df.dataset.df; return setupView(); }
       if (go) { const nm = el.querySelector('#gtname'); setup.name = (nm && nm.value.trim()) || 'Strain X'; S = sim.create(setup.type, setup.diff, setup.name); sel = -1; tab = 'spread'; return build(); }
-      if (nw) { if (S && S.day && !S.over && !confirm('Start a new game? This outbreak will be lost.')) return; stop(); S = null; save(); return setupView(); }
+      if (nw) { if (S && S.day && !S.over && !(await A.confirm('Start a new game? This outbreak will be lost.'))) return; stop(); S = null; save(); return setupView(); }
       if (!S) return;
       if (rg) { const i = +rg.dataset.r; if (!S.day) { sim.start(S, i); paused = false; lastSave = 0; save(); build(); run(); return; } sel = i; tab = 'world'; el.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === tab)); return paint(); }
       if (sl) { sel = +sl.dataset.sel; return paint(); }
       if (tb) { tab = tb.dataset.tab; el.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === tab)); return list(); }
       if (sp) { const n = +sp.dataset.sp; if (n === 0) paused = !paused; else { speed = n; paused = false; } run(); return paint(); }
-      if (u && !S.over) { const id = u.dataset.u; if (S.own.includes(id)) { if (sim.canRemove(S, id) && confirm('Remove ' + U[id].n + ' for 1 point?')) sim.remove(S, id); } else sim.buy(S, id); save(); return paint(); }
+      if (u && !S.over) { const id = u.dataset.u; if (S.own.includes(id)) { if (sim.canRemove(S, id) && (await A.confirm('Remove ' + U[id].n + ' for 1 point?'))) sim.remove(S, id); } else sim.buy(S, id); save(); return paint(); }
     };
     const key = e => { if (!S || !S.day || S.over || !el.isConnected || /INPUT|TEXTAREA|SELECT/.test((e.target.tagName || ''))) return; if (e.key === ' ') { e.preventDefault(); paused = !paused; run(); paint(); } else if (/^[1-3]$/.test(e.key)) { speed = +e.key; paused = false; run(); paint(); } };
     document.addEventListener('keydown', key);

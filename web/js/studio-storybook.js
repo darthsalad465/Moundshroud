@@ -196,13 +196,13 @@
 
   function selectPage(i) { if (!cur) return; pageIx = Math.max(0, Math.min(i, cur.pages.length - 1)); renderPages(); renderStage(); renderInspector(); }
 
-  function pageAction(act, i) {
+  async function pageAction(act, i) {
     if (!cur || !cur.pages[i]) return;
     if (act === 'up' && i > 0) { const p = cur.pages.splice(i, 1)[0]; cur.pages.splice(i - 1, 0, p); pageIx = i - 1; }
     else if (act === 'down' && i < cur.pages.length - 1) { const p = cur.pages.splice(i, 1)[0]; cur.pages.splice(i + 1, 0, p); pageIx = i + 1; }
     else if (act === 'del') {
-      if (cur.pages.length === 1) { if (!confirm('Delete this page? A book needs at least one page.')) return; cur.pages[0] = blankPage(cur.layout); pageIx = 0; }
-      else { if (!confirm('Delete page ' + (i + 1) + '?')) return; cur.pages.splice(i, 1); pageIx = Math.min(pageIx, cur.pages.length - 1); }
+      if (cur.pages.length === 1) { if (!(await A.confirm('Delete this page? A book needs at least one page.'))) return; cur.pages[0] = blankPage(cur.layout); pageIx = 0; }
+      else { if (!(await A.confirm('Delete page ' + (i + 1) + '?'))) return; cur.pages.splice(i, 1); pageIx = Math.min(pageIx, cur.pages.length - 1); }
     }
     touch(); renderPages(); renderStage(); renderInspector();
   }
@@ -610,7 +610,7 @@
       if (idea) return makeIdea(+idea.dataset.idea);
       if (act) {
         e.stopPropagation(); const id = act.dataset.id;
-        if (act.dataset.act === 'del') { if (!confirm('Delete this book? This cannot be undone.')) return; await store.del(id); listLibrary(); }
+        if (act.dataset.act === 'del') { if (!(await A.confirm('Delete this book? This cannot be undone.'))) return; await store.del(id); listLibrary(); }
         else if (act.dataset.act === 'dup') { const p = await store.get(id); if (p) { p.id = uid(); p.title = p.title + ' (copy)'; p.createdAt = now(); p.updatedAt = now(); await store.put(p); listLibrary(); A.toast('Made a copy'); } }
         return;
       }

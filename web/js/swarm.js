@@ -114,18 +114,18 @@
       else if (f === 's-type' && w) { w.stages[si].steps[ki].type = el.value; touch(); }
       else if (f === 'team-name' || f === 'w-name') pickers();
     });
-    b.addEventListener('click', e => {
+    b.addEventListener('click', async e => {
       const el = e.target.closest('[data-act]'); if (!el || !D) return;
       const act = el.dataset.act, t = team(), w = flow(), i = +el.dataset.i, si = +el.dataset.s, ki = +el.dataset.k;
       const firstModel = () => ((D.models.find(m => m.tools) || {}).name) || '';
       if (act === 'team-new') { const n = { id: uid('t'), name: 'New team', members: [{ id: uid('m'), name: 'Builder', role: 'builder', model: firstModel(), prompt: D.roles.builder.prompt }] }; D.teams.push(n); teamId = n.id; }
       else if (act === 'team-copy' && t) { const n = JSON.parse(JSON.stringify(t)); n.id = uid('t'); n.name = t.name + ' (copy)'; D.teams.push(n); teamId = n.id; }
-      else if (act === 'team-del' && t) { const used = D.workflows.filter(x => x.teamId === t.id); if (used.length) { A.toast('That team is used by the workflow "' + used[0].name + '". Change or delete the workflow first.'); return; } if (!confirm('Delete the team "' + t.name + '"?')) return; D.teams = D.teams.filter(x => x !== t); }
+      else if (act === 'team-del' && t) { const used = D.workflows.filter(x => x.teamId === t.id); if (used.length) { A.toast('That team is used by the workflow "' + used[0].name + '". Change or delete the workflow first.'); return; } if (!(await A.confirm('Delete the team "' + t.name + '"?'))) return; D.teams = D.teams.filter(x => x !== t); }
       else if (act === 'm-add' && t) t.members.push({ id: uid('m'), name: 'Helper ' + (t.members.length + 1), role: 'builder', model: firstModel(), prompt: D.roles.builder.prompt });
       else if (act === 'm-del' && t) { const m = t.members[i]; if (D.workflows.some(x => x.teamId === t.id && x.stages.some(g => g.steps.some(s => s.member === m.id)))) { A.toast(m.name + ' has steps in a workflow. Remove those steps first.'); return; } t.members.splice(i, 1); }
       else if (act === 'flow-new') { const tm = t || D.teams[0]; if (!tm) { A.toast('Make a team first.'); return; } const n = { id: uid('w'), name: 'New workflow', teamId: tm.id, stages: [{ name: 'Build', steps: [{ member: tm.members[0].id, type: 'agent', instruction: 'The task: {task}' }] }] }; D.workflows.push(n); flowId = n.id; }
       else if (act === 'flow-copy' && w) { const n = JSON.parse(JSON.stringify(w)); n.id = uid('w'); n.name = w.name + ' (copy)'; D.workflows.push(n); flowId = n.id; }
-      else if (act === 'flow-del' && w) { if (!confirm('Delete the workflow "' + w.name + '"?')) return; D.workflows = D.workflows.filter(x => x !== w); }
+      else if (act === 'flow-del' && w) { if (!(await A.confirm('Delete the workflow "' + w.name + '"?'))) return; D.workflows = D.workflows.filter(x => x !== w); }
       else if (act === 'g-add' && w) w.stages.push({ name: 'Stage ' + (w.stages.length + 1), steps: [] });
       else if (act === 'g-del' && w) w.stages.splice(si, 1);
       else if (act === 's-add' && w) { const tm = D.teams.find(x => x.id === w.teamId); w.stages[si].steps.push({ member: tm && tm.members[0] ? tm.members[0].id : '', type: 'agent', instruction: 'The task: {task}\n\nNotes so far:\n{notes}' }); }

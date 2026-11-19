@@ -181,7 +181,7 @@
     root.querySelector('#vtgen').onclick = () => { p.value = generate(genOpts()); p.type = 'text'; p.oninput(); };
     const h = root.querySelector('#vthist'); if (h) h.onclick = e => { e.preventDefault(); root.querySelector('#vthl').innerHTML = '<div class="card small">' + it.hist.map((o, i) => '<div style="display:flex;gap:6px;align-items:center;padding:2px 0"><code style="flex:1">••••••••</code><span class="mute">until ' + new Date(o.until).toLocaleDateString() + '</span><button class="ib" data-hc="' + i + '">Copy</button></div>').join('') + '</div>'; root.querySelectorAll('[data-hc]').forEach(b => b.onclick = () => copySecret(it.hist[+b.dataset.hc].pw, 'Earlier password')); };
     root.querySelector('#vtcancel').onclick = () => { view = 'list'; sel = null; draw(); };
-    const del = root.querySelector('#vtdel'); if (del) del.onclick = async () => { if (!confirm('Delete “' + (it.title || 'this login') + '” from the vault? The previous five versions of the vault are kept, so a mistake can still be undone from ⚙ Vault.')) return; data.items = data.items.filter(y => y.id !== it.id); if (await persist()) { A.toast('Deleted.'); view = 'list'; sel = null; draw(); } };
+    const del = root.querySelector('#vtdel'); if (del) del.onclick = async () => { if (!(await A.confirm('Delete “' + (it.title || 'this login') + '” from the vault? The previous five versions of the vault are kept, so a mistake can still be undone from ⚙ Vault.'))) return; data.items = data.items.filter(y => y.id !== it.id); if (await persist()) { A.toast('Deleted.'); view = 'list'; sel = null; draw(); } };
     root.querySelector('#vtsave').onclick = async () => {
       const v = id => root.querySelector(id).value, now = Date.now();
       const rec = { title: v('#vtt').trim(), url: v('#vtu').trim(), user: v('#vtus').trim(), pw: v('#vtp'), notes: v('#vtn'), tags: v('#vttg').trim(), fav: root.querySelector('#vtfav').checked };
@@ -255,7 +255,7 @@
     };
     const dl = (name, text, type) => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); };
     root.querySelector('#vtxe').onclick = async () => { const r = await A.api('/api/vault'); dl('Moundshroud-vault-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify(r.vault), 'application/json'); };
-    root.querySelector('#vtxc').onclick = () => { if (!confirm('The CSV file will contain every password in plain text. Anyone who opens it can read them. Export anyway?')) return; dl('passwords.csv', ['name,url,username,password,note'].concat(data.items.map(x => [x.title, x.url, x.user, x.pw, x.notes].map(csvCell).join(','))).join('\r\n'), 'text/csv'); };
+    root.querySelector('#vtxc').onclick = async () => { if (!(await A.confirm('The CSV file will contain every password in plain text. Anyone who opens it can read them. Export anyway?'))) return; dl('passwords.csv', ['name,url,username,password,note'].concat(data.items.map(x => [x.title, x.url, x.user, x.pw, x.notes].map(csvCell).join(','))).join('\r\n'), 'text/csv'); };
     const c1 = root.querySelector('#vtc1'); c1.oninput = () => { root.querySelector('#vtcs').innerHTML = meter(c1.value); };
     root.querySelector('#vtchg').onclick = async () => {
       const err = root.querySelector('#vtcerr'), cur = root.querySelector('#vtc0').value, a = c1.value, b = root.querySelector('#vtc2').value;
@@ -268,7 +268,7 @@
     A.api('/api/vault/versions').then(r => {
       const el = root.querySelector('#vtvers'); if (!el) return;
       el.innerHTML = r.versions.length ? r.versions.map(v => '<div style="display:flex;gap:6px;align-items:center;padding:2px 0"><span style="flex:1">' + new Date(v.at).toLocaleString() + '</span><button class="ib" data-old="' + v.n + '">Open this one</button></div>').join('') : 'None yet.';
-      el.querySelectorAll('[data-old]').forEach(b => b.onclick = async () => { if (!confirm('Lock the vault and open the version from ' + b.parentElement.firstChild.textContent + '? If you unlock it, it replaces the current vault (the current one stays among the earlier versions).')) return; const o = await A.api('/api/vault/older', { n: +b.dataset.old }); if (!o.vault) return A.toast('That copy could not be read.'); key = null; data = null; drawUnlock(o.vault, 'The version from ' + b.parentElement.firstChild.textContent + '.', true); });
+      el.querySelectorAll('[data-old]').forEach(b => b.onclick = async () => { if (!(await A.confirm('Lock the vault and open the version from ' + b.parentElement.firstChild.textContent + '? If you unlock it, it replaces the current vault (the current one stays among the earlier versions).'))) return; const o = await A.api('/api/vault/older', { n: +b.dataset.old }); if (!o.vault) return A.toast('That copy could not be read.'); key = null; data = null; drawUnlock(o.vault, 'The version from ' + b.parentElement.firstChild.textContent + '.', true); });
     }).catch(() => { });
   }
 

@@ -55,7 +55,7 @@
   }
   async function blank() { await flush(); cur = null; ne.value = ''; preview = false; $('npv').style.display = 'none'; ne.style.display = 'block'; bar(); $('ntitle').textContent = 'New note'; ne.focus(); draw(); }
   async function del() {
-    if (!cur) return; if (!confirm('Delete "' + cur.title + '"? This removes the file from your Assistant Notes folder.')) return;
+    if (!cur) return; if (!(await A.confirm('Delete "' + cur.title + '"? This removes the file from your Assistant Notes folder.'))) return;
     await A.api('/api/notes/delete', { id: cur.id }); cur = null; ne.value = ''; dirty = false; $('ntitle').textContent = ''; await refresh(true); A.toast('Note deleted');
   }
   ne.addEventListener('input', () => { dirty = true; $('ntitle').textContent = (cur ? cur.title : 'New note') + '  - saving...'; clearTimeout(saveT); saveT = setTimeout(async () => { await flush(); }, 900); });

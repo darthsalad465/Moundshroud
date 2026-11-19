@@ -6,7 +6,7 @@
   const close = () => { if (root) { try { A.speech.stop(); } catch (e) { } root.remove(); root = null; document.removeEventListener('keydown', onKey, true); } };
   const onKey = e => { if (e.key === 'Escape' && root) { e.stopPropagation(); close(); } };
   const bool = (k, d) => ls.get(k, d ? '1' : '0') !== '0';
-  const SECS = [['appearance', '🎨', 'Appearance'], ['voice', '🔊', 'Voice & sound'], ['buddy', '🦉', 'Your buddy'], ['persona', '🎭', 'Personality'], ['ai', '🧠', 'AI & power'], ['privacy', '🔒', 'Privacy'], ['phone', '📱', 'Phone access'], ['chess', '♟', 'Chess'], ['games', '🎮', 'Games & cards'], ['help', '🧭', 'Walkthroughs & help'], ['data', '💾', 'Backup & data'], ['keys', '⌨', 'Shortcuts & about']];
+  const SECS = [['offline', '🛡️', 'Offline & Air-Gap'], ['appearance', '🎨', 'Appearance'], ['voice', '🔊', 'Voice & sound'], ['buddy', '🦉', 'Your buddy'], ['persona', '🎭', 'Personality'], ['ai', '🧠', 'AI & power'], ['privacy', '🔒', 'Privacy'], ['phone', '📱', 'Phone access'], ['chess', '♟', 'Chess'], ['games', '🎮', 'Games & cards'], ['help', '🧭', 'Walkthroughs & help'], ['data', '💾', 'Backup & data'], ['keys', '⌨', 'Shortcuts & about']];
   /* the same list the shortcut sheet is built from, so the two can never disagree */
   const keySheet = () => (A.keys && A.keys.help) ? A.keys.help() : A.settings.open('keys');
   const row = (label, desc, ctl, kw) => '<div class="sxrow" data-k="' + esc((label + ' ' + desc + ' ' + (kw || '')).toLowerCase()) + '" style="display:flex;gap:14px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)"><div style="flex:1;min-width:0"><b>' + label + '</b>' + (desc ? '<div class="small mute" style="margin-top:3px;line-height:1.45">' + desc + '</div>' : '') + '</div><div style="flex:none;max-width:56%;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">' + ctl + '</div></div>';
@@ -36,6 +36,47 @@
     const vopts = vOpts(voices, want, '', ''), accs = Array.from(new Set(voices.map(vacc))).sort(accSort);
     const buddies = A.companion && A.companion.buddies ? A.companion.buddies() : [], bcur = A.companion && A.companion.current ? A.companion.current() : 0;
     let h = '';
+    h += sec('offline', '🛡️', 'Offline & Air-Gap',
+      '<div class="sxrow" data-k="offline airgap air-gap kill switch shut down disconnect wifi wi-fi ethernet internet block all app computer pc network airplane mode" style="display:block;padding:14px 16px">' +
+      '<style>' +
+        '.off-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:12px}' +
+        '.off-card{padding:14px 15px;border-radius:14px;border:1.5px solid var(--line);background:var(--panel2);display:flex;flex-direction:column;gap:8px;transition:border-color .18s,background-color .18s}' +
+        '.off-card.on{border-color:#10b981;background:color-mix(in srgb,#10b981 10%,var(--panel2))}' +
+        '.off-card.pc.on{border-color:#f59e0b;background:color-mix(in srgb,#f59e0b 11%,var(--panel2))}' +
+        '.off-hd{display:flex;align-items:center;justify-content:space-between;gap:10px}' +
+        '.off-title{display:flex;align-items:center;gap:9px;min-width:0}' +
+        '.off-ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:18px;background:rgba(148,163,184,.14);flex:none}' +
+        '.off-pill{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:rgba(148,163,184,.16);color:var(--mute)}' +
+        '.off-card.on .off-pill{background:rgba(16,185,129,.22);color:#34d399}' +
+        '.off-card.pc.on .off-pill{background:rgba(245,158,11,.24);color:#fbbf24}' +
+        '.off-sw{position:relative;display:inline-block;width:46px;height:26px;flex:none;cursor:pointer}' +
+        '.off-sw input{opacity:0;width:0;height:0;position:absolute}' +
+        '.off-sl{position:absolute;inset:0;border-radius:999px;background:rgba(148,163,184,.32);transition:background-color .18s}' +
+        '.off-sl::before{content:"";position:absolute;left:3px;top:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.35);transition:transform .18s}' +
+        '.off-sw input:checked + .off-sl{background:#10b981}' +
+        '.off-card.pc .off-sw input:checked + .off-sl{background:#f59e0b}' +
+        '.off-sw input:checked + .off-sl::before{transform:translateX(20px)}' +
+        '.off-sw input:disabled + .off-sl{opacity:.55;cursor:wait}' +
+      '</style>' +
+      '<div class="off-grid">' +
+        '<div class="off-card" id="off-app-card">' +
+          '<div class="off-hd">' +
+            '<div class="off-title"><div class="off-ic">🛡️</div><div><b style="font-size:14px;display:block">Shut App Offline</b><span class="off-pill" id="off-app-pill">Checking…</span></div></div>' +
+            '<label class="off-sw" title="Block every outbound internet connection inside Moundshroud"><input type="checkbox" id="off-app-sw"><span class="off-sl"></span></label>' +
+          '</div>' +
+          '<div class="small mute" style="line-height:1.45">Hard-blocks every outbound request inside Moundshroud (Web, News, Markets, Radio, TV/YouTube, Cloud AI, Mail, Lichess &amp; live 3D Globe feeds). Local Ollama AI, your files, offline library &amp; downloaded 3D Globe regions keep working.</div>' +
+          '<div class="small mute" id="off-app-meta" style="font-size:11px"></div>' +
+        '</div>' +
+        '<div class="off-card pc" id="off-pc-card">' +
+          '<div class="off-hd">' +
+            '<div class="off-title"><div class="off-ic">✈️</div><div><b style="font-size:14px;display:block">Shut Computer Totally Offline</b><span class="off-pill" id="off-pc-pill">Checking…</span></div></div>' +
+            '<label class="off-sw" title="Disable all physical Wi-Fi and Ethernet adapters on this PC"><input type="checkbox" id="off-pc-sw"><span class="off-sl"></span></label>' +
+          '</div>' +
+          '<div class="small mute" style="line-height:1.45">Disables every physical Wi-Fi and Ethernet adapter in Windows so nothing on your PC can access the internet. Flip it back off to automatically re-enable the exact adapters that were active.</div>' +
+          '<div class="small mute" id="off-pc-meta" style="font-size:11px"></div>' +
+        '</div>' +
+      '</div>' +
+      '</div>');
     h += sec('appearance', '🎨', 'Appearance', row('New look: sidebar and drawn icons', 'Pages are listed in a sidebar at the left, with one drawn icon each, and the page sits on a rounded sheet. Turn this off to get the row of tabs across the top back. It applies to the Modern interface style; the other styles keep their own layout.', tog('shroud', ls.get('shroud', '1') !== '0'), 'new look sidebar rail icons classic tabs top bar layout shroud') + row('Gliding tabs in the classic look', 'Only used while the new look above is off: the gliding tab marker and a different look for each area. Turn this off if anything seems wrong with the top bar. (Add ?classic to the address to force it from outside.)', tog('nopro', ls.get('nopro', '0') !== '1'), 'classic polish top bar tabs look modern') + row('Group pages into menus', 'Fold related pages into four menus (Office, Education, Personal, Entertainment) so the list is shorter. Turn off to see every page in one list.', tog('navgroups', ls.get('navgroups', '1') !== '0'), 'tabs menus group top bar sidebar nav office education personal entertainment') + row('Alphabetical order', 'Show catalogues and contents (the Guide, games, books, openings, languages, library categories) in A to Z order. Takes effect the next time you reload Moundshroud.', tog('alpha', ls.get('alpha', '1') !== '0'), 'alphabetical order sort az contents') + row('Customize everything', 'Fonts, text size, spacing, corners, accent colour, contrast, animation and more.', '<button class="pri" data-a="cust">Open customizer</button>', 'font zoom size spacing corners accent contrast') +
       row('Motion', 'How much Moundshroud moves: the cross-fade between pages, the lift when you hover a card, the loading bar and the small touches on buttons. <b>Subtle</b> keeps everything but calmer, and is what Windows asks for when you have animations turned off. <b>Off</b> leaves the app perfectly still - nothing moves, but colours and highlights still tell you what is happening.', '<div id="smot" style="display:flex;gap:6px"></div><button class="ib" data-a="replayboot" title="Watch the Moundshroud opening sequence again">✨ Replay intro</button>', 'motion animation transition speed reduced movement accessibility still smooth intro boot splash') +
       (TH && TH.styles ? '<div class="sxrow" data-k="interface style shape animation" style="display:block"><div style="padding:2px 0 8px"><b>Interface style</b> <span class="small mute">how the app is shaped and animated</span></div><div id="sst" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:4px">' + TH.styles.map(s => '<button class="stl' + (s.id === curStyle ? ' on' : '') + '" data-s="' + s.id + '" title="' + esc(s.note) + '" style="text-align:left;padding:10px 12px;border-radius:12px;border:2px solid ' + (s.id === curStyle ? 'var(--acc)' : 'var(--line)') + ';background:var(--panel2);color:var(--text)"><div class="row" style="justify-content:space-between;margin-bottom:4px"><span style="font-size:20px;line-height:1">' + esc(s.icon) + '</span><span class="small" style="color:var(--acc);font-weight:700">' + (s.id === curStyle ? '✓' : '') + '</span></div><b style="font-size:13.5px;display:block">' + esc(s.name) + '</b><span class="small mute" style="display:block;font-size:11.5px;line-height:1.35;margin-top:2px">' + esc(s.note) + '</span></button>').join('') + '</div></div>' : '') +
@@ -111,13 +152,14 @@
     h += sec('data', '💾', 'Backup & data',
       row('Back up everything', 'One zip with your notes, flashcards, chats, prompts, reminders and everything Moundshroud remembers (settings, progress, chess careers, scores, favourites, playlists). Choose where to save it, such as an external drive.', '<button class="pri" data-a="fullbak">Back up now</button>', 'backup export full everything save') +
       row('Share this app', 'Create a portable zip of the current Moundshroud version (code only, no personal data) that your friends can unzip and run. Includes the server, web UI, and all built-in features.', '<button class="ib" data-a="shareapp">Create shareable zip</button><span class="small mute" id="shareappstatus" style="margin-left:10px"></span>', 'share app export portable zip send friend') +
-      (isAuthor ? row('Push to GitHub', 'Commit all changes and push to the configured Git remote (usually origin on GitHub). Shows the repo URL after pushing. Useful after the AI made edits you want to share or back up remotely.', '<button class="ib" data-a="gitpush">Push to GitHub</button><span class="small mute" id="gitpushstatus" style="margin-left:10px"></span>', 'git push github remote commit') : '') +
+      (isAuthor ? row('Push to GitHub', 'Commit all changes and push to the configured Git remote (usually origin on GitHub). Shows the repo URL after pushing. If GitHub\'s copy has a different history for the branch (for example commits that were amended on this PC), the push replaces it with this PC\'s version instead of failing.', '<button class="ib" data-a="gitpush">Push to GitHub</button><span class="small mute" id="gitpushstatus" style="margin-left:10px"></span>', 'git push github remote commit') : '') +
       row('Auto-commit changes to git', 'When an assistant finishes a turn, your changes to Moundshroud’s code are saved to git on this PC, so work is never lost. Turn it off to stop the automatic commits.', '<label class="chk" style="margin:0;gap:7px"><input type="checkbox" id="sacommit"> <span class="small mute">On</span></label>', 'auto commit git version control backup history save changes undo') +
       row('About this version', '<span id="aboutver">Moundshroud ' + A.version + ' (built ' + A.built + ')</span>. ' + (() => { const t = A.selftest && A.selftest.last(); return t ? 'Last self-test: ' + new Date(t.at).toLocaleDateString() + ', ' + t.checks + ' checks, ' + (t.bad ? t.bad + ' need attention' : 'all passed') + '.' : 'No self-test has been run yet.'; })(), '', 'about version build') +
       row('Updates', '<div id="updbox" class="small mute">Reading…</div>', '', 'update updates newer new version upgrade download install') +
       row('Run a self-test', 'Opens every tab and page in turn, and checks that the files and the local services respond. Takes about a minute. Run it after any update.', '<button class="ib" data-a="selftest">Run the test</button>', 'test check health diagnose broken errors') +
       row('Problems &amp; crash log', 'Whenever something fails, the reason is written to <code>data\\problems.log</code> on this PC (never sent anywhere) and the app keeps running instead of closing. Open it to see what happened, or copy it to send on when a page misbehaves.', '<button class="ib" data-a="problems">Show</button>', 'problems crash log error diagnose bug report') +
       row('Restore from a backup', 'Choose a full backup (or an older Moundshroud backup). Matching items are replaced; anything not in the backup is left alone.', '<button class="ib" data-a="restore">Choose a backup</button>', 'restore import') +
+      row('Check a backup without restoring it', 'Read the archive and verify its checksums without changing your current files or settings.', '<button class="ib" data-a="verifybackup">Choose a backup to check</button>', 'verify check backup integrity test rehearsal') +
       row('Where is my disk space going?', 'Storage report for the app, library and models.', '<button class="ib" data-a="storage">Open</button>', 'storage disk') +
       row('Reset chess data', 'Clears your saved chess games, ratings, daily games, clubs and friends. Cannot be undone.', '<button class="ib dang" data-a="resetchess">Reset chess</button>', 'reset chess ratings clubs'));
     h += sec('keys', '⌨', 'Shortcuts & about',
@@ -187,6 +229,134 @@
       A.toast(r.linked ? ('Added ' + r.linked + ' new model' + (r.linked === 1 ? '' : 's') + ' to LM Studio.') : ('LM Studio is up to date (' + (r.synced || 0) + ' models).'));
     };
   }
+  /* ---------- Header Offline Status Pill + Settings Dual Kill-Switches ---------- */
+  function syncHeaderOfflinePill(st) {
+    const hdr = document.querySelector('header');
+    if (!hdr) return;
+    let pill = document.getElementById('oa-off-pill');
+    const appOff = !!(st && st.appOffline);
+    const pcOff = !!(st && st.pcOffline);
+    if (!appOff && !pcOff) {
+      if (pill) pill.remove();
+      return;
+    }
+    if (!pill) {
+      pill = document.createElement('button');
+      pill.id = 'oa-off-pill';
+      pill.type = 'button';
+      pill.className = 'ib';
+      pill.style.cssText = 'font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap';
+      pill.onclick = () => open('offline');
+      const cog = document.getElementById('cog');
+      if (cog && cog.parentNode) cog.parentNode.insertBefore(pill, cog);
+      else hdr.appendChild(pill);
+    }
+    if (pcOff) {
+      pill.style.background = 'rgba(245,158,11,.22)';
+      pill.style.borderColor = 'rgba(251,191,36,.65)';
+      pill.style.color = '#fbbf24';
+      pill.textContent = appOff ? '✈️ PC + APP OFFLINE' : '✈️ PC OFFLINE';
+      pill.title = 'This PC is air-gapped offline. Click to manage Offline & Air-Gap switches.';
+    } else {
+      pill.style.background = 'rgba(16,185,129,.22)';
+      pill.style.borderColor = 'rgba(52,211,153,.65)';
+      pill.style.color = '#34d399';
+      pill.textContent = '🛡️ APP OFFLINE';
+      pill.title = 'Moundshroud App Offline Lockdown is ON. Click to manage.';
+    }
+  }
+
+  async function initOfflineSwitches($$, onPrivacyRefresh) {
+    const appSw = $$('#off-app-sw'), appCard = $$('#off-app-card'), appPill = $$('#off-app-pill'), appMeta = $$('#off-app-meta');
+    const pcSw = $$('#off-pc-sw'), pcCard = $$('#off-pc-card'), pcPill = $$('#off-pc-pill'), pcMeta = $$('#off-pc-meta');
+    if (!appSw || !pcSw) return;
+
+    const render = st => {
+      if (!st) return;
+      syncHeaderOfflinePill(st);
+      const aOn = !!st.appOffline;
+      appSw.checked = aOn;
+      if (appCard) appCard.classList.toggle('on', aOn);
+      if (appPill) appPill.textContent = aOn ? 'APP AIR-GAPPED' : 'NORMAL';
+      if (appMeta) appMeta.textContent = aOn
+        ? ('All external app connections blocked' + (st.blockedCount ? ' (' + st.blockedCount + ' blocked this session)' : '') + ' · Localhost active')
+        : 'App follows your normal per-feature internet switches below.';
+
+      const pOn = !!st.pcOffline;
+      pcSw.checked = pOn;
+      pcSw.disabled = st.supported === false;
+      if (pcCard) pcCard.classList.toggle('on', pOn);
+      if (pcPill) pcPill.textContent = st.supported === false ? 'WINDOWS ONLY' : (pOn ? 'PC AIR-GAPPED' : 'ONLINE');
+      if (pcMeta) {
+        const ads = Array.isArray(st.adapters) ? st.adapters : [];
+        if (st.supported === false) pcMeta.textContent = 'PC-wide network shutoff requires Windows.';
+        else if (!ads.length) pcMeta.textContent = 'No physical Wi-Fi/Ethernet adapters detected.';
+        else pcMeta.textContent = 'Adapters: ' + ads.map(a => a.name + ' (' + a.status + ')').join(' · ');
+      }
+    };
+
+    const load = async () => {
+      try {
+        const r = await fetch('/api/offline/status');
+        if (!r.ok) throw new Error('restart');
+        render(await r.json());
+      } catch (e) {
+        if (appPill) appPill.textContent = 'RESTART APP';
+        if (pcPill) pcPill.textContent = 'RESTART APP';
+        if (appMeta) appMeta.textContent = 'Restart Moundshroud once to activate Offline Lockdown controls.';
+      }
+    };
+    load();
+
+    appSw.onchange = async () => {
+      const want = appSw.checked;
+      appSw.disabled = true;
+      try {
+        const r = await fetch('/api/offline/app', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ offline: want }) });
+        if (!r.ok) throw new Error('Restart Moundshroud once to activate App Offline Lockdown.');
+        const d = await r.json();
+        await load();
+        if (onPrivacyRefresh) onPrivacyRefresh();
+        A.toast(want ? '🛡️ App Offline Lockdown ON — zero external traffic can leave Moundshroud.' : 'App Offline Lockdown OFF — normal settings restored.', 5000);
+      } catch (err) {
+        appSw.checked = !want;
+        A.toast(err.message || 'Could not change App Offline Lockdown.', 5000);
+      } finally {
+        appSw.disabled = false;
+      }
+    };
+
+    pcSw.onchange = async () => {
+      const want = pcSw.checked;
+      if (want) {
+        const ok = await A.confirm(
+          'Disable all physical Wi-Fi and Ethernet adapters on this computer so the entire PC goes completely offline? (Windows may show an Administrator UAC prompt. Local Moundshroud AI, your files, offline library & downloaded 3D Globe regions will keep working. Toggle this switch back off anytime to reconnect.)',
+          { title: 'Shut Computer Totally Offline' }
+        );
+        if (!ok) { pcSw.checked = false; return; }
+      }
+      pcSw.disabled = true;
+      if (pcPill) pcPill.textContent = want ? 'DISCONNECTING…' : 'RECONNECTING…';
+      try {
+        const r = await fetch('/api/offline/pc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ offline: want }) });
+        if (!r.ok) throw new Error('Restart Moundshroud once to activate PC Offline controls.');
+        const d = await r.json();
+        render(Object.assign({ appOffline: appSw.checked }, d));
+        if (!d.ok) {
+          A.toast(d.error || 'Could not change PC network adapters.', 6000);
+        } else {
+          A.toast(d.note || (want ? '✈️ This PC is now completely offline.' : '🌐 PC network adapters re-enabled.'), 6000);
+        }
+      } catch (err) {
+        pcSw.checked = !want;
+        A.toast(err.message || 'Could not change PC network state.', 5500);
+        load();
+      } finally {
+        pcSw.disabled = false;
+      }
+    };
+  }
+
   function open(sectionId) {
     close(); root = document.createElement('div'); root.id = 'setx'; root.style.cssText = 'position:fixed;inset:0;z-index:150;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:2vh 2vw';
     const initSec = sectionId || SECS[0][0], initLabel = (SECS.find(s => s[0] === initSec) || SECS[0])[2];
@@ -376,7 +546,7 @@
       else if (e.target.id === 'cmodel') {
         const val = e.target.value;
         if (val === '') {
-          const custom = prompt('Enter custom model ID (e.g., "deepseek-ai/DeepSeek-V3" or "gemini-2.5-pro"):');
+          const custom = (await A.prompt('Enter custom model ID (e.g., "deepseek-ai/DeepSeek-V3" or "gemini-2.5-pro"):'));
           if (custom) {
             e.target.value = custom;
             cset({ model: custom });
@@ -440,7 +610,7 @@
       else if (e.target.id === 'nkmodel') {
         const val = e.target.value;
         if (val === '') {
-          const custom = prompt('Enter custom model ID (e.g., "deepseek-ai/DeepSeek-V3" or "gemini-2.5-pro"):');
+          const custom = (await A.prompt('Enter custom model ID (e.g., "deepseek-ai/DeepSeek-V3" or "gemini-2.5-pro"):'));
           if (custom) {
             e.target.value = custom;
             nkset({ model: custom });
@@ -478,6 +648,7 @@
         hk.onchange = async () => { const r = await A.api('/api/harness/kind', { kind: hk.value }); if (r.ok) { st.textContent = ''; A.toast('Agent harness: ' + hname(hk.value)); } else { A.toast(r.error || 'Could not switch.'); const g = await A.api('/api/harness/kind'); hk.value = g.kind; } };
       } }
     if (A.privacyPage) A.privacyPage($$('#prvbox'), cset);
+    initOfflineSwitches($$, () => { if (A.privacyPage) A.privacyPage($$('#prvbox'), cset); const cw = $$('#cweb'); if (cw) A.api('/api/cloud').then(st => { if (st) cw.checked = !!st.web; }).catch(() => {}); });
     if (A.remotePage) A.remotePage($$('#rmbox'));
     /* the version is read from the VERSION file on disk (one place to change it). Updates live in updates.js (Settings › Backup & data › Updates);
        the old "releases folder" check below stays for copies with no update source. */
@@ -488,15 +659,15 @@
       const b = e.target.closest('[data-a]'); if (!b) return; const a = b.dataset.a;
       if (a === 'vtest') test(); else if (a === 'cust') { A.custom && A.custom.open(); } else if (a === 'replayboot') { close(); if (window.OA_REPLAY_BOOT) window.OA_REPLAY_BOOT(); } else if (a === 'sounds') { close(); A.showTab('play'); setTimeout(() => { const s = document.querySelector('#plsub [data-s=sounds]'); s && s.click(); }, 400); }
       else if (a === 'wake') { wakeSet(b); }
-      else if (a === 'cvox') { A.cvoice.auto = !A.cvoice.auto; b.textContent = A.cvoice.auto ? 'On' : 'Off'; } else if (a === 'cnote') { const v = A.chessNotify ? A.chessNotify.toggle() : ls.get('cmnote', '1') === '0'; if (!A.chessNotify) ls.set('cmnote', v ? '1' : '0'); b.textContent = 'Message alerts: ' + (v ? 'On' : 'Off'); } else if (a === 'ccai') { ls.set('cmai', ls.get('cmai', '1') !== '0' ? '0' : '1'); b.textContent = 'AI chatter: ' + (ls.get('cmai', '1') !== '0' ? 'On' : 'Off'); } else if (a === 'cbak') { const blob = new Blob([A.chars.backup()], { type: 'application/json' }), u = URL.createObjectURL(blob), l = document.createElement('a'); l.href = u; l.download = 'moundshroud-characters-' + new Date().toISOString().slice(0, 10) + '.json'; l.click(); setTimeout(() => URL.revokeObjectURL(u), 3000); } else if (a === 'cimp') { const f = document.createElement('input'); f.type = 'file'; f.accept = '.json'; f.onchange = async () => { try { A.chars.restore(await f.files[0].text()); A.toast('Restored. Reload Moundshroud to see everything.', 5000); } catch (er) { A.toast('That file could not be read.'); } }; f.click(); } else if (a === 'chars') { close(); A.chars.manage(); } else if (a === 'forgetchars') { if (confirm('Every character will forget everything about you: facts, shared history and relationships. Continue?')) { A.chars.forgetAll(); A.toast('All characters have forgotten you.'); } } else if (a === 'buddychat') { close(); A.buddy && A.buddy.open(); } else if (a === 'buddytrick') { close(); if (A.companion && A.companion.doTrick) A.companion.doTrick(); } else if (a === 'cset') openChessTab('settings'); else if (a === 'lab') openChessTab('lab');
+      else if (a === 'cvox') { A.cvoice.auto = !A.cvoice.auto; b.textContent = A.cvoice.auto ? 'On' : 'Off'; } else if (a === 'cnote') { const v = A.chessNotify ? A.chessNotify.toggle() : ls.get('cmnote', '1') === '0'; if (!A.chessNotify) ls.set('cmnote', v ? '1' : '0'); b.textContent = 'Message alerts: ' + (v ? 'On' : 'Off'); } else if (a === 'ccai') { ls.set('cmai', ls.get('cmai', '1') !== '0' ? '0' : '1'); b.textContent = 'AI chatter: ' + (ls.get('cmai', '1') !== '0' ? 'On' : 'Off'); } else if (a === 'cbak') { const blob = new Blob([A.chars.backup()], { type: 'application/json' }), u = URL.createObjectURL(blob), l = document.createElement('a'); l.href = u; l.download = 'moundshroud-characters-' + new Date().toISOString().slice(0, 10) + '.json'; l.click(); setTimeout(() => URL.revokeObjectURL(u), 3000); } else if (a === 'cimp') { const f = document.createElement('input'); f.type = 'file'; f.accept = '.json'; f.onchange = async () => { try { A.chars.restore(await f.files[0].text()); A.toast('Restored. Reload Moundshroud to see everything.', 5000); } catch (er) { A.toast('That file could not be read.'); } }; f.click(); } else if (a === 'chars') { close(); A.chars.manage(); } else if (a === 'forgetchars') { if ((await A.confirm('Every character will forget everything about you: facts, shared history and relationships. Continue?'))) { A.chars.forgetAll(); A.toast('All characters have forgotten you.'); } } else if (a === 'buddychat') { close(); A.buddy && A.buddy.open(); } else if (a === 'buddytrick') { close(); if (A.companion && A.companion.doTrick) A.companion.doTrick(); } else if (a === 'cset') openChessTab('settings'); else if (a === 'lab') openChessTab('lab');
       else if (a.startsWith('walk:')) { close(); setTimeout(() => A.walk && A.walk.start(a.slice(5)), 250); }
       else if (a === 'present') { close(); A.tutorial && A.tutorial.resume(); } else if (a === 'guide') { close(); A.showTab('guide'); } else if (a === 'storage') { const g = $$('#stghost'); if (g) g.scrollIntoView({ behavior: 'smooth' }); }
-      else if (a === 'clrchat') { if (!confirm('Delete every saved chat?')) return; await A.api('/api/chats', []); close(); location.reload(); }
+      else if (a === 'clrchat') { if (!(await A.confirm('Delete every saved chat?'))) return; await A.api('/api/chats', []); close(); location.reload(); }
       else if (a === 'resethelp') { ls.set('play_help_seen', '[]'); A.toast('Game tutorials will show again.'); }
       else if (a === 'personareset') { const t = $$('#spersona'); if (t) t.value = ''; ls.set('persona', ''); A.toast('Personality cleared. The assistant is back to its normal self.'); }
       else if (a === 'mem') { close(); try { A.memory.manage(); } catch (er) { A.toast('What the assistant remembers is not loaded: reload Moundshroud.'); } }
-      else if (a === 'resetchess') { if (!confirm('Reset ALL chess data: games, ratings, daily games, clubs and friends? This cannot be undone.')) return; ['chgames', 'chonline', 'chdaily', 'chsocial', 'chprof', 'chstudy', 'chrush', 'chtour', 'chlearn', 'chrate'].forEach(k => ls.set(k, '')); A.toast('Chess data cleared.'); }
-      else if (a === 'restore') { A.backup.pick(); } else if (a === 'fullbak') { A.backup.make(); } else if (a === 'shareapp') { const st = $$('#shareappstatus'); if (st) st.textContent = 'Creating zip…'; A.toast('Creating shareable app zip…', 4000); try { const r = await fetch('/api/app/share', { method: 'POST' }); if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || 'Server error ' + r.status); } const blob = await r.blob(); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'Moundshroud-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '.zip'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 10000); if (st) st.textContent = '✅ Ready — sent to your Downloads'; A.toast('Shareable app zip downloaded!', 6000); } catch (e) { if (st) st.textContent = '❌ ' + e.message; A.toast('Share failed: ' + e.message, 8000); } } else if (a === 'gitpush') { const st = $$('#gitpushstatus'); if (st) st.textContent = 'Pushing…'; A.toast('Pushing to GitHub…', 4000); try { const r = await A.api('/api/git/push', { addAll: true, message: 'Auto-commit from Moundshroud: ' + new Date().toISOString().slice(0, 19).replace('T', ' ') }); if (r.ok && r.repo) { if (st) st.innerHTML = '✅ Pushed to <a href="' + esc(r.repo) + '" target="_blank" rel="noopener noreferrer">' + esc(r.repo) + '</a> (' + esc(r.branch) + ')'; A.toast('Pushed to ' + r.repo + ' (' + r.branch + ')', 8000); } else if (r.ok && !r.hadChanges) { if (st) st.textContent = '✅ Nothing to commit — working tree clean'; A.toast('Nothing to commit', 5000); } else { if (st) st.textContent = '❌ ' + (r.error || 'Push failed'); A.toast('Push failed: ' + (r.error || 'unknown error'), 8000); } } catch (e) { if (st) st.textContent = '❌ ' + e.message; A.toast('Push error: ' + e.message, 8000); } } else if (a === 'selftest') { A.selftest.run(); } else if (a === 'keys') { keySheet(); } else if (a === 'webtest') { const st = await A.api('/api/cloud'); if (!st.web) return A.toast('Switch internet access on first (the tick box on the left).', 5000); const q = prompt('What should Moundshroud search the web for?', 'today\'s news'); if (!q) return; A.toast('Searching...', 4000); const r = await A.api('/api/net/search', { q: q, n: 5 }); const list = (r.results || []); if (r.error) return A.toast(r.error, 6000); A.dlg('<div class="hd"><b>Web search: ' + esc(q) + '</b></div><div class="bd">' + (list.length ? list.map(x => '<div style="padding:6px 0;border-bottom:1px solid var(--line)"><b>' + esc(x.title) + '</b> <span class="small mute">' + esc(x.source || '') + '</span><div class="small mute" style="overflow-wrap:anywhere">' + esc(x.url) + '</div><div class="small" style="margin-top:3px">' + esc((x.snippet || '').slice(0, 220)) + '</div></div>').join('') : '<div class="small mute">Nothing came back. The connection may be down.</div>') + '<div class="small mute" style="margin-top:10px">This is what the chat sees and cites when the &#127760; Web box is ticked.</div></div>'); }
+      else if (a === 'resetchess') { if (!(await A.confirm('Reset ALL chess data: games, ratings, daily games, clubs and friends? This cannot be undone.'))) return; ['chgames', 'chonline', 'chdaily', 'chsocial', 'chprof', 'chstudy', 'chrush', 'chtour', 'chlearn', 'chrate'].forEach(k => ls.set(k, '')); A.toast('Chess data cleared.'); }
+      else if (a === 'restore') { A.backup.pick(); } else if (a === 'verifybackup') { A.backup.verifyPick(); } else if (a === 'fullbak') { A.backup.make(); } else if (a === 'shareapp') { const st = $$('#shareappstatus'); if (st) st.textContent = 'Creating zip…'; A.toast('Creating shareable app zip…', 4000); try { const r = await fetch('/api/app/share', { method: 'POST' }); if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || 'Server error ' + r.status); } const blob = await r.blob(); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'Moundshroud-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '.zip'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 10000); if (st) st.textContent = '✅ Ready — sent to your Downloads'; A.toast('Shareable app zip downloaded!', 6000); } catch (e) { if (st) st.textContent = '❌ ' + e.message; A.toast('Share failed: ' + e.message, 8000); } } else if (a === 'gitpush') { const st = $$('#gitpushstatus'); if (st) st.textContent = 'Pushing…'; A.toast('Pushing to GitHub…', 4000); try { const r = await A.api('/api/git/push', { addAll: true, message: 'Auto-commit from Moundshroud: ' + new Date().toISOString().slice(0, 19).replace('T', ' ') }); if (r.ok && r.repo) { if (st) st.innerHTML = '✅ Pushed to <a href="' + esc(r.repo) + '" target="_blank" rel="noopener noreferrer">' + esc(r.repo) + '</a> (' + esc(r.branch) + (r.forced ? ' · GitHub history updated to match this PC' : '') + ')'; A.toast('Pushed to ' + r.repo + ' (' + r.branch + (r.forced ? ', history updated' : '') + ')', 8000); } else if (r.ok && !r.hadChanges) { if (st) st.textContent = '✅ Nothing to commit — working tree clean'; A.toast('Nothing to commit', 5000); } else { if (st) st.textContent = '❌ ' + (r.error || 'Push failed'); A.toast('Push failed: ' + (r.error || 'unknown error'), 8000); } } catch (e) { if (st) st.textContent = '❌ ' + e.message; A.toast('Push error: ' + e.message, 8000); } } else if (a === 'selftest') { A.selftest.run(); } else if (a === 'keys') { keySheet(); } else if (a === 'webtest') { const st = await A.api('/api/cloud'); if (!st.web) return A.toast('Switch internet access on first (the tick box on the left).', 5000); const q = (await A.prompt('What should Moundshroud search the web for?', 'today\'s news')); if (!q) return; A.toast('Searching...', 4000); const r = await A.api('/api/net/search', { q: q, n: 5 }); const list = (r.results || []); if (r.error) return A.toast(r.error, 6000); A.dlg('<div class="hd"><b>Web search: ' + esc(q) + '</b></div><div class="bd">' + (list.length ? list.map(x => '<div style="padding:6px 0;border-bottom:1px solid var(--line)"><b>' + esc(x.title) + '</b> <span class="small mute">' + esc(x.source || '') + '</span><div class="small mute" style="overflow-wrap:anywhere">' + esc(x.url) + '</div><div class="small" style="margin-top:3px">' + esc((x.snippet || '').slice(0, 220)) + '</div></div>').join('') : '<div class="small mute">Nothing came back. The connection may be down.</div>') + '<div class="small mute" style="margin-top:10px">This is what the chat sees and cites when the &#127760; Web box is ticked.</div></div>'); }
       else if (a === 'update') { about().then(r => { if (!r) return A.toast('The version could not be read.'); if (r.offers && r.offers.length) A.toast('Version ' + r.offers[0].version + ' is in the releases folder. Quit Moundshroud from the tray, unzip that copy over this folder (keep your data folder), then start it again.', 14000); else A.toast('You are on the newest version (' + r.version + ').', 5000); }); } else if (a === 'problems') { close(); if (A.problems) A.problems.open(); else A.toast('The problem log is not loaded: reload Moundshroud.'); }
     });
     if (sectionId) setTimeout(() => { const s = body.querySelector('[data-sec=' + sectionId + ']'); if (s) body.scrollTo({ top: s.offsetTop - 8 }); }, 50);
@@ -665,7 +836,7 @@
       else if (e.target.id === 'cmodel') {
         const val = e.target.value;
         if (val === '') {
-          const custom = prompt('Enter custom model ID (e.g., "deepseek-ai/DeepSeek-V3" or "gemini-2.5-pro"):');
+          const custom = (await A.prompt('Enter custom model ID (e.g., "deepseek-ai/DeepSeek-V3" or "gemini-2.5-pro"):'));
           if (custom) {
             e.target.value = custom;
             cset({ model: custom });
@@ -729,7 +900,7 @@
       else if (e.target.id === 'nkmodel') {
         const val = e.target.value;
         if (val === '') {
-          const custom = prompt('Enter custom model ID (e.g., "deepseek-ai/DeepSeek-V3" or "gemini-2.5-pro"):');
+          const custom = (await A.prompt('Enter custom model ID (e.g., "deepseek-ai/DeepSeek-V3" or "gemini-2.5-pro"):'));
           if (custom) {
             e.target.value = custom;
             nkset({ model: custom });
@@ -767,6 +938,7 @@
         hk.onchange = async () => { const r = await A.api('/api/harness/kind', { kind: hk.value }); if (r.ok) { st.textContent = ''; A.toast('Agent harness: ' + hname(hk.value)); } else { A.toast(r.error || 'Could not switch.'); const g = await A.api('/api/harness/kind'); hk.value = g.kind; } };
       } }
     if (A.privacyPage) A.privacyPage($$('#prvbox'), cset);
+    initOfflineSwitches($$, () => { if (A.privacyPage) A.privacyPage($$('#prvbox'), cset); const cw = $$('#cweb'); if (cw) A.api('/api/cloud').then(st => { if (st) cw.checked = !!st.web; }).catch(() => {}); });
     if (A.remotePage) A.remotePage($$('#rmbox'));
     /* the version is read from the VERSION file on disk (one place to change it). Updates live in updates.js (Settings › Backup & data › Updates);
        the old "releases folder" check below stays for copies with no update source. */
@@ -777,21 +949,25 @@
       const b = e.target.closest('[data-a]'); if (!b) return; const a = b.dataset.a;
       if (a === 'vtest') test(); else if (a === 'cust') { A.custom && A.custom.open(); } else if (a === 'replayboot') { close(); if (window.OA_REPLAY_BOOT) window.OA_REPLAY_BOOT(); } else if (a === 'sounds') { close(); A.showTab('play'); setTimeout(() => { const s = document.querySelector('#plsub [data-s=sounds]'); s && s.click(); }, 400); }
       else if (a === 'wake') { wakeSet(b); }
-      else if (a === 'cvox') { A.cvoice.auto = !A.cvoice.auto; b.textContent = A.cvoice.auto ? 'On' : 'Off'; } else if (a === 'cnote') { const v = A.chessNotify ? A.chessNotify.toggle() : ls.get('cmnote', '1') === '0'; if (!A.chessNotify) ls.set('cmnote', v ? '1' : '0'); b.textContent = 'Message alerts: ' + (v ? 'On' : 'Off'); } else if (a === 'ccai') { ls.set('cmai', ls.get('cmai', '1') !== '0' ? '0' : '1'); b.textContent = 'AI chatter: ' + (ls.get('cmai', '1') !== '0' ? 'On' : 'Off'); } else if (a === 'cbak') { const blob = new Blob([A.chars.backup()], { type: 'application/json' }), u = URL.createObjectURL(blob), l = document.createElement('a'); l.href = u; l.download = 'moundshroud-characters-' + new Date().toISOString().slice(0, 10) + '.json'; l.click(); setTimeout(() => URL.revokeObjectURL(u), 3000); } else if (a === 'cimp') { const f = document.createElement('input'); f.type = 'file'; f.accept = '.json'; f.onchange = async () => { try { A.chars.restore(await f.files[0].text()); A.toast('Restored. Reload Moundshroud to see everything.', 5000); } catch (er) { A.toast('That file could not be read.'); } }; f.click(); } else if (a === 'chars') { close(); A.chars.manage(); } else if (a === 'forgetchars') { if (confirm('Every character will forget everything about you: facts, shared history and relationships. Continue?')) { A.chars.forgetAll(); A.toast('All characters have forgotten you.'); } } else if (a === 'buddychat') { close(); A.buddy && A.buddy.open(); } else if (a === 'buddytrick') { close(); if (A.companion && A.companion.doTrick) A.companion.doTrick(); } else if (a === 'cset') openChessTab('settings'); else if (a === 'lab') openChessTab('lab');
+      else if (a === 'cvox') { A.cvoice.auto = !A.cvoice.auto; b.textContent = A.cvoice.auto ? 'On' : 'Off'; } else if (a === 'cnote') { const v = A.chessNotify ? A.chessNotify.toggle() : ls.get('cmnote', '1') === '0'; if (!A.chessNotify) ls.set('cmnote', v ? '1' : '0'); b.textContent = 'Message alerts: ' + (v ? 'On' : 'Off'); } else if (a === 'ccai') { ls.set('cmai', ls.get('cmai', '1') !== '0' ? '0' : '1'); b.textContent = 'AI chatter: ' + (ls.get('cmai', '1') !== '0' ? 'On' : 'Off'); } else if (a === 'cbak') { const blob = new Blob([A.chars.backup()], { type: 'application/json' }), u = URL.createObjectURL(blob), l = document.createElement('a'); l.href = u; l.download = 'moundshroud-characters-' + new Date().toISOString().slice(0, 10) + '.json'; l.click(); setTimeout(() => URL.revokeObjectURL(u), 3000); } else if (a === 'cimp') { const f = document.createElement('input'); f.type = 'file'; f.accept = '.json'; f.onchange = async () => { try { A.chars.restore(await f.files[0].text()); A.toast('Restored. Reload Moundshroud to see everything.', 5000); } catch (er) { A.toast('That file could not be read.'); } }; f.click(); } else if (a === 'chars') { close(); A.chars.manage(); } else if (a === 'forgetchars') { if ((await A.confirm('Every character will forget everything about you: facts, shared history and relationships. Continue?'))) { A.chars.forgetAll(); A.toast('All characters have forgotten you.'); } } else if (a === 'buddychat') { close(); A.buddy && A.buddy.open(); } else if (a === 'buddytrick') { close(); if (A.companion && A.companion.doTrick) A.companion.doTrick(); } else if (a === 'cset') openChessTab('settings'); else if (a === 'lab') openChessTab('lab');
       else if (a.startsWith('walk:')) { close(); setTimeout(() => A.walk && A.walk.start(a.slice(5)), 250); }
       else if (a === 'present') { close(); A.tutorial && A.tutorial.resume(); } else if (a === 'guide') { close(); A.showTab('guide'); } else if (a === 'storage') { const g = $$('#stghost'); if (g) g.scrollIntoView({ behavior: 'smooth' }); }
-      else if (a === 'clrchat') { if (!confirm('Delete every saved chat?')) return; await A.api('/api/chats', []); close(); location.reload(); }
+      else if (a === 'clrchat') { if (!(await A.confirm('Delete every saved chat?'))) return; await A.api('/api/chats', []); close(); location.reload(); }
       else if (a === 'resethelp') { ls.set('play_help_seen', '[]'); A.toast('Game tutorials will show again.'); }
       else if (a === 'personareset') { const t = $$('#spersona'); if (t) t.value = ''; ls.set('persona', ''); A.toast('Personality cleared. The assistant is back to its normal self.'); }
       else if (a === 'mem') { close(); try { A.memory.manage(); } catch (er) { A.toast('What the assistant remembers is not loaded: reload Moundshroud.'); } }
-      else if (a === 'resetchess') { if (!confirm('Reset ALL chess data: games, ratings, daily games, clubs and friends? This cannot be undone.')) return; ['chgames', 'chonline', 'chdaily', 'chsocial', 'chprof', 'chstudy', 'chrush', 'chtour', 'chlearn', 'chrate'].forEach(k => ls.set(k, '')); A.toast('Chess data cleared.'); }
-      else if (a === 'restore') { A.backup.pick(); } else if (a === 'fullbak') { A.backup.make(); } else if (a === 'shareapp') { const st = $$('#shareappstatus'); if (st) st.textContent = 'Creating zip…'; A.toast('Creating shareable app zip…', 4000); try { const r = await fetch('/api/app/share', { method: 'POST' }); if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || 'Server error ' + r.status); } const blob = await r.blob(); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'Moundshroud-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '.zip'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 10000); if (st) st.textContent = '✅ Ready — sent to your Downloads'; A.toast('Shareable app zip downloaded!', 6000); } catch (e) { if (st) st.textContent = '❌ ' + e.message; A.toast('Share failed: ' + e.message, 8000); } } else if (a === 'gitpush') { const st = $$('#gitpushstatus'); if (st) st.textContent = 'Pushing…'; A.toast('Pushing to GitHub…', 4000); try { const r = await A.api('/api/git/push', { addAll: true, message: 'Auto-commit from Moundshroud: ' + new Date().toISOString().slice(0, 19).replace('T', ' ') }); if (r.ok && r.repo) { if (st) st.innerHTML = '✅ Pushed to <a href="' + esc(r.repo) + '" target="_blank" rel="noopener noreferrer">' + esc(r.repo) + '</a> (' + esc(r.branch) + ')'; A.toast('Pushed to ' + r.repo + ' (' + r.branch + ')', 8000); } else if (r.ok && !r.hadChanges) { if (st) st.textContent = '✅ Nothing to commit — working tree clean'; A.toast('Nothing to commit', 5000); } else { if (st) st.textContent = '❌ ' + (r.error || 'Push failed'); A.toast('Push failed: ' + (r.error || 'unknown error'), 8000); } } catch (e) { if (st) st.textContent = '❌ ' + e.message; A.toast('Push error: ' + e.message, 8000); } } else if (a === 'selftest') { A.selftest.run(); } else if (a === 'keys') { keySheet(); } else if (a === 'webtest') { const st = await A.api('/api/cloud'); if (st && st.on) { A.toast('Online AI: ' + st.model + ' (' + st.provider + ') - key ending ' + st.tail); } else { A.toast('Online AI is off.'); } } else if (a === 'update') { about().then(r => { if (!r) return A.toast('The version could not be read.'); if (r.offers && r.offers.length) A.toast('Version ' + r.offers[0].version + ' is in the releases folder. Quit Moundshroud from the tray, unzip that copy over this folder (keep your data folder), then start it again.', 14000); else A.toast('You are on the newest version (' + r.version + ').', 5000); }); } else if (a === 'problems') { close(); if (A.problems) A.problems.open(); else A.toast('The problem log is not loaded: reload Moundshroud.'); }
+      else if (a === 'resetchess') { if (!(await A.confirm('Reset ALL chess data: games, ratings, daily games, clubs and friends? This cannot be undone.'))) return; ['chgames', 'chonline', 'chdaily', 'chsocial', 'chprof', 'chstudy', 'chrush', 'chtour', 'chlearn', 'chrate'].forEach(k => ls.set(k, '')); A.toast('Chess data cleared.'); }
+      else if (a === 'restore') { A.backup.pick(); } else if (a === 'verifybackup') { A.backup.verifyPick(); } else if (a === 'fullbak') { A.backup.make(); } else if (a === 'shareapp') { const st = $$('#shareappstatus'); if (st) st.textContent = 'Creating zip…'; A.toast('Creating shareable app zip…', 4000); try { const r = await fetch('/api/app/share', { method: 'POST' }); if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || 'Server error ' + r.status); } const blob = await r.blob(); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'Moundshroud-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '.zip'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 10000); if (st) st.textContent = '✅ Ready — sent to your Downloads'; A.toast('Shareable app zip downloaded!', 6000); } catch (e) { if (st) st.textContent = '❌ ' + e.message; A.toast('Share failed: ' + e.message, 8000); } } else if (a === 'gitpush') { const st = $$('#gitpushstatus'); if (st) st.textContent = 'Pushing…'; A.toast('Pushing to GitHub…', 4000); try { const r = await A.api('/api/git/push', { addAll: true, message: 'Auto-commit from Moundshroud: ' + new Date().toISOString().slice(0, 19).replace('T', ' ') }); if (r.ok && r.repo) { if (st) st.innerHTML = '✅ Pushed to <a href="' + esc(r.repo) + '" target="_blank" rel="noopener noreferrer">' + esc(r.repo) + '</a> (' + esc(r.branch) + (r.forced ? ' · GitHub history updated to match this PC' : '') + ')'; A.toast('Pushed to ' + r.repo + ' (' + r.branch + (r.forced ? ', history updated' : '') + ')', 8000); } else if (r.ok && !r.hadChanges) { if (st) st.textContent = '✅ Nothing to commit — working tree clean'; A.toast('Nothing to commit', 5000); } else { if (st) st.textContent = '❌ ' + (r.error || 'Push failed'); A.toast('Push failed: ' + (r.error || 'unknown error'), 8000); } } catch (e) { if (st) st.textContent = '❌ ' + e.message; A.toast('Push error: ' + e.message, 8000); } } else if (a === 'selftest') { A.selftest.run(); } else if (a === 'keys') { keySheet(); } else if (a === 'webtest') { const st = await A.api('/api/cloud'); if (st && st.on) { A.toast('Online AI: ' + st.model + ' (' + st.provider + ') - key ending ' + st.tail); } else { A.toast('Online AI is off.'); } } else if (a === 'update') { about().then(r => { if (!r) return A.toast('The version could not be read.'); if (r.offers && r.offers.length) A.toast('Version ' + r.offers[0].version + ' is in the releases folder. Quit Moundshroud from the tray, unzip that copy over this folder (keep your data folder), then start it again.', 14000); else A.toast('You are on the newest version (' + r.version + ').', 5000); }); } else if (a === 'problems') { close(); if (A.problems) A.problems.open(); else A.toast('The problem log is not loaded: reload Moundshroud.'); }
     });
     if (sectionId) setTimeout(() => { const s = body.querySelector('[data-sec=' + sectionId + ']'); if (s) body.scrollTo({ top: s.offsetTop - 8 }); }, 50);
     try { speechSynthesis.onvoiceschanged = () => { if (root && !body.dataset.vrefreshed) { body.dataset.vrefreshed = 1; const sel = $$('#sv'); if (sel && sel.options.length < 3) { close(); open(sectionId); } } }; } catch (e) { }
   });
 }
   A.settings = { open, close };
-  const hook = () => { const c = document.getElementById('cog'); if (c) c.onclick = () => open(); };
+  const hook = () => {
+    const c = document.getElementById('cog');
+    if (c) c.onclick = () => open();
+    fetch('/api/offline/status').then(r => r.ok ? r.json() : null).then(st => { if (st && st.ok) syncHeaderOfflinePill(st); }).catch(() => {});
+  };
   hook(); setTimeout(hook, 0); addEventListener('load', hook);
 })();

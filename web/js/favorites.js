@@ -53,20 +53,20 @@
     const rn = el.querySelector('#fren'); if (rn) { rn.focus(); rn.select(); rn.onkeydown = e => { e.stopPropagation(); if (e.key === 'Enter') { const f = folders.find(x => x.id === rn.dataset.fid), n = rn.value.trim(); if (f && n) { f.name = n; save(); } editing = ''; draw(); } else if (e.key === 'Escape') { editing = ''; draw(); } }; rn.onblur = () => { setTimeout(() => { if (editing) { editing = ''; draw(); } }, 120); }; }
     el.querySelectorAll('[data-mv]').forEach(s => { s.onchange = () => { const it = items.find(x => x.id === s.dataset.mv); if (it) { it.f = s.value; save(); changed(); } }; });
   }
-  function onclick(e) {
+  async function onclick(e) {
     const T = e.target, c = s => T.closest(s); let t;
     if (T === el || c('[data-x]')) { close(); return; }
     if ((t = c('[data-ren]'))) { editing = t.dataset.ren; draw(); e.stopPropagation(); return; }
-    if ((t = c('[data-del]'))) { const f = folders.find(x => x.id === t.dataset.del); if (f && confirm('Delete the folder "' + f.name + '"? The favorites inside are kept as Unsorted.')) { items.forEach(x => { if (x.f === f.id) x.f = ''; }); folders = folders.filter(x => x.id !== f.id); if (view === f.id) view = 'all'; save(); changed(); } e.stopPropagation(); return; }
+    if ((t = c('[data-del]'))) { const f = folders.find(x => x.id === t.dataset.del); if (f && (await A.confirm('Delete the folder "' + f.name + '"? The favorites inside are kept as Unsorted.'))) { items.forEach(x => { if (x.f === f.id) x.f = ''; }); folders = folders.filter(x => x.id !== f.id); if (view === f.id) view = 'all'; save(); changed(); } e.stopPropagation(); return; }
     if ((t = c('[data-v]'))) { view = t.dataset.v; filt = ''; editing = ''; adding = false; draw(); return; }
     if (c('[data-newf]')) { adding = true; draw(); return; }
     if ((t = c('[data-open]'))) { const x = items.find(i => i.id === t.dataset.open); if (x) go(x); return; }
     if ((t = c('[data-rm]'))) { const x = items.find(i => i.id === t.dataset.rm); if (x) { items = items.filter(i => i !== x); save(); changed(); } return; }
-    if ((t = c('[data-note]'))) { const x = items.find(i => i.id === t.dataset.note); if (x) { const n = prompt('Note for "' + x.t + '"', x.n || ''); if (n !== null) { x.n = n.trim().slice(0, 300); save(); changed(); } } return; }
+    if ((t = c('[data-note]'))) { const x = items.find(i => i.id === t.dataset.note); if (x) { const n = (await A.prompt('Note for "' + x.t + '"', x.n || '')); if (n !== null) { x.n = n.trim().slice(0, 300); save(); changed(); } } return; }
     if ((t = c('[data-hopen]'))) { const x = hist[+t.dataset.hopen]; if (x) go({ k: 'page', u: x.u, t: x.t }); return; }
     if ((t = c('[data-hfav]'))) { const x = hist[+t.dataset.hfav]; if (x) { if (has(x.u)) remove(x.u); else add({ u: x.u, t: x.t, k: 'page' }); } return; }
     if ((t = c('[data-hrm]'))) { hist.splice(+t.dataset.hrm, 1); saveH(); draw(); return; }
-    if ((t = c('[data-clr]'))) { const w = t.dataset.clr, msg = w === 'pages' ? 'Clear the list of pages you opened?' : w === 'searches' ? 'Clear your recent searches?' : 'Clear all history (pages opened and recent searches)? Your favorites are kept.'; if (confirm(msg)) { clearHistory(w); draw(); A.toast('History cleared'); } return; }
+    if ((t = c('[data-clr]'))) { const w = t.dataset.clr, msg = w === 'pages' ? 'Clear the list of pages you opened?' : w === 'searches' ? 'Clear your recent searches?' : 'Clear all history (pages opened and recent searches)? Your favorites are kept.'; if ((await A.confirm(msg))) { clearHistory(w); draw(); A.toast('History cleared'); } return; }
     if (c('[data-exp]')) { const blob = new Blob([JSON.stringify({ app: 'moundshroud-favorites', folders, items }, null, 1)], { type: 'application/json' }), a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'moundshroud-favorites.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 3000); return; }
     if (c('[data-imp]')) { const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json'; inp.onchange = async () => { try { const j = JSON.parse(await inp.files[0].text()); if (j.app !== 'moundshroud-favorites' && j.app !== 'atlas-favorites') throw 0; const map = {}; (j.folders || []).forEach(f => { let x = folders.find(y => y.name.toLowerCase() === f.name.toLowerCase()); if (!x) { x = { id: uid(), name: f.name }; folders.push(x); } map[f.id] = x.id; }); let n = 0; (j.items || []).forEach(i => { if (!has(i.u, i.k)) { items.push(Object.assign({}, i, { id: uid(), f: map[i.f] || '' })); n++; } }); save(); changed(); A.toast('Imported ' + n + ' favorites'); } catch (er) { A.toast('That is not a Moundshroud favorites file.'); } }; inp.click(); return; }
   }

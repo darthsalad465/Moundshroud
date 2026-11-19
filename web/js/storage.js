@@ -18,14 +18,14 @@
     el.onclick = async e => {
       const c = e.target.closest('[data-clean]'); if (!c) return; c.disabled = true;
       const what = c.dataset.clean, keep = what === 'snapshots' ? +document.getElementById('skeep').value : 0;
-      if (what === 'snapshots' && !confirm('Delete all but the newest ' + keep + ' rollback snapshots? You will not be able to undo changes older than those.')) { c.disabled = false; return; }
+      if (what === 'snapshots' && !(await A.confirm('Delete all but the newest ' + keep + ' rollback snapshots? You will not be able to undo changes older than those.'))) { c.disabled = false; return; }
       try { const x = await A.api('/api/storage/clean', { what, keep }); A.toast('Freed ' + fmt(x.freed || 0) + (x.removed ? ' (' + x.removed + ' removed)' : ''), 3500); } catch (er) { A.toast('Could not clean up'); }
       render(b);
     };
     const keys = () => { const o = {}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/^(oa_|middlewatch\.)/.test(k)) o[k] = localStorage.getItem(k); } return o; };
     const bytes = JSON.stringify(keys()).length; document.getElementById('sinfo').textContent = Object.keys(keys()).length + ' items, ' + fmt(bytes);
     document.getElementById('sexp').onclick = () => { const blob = new Blob([JSON.stringify({ app: 'moundshroud-settings', at: Date.now(), data: keys() })], { type: 'application/json' }), a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'moundshroud-settings-' + new Date().toISOString().slice(0, 10) + '.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 3000); ls.set('settingsbackup', String(Date.now())); };
-    document.getElementById('simp2').onclick = () => { const i = document.createElement('input'); i.type = 'file'; i.accept = '.json'; i.onchange = async () => { try { const j = JSON.parse(await i.files[0].text()); if (j.app !== 'moundshroud-settings' && j.app !== 'atlas-settings') throw 0; if (!confirm('Import ' + Object.keys(j.data).length + ' items? They replace items with the same name. The page will reload.')) return; Object.entries(j.data).forEach(([k, v]) => { if (/^(oa_|middlewatch\.)/.test(k)) localStorage.setItem(k, v); }); location.reload(); } catch (er) { A.toast('That is not a Moundshroud settings file.'); } }; i.click(); };
+    document.getElementById('simp2').onclick = () => { const i = document.createElement('input'); i.type = 'file'; i.accept = '.json'; i.onchange = async () => { try { const j = JSON.parse(await i.files[0].text()); if (j.app !== 'moundshroud-settings' && j.app !== 'atlas-settings') throw 0; if (!(await A.confirm('Import ' + Object.keys(j.data).length + ' items? They replace items with the same name. The page will reload.'))) return; Object.entries(j.data).forEach(([k, v]) => { if (/^(oa_|middlewatch\.)/.test(k)) localStorage.setItem(k, v); }); location.reload(); } catch (er) { A.toast('That is not a Moundshroud settings file.'); } }; i.click(); };
   }
   A.storage = { render };
 })();

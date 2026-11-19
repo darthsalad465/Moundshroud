@@ -1,7 +1,7 @@
 // Offline assistant suite - local server. Talks only to Ollama and Kiwix on this PC. No outside connections.
 // Lifecycle: started by the hotkey listener when you open the window; shuts itself (and everything it started) down when the window closes.
 const http = require('http'), fs = require('fs'), path = require('path'), cp = require('child_process'), os = require('os'), crypto = require('crypto');
-const U = require('./lib/util'), docs = require('./lib/docs'), kiwix = require('./lib/kiwix'), websearch = require('./lib/websearch'), voice = require('./lib/voice'), store = require('./lib/store'), extra = require('./lib/extra'), thesaurus = require('./lib/thesaurus'), rhyme = require('./lib/rhyme'), pcmod = require('./lib/pc'), office = require('./lib/office'), prep = require('./lib/prep'), appfiles = require('./lib/appfiles'), webpages = require('./lib/webpages'), refs = require('./lib/refs'), embed = require('./lib/embed'), cams = require('./lib/cams'), safety = require('./lib/safety'), appedit = require('./lib/appedit');
+const U = require('./lib/util'), docs = require('./lib/docs'), kiwix = require('./lib/kiwix'), websearch = require('./lib/websearch'), voice = require('./lib/voice'), store = require('./lib/store'), extra = require('./lib/extra'), thesaurus = require('./lib/thesaurus'), rhyme = require('./lib/rhyme'), pcmod = require('./lib/pc'), office = require('./lib/office'), prep = require('./lib/prep'), appfiles = require('./lib/appfiles'), webpages = require('./lib/webpages'), refs = require('./lib/refs'), embed = require('./lib/embed'), cams = require('./lib/cams'), safety = require('./lib/safety'), appedit = require('./lib/appedit'), codeWorkspace = require('./lib/code-workspace');
 
 const safe = require('./lib/safe');
 const problems = require('./lib/problems');
@@ -18,6 +18,9 @@ const convlib = require('./lib/convlib');
 const ytdl = require('./lib/ytdl');
 const cybertools = require('./lib/cybertools');
 const privacy = require('./lib/privacy');
+const offline = require('./lib/offline');
+const secGuard = require('./lib/sec-guard');
+offline.installGuard();
 const markets = require('./lib/markets');
 const inventory = require('./lib/inventory');
 const vault = require('./lib/vault');
@@ -169,7 +172,7 @@ function ollamaJson(method, pth, payload) {
     req.end(text);
   });
 }
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff': 'font/woff', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.wasm': 'application/wasm', '.txt': 'text/plain; charset=utf-8', '.map': 'application/json', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.ogg': 'audio/ogg', '.mp3': 'audio/mpeg', '.zip': 'application/zip', '.whl': 'application/zip', '.tar': 'application/x-tar', '.mp4': 'video/mp4', '.webm': 'video/webm' };      /* .zip/.whl: the Python sandbox's standard library and packages (web/vendor/pyodide) */
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.geojson': 'application/geo+json', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff': 'font/woff', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.wasm': 'application/wasm', '.txt': 'text/plain; charset=utf-8', '.map': 'application/json', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.ogg': 'audio/ogg', '.mp3': 'audio/mpeg', '.zip': 'application/zip', '.whl': 'application/zip', '.tar': 'application/x-tar', '.mp4': 'video/mp4', '.webm': 'video/webm' };      /* .zip/.whl: the Python sandbox's standard library and packages (web/vendor/pyodide) */
 const CHESSBOOKS = path.join(__dirname, 'nomad', 'chessbooks');
 const bibleLib = require('./lib/bible').create(DATA, path.join(WEB, 'data'));      /* Spiritual > Bible Expert: passage search (SQLite full-text index data\bible-index.db) over the built-in texts, data\christian-texts\ and data\bible\ */
 /* the picture model: the compact ready-made q8 copy (3.9 GB) when it is there, else the original (6.5 GB, made compact in memory each time) */
@@ -178,6 +181,7 @@ const media = require('./lib/media'), swarm = require('./lib/swarm'), swarmModel
 const safeDir = require('./lib/safe-dir'), harnessLib = require('./lib/harness');
 const harnessStore = harnessLib.store(DATA), jcodeLib = require('./lib/harness-jcode'), nativeLib = require('./lib/harness-native');
 const hfLib = require('./lib/hf-gguf');
+const globeLib = require('./lib/globe').create(DATA, cams);
 /* the lines a command leaves behind after it has answered (a model finishing its pull, a craft run): the Agent tab
    asks for the new ones as it polls, so a long job can report while the page is still open */
 const CMDNOTE = { seq: 0, list: [] };
@@ -337,6 +341,7 @@ const allowedPath = p => { p = path.normalize(String(p || '')); if (p.includes('
    requests). The tray helper and scripts send neither header and are unaffected. */
 const SELF = new Set(['127.0.0.1:' + PORT, 'localhost:' + PORT]), SELF_ORIGIN = new Set(['http://127.0.0.1:' + PORT, 'http://localhost:' + PORT]);
 const CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: data:; worker-src 'self' blob:; frame-src 'self' blob: data: http://127.0.0.1:" + LIBPORT + " http://localhost:" + LIBPORT + " http://127.0.0.1:" + artexmod.PORT + " http://localhost:" + artexmod.PORT + " http://127.0.0.1:" + juiceshop.FRAME + " http://localhost:" + juiceshop.FRAME + " https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
+const CSP_OFFLINE = CSP.replace(' https://www.youtube-nocookie.com', '');
 function allowedCaller(req) {
   const h = req.headers, host = String(h.host || '').toLowerCase(), org = h.origin, sfs = h['sec-fetch-site'];
   return SELF.has(host) && (!org || SELF_ORIGIN.has(String(org).toLowerCase())) && (!sfs || sfs === 'same-origin' || sfs === 'none');
@@ -344,7 +349,7 @@ function allowedCaller(req) {
 const mainServer = http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://127.0.0.1'); const url = u.pathname, q = u.searchParams;
   if (!allowedCaller(req)) { res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' }); return res.end('Blocked: this request did not come from the Moundshroud window.'); }
-  res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Referrer-Policy', 'no-referrer'); res.setHeader('X-Frame-Options', 'SAMEORIGIN'); res.setHeader('Cross-Origin-Resource-Policy', 'same-origin'); res.setHeader('Content-Security-Policy', CSP);
+  res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Referrer-Policy', 'no-referrer'); res.setHeader('X-Frame-Options', 'SAMEORIGIN'); res.setHeader('Cross-Origin-Resource-Policy', 'same-origin'); res.setHeader('Permissions-Policy', 'geolocation=(), camera=(), usb=(), payment=()'); res.setHeader('Content-Security-Policy', offline.isAppOffline() ? CSP_OFFLINE : CSP);
   try {
     /* ---- pages & static files ---- */
     if (req.method === 'GET' && (url === '/' || url === '/index.html')) return serveFile(res, WEB, 'index.html', req);
@@ -360,6 +365,10 @@ const mainServer = http.createServer(async (req, res) => {
       let rel = ''; try { rel = decodeURIComponent(url.slice('/minipaint/'.length)); } catch (e) { res.writeHead(400); return res.end('bad path'); }
       if (!rel) rel = 'index.html';
       return serveFile(res, toolkit.MINIPAINT_DIR, rel, req);
+    }
+    if (req.method === 'GET' && url.startsWith('/globe/')) {
+      let rel = ''; try { rel = decodeURIComponent(url.slice('/globe/'.length)); } catch (e) { res.writeHead(400); return res.end('bad path'); }
+      return serveFile(res, path.join(__dirname, 'runtime', 'toolkit', 'globe'), rel, req);
     }
     /* ---- offline library pages are served by Kiwix under /wiki so the window stays same-origin ---- */
     if (url === '/wiki' || url.startsWith('/wiki/')) {
@@ -547,7 +556,10 @@ if (url === '/api/chat' && req.method === 'POST') {
       const patch = {};
       if (typeof b.key === 'string') { const k = b.key.trim(); const bad = cloud.keyProblem(k); if (bad) return json(res, 400, { error: bad }); patch.key = k; }
       if (typeof b.model === 'string') patch.model = b.model.trim();
-      if (typeof b.web === 'boolean') patch.web = b.web;
+      if (typeof b.web === 'boolean') {
+        if (b.web && offline.isAppOffline()) return json(res, 400, { error: 'App Offline Lockdown is on — switch it off in Settings first to allow internet access.' });
+        patch.web = b.web;
+      }
       if (typeof b.provider === 'string') patch.provider = b.provider.trim();
       if (b.providerKey && typeof b.providerKey.provider === 'string' && typeof b.providerKey.key === 'string') patch.providerKey = b.providerKey;
       const st = cloud.set(patch);
@@ -591,11 +603,14 @@ if (url === '/api/chat' && req.method === 'POST') {
     if (url === '/api/net/search' && req.method === 'POST') { const b = await jbody(req, 1e5); return json(res, 200, await net.search(b.q, b.n)); }
     if (url === '/api/net/page' && req.method === 'POST') { const b = await jbody(req, 1e5); return json(res, 200, await net.page(b.url)); }
     /* ---- News: the last edition (readable offline), a refresh (only with internet access on), and the source list ---- */
-    /* ---- Privacy: what can leave this PC, and the window's own settings ---- */
+    /* ---- Privacy & Offline Kill-Switches: what can leave this PC, App Offline Lockdown, and PC Total Air-Gap ---- */
+    if (url === '/api/offline/status' && req.method === 'GET') return json(res, 200, await offline.status());
+    if (url === '/api/offline/app' && req.method === 'POST') { const b = await jbody(req, 1e3); return json(res, 200, offline.setAppOffline(!!b.offline)); }
+    if (url === '/api/offline/pc' && req.method === 'POST') { const b = await jbody(req, 1e3); return json(res, 200, await offline.setPcOffline(!!b.offline)); }
     if (url === '/api/privacy') {
       if (req.method === 'POST') { const b = await jbody(req, 1e4); if (typeof b.signout === 'boolean') privacy.setChoice({ signout: b.signout }); }
       const cs = await cloud.status(), np = news.prefsPublic();
-      return json(res, 200, privacy.status({ internet: net.on(), claude: !!(cs && cs.on), news: np }));
+      return json(res, 200, privacy.status({ internet: net.on(), claude: !!(cs && cs.on), news: np, appOffline: offline.isAppOffline() }));
     }
     if (url === '/api/news') return json(res, 200, news.snapshot());
     if (url === '/api/news/forget' && req.method === 'POST') return json(res, 200, news.forget());
@@ -643,6 +658,17 @@ if (url === '/api/chat' && req.method === 'POST') {
     if (url === '/api/tv/logo') return tv.logo(q.get('id') || '', res);
     if (url === '/api/tv/yt/search') return json(res, 200, await youtube.search(q.get('q') || ''));
     if (url === '/api/tv/yt/thumb') return youtube.thumb(q.get('id') || '', res);
+    /* ---- 3D World Globe: same-origin cached tile proxy, geocoding, GodMode OSINT feeds & Offline Region Packs (lib/globe.js) ---- */
+    if (url === '/api/globe/status') return json(res, 200, globeLib.status());
+    if (url === '/api/globe/tile') return globeLib.serveTile(q, res);
+    if (url === '/api/globe/geocode') return json(res, 200, await globeLib.geocode(q.get('q') || ''));
+    if (url === '/api/globe/feed') return json(res, 200, await globeLib.getFeed(q.get('k') || '', q));
+    if (url === '/api/globe/cache/clear' && req.method === 'POST') return json(res, 200, globeLib.clearCache());
+    if (url === '/api/globe/packs' && req.method === 'GET') return json(res, 200, globeLib.listPacks());
+    if (url === '/api/globe/packs/estimate' && req.method === 'POST') return json(res, 200, globeLib.estimatePack(await jbody(req, 3e4)));
+    if (url === '/api/globe/packs/download' && req.method === 'POST') return json(res, 200, globeLib.startPack(await jbody(req, 3e4)));
+    if (url === '/api/globe/packs/cancel' && req.method === 'POST') return json(res, 200, globeLib.cancelPack());
+    if (url === '/api/globe/packs/delete' && req.method === 'POST') return json(res, 200, globeLib.deletePack((await jbody(req, 1e4)).id));
     /* TV > YouTube downloads with the user's yt-dlp (lib/ytdl.js) */
     if (url === '/api/tv/dl') return json(res, 200, ytdl.status());
     if (url === '/api/tv/dl/file') return ytdl.send(q.get('id') || '', q.get('n') || 0, q.get('dl') === '1', req, res);
@@ -721,6 +747,17 @@ if (url === '/api/chat' && req.method === 'POST') {
     if (url === '/api/brain/inspect' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, require('./lib/pc-brain').inspectFile(b.path)); }
     if (url === '/api/brain/reveal' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, require('./lib/pc-brain').revealInExplorer(b.path, !!b.open)); }
     if (url === '/api/brain/write' && req.method === 'POST') { const b = await jbody(req, 5e5); return json(res, 200, require('./lib/pc-brain').writeFileNode(b)); }
+    /* ---- local coding workspace: one folder at a time, never a recursive drive scan ---- */
+    if (url === '/api/coding/roots') return json(res, 200, { roots: codeWorkspace.roots() });
+    if (url === '/api/coding/list' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, await codeWorkspace.list(b.path, b.offset, b.limit, b.filter)); }
+    if (url === '/api/coding/read' && req.method === 'POST') { const b = await jbody(req, 1e4); const r = await codeWorkspace.read(b.path); return json(res, r.error ? 400 : 200, r); }
+    if (url === '/api/coding/check' && req.method === 'POST') { const b = await jbody(req, 2e6); const r = codeWorkspace.check(b.path, b.text); return json(res, r.error ? 400 : 200, r); }
+    if (url === '/api/coding/save' && req.method === 'POST') { const b = await jbody(req, 2e6); const r = await codeWorkspace.save(b.path, b.text, b.mtime); return json(res, r.error ? 400 : 200, r); }
+    if (url === '/api/coding/create' && req.method === 'POST') { const b = await jbody(req, 2e6); const r = await codeWorkspace.create(b.path, b.text); return json(res, r.error ? 400 : 200, r); }
+    if (url === '/api/coding/mkdir' && req.method === 'POST') { const b = await jbody(req, 1e4); const r = await codeWorkspace.mkdir(b.path); return json(res, r.error ? 400 : 200, r); }
+    if (url === '/api/coding/remove' && req.method === 'POST') { const b = await jbody(req, 1e4); const r = await codeWorkspace.remove(b.path); return json(res, r.error ? 400 : 200, r); }
+    if (url === '/api/coding/move' && req.method === 'POST') { const b = await jbody(req, 1e4); const r = await codeWorkspace.move(b.path, b.to); return json(res, r.error ? 400 : 200, r); }
+    if (url === '/api/coding/stats' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, await codeWorkspace.stats(String(b.path || ''), !!b.deep, !!b.force)); }
     /* ---- better search: local embeddings over the same index (lib/embed.js, lib/docs.js) ---- */
     if (url === '/api/docs/embed') return json(res, 200, { model: await embed.pickModel(true), vectors: docs.vecCount(), scan: docs.vecStatus, job: embed.status().job, preferred: embed.PREFERRED[0] });
     if (url === '/api/docs/embed/build' && req.method === 'POST') { docs.vectorize().catch(() => {}); return json(res, 200, { ok: true }); }
@@ -739,6 +776,7 @@ if (url === '/api/chat' && req.method === 'POST') {
     if (url === '/api/appedit/mkdir' && req.method === 'POST') { const b = await jbody(req, 1e4); const r = appedit.createFolder(String(b.path || '')); return json(res, r.error ? 400 : 200, r); }
     if (url === '/api/appedit/remove' && req.method === 'POST') { const b = await jbody(req, 1e4); const r = appedit.remove(String(b.path || '')); return json(res, r.error ? 400 : 200, r); }
     if (url === '/api/appedit/move' && req.method === 'POST') { const b = await jbody(req, 1e4); const r = appedit.move(String(b.path || ''), String(b.to || '')); return json(res, r.error ? 400 : 200, r); }
+    if (url === '/api/appedit/stats' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, await appedit.stats(String(b.dir || ''), !!b.deep, !!b.force)); }
     if (url === '/api/appedit/versions' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, { versions: appedit.versions(String(b.path || '')) }); }
     if (url === '/api/appedit/revert' && req.method === 'POST') { const b = await jbody(req, 2e4); const r = appedit.revert(String(b.path || ''), b.at); return json(res, r.error ? 400 : 200, r); }
     /* offline picture making: stable-diffusion.cpp with the SD-Turbo model, both kept in the imggen folder */
@@ -993,48 +1031,81 @@ if (url === '/api/chat' && req.method === 'POST') {
       res.writeHead(200, { 'Content-Type': 'application/zip', 'Content-Disposition': 'attachment; filename="' + path.basename(z) + '"', 'Content-Length': fs.statSync(z).size });
       return fs.createReadStream(z).on('close', () => extra.rm(z)).pipe(res);
     }
-    /* ---- Git push to GitHub ---- */
+    /* ---- Git push to GitHub (execFileSync only + strict ref validation + pre-push secret scan) ---- */
     if (url === '/api/git/push' && req.method === 'POST') {
+      if (!fs.existsSync(path.join(ROOT, '.author-copy'))) {
+        return json(res, 403, { error: 'Git push is only enabled on the author copy.' });
+      }
       const b = await jbody(req, 1e4);
-      const { addAll = true, message, remote = 'origin', branch } = b || {};
+      const addAll = b && typeof b.addAll === 'boolean' ? b.addAll : true;
+      const remote = String((b && b.remote) || 'origin').trim();
+      const rawBranch = b && b.branch ? String(b.branch).trim() : '';
+      const rawMessage = b && b.message ? String(b.message).trim().slice(0, 300) : '';
+      if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/.test(remote)) {
+        return json(res, 400, { error: 'Invalid git remote name.' });
+      }
+      if (rawBranch && !/^[A-Za-z0-9][A-Za-z0-9._\/-]{0,79}$/.test(rawBranch)) {
+        return json(res, 400, { error: 'Invalid git branch name.' });
+      }
+      const gitRun = (args, timeout = 15000) => cp.execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', timeout, windowsHide: true });
       try {
-        // Get current repo info
+        // Pre-push security gate: block push if ANY secret, private key, PII path, or forbidden data/ file is present
+        const scan = secGuard.scanRepo(ROOT);
+        if (!scan.ok) {
+          const preview = (scan.findings || []).slice(0, 5).map(f => f.file + (f.line ? ':' + f.line : '') + ' (' + f.reason + ')').join('; ');
+          return json(res, 400, { error: 'Push blocked by security scanner: ' + (preview || scan.error || 'secret detected') });
+        }
+
         let repoUrl = '';
-        try { repoUrl = cp.execSync('git config --get remote.' + remote + '.url', { cwd: ROOT, encoding: 'utf8', timeout: 5000 }).trim(); } catch (e) {}
+        try { repoUrl = gitRun(['config', '--get', 'remote.' + remote + '.url'], 5000).trim(); } catch (e) {}
         let currentBranch = '';
-        try { currentBranch = cp.execSync('git rev-parse --abbrev-ref HEAD', { cwd: ROOT, encoding: 'utf8', timeout: 5000 }).trim(); } catch (e) {}
-        const pushBranch = 'main';
-        
-        // Check if there are changes to commit
+        try { currentBranch = gitRun(['rev-parse', '--abbrev-ref', 'HEAD'], 5000).trim(); } catch (e) {}
+        const pushBranch = rawBranch || (currentBranch && currentBranch !== 'HEAD' ? currentBranch : 'main');
+        if (!/^[A-Za-z0-9][A-Za-z0-9._\/-]{0,79}$/.test(pushBranch)) {
+          return json(res, 400, { error: 'Invalid target branch.' });
+        }
+
         let status = '';
-        try { status = cp.execSync('git status --porcelain', { cwd: ROOT, encoding: 'utf8', timeout: 5000 }).trim(); } catch (e) {}
-        
+        try { status = gitRun(['status', '--porcelain'], 5000).trim(); } catch (e) {}
+
         if (addAll && status) {
-          cp.execSync('git add -A', { cwd: ROOT, encoding: 'utf8', timeout: 10000 });
-          const commitMsg = message || 'Auto-commit from Moundshroud: ' + new Date().toISOString().slice(0, 19).replace('T', ' ');
-          cp.execSync('git commit -m ' + JSON.stringify(commitMsg), { cwd: ROOT, encoding: 'utf8', timeout: 10000 });
+          gitRun(['add', '-A'], 10000);
+          const stagedScan = secGuard.scanStaged(ROOT);
+          if (!stagedScan.ok) {
+            try { gitRun(['reset'], 5000); } catch (e2) { }
+            const preview = (stagedScan.findings || []).slice(0, 5).map(f => f.file + (f.line ? ':' + f.line : '') + ' (' + f.reason + ')').join('; ');
+            return json(res, 400, { error: 'Commit blocked by security scanner: ' + (preview || stagedScan.error || 'secret detected') });
+          }
+          const commitMsg = rawMessage || ('Auto-commit from Moundshroud: ' + new Date().toISOString().slice(0, 19).replace('T', ' '));
+          gitRun(['commit', '-m', commitMsg], 15000);
         }
-        
-        // Push
-        let pushOutput = '';
-        try { pushOutput = cp.execSync('git push ' + remote + ' ' + pushBranch, { cwd: ROOT, encoding: 'utf8', timeout: 30000 }); } catch (e) {
-          return json(res, 500, { error: 'Git push failed: ' + (e.stderr || e.stdout || e.message) });
+
+        let pushOutput = '', forced = false;
+        try { pushOutput = gitRun(['push', remote, pushBranch], 120000); } catch (e) {
+          const why = String(e.stderr || e.stdout || e.message || '');
+          if (!/non-fast-forward|fetch first|rejected|behind its remote counterpart/i.test(why)) {
+            return json(res, 500, { error: 'Git push failed: ' + why });
+          }
+          try { gitRun(['fetch', remote, pushBranch], 60000); } catch (e2) { }
+          try {
+            pushOutput = gitRun(['push', '--force-with-lease=' + pushBranch, remote, pushBranch], 120000);
+            forced = true;
+            pushOutput = 'The history on ' + remote + '/' + pushBranch + ' was replaced with this PC\'s version.\n' + String(pushOutput || '');
+          } catch (e3) {
+            return json(res, 500, { error: 'Git push failed: ' + String(e3.stderr || e3.stdout || e3.message || '') });
+          }
         }
-        
-        // Parse repo URL to get GitHub web URL
-        let webUrl = repoUrl;
-        if (repoUrl) {
-          // Convert git@github.com:user/repo.git or https://github.com/user/repo.git to https://github.com/user/repo
-          webUrl = repoUrl.replace(/^git@github\.com:/, 'https://github.com/').replace(/\.git$/, '');
-          if (repoUrl.startsWith('https://github.com/')) webUrl = repoUrl.replace(/\.git$/, '');
+
+        let webUrl = repoUrl.replace(/^(https?:\/\/)[^@\s]+@/, '$1');
+        if (webUrl) {
+          webUrl = webUrl.replace(/^git@github\.com:/, 'https://github.com/').replace(/\.git$/, '');
         }
-        
-        return json(res, 200, { ok: true, repo: webUrl || 'unknown', branch: pushBranch, output: pushOutput.trim(), hadChanges: !!status });
+        return json(res, 200, { ok: true, repo: webUrl || 'unknown', branch: pushBranch, forced, output: String(pushOutput || '').trim(), hadChanges: !!status });
       } catch (e) {
         return json(res, 500, { error: 'Git operation failed: ' + e.message });
       }
     }
-    /* ---- Share app: create portable zip ---- */
+    /* ---- Share app: create portable zip (no personal data, secrets, or local runtimes) ---- */
     if (url === '/api/app/share' && req.method === 'POST') {
       const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
       const zipName = 'Moundshroud-' + stamp + '.zip';
@@ -1043,13 +1114,19 @@ if (url === '/api/chat' && req.method === 'POST') {
         fs.mkdirSync(tmpDir, { recursive: true });
         const appDir = path.join(tmpDir, 'Moundshroud');
         fs.mkdirSync(appDir, { recursive: true });
-        
-        // Copy essential files
-        const exclude = ['node_modules', 'data', '.git', 'tmp', 'releases', '*.log', '*.zip', 'Moundshroud-*', '.vscode', '.idea', 'edge-profile', 'chrome-profile', 'browser-profile', 'firefox-profile'];
+
+        const exclude = [
+          'node_modules', 'data', '.git', '.dev', '.author-copy', 'runtime', 'nomad', 'library', 'models', 'engines',
+          'tmp', 'releases', '*.log', '*.zip', '*.key', '*.pem', '*.p12', '*.pfx', '.env', '.env.*',
+          'Moundshroud-*', '.vscode', '.idea', 'edge-profile', 'chrome-profile', 'browser-profile', 'firefox-profile'
+        ];
         function copyRecursive(src, dest) {
           if (!fs.existsSync(src)) return;
-          const rel = path.relative(ROOT, src);
-          if (exclude.some(e => e.includes('*') ? new RegExp('^' + e.replace(/\*/g, '.*') + '$').test(rel) : rel === e || rel.startsWith(e + '/'))) return;
+          const rel = path.relative(ROOT, src).replace(/\\/g, '/');
+          const base = path.basename(src);
+          if (rel && exclude.some(e => e.includes('*')
+            ? new RegExp('^' + e.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$', 'i').test(base)
+            : (rel === e || rel.startsWith(e + '/') || base === e))) return;
           const stat = fs.statSync(src);
           if (stat.isDirectory()) {
             fs.mkdirSync(dest, { recursive: true });
@@ -1059,13 +1136,12 @@ if (url === '/api/chat' && req.method === 'POST') {
           }
         }
         copyRecursive(ROOT, appDir);
-        
-        // Create zip using PowerShell Compress-Archive (available on Windows)
+
         const zipPath = path.join(extra.TMP, zipName);
         const psScriptPath = path.join(tmpDir, 'zip.ps1');
         const psScript = `$ErrorActionPreference = 'Stop'\nCompress-Archive -Path "${appDir.replace(/\\/g, '\\\\')}\\*" -DestinationPath "${zipPath.replace(/\\/g, '\\\\')}" -Force`;
         fs.writeFileSync(psScriptPath, psScript, 'utf8');
-        cp.execSync('powershell -NoProfile -ExecutionPolicy Bypass -File "' + psScriptPath.replace(/"/g, '\\"') + '"', { timeout: 120000, encoding: 'utf8', windowsHide: true });
+        cp.execFileSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', psScriptPath], { timeout: 120000, encoding: 'utf8', windowsHide: true });
         
         // Cleanup temp dir
         extra.rm(tmpDir);
@@ -1093,6 +1169,7 @@ if (url === '/api/chat' && req.method === 'POST') {
     if (url === '/api/storage') return json(res, 200, await require('./lib/storage').report(q.get('force') === '1'));
     if (url === '/api/storage/clean' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, await require('./lib/storage').clean(b.what, b.keep)); }
     if (url === '/api/restore' && req.method === 'POST') return json(res, 200, await extra.restore(await bodyBuf(req, 400e6)));
+    if (url === '/api/restore/verify' && req.method === 'POST') return json(res, 200, await extra.verifyRestore(await bodyBuf(req, 400e6)));
     /* progress safety: the dated copies kept outside the app folder */
     /* what this copy is, and whether a newer one has been unzipped into releases\ (Moundshroud never goes online to ask) */
     if (url === '/api/about') {

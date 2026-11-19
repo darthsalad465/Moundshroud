@@ -114,7 +114,7 @@
 
   /* ---------- clicks ---------- */
   root.addEventListener('click', async e => {
-    const T = e.target, c = s => T.closest(s); let el;
+    const T = e.target, c = async s => T.closest(s); let el;
     if ((el = c('[data-tab]'))) { st.tab = el.dataset.tab; draw(); return; }
     if ((el = c('[data-w]'))) { const n = +el.dataset.w; st.week = n ? dkey(addD(parseKey(st.week), n)) : dkey(new Date()); draw(); return; }
     if ((el = c('[data-add]'))) { const [d, m] = el.dataset.add.split(':'); A.dlg('<div style="display:flex;flex-direction:column;gap:10px;min-width:min(340px,86vw)"><b>Add a meal</b><button class="pri" id="ka1">📖 Find a recipe</button><div class="row" style="gap:6px"><input id="ka2" type="text" placeholder="or type your own meal" style="flex:1;padding:8px 12px"><button class="ib" id="ka3">Add</button></div></div>'); document.getElementById('ka1').onclick = () => { A.closeDlg(); st.tab = 'rec'; st.addTo = { d, m }; draw(); A.toast('Open a recipe and press "Add to the plan".', 3500); }; document.getElementById('ka3').onclick = () => { const t = document.getElementById('ka2').value.trim(); if (!t) return; (plan[d] = plan[d] || {})[m] = (plan[d][m] || []).concat([{ t, rid: '' }]); sv.plan(); A.closeDlg(); draw(); }; return; }
@@ -131,7 +131,7 @@
       const a = el.dataset.a;
       if (a === 'surprise') surprise(); else if (a === 'plan2shop') planToShop();
       else if (a === 'cookable') { st.tab = 'rec'; st.pan = true; st.q = ''; st.cat = ''; await drawRec(true); }
-      else if (a === 'pclear') { if (confirm('Clear the whole pantry?')) { pantry = []; sv.pantry(); draw(); } }
+      else if (a === 'pclear') { if ((await A.confirm('Clear the whole pantry?'))) { pantry = []; sv.pantry(); draw(); } }
       else if (a === 'more') { st.page++; const sc = root.querySelector('.scroll').scrollTop; list(); root.querySelector('.scroll').scrollTop = sc; }
       else if (a === 'sclear') { shop = shop.filter(x => !x.done); sv.shop(); draw(); }
       else if (a === 'stopantry') { shop.filter(x => x.done).forEach(x => { const n = x.t.replace(/^[\d\s/½¼¾⅓⅔⅛.-]+/, '').replace(new RegExp('^(?:' + UNITS + ')\\s+(?:of\\s+)?', 'i'), '').trim(); if (n && !pantry.some(p => p.n.toLowerCase() === n.toLowerCase())) pantry.push({ n }); }); shop = shop.filter(x => !x.done); sv.shop(); sv.pantry(); A.toast('Moved to the pantry.'); draw(); }

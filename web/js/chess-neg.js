@@ -202,11 +202,11 @@
       const q = id => host.querySelector('#' + id);
       q('lfid').oninput = () => { L.fid(+q('lfid').value); q('lfidv').textContent = q('lfid').value + '%'; };
       q('lboot').onclick = () => { const n = L.bootstrap(); A.toast(n ? 'Echo learned ' + n + ' more moves from your saved games.' : 'No new saved games to learn from yet.'); draw(); };
-      q('lreset').onclick = () => { if (!confirm('Make Echo forget everything it has learned about your style?')) return; L.resetLearning(); draw(); };
+      q('lreset').onclick = async () => { if (!(await A.confirm('Make Echo forget everything it has learned about your style?'))) return; L.resetLearning(); draw(); };
       q('lrset').onclick = () => { L.setRate(+q('lrate').value); A.toast('Rating set to ' + L.rate().r); draw(); };
       const choose = m => { B.setMode(m); ctx.setElo(clamp(Math.round(L.rate().r / 100) * 100, 400, 2400)); A.closeDlg(); A.toast({ mirror: 'Echo', twin: 'Rival', draw: 'Equinox', tide: 'Tide', trainer: 'Trainer' }[m] + ' will be your opponent. Start a new game to play.', 3500); };
       q('lpm').onclick = () => choose('mirror'); q('ltw').onclick = () => choose('twin'); q('leq').onclick = () => choose('draw'); q('ltd').onclick = () => choose('tide'); if (q('ltr')) q('ltr').onclick = () => choose('trainer');
-      q('ltdr').onclick = () => { if (!confirm('Reset Tide to its starting skill?')) return; L.resetTide(); draw(); };
+      q('ltdr').onclick = async () => { if (!(await A.confirm('Reset Tide to its starting skill?'))) return; L.resetTide(); draw(); };
       /* the Trainer's two jobs from one place: turn your own games into puzzles, and open them */
       const ts = q('trst'); if (ts) { try { const s = ChessTrainer.stats(); ts.textContent = s.games + ' of your games read · ' + s.analysed + ' analysed · ' + s.slips + ' mistakes found · ' + s.puzzles + ' of your own puzzles saved'; } catch (e) { } }
       const trpz = q('ltrpz'); if (trpz) trpz.onclick = async () => {

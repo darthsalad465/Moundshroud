@@ -394,7 +394,7 @@
     $('agsq').oninput = drawList;
     $('aglist').onclick = async e => {
       const f = e.target.closest('[data-forget]');
-      if (f) { e.stopPropagation(); if (f.dataset.forget === (H && H.sessionId) && H.running) return A.toast('That session is running. Stop it first.'); if (!confirm('Forget this conversation? It is removed from this list. Files it made are not touched.')) return; await post('/api/harness/forget', { id: f.dataset.forget }); if (view === 'rec' && recId === f.dataset.forget) show('live'); loadList(); return; }
+      if (f) { e.stopPropagation(); if (f.dataset.forget === (H && H.sessionId) && H.running) return A.toast('That session is running. Stop it first.'); if (!(await A.confirm('Forget this conversation? It is removed from this list. Files it made are not touched.'))) return; await post('/api/harness/forget', { id: f.dataset.forget }); if (view === 'rec' && recId === f.dataset.forget) show('live'); loadList(); return; }
       const r = e.target.closest('.agrow'); if (!r) return;
       if (r.dataset.live) return openLive();
       if (r.dataset.rlive) return openRoutineLive();
@@ -470,7 +470,7 @@
     };
     const busyElsewhere = () => H && H.running && (H.busy || (H.pending && H.pending.length));
     $('hnew').onclick = async () => {
-      if (busyElsewhere() && !confirm('The agent is still working on “' + (H.title || 'a session') + '”. Stop it and start a new session?')) return;
+      if (busyElsewhere() && !(await A.confirm('The agent is still working on “' + (H.title || 'a session') + '”. Stop it and start a new session?'))) return;
       if (H && (H.running || H.sessionId || H.seq)) await post('/api/harness/clear');
       seq = 0; show('live'); await tick(); $('hin').focus();
     };
@@ -480,7 +480,7 @@
       const t = $('hin').value.trim(); if ((!t && !shot) || starting) return;
       if (t.startsWith('/')) { $('hin').value = ''; await cmd(t); return; }      // a command acts here, and is never sent to the model
       if (view === 'rec') {
-        if (busyElsewhere() && !confirm('The agent is working on “' + (H.title || 'another session') + '”. Stop it and pick this one up instead?')) return;
+        if (busyElsewhere() && !(await A.confirm('The agent is working on “' + (H.title || 'another session') + '”. Stop it and pick this one up instead?'))) return;
         const x = await post('/api/harness/show', { id: recId }); if (!x.ok) { A.toast(x.error || 'Could not open that conversation.'); return; }
         seq = 0; show('live'); await tick();
         if (!(await begin(recId))) return;
@@ -666,11 +666,11 @@
     }
     $('agrout').addEventListener('click', async e => {
       const t = e.target.closest('button,input[data-ron]'); if (!t) return; const d = t.dataset;
-      const findR = id => RT.routines.find(r => r.id === id);
+      const findR = async id => RT.routines.find(r => r.id === id);
       if (d.rnew) { rform = { name: '', prompt: '', dir: get(), model: $('agmodel').value, guard: true, on: true, sched: { kind: 'daily', h: 8, m: 0, day: 1, every: 4 } }; drawRoutines(); }
       else if (d.rsug) { const s = RT.suggestions.find(x => x.key === d.rsug); rform = { name: s.name, prompt: s.prompt, dir: s.dir || get(), model: $('agmodel').value, guard: s.guard, on: true, sched: Object.assign({ day: 1, every: 4 }, s.sched) }; drawRoutines(); }
       else if (d.redit) { const r = findR(d.redit); if (r) { rform = JSON.parse(JSON.stringify(r)); drawRoutines(); } }
-      else if (d.rdel) { const r = findR(d.rdel); if (r && confirm('Delete the routine “' + r.name + '”? Its past results stay in the list.')) { await post('/api/routines/delete', { id: r.id }); loadRoutines(); } }
+      else if (d.rdel) { const r = findR(d.rdel); if (r && (await A.confirm('Delete the routine “' + r.name + '”? Its past results stay in the list.'))) { await post('/api/routines/delete', { id: r.id }); loadRoutines(); } }
       else if (d.rrun) { const x = await post('/api/routines/run', { id: d.rrun }); if (!x.ok) A.toast(x.error || 'Could not start it.'); else { A.toast('Routine started'); await loadRoutines(); openRoutineLive(); } }
       else if (d.ron) { const r = findR(d.ron); if (r) { await post('/api/routines/save', { routine: Object.assign({}, r, { on: t.checked }) }); loadRoutines(); } }
       else if (d.rwatch) openRoutineLive();
@@ -680,8 +680,8 @@
 
     /* ---------- a narrow window: the session list slides over the conversation ---------- */
     const narrow = () => b.clientWidth < 760;
-    $('agtog').onclick = () => { if (narrow()) $('agx').classList.toggle('sideopen'); else { const hid = $('agx').classList.toggle('sidehide'); lsPut(SKEY, hid ? 'hide' : ''); } };
-    if (lsGet(SKEY, '') === 'hide') $('agx').classList.add('sidehide');
+    $('agx').classList.add('sidehide'); // start collapsed by default when opening the app
+    $('agtog').onclick = () => { if (narrow()) $('agx').classList.toggle('sideopen'); else $('agx').classList.toggle('sidehide'); };
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => $('agx').classList.toggle('narrow', narrow())) : null;
     if (ro) ro.observe(b); $('agx').classList.toggle('narrow', narrow());
 

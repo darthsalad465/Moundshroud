@@ -136,7 +136,7 @@
       b.innerHTML = '<div class="row" style="padding:8px 12px;border-bottom:1px solid var(--line);flex-wrap:wrap"><b style="flex:1">📖 ' + esc(st.genre) + '</b><label class="chk small mute"><input type="checkbox" id="stl"' + (ls.get('storyread', '0') === '1' ? ' checked' : '') + '> Read aloud</label><button class="ib" id="stn2">New story</button></div><div id="stlog" style="flex:1;overflow:auto;padding:12px 14px"></div><div class="composer"><div id="stopt" class="chips" style="margin:0 0 6px"></div><div class="row"><input id="sti" type="text" placeholder="Or type what you do next..."><button class="pri" id="stg">Go</button></div></div>';
       $('stlog').innerHTML = st.turns.map(t => t.role === 'user' ? '<div class="m u" style="max-width:85%">' + esc(t.text) + '</div>' : '<div class="m a" style="max-width:94%">' + md(t.text) + '</div>').join('');
       $('stlog').scrollTop = $('stlog').scrollHeight; options();
-      $('stl').onchange = () => ls.set('storyread', $('stl').checked ? '1' : '0'); $('stn2').onclick = () => { if (!st.turns.length || confirm('Start a new story? This one is saved only until you do.')) { st = null; ls.set('story', 'null'); draw(); } };
+      $('stl').onchange = () => ls.set('storyread', $('stl').checked ? '1' : '0'); $('stn2').onclick = async () => { if (!st.turns.length || (await A.confirm('Start a new story? This one is saved only until you do.'))) { st = null; ls.set('story', 'null'); draw(); } };
       const go = () => { const v = $('sti').value.trim(); if (v) { $('sti').value = ''; turn(v); } }; $('stg').onclick = go; $('sti').onkeydown = e => { if (e.key === 'Enter') go(); };
       $('stopt').onclick = e => { const c = e.target.closest('[data-o]'); if (c) turn(c.dataset.o); };
     };

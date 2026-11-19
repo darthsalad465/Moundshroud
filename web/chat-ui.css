@@ -541,8 +541,8 @@ html.sh #chattabs .ib.on {
   font-weight: 500;
 }
 
-#p-chat > .composer,
-html.sh #p-chat > .composer {
+#p-chat .composer,
+html.sh #p-chat .composer {
   flex: none;
   align-self: center;
   width: min(840px, calc(100% - 28px));
@@ -561,13 +561,16 @@ html.sh #p-chat > .composer {
     0 20px 44px -18px rgba(0, 0, 0, .65);
   transition: border-color .2s ease, box-shadow .24s ease;
 }
-#p-chat > .composer:focus-within,
-html.sh #p-chat > .composer:focus-within {
+#p-chat .composer:focus-within,
+html.sh #p-chat .composer:focus-within {
   border-color: color-mix(in srgb, var(--acc) 68%, var(--line));
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, .1),
     0 0 0 4px color-mix(in srgb, var(--acc) 15%, transparent),
     0 22px 48px -18px rgba(0, 0, 0, .7);
+}
+html.sh #p-chat:has(#go.stop) .composer {
+  animation: shCompAura 2s ease-in-out infinite;
 }
 #p-chat #row {
   gap: 6px;
@@ -992,6 +995,344 @@ select.agchip:hover {
 }
 .brn-ag-foot input {
   border-radius: 12px !important;
+}
+
+/* ---------- 11. Main Chat Left History Sidebar (#chatx / #chside) ---------- */
+.chx {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  position: relative;
+  overflow: hidden;
+}
+.chside {
+  width: 256px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+  background: color-mix(in srgb, var(--panel) 78%, var(--bg));
+  transition: transform .22s cubic-bezier(.16, 1, .3, 1);
+}
+.chx.sidehide:not(.narrow) .chside {
+  display: none;
+}
+.chx.narrow .chside {
+  position: absolute;
+  z-index: 12;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  transform: translateX(-104%);
+  box-shadow: 12px 0 36px rgba(0, 0, 0, .55);
+}
+.chx.narrow.sideopen .chside {
+  transform: none;
+}
+.chsidetop {
+  padding: 10px 10px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.chsidetop input {
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+.chslist {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 7px 12px;
+}
+.chsempty {
+  padding: 16px 10px;
+  text-align: center;
+  line-height: 1.5;
+}
+.chrow {
+  position: relative;
+  padding: 8px 10px;
+  border-radius: 11px;
+  cursor: pointer;
+  margin: 2px 0;
+  transition: background-color .15s, box-shadow .15s;
+}
+.chrow:hover {
+  background: color-mix(in srgb, var(--text) 6.5%, transparent);
+  padding-right: 76px;
+}
+.chrow.on {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--acc) 22%, transparent), color-mix(in srgb, var(--acc) 6%, transparent));
+  box-shadow: inset 3px 0 0 var(--acc);
+}
+.chacts {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: none;
+  align-items: center;
+  gap: 2px;
+}
+.chrow:hover .chacts,
+.chrow:focus-within .chacts {
+  display: flex;
+}
+.chact {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--panel2) 85%, transparent);
+  color: var(--mute);
+  font-size: 11.5px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: color .14s, background-color .14s;
+}
+.chact:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--acc) 22%, var(--panel2));
+}
+.chact.dang:hover {
+  color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 18%, var(--panel2));
+}
+.chsidefoot {
+  border-top: 1px solid color-mix(in srgb, var(--line) 75%, transparent);
+  padding: 8px 0;
+}
+.chmain {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+.chhead {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 65%, transparent);
+  background: color-mix(in srgb, var(--panel) 65%, transparent);
+  backdrop-filter: blur(12px);
+  flex: none;
+}
+.chhtitle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.chhtitle b {
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chhtitle span {
+  font-size: 11.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chhact {
+  padding: 4px 8px !important;
+  font-size: 12.5px !important;
+}
+
+/* ---------- 12. In-App Moundshroud Modals (A.confirm / A.prompt / A.alert) ---------- */
+.mdlg-ov {
+  position: fixed;
+  inset: 0;
+  z-index: 99990;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: color-mix(in srgb, var(--bg, #0e1016) 58%, rgba(0, 0, 0, .55));
+  backdrop-filter: blur(12px) saturate(1.2);
+  animation: mdlgFade .16s ease-out both;
+}
+.mdlg-ov.out {
+  opacity: 0;
+  transition: opacity .14s ease;
+}
+@keyframes mdlgFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mdlgPop { from { opacity: 0; transform: translateY(10px) scale(.96); } to { opacity: 1; transform: none; } }
+.mdlg-card {
+  width: min(440px, 94vw);
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--acc, #8b7cff) 42%, var(--line, #2a3042));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--panel2, #1d212e) 92%, var(--panel, #161923)), color-mix(in srgb, var(--panel, #161923) 98%, var(--bg, #0e1016)));
+  box-shadow: 0 28px 76px -14px rgba(0, 0, 0, .78), 0 0 0 1px rgba(255, 255, 255, .07) inset;
+  overflow: hidden;
+  animation: mdlgPop .22s cubic-bezier(.16, 1, .3, 1) both;
+}
+.mdlg-card.mdlg-dang {
+  border-color: color-mix(in srgb, var(--bad, #ff6b81) 50%, var(--line, #2a3042));
+}
+.mdlg-hd {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 14px 18px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--line, #2a3042) 75%, transparent);
+  background: color-mix(in srgb, var(--panel2, #1d212e) 45%, transparent);
+}
+.mdlg-ic {
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+  color: var(--acc, #8b7cff);
+  background: color-mix(in srgb, var(--acc, #8b7cff) 18%, var(--panel, #161923));
+  border: 1px solid color-mix(in srgb, var(--acc, #8b7cff) 38%, transparent);
+}
+.mdlg-card.mdlg-dang .mdlg-ic {
+  color: var(--bad, #ff6b81);
+  background: color-mix(in srgb, var(--bad, #ff6b81) 16%, var(--panel, #161923));
+  border-color: color-mix(in srgb, var(--bad, #ff6b81) 42%, transparent);
+}
+.mdlg-ht {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.mdlg-t {
+  font-size: 15.5px;
+  font-weight: 700;
+  color: var(--text, #eceef5);
+  line-height: 1.2;
+}
+.mdlg-brand {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--mute, #9aa3ba);
+  margin-top: 2px;
+}
+.mdlg-bd {
+  padding: 16px 18px;
+}
+.mdlg-msg {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text, #eceef5);
+  overflow-wrap: anywhere;
+}
+.mdlg-in {
+  width: 100%;
+  margin-top: 12px;
+  padding: 9px 12px;
+  border-radius: 11px;
+  font-size: 14px;
+}
+.mdlg-ft {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 18px 15px;
+  border-top: 1px solid color-mix(in srgb, var(--line, #2a3042) 65%, transparent);
+  background: color-mix(in srgb, var(--panel2, #1d212e) 28%, transparent);
+}
+.mdlg-ok-dang {
+  background: linear-gradient(135deg, var(--bad, #ff6b81), color-mix(in srgb, var(--bad, #ff6b81) 75%, #800)) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+  font-weight: 650 !important;
+}
+
+/* ---------- 13. Professional Right-Click Context Menu (#ctxm) ---------- */
+#ctxm {
+  position: fixed;
+  z-index: 99980;
+  min-width: 220px;
+  max-width: min(310px, calc(100vw - 20px));
+  padding: 6px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--text) 14%, var(--line));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--panel2) 92%, var(--panel)), color-mix(in srgb, var(--panel) 97%, var(--bg)));
+  backdrop-filter: blur(22px) saturate(1.4);
+  box-shadow: 0 22px 58px -12px rgba(0, 0, 0, .74), 0 0 0 1px rgba(255, 255, 255, .07) inset;
+  animation: ctxmIn .13s cubic-bezier(.16, 1, .3, 1) both;
+  user-select: none;
+}
+@keyframes ctxmIn { from { opacity: 0; transform: scale(.96) translateY(-4px); } to { opacity: 1; transform: none; } }
+.ctxm-hd {
+  padding: 5px 10px 3px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+.ctxm-sep {
+  height: 1px;
+  margin: 5px 6px;
+  background: color-mix(in srgb, var(--line) 75%, transparent);
+}
+.ctxm-it {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color .1s ease, color .1s ease;
+}
+.ctxm-it:hover,
+.ctxm-it.hi {
+  background: color-mix(in srgb, var(--acc) 18%, var(--panel2));
+  color: var(--text);
+}
+.ctxm-it.dang {
+  color: var(--bad);
+}
+.ctxm-it.dang:hover,
+.ctxm-it.dang.hi {
+  background: color-mix(in srgb, var(--bad) 16%, var(--panel2));
+  color: var(--bad);
+}
+.ctxm-ic {
+  width: 18px;
+  text-align: center;
+  flex: none;
+  font-size: 13.5px;
+}
+.ctxm-lb {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ctxm-kbd {
+  font-size: 10.5px;
+  color: var(--mute);
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  font-family: Consolas, ui-monospace, monospace;
 }
 
 /* ---------- 10. Light Theme & Reduced Motion / Low Power Safety ---------- */

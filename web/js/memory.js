@@ -33,7 +33,7 @@
       d.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { remove(b.dataset.rm); draw(); });
       const i = d.querySelector('#memadd'), go = () => { if (add(i.value)) draw(); else i.select(); };
       d.querySelector('#memgo').onclick = go; i.onkeydown = e => { if (e.key === 'Enter') go(); };
-      const all = d.querySelector('#memall'); if (all) all.onclick = () => { if (confirm('Forget everything the AI remembers about you?')) { facts = []; save(); draw(); } };
+      const all = d.querySelector('#memall'); if (all) all.onclick = async () => { if ((await A.confirm('Forget everything the AI remembers about you?'))) { facts = []; save(); draw(); } };
       d.querySelector('#memok').onclick = A.closeDlg;
     };
     (loaded ? Promise.resolve() : load()).then(draw);

@@ -36,7 +36,7 @@
     q('#sp').onclick = () => dl(cv, 'sketch.png');
     const open = p => { const i = new Image(); i.onload = () => { snap(); ctx.drawImage(i, 0, 0, cv.width, cv.height); }; i.src = p.p; };
     q('#ss').insertAdjacentHTML('afterend', '<button class="ib" id="ssa" title="Save this sketch into one of your art albums">📁 Add to album</button>'); q('#ssa').onclick = () => { const t = document.createElement('canvas'); t.width = cv.width; t.height = cv.height; const x = t.getContext('2d'); x.fillStyle = '#fffdf6'; x.fillRect(0, 0, t.width, t.height); x.drawImage(cv, 0, 0); t.toBlob(b => window.ArtAlbums && ArtAlbums.add(b, { name: 'Sketch', source: 'Sketchpad' })); };
-    q('#ss').onclick = () => { const n = prompt('Name this sketch', 'Sketch'); if (n === null) return; const t = document.createElement('canvas'); t.width = 240; t.height = 150; t.getContext('2d').drawImage(cv, 0, 0, 240, 150); const big = cv.toDataURL('image/jpeg', .8); if (saveItem('sketches', { n: n || 'Sketch', p: big })) { A.toast('Saved'); gal(q('#sg'), 'sketches', open); } };
+    q('#ss').onclick = async () => { const n = (await A.prompt('Name this sketch', 'Sketch')); if (n === null) return; const t = document.createElement('canvas'); t.width = 240; t.height = 150; t.getContext('2d').drawImage(cv, 0, 0, 240, 150); const big = cv.toDataURL('image/jpeg', .8); if (saveItem('sketches', { n: n || 'Sketch', p: big })) { A.toast('Saved'); gal(q('#sg'), 'sketches', open); } };
     gal(q('#sg'), 'sketches', open);
   }, 1);
 

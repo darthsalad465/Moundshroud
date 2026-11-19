@@ -142,7 +142,7 @@
     });
     box.querySelectorAll('.hrdel').forEach(b => b.onclick = async e => {
       e.stopPropagation();
-      if (!confirm('Delete this Heretic run and its saved files?')) return;
+      if (!(await A.confirm('Delete this Heretic run and its saved files?'))) return;
       const r = await A.api('/api/heretic/remove', { id: b.dataset.del }).catch(() => ({ ok: false }));
       if (!r.ok) return A.toast(r.error || 'Could not delete run.');
       if (curId === b.dataset.del) curId = '';

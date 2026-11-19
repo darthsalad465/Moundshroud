@@ -89,7 +89,7 @@ const paint = async () => {
       else if (d) { const r = await A.api('/api/refs/install', { slug: d.dataset.dl }); if (r.error) A.toast(r.error, 6000); paint(); }
       else if (e.target.closest('[data-rsf]')) { const r = await A.api('/api/refs/check', { slug: e.target.closest('[data-rsf]').dataset.rsf }); if (r.error) A.toast(r.error, 6000); paint(); }
       else if (f) { const r = await A.api('/api/refs/update', { slug: f.dataset.rf }); if (r.error) A.toast(r.error, 6000); paint(); }
-      else if (rm) { if (!confirm('Delete this repository from this PC? You can download it again later.')) return; const r = await A.api('/api/refs/remove', { slug: rm.dataset.rm }); if (r.error) A.toast(r.error, 6000); paint(); }
+      else if (rm) { if (!(await A.confirm('Delete this repository from this PC? You can download it again later.'))) return; const r = await A.api('/api/refs/remove', { slug: rm.dataset.rm }); if (r.error) A.toast(r.error, 6000); paint(); }
     };
     paint();
   }
@@ -172,7 +172,7 @@ const paint = async () => {
     b.innerHTML = '<div class="scroll pad" style="flex:1"><h2>Clipboard history</h2><div class="mute small">Remembers the text you copy so you can find it again. It is <b>off by default</b>, stays on this PC, skips things that look like passwords or card numbers, and ignores password managers that ask not to be recorded. Hotkey: <kbd>Ctrl+Alt+C</kbd>.</div>' +
       '<div class="row" style="margin:10px 0"><span id="cstate" style="flex:1"></span><button class="ib" id="ctog">Turn on</button><button class="ib dang" id="cclr">Clear all</button></div><input id="cq" type="text" placeholder="Search what you copied..." style="margin-bottom:8px"><div id="clist"></div></div>';
     $('ctog').onclick = async () => { const r = await A.api('/api/clip'); await A.api('/api/clip/toggle', { on: !r.on }); draw(); };
-    $('cclr').onclick = async () => { if (!confirm('Delete the whole clipboard history?')) return; await A.api('/api/clip/clear', {}); draw(); };
+    $('cclr').onclick = async () => { if (!(await A.confirm('Delete the whole clipboard history?'))) return; await A.api('/api/clip/clear', {}); draw(); };
     $('cq').oninput = draw; draw(); const t = setInterval(() => { if (my !== tok || !live(b)) return clearInterval(t); if (document.activeElement !== $('cq')) draw(); }, 4000);
   }
   /* ---- calculator ---- */
@@ -235,7 +235,7 @@ const paint = async () => {
     $('rgo').onclick = add; $('rin').onkeydown = e => { e.stopPropagation(); if (e.key === 'Enter') add(); };
     $('rlist').onclick = async e => {
       const d = e.target.closest('[data-d]'), s = e.target.closest('[data-sk]'), pz = e.target.closest('[data-pa]'), ed = e.target.closest('[data-ed]');
-      if (d) { await A.api('/api/reminders/delete', { id: d.dataset.d }); } else if (s) { await A.api('/api/reminders/edit', { id: s.dataset.sk, skip: true }); A.toast('Skipped the next one'); } else if (pz) { await A.api('/api/reminders/edit', { id: pz.dataset.pa, paused: pz.dataset.p === '1' }); } else if (ed) { const n = prompt('Reminder text', ed.dataset.t); if (n && n.trim()) await A.api('/api/reminders/edit', { id: ed.dataset.ed, text: n.trim() }); } else return;
+      if (d) { await A.api('/api/reminders/delete', { id: d.dataset.d }); } else if (s) { await A.api('/api/reminders/edit', { id: s.dataset.sk, skip: true }); A.toast('Skipped the next one'); } else if (pz) { await A.api('/api/reminders/edit', { id: pz.dataset.pa, paused: pz.dataset.p === '1' }); } else if (ed) { const n = (await A.prompt('Reminder text', ed.dataset.t)); if (n && n.trim()) await A.api('/api/reminders/edit', { id: ed.dataset.ed, text: n.trim() }); } else return;
       draw(); A.emit('reminders');
     };
     draw();
@@ -252,7 +252,7 @@ const paint = async () => {
       b.querySelectorAll('[data-t]').forEach(x => x.oninput = () => { list[+x.dataset.t].text = x.value; sv(); });
       b.querySelectorAll('[data-d]').forEach(x => x.onclick = () => { list.splice(+x.dataset.d, 1); sv(); draw(); });
       $('padd').onclick = () => { list.push({ id: 'p' + Date.now(), name: 'New prompt', text: 'Do something useful with this:\n\n{text}' }); sv(); draw(); };
-      $('preset').onclick = async () => { if (!confirm('Replace all prompts with the defaults?')) return; await A.api('/api/prompts', null); list = await A.api('/api/prompts'); draw(); };
+      $('preset').onclick = async () => { if (!(await A.confirm('Replace all prompts with the defaults?'))) return; await A.api('/api/prompts', null); list = await A.api('/api/prompts'); draw(); };
     };
     let t; const sv = () => { clearTimeout(t); t = setTimeout(() => A.api('/api/prompts', list), 500); };
     draw();

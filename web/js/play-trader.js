@@ -40,7 +40,7 @@
         (S.over ? '<div class="card" style="margin-top:10px;border-color:var(--bad)"><b>Game over</b> · final worth ' + Math.max(0, Math.round(score())) + '<div style="margin-top:6px"><button class="pri" data-new="1">New game</button></div></div>' : '<div class="small mute" style="margin-top:8px"><button class="ib" data-new="1">Restart</button></div>') + '</div></div>';
       api.hud('Day ' + S.day + ' · ' + S.cr + ' credits · worth ' + Math.round(score()));
     };
-    el.onclick = e => { if (!S) return; const j = e.target.closest('[data-j]'), b = e.target.closest('[data-b]'), f = e.target.closest('[data-f]'), u = e.target.closest('[data-u]'), nw = e.target.closest('[data-new]'); if (j) jump(+j.dataset.j); else if (b) trade(+b.dataset.b, +b.dataset.n); else if (f) fuelUp(+f.dataset.f); else if (u) up(u.dataset.u); else if (nw) { if (S.over || confirm('Start a new game? Your current one will be lost.')) { gen(); save(); draw(); } } };
+    el.onclick = async e => { if (!S) return; const j = e.target.closest('[data-j]'), b = e.target.closest('[data-b]'), f = e.target.closest('[data-f]'), u = e.target.closest('[data-u]'), nw = e.target.closest('[data-new]'); if (j) jump(+j.dataset.j); else if (b) trade(+b.dataset.b, +b.dataset.n); else if (f) fuelUp(+f.dataset.f); else if (u) up(u.dataset.u); else if (nw) { if (S.over || (await A.confirm('Start a new game? Your current one will be lost.'))) { gen(); save(); draw(); } } };
     try { const r = JSON.parse(ls.get(KEY, 'null')); if (r && r.sys && !r.over) S = r; } catch (e) { } if (!S) { gen(); save(); } draw();
     return () => { dead = true; el.onclick = null; };
   } };

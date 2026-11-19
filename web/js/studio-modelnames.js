@@ -37,7 +37,7 @@
     button.onclick = async () => {
       const from = source.value, to = destination.value.trim();
       if (!from || !to) return;
-      if (!window.confirm('Rename “' + from + '” to “' + to + '”? The old name will be removed after the new one is verified.')) return;
+      if (!(await A.confirm('Rename “' + from + '” to “' + to + '”? The old name will be removed after the new one is verified.'))) return;
       button.dataset.busy = '1'; button.textContent = 'Renaming…'; status.textContent = 'Working…'; updateButton();
       const r = await A.api('/api/models/rename', { source: from, destination: to }).catch(e => ({ error: e.message || 'The rename could not be completed.' }));
       button.dataset.busy = '0'; button.textContent = 'Rename model';

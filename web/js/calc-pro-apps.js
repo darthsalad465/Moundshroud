@@ -142,7 +142,7 @@
     sync();
     q(v, '#as-t').oninput = () => { sync(); scatter(null); };
     q(v, '#as-t').onkeydown = e => { if (e.key === 'Enter') { const el = e.target; const nx = q(v, '[data-l="' + el.dataset.l + '"][data-i="' + (+el.dataset.i + 1) + '"]'); if (nx) nx.focus(); else apps.stats(v); } };
-    q(v, '#as-clear').onclick = () => { if (!confirm('Empty L1, L2 and L3?')) return; L.L1 = []; L.L2 = []; L.L3 = []; ['L1', 'L2', 'L3'].forEach(k => { S.st.vars[k] = '{}'; }); AU.save(); apps.stats(v); };
+    q(v, '#as-clear').onclick = async () => { if (!(await A.confirm('Empty L1, L2 and L3?'))) return; L.L1 = []; L.L2 = []; L.L3 = []; ['L1', 'L2', 'L3'].forEach(k => { S.st.vars[k] = '{}'; }); AU.save(); apps.stats(v); };
     q(v, '#as-reg').onchange = e => { S.reg = e.target.value; AU.save(); };
     const out = q(v, '#as-out'), table = rows => '<table class="au-st" style="margin-left:0">' + rows.map(r => '<tr><td>' + esc(r[0]) + '</td><td style="font-weight:600">' + esc(r[1]) + '</td></tr>').join('') + '</table>';
     q(v, '#as-1v').onclick = () => { sync(); const r = E.run('stats(L1)', JSON.parse(JSON.stringify(S.st))); if (!r || r.error) { out.innerHTML = '<span style="color:#ff8a9a">' + esc(r ? r.out : '') + '</span>'; return; } out.innerHTML = table(r.value.rows.map(x => [x[0], AU.show(x[1], true)])); scatter(null); };

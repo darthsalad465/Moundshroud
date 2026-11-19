@@ -2,7 +2,8 @@
 (() => {
   /* tabs in the order shown */
   ['chat', 'lib', 'files', 'notes', 'study', 'lang', 'tools', 'health', 'guide'].forEach(n => { if (!A.tabs[n]) return; });
-  const wanted = ['home', 'news', 'chat', 'brain', 'web', 'cal', 'lib', 'files', 'notes', 'mail', 'docs', 'offed', 'calc', 'scan', 'meet', 'rem', 'clip', 'study', 'lang', 'writing', 'practice', 'teach', 'sky', 'lab', 'studio', 'cyber', 'tools', 'health', 'kitchen', 'garden', 'money', 'journal', 'albums', 'play', 'music', 'radio', 'tv', 'photos', 'faith', 'map', 'guide', 'appedit'];
+  if (!A.tabs.coding) A.registerTab('coding', 'Coding', () => {});
+  const wanted = ['home', 'news', 'chat', 'brain', 'globe', 'web', 'cal', 'lib', 'files', 'notes', 'mail', 'docs', 'offed', 'calc', 'scan', 'meet', 'rem', 'clip', 'study', 'lang', 'writing', 'practice', 'teach', 'sky', 'lab', 'studio', 'cyber', 'tools', 'health', 'kitchen', 'garden', 'money', 'journal', 'albums', 'play', 'music', 'radio', 'tv', 'photos', 'faith', 'map', 'guide', 'appedit', 'coding'];
   A.order = wanted.filter(n => A.tabs[n]);
   A.buildNav(); A.showTab('home');                       // Moundshroud opens on Today
   /* the logo in the top left corner goes to Today (the home page) */
@@ -37,8 +38,8 @@
     $('slp').checked = A.power.on; $('slp').onchange = () => A.power.toggle($('slp').checked);
     $('sv').onchange = () => ls.set('voice', $('sv').value); $('sr2').oninput = () => ls.set('rate', $('sr2').value);
     $('stest').onclick = () => { A.speech.stop(); A.speech.speak('Hello. This is how I sound when reading to you.'); };
-    $('sclr').onclick = async () => { if (!confirm('Delete every saved chat?')) return; await A.api('/api/chats', []); A.closeDlg(); location.reload(); };
-    $('srs').onclick = () => { const f = document.createElement('input'); f.type = 'file'; f.accept = '.zip'; f.onchange = async () => { if (!f.files[0]) return; if (!confirm('Restore from this backup? Notes with the same name and your current flashcards, chats, prompts and reminders will be replaced.')) return; A.toast('Restoring...', 4000); const r = await (await fetch('/api/restore', { method: 'POST', body: await f.files[0].arrayBuffer() })).json(); if (r.error) return A.toast(r.error, 5000); A.toast('Restored ' + r.notes + ' notes and ' + r.files + ' data files'); setTimeout(() => location.reload(), 1200); }; f.click(); };
+    $('sclr').onclick = async () => { if (!(await A.confirm('Delete every saved chat?'))) return; await A.api('/api/chats', []); A.closeDlg(); location.reload(); };
+    $('srs').onclick = () => { const f = document.createElement('input'); f.type = 'file'; f.accept = '.zip'; f.onchange = async () => { if (!f.files[0]) return; if (!(await A.confirm('Restore from this backup? Notes with the same name and your current flashcards, chats, prompts and reminders will be replaced.'))) return; A.toast('Restoring...', 4000); const r = await (await fetch('/api/restore', { method: 'POST', body: await f.files[0].arrayBuffer() })).json(); if (r.error) return A.toast(r.error, 5000); A.toast('Restored ' + r.notes + ' notes and ' + r.files + ' data files'); setTimeout(() => location.reload(), 1200); }; f.click(); };
     $('sg').onclick = () => { A.closeDlg(); A.showTab('guide'); }; $('st').onclick = () => { A.closeDlg(); A.guide.tour(0); }; $('sx').onclick = A.closeDlg;
   };
 

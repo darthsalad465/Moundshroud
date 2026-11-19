@@ -262,9 +262,9 @@ html.god-filled body{overflow:hidden}html.god-filled body>*:not(main){visibility
       const e = window.CodeEd && CodeEd.of(ta); if (e) { e.setName(p); e.refresh(); }
       fileBar();
     }
-    function closeFile(p) {
+    async function closeFile(p) {
       const i = ftabs.findIndex(t => t.path === p); if (i < 0) return;
-      if (ftabs[i].dirty && !confirm('“' + p + '” has unsaved changes. Close it and lose them?')) return;
+      if (ftabs[i].dirty && !(await A.confirm('“' + p + '” has unsaved changes. Close it and lose them?'))) return;
       ftabs.splice(i, 1);
       if (fpath !== p) return fileBar();
       const next = ftabs[i] || ftabs[i - 1] || null; fpath = null;

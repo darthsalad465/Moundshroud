@@ -134,7 +134,7 @@
     on('#pvload', () => { x.load = true; drawViewer(); });
     const rev = () => A.api('/api/photos/reveal', { id: x.id }); on('#pvrev', rev); on('#pvrev2', rev);
     on('#pvslide', () => { if (slide) { clearInterval(slide); slide = 0; } else slide = setInterval(() => step(1), 4000); drawViewer(); });
-    on('#pvhide', async () => { if (!confirm('Hide “' + x.n + '” from Photos? The file stays exactly where it is.')) return; await A.api('/api/photos/hide', { id: x.id }); ALL = ALL.filter(y => y !== x); shown = shown.filter(y => y !== x); if (viewerAt >= shown.length) viewerAt = shown.length - 1; drawViewer(); paintSoon(); });
+    on('#pvhide', async () => { if (!(await A.confirm('Hide “' + x.n + '” from Photos? The file stays exactly where it is.'))) return; await A.api('/api/photos/hide', { id: x.id }); ALL = ALL.filter(y => y !== x); shown = shown.filter(y => y !== x); if (viewerAt >= shown.length) viewerAt = shown.length - 1; drawViewer(); paintSoon(); });
     on('#pvai', async () => { const b = o.querySelector('#pvai'); b.disabled = true; b.textContent = '✨ Looking…'; const m = await visionModel(); if (!m) { b.textContent = 'No AI model that can see is installed'; return; } const ok = await describeOne(x, m); if (!ok) b.textContent = 'The AI could not describe it'; else drawViewer(); });
     o.querySelectorAll('[data-tag]').forEach(t => t.onclick = () => { closeViewer(); st.q = t.dataset.tag; root.querySelector('#phq').value = st.q; st.view = 'all'; paint(); });
     o.onclick = e => { if (e.target === o || e.target.classList.contains('ph-stage')) closeViewer(); };
@@ -198,9 +198,9 @@
   async function describe() {
     const todo = ALL.filter(x => !x.cap && x.show && !x.cloud);
     if (!todo.length) return A.toast('Every photo here has been described already.');
-    if (A.power && A.power.on && !confirm('Low-power mode is on. Describing photos keeps the AI busy and uses the battery. Go ahead?')) return;
+    if (A.power && A.power.on && !(await A.confirm('Low-power mode is on. Describing photos keeps the AI busy and uses the battery. Go ahead?'))) return;
     const m = await visionModel(); if (!m) return A.dlg('<div class="hd"><b>No AI model that can see pictures</b></div><div class="bd"><p>Describing photos needs a model that understands images, such as Qwen3.5. Install one in Prepare › Stock up › AI models, then try again.</p><div class="row"><span class="sp"></span><button class="pri" onclick="A.closeDlg()">OK</button></div></div>');
-    if (todo.length > 30 && !confirm('Your local AI will look at ' + todo.length + ' photos, one at a time (roughly ' + Math.max(1, Math.round(todo.length * 6 / 60)) + ' minutes or more on this PC). You can keep using Moundshroud and stop any time. Start?')) return;
+    if (todo.length > 30 && !(await A.confirm('Your local AI will look at ' + todo.length + ' photos, one at a time (roughly ' + Math.max(1, Math.round(todo.length * 6 / 60)) + ' minutes or more on this PC). You can keep using Moundshroud and stop any time. Start?'))) return;
     describing = { stop: false }; const b = root.querySelector('#phai'), t0 = Date.now(); let n = 0, fail = 0;
     for (const x of todo) {
       if (describing.stop) break;
@@ -227,8 +227,8 @@
       d.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { folders.splice(+b.dataset.rm, 1); draw(); });
       d.querySelector('#phaddf').onclick = async () => { const r = await A.api('/api/pick-folder', {}); if (r && r.path) { folders.push(r.path); draw(); } };
       d.querySelector('#phrescan').onclick = async () => { A.closeDlg(); root.querySelector('#phstat').textContent = 'Looking for new photos…'; await load(true); };
-      d.querySelector('#phfth').onclick = async () => { if (!confirm('Delete all the preview pictures? Your photos are not touched; previews are made again as you scroll.')) return; await A.api('/api/photos/forget', { what: 'thumbs' }); ALL.forEach(x => x.th = false); A.closeDlg(); paint(); };
-      d.querySelector('#phfcap').onclick = async () => { if (!confirm('Forget every description the AI wrote? Search will only know file names and dates again.')) return; await A.api('/api/photos/forget', { what: 'captions' }); ALL.forEach(x => x.cap = null); A.closeDlg(); paint(); };
+      d.querySelector('#phfth').onclick = async () => { if (!(await A.confirm('Delete all the preview pictures? Your photos are not touched; previews are made again as you scroll.'))) return; await A.api('/api/photos/forget', { what: 'thumbs' }); ALL.forEach(x => x.th = false); A.closeDlg(); paint(); };
+      d.querySelector('#phfcap').onclick = async () => { if (!(await A.confirm('Forget every description the AI wrote? Search will only know file names and dates again.'))) return; await A.api('/api/photos/forget', { what: 'captions' }); ALL.forEach(x => x.cap = null); A.closeDlg(); paint(); };
       d.querySelector('#phok').onclick = async () => { A.closeDlg(); root.querySelector('#phstat').textContent = 'Updating…'; await A.api('/api/photos/folders', { folders }); setTimeout(() => load(), 400); };
     };
     draw();

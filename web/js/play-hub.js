@@ -15,9 +15,9 @@
   /* games made in the Studio (then sent here) are kept by play-ports.js as port_*; the built-in games never are */
   const isPort = id => /^port_/.test(String(id || '')) && !!A.arcade && typeof A.arcade.remove === 'function';
   /* take a Studio game out of the Arcade: the card, its stats and the daily challenge if it was today's */
-  function dropPort(id) {
+  async function dropPort(id) {
     const g = P.games[id]; if (!g || !isPort(id)) return false;
-    if (!confirm('Remove “' + g.name + '” from the Arcade?\n\nThe game itself is not deleted: it stays in Studio and its files stay on this PC. Only this card goes.')) return false;
+    if (!(await A.confirm('Remove “' + g.name + '” from the Arcade?\n\nThe game itself is not deleted: it stays in Studio and its files stay on this PC. Only this card goes.'))) return false;
     A.arcade.remove(id); delete S.games[id]; delete S.daily; save(); return true;
   }
 
@@ -109,11 +109,11 @@
     b.innerHTML = '<div class="scroll pad gh" style="flex:1"><h2 class="ghtitle">' + (onlyCyber ? '🕶️ Cyber games' : '🎮 Game room') + '</h2>' + h + '</div>';
     const q = b.querySelector('#gq'); if (q) { q.oninput = () => { view.q = norm(q.value).trim(); const pos = q.selectionStart; paint(b, onlyCyber); const n = b.querySelector('#gq'); n.focus(); n.setSelectionRange(pos, pos); }; q.onkeydown = e => e.stopPropagation(); }
     const so = b.querySelector('#gsort'); if (so) so.onchange = () => { view.sort = so.value; paint(b, onlyCyber); };
-    b.onclick = e => {
+    b.onclick = async e => {
       const f = e.target.closest('[data-fav]'); if (f) { e.stopPropagation(); const g = gs(f.dataset.fav); g.fav = g.fav ? 0 : 1; save(); checkAch(); paint(b, onlyCyber); return; }
       const x = e.target.closest('[data-del]'); if (x) {
         e.stopPropagation();
-        if (dropPort(x.dataset.del) && b.isConnected) paint(b, onlyCyber);
+        if ((await dropPort(x.dataset.del)) && b.isConnected) paint(b, onlyCyber);
         return;
       }
       const i = e.target.closest('[data-i]'); if (i && P.games[i.dataset.i]) { e.stopPropagation(); info(i.dataset.i); return; }
@@ -141,7 +141,7 @@
       (isPort(id) ? '<div class="gdelrow"><button class="gdelbtn" data-delm="1">🗑 Remove from the Arcade</button><span class="small mute">Made in Studio. Removing the card does not delete the game or its files.</span></div>' : '') + '</div>');
     d.querySelector('[data-play]').onclick = () => { close(); P.start(id); };
     d.querySelector('[data-favm]').onclick = e => { const x = gs(id); x.fav = x.fav ? 0 : 1; save(); checkAch(); e.target.textContent = x.fav ? '★ Favourited' : '☆ Favourite'; };
-    const dm = d.querySelector('[data-delm]'); if (dm) dm.onclick = () => { if (!dropPort(id)) return; close(); const body = document.getElementById('plbody'); if (body) paint(body, false); };
+    const dm = d.querySelector('[data-delm]'); if (dm) dm.onclick = async () => { if (!(await dropPort(id))) return; close(); const body = document.getElementById('plbody'); if (body) paint(body, false); };
   }
   function trophies() {
     const lv = level(S.xp);

@@ -67,7 +67,7 @@
       };
       q('#mtnote').onclick = async () => { if (!segs.length) return A.toast('Nothing recorded yet.'); const ttl = q('#mttl').value.trim() || 'Meeting ' + new Date().toLocaleString(); const r = await A.api('/api/notes/save', { title: ttl, content: '# ' + ttl + '\n\n' + new Date().toLocaleString() + '\n\n' + (summary ? '## Summary\n\n' + summary + '\n\n' : '') + '## Transcript\n\n' + text() + '\n' }); A.toast(r && r.id ? 'Saved to Notes ✓' : 'Could not save.'); };
       q('#mtcopy').onclick = () => navigator.clipboard.writeText((summary ? summary + '\n\n' : '') + text()).then(() => A.toast('Copied ✓'));
-      q('#mtclr').onclick = () => { if (running) return A.toast('Stop recording first.'); if (segs.length && !confirm('Clear the transcript?')) return; segs = []; summary = ''; q('#mtsm').textContent = ''; q('#mtclk').textContent = '0:00'; draw(); };
+      q('#mtclr').onclick = async () => { if (running) return A.toast('Stop recording first.'); if (segs.length && !(await A.confirm('Clear the transcript?'))) return; segs = []; summary = ''; q('#mtsm').textContent = ''; q('#mtclk').textContent = '0:00'; draw(); };
       root._test = { add: (t, at) => add(t, at || 0), segs: () => segs, text };
       root._cleanup = () => { if (running) stop(); };
     }

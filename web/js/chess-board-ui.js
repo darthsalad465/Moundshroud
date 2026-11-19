@@ -83,8 +83,8 @@
       q('sflip').onclick = () => { board.flipped = !board.flipped; board.draw(); }; q('sreset').onclick = () => board.set(FEN, { who: 2, last: [C.sqIndex('c4'), C.sqIndex('f7')], anim: false });
       q('ssnd').onclick = () => { const was = st().sound; CS.cfg().sound = 1; CS.sound('capture'); CS.cfg().sound = was; };
       q('sexp').onclick = () => { A.copy ? A.copy(CS.exportJson()) : navigator.clipboard.writeText(CS.exportJson()); A.toast('Board settings copied'); };
-      q('simp').onclick = () => { const s = prompt('Paste the board settings you copied earlier:'); if (!s) return; try { CS.importJson(s); build(); A.toast('Board settings loaded'); } catch (e) { A.toast('That does not look like board settings'); } };
-      q('srst').onclick = () => { if (!confirm('Put every board setting back to the defaults?')) return; CS.reset(); build(); A.toast('Board settings reset'); };
+      q('simp').onclick = async () => { const s = (await A.prompt('Paste the board settings you copied earlier:')); if (!s) return; try { CS.importJson(s); build(); A.toast('Board settings loaded'); } catch (e) { A.toast('That does not look like board settings'); } };
+      q('srst').onclick = async () => { if (!(await A.confirm('Put every board setting back to the defaults?'))) return; CS.reset(); build(); A.toast('Board settings reset'); };
     };
     build(); return () => { if (board) board.destroy(); board = null; };
   };
