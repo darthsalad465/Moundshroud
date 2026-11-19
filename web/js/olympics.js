@@ -315,7 +315,7 @@
 
   /* ---------- the models ---------- */
   async function models() {
-    let list = []; try { list = (await A.api('/api/models')).models || []; } catch (e) { }
+    let list = []; try { const r = await A.api('/api/models'); if (A.modelOrder && typeof r.defaultModel === 'string') A.modelOrder.sync(r.defaultModel); list = r.models || []; } catch (e) { }
     const out = [];
     for (const m of list) {
       if (/-agent(-\d+k)?(:latest)?$/.test(m.name)) continue;      /* the agent's copies of a model are the same model */
@@ -325,7 +325,7 @@
       /* search needs a real embedding model (e.g. nomic-embed-text): this Ollama cannot make embeddings with chat models */
       out.push({ name: m.name, label: bare(m.name), size: m.size || 0, chat, vision: caps.includes('vision'), embed: caps.includes('embedding'), embedOnly: caps.includes('embedding') && !caps.includes('completion') });
     }
-    return out;
+    return A.modelOrder ? A.modelOrder.sort(out) : out;
   }
   const can = (m, need) => need === 'chat' ? m.chat : need === 'vision' ? m.vision && !m.cloud : need === 'embed' ? m.embed && !m.cloud : false;
 
@@ -372,6 +372,7 @@
     if (!MODELS) { host.querySelector('#olbody').innerHTML = '<div class="mute">Finding the models on this PC…</div>'; MODELS = await models(); }
     await db(); draw();
     host._onShow = () => draw();
+    if (A.on && !host._defWired) { host._defWired = true; A.on('default-model', () => { if (root === host && host.isConnected && view === 'run' && !(JOB && JOB.running)) draw(); }); }
   }
   const NAV = [['table', '🏆 Medal table'], ['run', '▶ Run the Games'], ['build', '🏗 Build-off'], ['duel', '🖼 Picture duel'], ['hist', '🕘 History']];
   async function draw() {
@@ -415,12 +416,14 @@
       h += '<table class="oltab"><tr><th>Model</th>' + JOB.events.map(e => '<th>' + EVENTS.find(x => x.id === e).icon + '</th>').join('') + '</tr>' + JOB.models.map(n => '<tr><td>' + esc(bare(n)) + '</td>' + JOB.events.map(e => { const r = (JOB.results[e] || {})[n], er = (JOB.err[e] || {})[n]; return '<td class="small">' + (r ? esc(r.raw) : er ? '<span class="bad" title="' + esc(er) + '">✗</span>' : JOB.plan.some(([m, x]) => m.name === n && x === e) ? '·' : '<span class="mute">n/a</span>') + '</td>'; }).join('') + '</tr>').join('') + '</table>';
       return h;
     }
-    const ms = MODELS || [], judgeDef = (ms.filter(m => m.chat && !m.cloud).sort((a, b) => b.size - a.size)[0] || {}).name || '';
+    const ms = A.modelOrder ? A.modelOrder.sort(MODELS || []) : (MODELS || []);
+    const chatMs = ms.filter(m => m.chat);
+    const judgeDef = ((A.modelOrder && A.modelOrder.get() && chatMs.find(m => A.modelOrder.isDefault(m))) || chatMs.find(m => !m.cloud) || chatMs[0] || {}).name || '';
     return '<div class="card"><b>Who competes</b><div class="small mute" style="margin:2px 0 8px">Every model gets the events it can do: 👁 can see pictures, 🔎 can make embeddings for search, ☁ a guest on Claude (costs a little; only test questions are sent, never your files).</div><div class="olms">' +
       ms.map(m => '<label class="chk"><input type="checkbox" data-m="' + esc(m.name) + '"' + (m.cloud ? '' : ' checked') + '> ' + esc(m.label) + ' <span class="small mute">' + (m.size ? (m.size / 1e9).toFixed(1) + ' GB ' : '') + (m.vision ? '👁' : '') + (m.embed ? '🔎' : '') + (m.cloud ? '☁' : '') + (m.embedOnly ? ' search only' : '') + '</span></label>').join('') + '</div></div>' +
       '<div class="card"><b>Events</b><div class="olms">' + EVENTS.map(e => { const none = !ms.some(m => can(m, e.need)); return '<label class="chk"><input type="checkbox" data-e="' + e.id + '"' + (none ? ' disabled' : ' checked') + '> ' + e.icon + ' ' + e.name + ' <span class="small mute">' + esc(none && e.id === 'search' ? 'No search model yet: get nomic-embed-text (about 0.3 GB) in Prepare › Stock up › AI models, by name' : none ? 'No model here can do this' : e.desc) + '</span></label>'; }).join('') + '</div>' +
       '<div style="margin-top:12px"><b>How much pressure</b><div class="small mute" style="margin:2px 0 6px">Pick the level that fits the models you are entering. A small model at the Inferno final is meant to be torn apart; a big one at the Club meet is only warming up.</div>' + levelPicker() + '</div>' +
-      '<div class="row" style="gap:10px;margin-top:10px;flex-wrap:wrap;align-items:center"><label class="small">Writing judge <select id="olj">' + ms.filter(m => m.chat).map(m => '<option value="' + esc(m.name) + '"' + (m.name === judgeDef ? ' selected' : '') + '>' + esc(m.label) + '</option>').join('') + '</select></label></div>' +
+      '<div class="row" style="gap:10px;margin-top:10px;flex-wrap:wrap;align-items:center"><label class="small">Writing judge <select id="olj">' + chatMs.map(m => '<option value="' + esc(m.name) + '"' + (m.name === judgeDef ? ' selected' : '') + '>' + esc(A.modelOrder ? A.modelOrder.label(m) : m.label) + '</option>').join('') + '</select></label></div>' +
       '<div class="row" style="gap:8px;margin-top:12px"><button class="pri" data-a="start">🏁 Start the Games</button><span class="small mute">Models run one at a time; each loads once.</span></div></div>' +
       '<div class="card small mute">The Debate page (Chat › 🗣 Debate) hands out debate medals. The Build-off and the Picture duel are judged by you.</div>';
   }

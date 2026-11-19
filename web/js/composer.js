@@ -691,7 +691,23 @@
     q('#hbgo').onclick = () => { const pi = +q('#hbpart').value; if (isNaN(pi) || q('#hbpart').value === '') return A.toast('Add a drum part first (＋ Drum part).'); edit(() => applyBeat(S, pi, q('#hbeat').value, Math.max(0, (+q('#hfrom').value || 1) - 1), clamp(+q('#hbars').value || 4, 1, 64))); };
     q('#hbadd').onclick = () => { edit(() => S.parts.push(mkPart('Drums', 'drums'))); panels(); };
     /* ---------- the AI writes the song onto the score ---------- */
-    (async () => { const sel = q('#aimodel'); try { const ms = ((await (await fetch('/api/models')).json()).models || []).filter(m => !/embed/i.test(m.name)); const top = A.ai.model(), saved = ls.get('cmp_ai_model', ''); const pick = ms.some(m => m.name === saved) ? saved : top; sel.innerHTML = ms.map(m => '<option value="' + esc(m.name) + '"' + (m.name === pick ? ' selected' : '') + '>' + esc(m.label || m.name) + (m.cloud ? ' (online)' : ' (on this PC)') + '</option>').join(''); } catch (e) { sel.innerHTML = '<option value="">Top bar model</option>'; } sel.onchange = () => ls.set('cmp_ai_model', sel.value); })();
+    (() => {
+      const sel = q('#aimodel'); let rawMs = null;
+      const paint = preferDefault => {
+        if (!sel || !sel.isConnected || !rawMs) return;
+        const ms = A.modelOrder ? A.modelOrder.sort(rawMs) : rawMs;
+        const def = A.modelOrder ? A.modelOrder.get() : '', defHit = def && ms.find(m => A.modelOrder.matches(m, def));
+        const top = A.ai.model(), saved = ls.get('cmp_ai_model', '');
+        const pick = (preferDefault && defHit) ? defHit.name : (ms.some(m => m.name === saved) ? saved : (defHit ? defHit.name : (ms.some(m => m.name === top) ? top : (ms[0] && ms[0].name) || '')));
+        sel.innerHTML = ms.map(m => '<option value="' + esc(m.name) + '"' + (m.name === pick ? ' selected' : '') + '>' + esc(A.modelOrder ? A.modelOrder.label(m, { showWhere: true }) : ((m.label || m.name) + (m.cloud ? ' (online)' : ' (on this PC)'))) + '</option>').join('');
+      };
+      (async () => {
+        try { const r = await (await fetch('/api/models')).json(); if (A.modelOrder && typeof r.defaultModel === 'string') A.modelOrder.sync(r.defaultModel); rawMs = (r.models || []).filter(m => !/embed/i.test(m.name)); paint(); }
+        catch (e) { sel.innerHTML = '<option value="">Top bar model</option>'; }
+        sel.onchange = () => ls.set('cmp_ai_model', sel.value);
+        if (A.on) A.on('default-model', () => paint(true));
+      })();
+    })();
     function aiSystem() {
       return 'You write music for a score editor. Reply with ONLY these lines, nothing else:\n' +
         'NAME: <a short title>\nTEMPO: <40 to 220>\nKEY: <a whole number from -7 to 7: 0 is C major or A minor, 1 is one sharp, -1 is one flat>\nTIME: <4/4, 3/4, 2/4, 6/8, 9/8 or 12/8>\n' +

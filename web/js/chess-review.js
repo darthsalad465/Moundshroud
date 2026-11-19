@@ -103,10 +103,18 @@
       /* ---------- the Review tab ---------- */
       function critical(dir) { const S = env.state(); if (!S.rows) return; const bad = ['inaccuracy', 'mistake', 'blunder', 'brilliant', 'great']; for (let i = S.idx - 1 + dir; i >= 0 && i < S.rows.length; i += dir) { const r = S.rows[i]; if (r && !r.unk && bad.includes(r.c) && i !== S.idx - 1) return env.jump(i + 1); } A.toast(dir > 0 ? 'No more key moments ahead.' : 'No earlier key moments.'); }
       function panel(d) {
-        d.innerHTML = '<div class="acmsg"><div class="row" style="gap:6px;flex-wrap:wrap;align-items:center"><b>🔎 Move review</b><span class="sp"></span><button class="ib" id="rvp" title="Previous key moment">◀ key moment</button><button class="ib" id="rvn" title="Next key moment">key moment ▶</button></div><div id="rvc" style="margin-top:8px;line-height:1.6"></div></div>'; d.querySelector('#rvp').onclick = () => critical(-1); d.querySelector('#rvn').onclick = () => critical(1); paintReview();
+        d.innerHTML = '<div class="acmsg"><div class="row" style="gap:6px;flex-wrap:wrap;align-items:center"><b>🔎 Move review</b><span class="sp"></span><button class="ib" id="rvp" title="Previous key moment">◀ key moment</button><button class="ib" id="rvn" title="Next key moment">key moment ▶</button></div><div id="rvg" style="margin-top:10px"></div><div id="rvc" style="margin-top:8px;line-height:1.6"></div></div>'; d.querySelector('#rvp').onclick = () => critical(-1); d.querySelector('#rvn').onclick = () => critical(1); d.querySelector('#rvg').onclick = e => { const p = e.target.closest('[data-ply]'); if (p) env.jump(+p.dataset.ply); }; paintReview();
+      }
+      function paintGraph(S) {
+        const box = env.q('rvg'); if (!box) return;
+        if (window.ChessSet && ChessSet.experience() === 'legacy') { box.innerHTML = ''; return; }
+        const rows = S.rows || []; if (!S.game || !rows.length) { box.innerHTML = ''; return; }
+        const W = 520, H = 72, pad = 8, vals = rows.map(r => Math.max(-900, Math.min(900, Number(r.e) || 0))), x = i => pad + i * (W - pad * 2) / Math.max(1, vals.length - 1), y = v => H / 2 - v / 900 * (H / 2 - pad);
+        const points = vals.map((v, i) => x(i).toFixed(1) + ',' + y(v).toFixed(1)).join(' '), cur = Math.max(0, Math.min(vals.length - 1, (S.idx || 0) - 1));
+        box.innerHTML = '<div class="small mute" style="margin-bottom:3px">Position evaluation · select a point to jump to that move</div><svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Game evaluation graph" style="display:block;width:100%;max-width:520px;height:auto;background:var(--panel2);border-radius:8px;touch-action:manipulation"><path d="M' + pad + ' ' + (H / 2) + 'H' + (W - pad) + '" stroke="var(--line)" stroke-width="1"/><polyline points="' + points + '" fill="none" stroke="var(--acc)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>' + vals.map((v, i) => '<circle data-ply="' + (i + 1) + '" cx="' + x(i).toFixed(1) + '" cy="' + y(v).toFixed(1) + '" r="' + (i === cur ? 5 : 3.5) + '" fill="' + (i === cur ? 'var(--acc)' : 'var(--text)') + '" opacity="' + (i === cur ? 1 : .65) + '" style="cursor:pointer"/>').join('') + '</svg>';
       }
       async function paintReview() {
-        const box = env.q('rvc'); if (!box) return; const S = env.state(), my = ++revTok; if (!S.game) { box.innerHTML = '<span class="mute">Load a game in the Games tab.</span>'; return; }
+        const box = env.q('rvc'); if (!box) return; const S = env.state(), my = ++revTok; paintGraph(S); if (!S.game) { box.innerHTML = '<span class="mute">Load a game in the Games tab.</span>'; return; }
         if (S.explore) { box.innerHTML = '<span class="mute">You are exploring a side line. Press "Back to the game" to see the review for the game move.</span>'; return; }
         if (S.idx === 0) return story(box);
         const i = S.idx - 1, fen0 = S.fens[i], fen1 = S.fens[i + 1], u = S.game.moves[i], row = S.rows && S.rows[i], san = S.sans[i], side = fen0.split(' ')[1] === 'w' ? 1 : -1, moveNo = Math.floor(i / 2) + 1;

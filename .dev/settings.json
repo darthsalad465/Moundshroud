@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"C:/Users/jwbro/OfflineAssistant/scripts/auto-commit.ps1\"",
+            "timeout": 30,
+            "statusMessage": "Auto-committing changes"
+          }
+        ]
+      }
+    ]
+  }
+}

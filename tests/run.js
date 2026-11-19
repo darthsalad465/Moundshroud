@@ -252,6 +252,28 @@ console.log('chess rules');
     const core = fs2.readFileSync(path.join(wdir, 'js', 'core.js'), 'utf8');
     ok('pages: one page failing to open cannot break tab switching', /try \{ const r = A\.tabs\[name\]\.onShow\(\); if \(r && r\.catch\) r\.catch\(fail\); \} catch \(e\) \{ fail\(e\); \}/.test(core));
   }
+  /* a page that calls a helper that is not on `A` throws inside its renderer, and a virtual list then draws nothing:
+     the page looks blank with no error a person would ever see. Six pages did exactly that with A.esc. Every `A.name(`
+     call must have a matching `A.name =` somewhere, or the helper has to be checked before use (A.md ? A.md(x) : ...). */
+  {
+    const fs2 = require('fs'), dir = path.join(__dirname, '..', 'web', 'js');
+    const files = fs2.readdirSync(dir).filter(f => f.endsWith('.js'));
+    const src = {}; files.forEach(f => { src[f] = fs2.readFileSync(path.join(dir, f), 'utf8'); });
+    const assigned = new Set(), called = new Map();
+    for (const f of files) {
+      src[f].replace(/\bA\.([A-Za-z_$][\w$]*)\s*=(?!=)/g, (m, k) => { assigned.add(k); });
+      src[f].replace(/\bA\[['"]([A-Za-z_$][\w$]*)['"]\]\s*=/g, (m, k) => { assigned.add(k); });
+    }
+    for (const f of files) {
+      src[f].replace(/\bA\.([A-Za-z_$][\w$]*)\s*\(/g, (m, k, off) => { if (!called.has(k)) called.set(k, f + ':' + (src[f].slice(0, off).split('\n').length)); });
+    }
+    /* guarded calls are fine: A.md ? A.md(x) : plain(x), and A.guide && A.guide.list() is a property, not a call.
+       Array/String methods are skipped: a few files have a local variable called A (a list of rows), and A.push(x)
+       there is that list, not a helper. */
+    const NATIVE = new Set(['concat', 'map', 'push', 'pop', 'shift', 'unshift', 'slice', 'splice', 'join', 'reduce', 'forEach', 'filter', 'sort', 'reverse', 'find', 'findIndex', 'some', 'every', 'includes', 'indexOf', 'keys', 'values', 'entries', 'length', 'flat', 'flatMap', 'fill', 'split', 'trim', 'replace', 'test', 'match']);
+    const bad = [...called.keys()].filter(k => !NATIVE.has(k) && !assigned.has(k) && !files.some(f => new RegExp('\\bA\\.' + k + '\\b[;,)\\s]*(?:&&|\\?)').test(src[f])));
+    ok('helpers: every helper a page calls is defined on A', !bad.length, bad.map(k => k + ' @ ' + called.get(k)).join(', '));
+  }
   /* every tab that registers itself must be in the tab bar's order, or it silently never appears */
   {
     const fs2 = require('fs'), dir = path.join(__dirname, '..', 'web', 'js');
@@ -527,6 +549,11 @@ try {
     try { await require('./more4-test.js')(ok); } catch (e) { ok('the code editor and downloads test loads', false, e.message); }
     try { await require('./cyber-test.js')(ok); } catch (e) { ok('the cyber toolkit test loads', false, e.message); }
     try { await require('./calc-test.js')(ok); } catch (e) { ok('the calculator test loads', false, e.message); }
+    try { await require('./model-order-test.js')(ok); } catch (e) { ok('the model order test loads', false, e.message); }
+    try { await require('./lmstudio-sync-test.js')(ok); } catch (e) { ok('the LM Studio sync test loads', false, e.message); }
+    try { await require('./heretic-test.js')(ok); } catch (e) { ok('the Heretic Studio test loads', false, e.message); }
+    try { await require('./toolkit-test.js')(ok); } catch (e) { ok('the Local AI & Media Toolkit test loads', false, e.message); }
+    try { await require('./brain-test.js')(ok); } catch (e) { ok('the 3D Brain performance test loads', false, e.message); }
     try { const MT = require(path.join(__dirname, '..', 'lib', 'mail.js'))._t, pw = 'tést "pw" ✓', blob = await MT.protectPw(pw); ok('mail: Windows keeps the password protected and gives it back', !blob.includes('pw') && await MT.unprotectPw(blob) === pw); } catch (e) { ok('mail: Windows keeps the password protected', false, e.message); }
     console.log('\n' + pass + ' passed, ' + fail + ' failed');
     process.exit(fail ? 1 : 0);

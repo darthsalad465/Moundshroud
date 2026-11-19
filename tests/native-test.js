@@ -98,6 +98,14 @@ module.exports = async ok => {
   ok('moundshroud code: the terminal button opens it in a console window of its own', /harness === 'native'/.test(launcher) && launcher.includes('moundshroud-code.js') && launcher.includes("'Moundshroud Code'") && launcher.includes("'start'") && !/runs inside Moundshroud/.test(srv));
   ok('moundshroud code: that window is this app\'s own harness, not another program', cli.includes("require('./harness-native')") && cli.includes('Hn.send(') && cli.includes('Hn.answer(') && cli.includes('safeDir.check'));
   ok('moundshroud code: the terminal view draws a real interface (header, tool steps, approvals)', cli.includes('?1049h') && cli.includes('?1049l') && cli.includes('38;2;') && cli.includes("'Allow this?'") && cli.includes('⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏') && /\/help/.test(cli) && /SIGINT/.test(cli));
+  ok('mcode: an approval is a choice walked with the arrow keys, not a key you have to guess',
+    /state\.waiting = \{ id: e\.id, tool: e\.tool, input: e\.input, why: e\.why, i: 0 \}/.test(cli)
+    && /if \(key\.name === 'up' \|\| key\.name === 'down' \|\| key\.name === 'tab'\) \{ w\.i = 1 - \(w\.i \|\| 0\); return repaint\(\); \}/.test(cli)
+    && /if \(key\.name === 'return'\) return answer\(\(w\.i \|\| 0\) === 0\);/.test(cli)
+    && /if \(key\.name === 'escape' \|\| \(key\.ctrl && key\.name === 'c'\)\) return answer\(false\);/.test(cli)
+    && /optRow\(pickAllow, 'Allow it, just this once'\)/.test(cli)
+    && /optRow\(!pickAllow, 'Refuse it — nothing runs'\)/.test(cli)
+    && /const pickAllow = \(ask\.i \|\| 0\) === 0;/.test(cli));
   ok('moundshroud code: the window is drawn as whole rows, so the borders stay straight at any size', /function frame\(W, H\)/.test(cli) && /padTo\(/.test(cli) && /\bclip\(/.test(cli) && /process\.stdout\.on\('resize'/.test(cli));
   ok('moundshroud code: the layout holds at every window size it may meet', (() => {
     const cp2 = require('child_process');
@@ -288,19 +296,70 @@ module.exports = async ok => {
     && /const variant = wet \? \(\(pass % 3\) \+ 3\) % 3 : 0;/.test(cli)
     && /const boatX = !wet \? bx : u > CALM \? Math\.round\(w \+ 12 \+ \(bx - \(w \+ 12\)\) \* back\) : bx/.test(cli)
     && /const wet = rain !== false;/.test(cli) && /C\.rainFaint/.test(cli));
-  ok('mcode: the weather over every picture rotates, and the calm is a different animation from the storm',
+  ok('mcode: weather stays in open air so the story art remains readable',
     /const WEATHER = \{/.test(cli) && /function rainWeather\(g, w, h, clock, P\)/.test(cli)
-    && /const pass = Math\.floor\(clock \/ 21\) % 3;/.test(cli) && /const gust = Math\.sin\(clock \* 0\.27\)/.test(cli)
+    && /const pass = Math\.floor\(clock \/ 72\) % 3;/.test(cli) && /const gust = Math\.sin\(clock \* 0\.27\)/.test(cli)
     && /blendCell\(g, x, y, wet\.bolt/.test(cli) && /function calmWeather\(g, w, h, clock, P\)/.test(cli)
-    && /const pass = Math\.floor\(clock \/ 26\) % 3;/.test(cli) && /putCell\(g, bx, by, up \? '︿' : '﹀'/.test(cli));
+    && /const pass = Math\.floor\(clock \/ 72\) % 3;/.test(cli) && /putWeatherCell\(g, bx, by/.test(cli)
+    && /function putWeatherCell\(g, x, y, ch, colour\)/.test(cli) && /under\.ch !== ' '\)/.test(cli)
+    && /putWeatherCell\(g, xx, yy, fall/.test(cli) && /putWeatherCell\(g, Math\.round\(sx/.test(cli));
+  const weatherFn = (cli.match(/function putWeatherCell\(g, x, y, ch, colour\) \{[\s\S]*?\n\}/) || [])[0];
+  const weatherCell = weatherFn && new Function('putCell', weatherFn + '; return putWeatherCell;')((g, x, y, ch, fg) => { g[y][x] = { ch, fg }; });
+  const weatherGrid = [[{ ch: 'H', fg: 'hero' }, { ch: ' ', bg: 'sky' }]];
+  ok('mcode: rain leaves a hero untouched and still moves through empty sky', !!weatherCell
+    && weatherCell(weatherGrid, 0, 0, '/', 'rain') === false && weatherGrid[0][0].ch === 'H'
+    && weatherCell(weatherGrid, 1, 0, '/', 'rain') === true && weatherGrid[0][1].ch === '/');
   ok('mcode: the horseman wears the jack-o-lantern, lifts it off, then throws it from further back',
-    /const THROW = 8\.4, FLY = 1\.3, IMPACT = THROW \+ FLY, LIFT = THROW - 1\.5;/.test(cli)
+    /const THROW = 8\.4, FLY = 1\.3, IMPACT = THROW \+ FLY, LIFT = THROW - 1\.5, REACH = LIFT - 0\.9;/.test(cli)
     && /const hmAt = s => at\(s\) - \(24 \+ Math\.round\(Math\.sin\(s \* 1\.15\) \* 2\)\)/.test(cli)
-    && /const worn = \{ x: hmX \+ 4, y: riderTop - 1 \}, held = \{ x: hmX \+ 11, y: riderTop - 3 \};/.test(cli)
-    && /if \(u < LIFT\) \{\n    pumpkinAt = worn;/.test(cli) && /const x0 = hmAt\(THROW\) \+ 11/.test(cli)
-    && /if \(u > LIFT && u < IMPACT && pumpkinAt\)/.test(cli));
+    && /const worn = \{ x: hmX \+ seat \+ S\.pumpX, y: riderTop - S\.pumpY \};/.test(cli)
+    && /const held = \{ x: hmX \+ seat \+ \(big \? 11 : 8\), y: riderTop - \(big \? 8 : 3\) \};/.test(cli)
+    && /if \(u < LIFT\) \{/.test(cli) && /pumpkinAt = worn;/.test(cli)
+    && /armTo\(shX, shY, pumpkinAt\.x/.test(cli)
+    && /const x0 = hmAt\(THROW\) \+ seat/.test(cli)
+    && /if \(wetRide && pumpkinAt\) drawSprite\(g, pumpkinAt\.x/.test(cli)
+    && /u >= THROW && u < THROW \+ 0\.55/.test(cli));
+  ok('mcode: big readable silhouettes, a human on a horse, with a compact set for small screens',
+    /const HORSE_BIG = \[/.test(cli) && /const HORSE_SMALL = \[/.test(cli) && /const ICHABOD_BIG = \[/.test(cli)
+    && /const HEADLESS_BIG = \[/.test(cli) && /const PUMPKIN_BIG = \[/.test(cli)
+    && /const big = hz >= 18;/.test(cli) && /const backlight = \(\) =>/.test(cli)
+    && /drawSprite\(g, x, horseTop, S\.horse, body, rim\)/.test(cli)
+    && /const riderTop = horseTop - \(big \? 2 : 1\)/.test(cli));
+  ok('mcode: a moving starry night sky over the ride and over the plain scene',
+    /function starrySky\(g, hz, clock, P\)/.test(cli) && /const STAR_SKY = \{/.test(cli)
+    && /starrySky\(g, hz, clock, STAR_SKY\.night\);/.test(cli)
+    && /auroraSky\(g, hz, clock\);/.test(cli));
+  ok('mcode: one big set piece in the middle of every picture, a tragedy in rain and a peaceful thing without',
+    /const EVENT_LEN = 26;/.test(cli) && /function person\(g, x, feet, colour, pose, hat, rim\)/.test(cli)
+    && /const POSES = \{/.test(cli) && /function forestEvent\(g, w, h, hz, clock, rain\)/.test(cli)
+    && /function emberEvent\(g, w, h, hz, clock, rain\)/.test(cli) && /function candyEvent\(g, w, h, hz, clock, rain\)/.test(cli)
+    && /function cityEvent\(g, w, h, hz, clock, rain\)/.test(cli) && /function matrixEvent\(g, w, h, hz, clock, rain\)/.test(cli)
+    && /function meadowEvent\(g, w, h, hz, clock, rain\)/.test(cli) && /function oceanPeace\(g, w, h, hz, clock, C\)/.test(cli)
+    && /function quietRide\(g, w, hz, clock\)/.test(cli)
+    && /forestEvent\(g, w, h, hz, clock, rain\);/.test(cli) && /cityEvent\(g, w, h, hz, clock, rain\);/.test(cli)
+    && /matrixEvent\(g, w, h, hz, clock, rain\);/.test(cli) && /meadowEvent\(g, w, h, hz, clock, rain\);/.test(cli)
+    && /const wet = rain !== false;/.test(cli) && /if \(!wetRide\) quietRide\(g, w, hz, clock\);/.test(cli));
+  ok('mcode: the forest mother and fawn are shot at, and the hunter takes the fawn away in his truck',
+    /const DOE = \[/.test(cli) && /const DOE_GRAZE = \[/.test(cli) && /const FAWN = \[/.test(cli) && /const FAWN_DOWN = \[/.test(cli)
+    && /function drawAnimal\(g, x, y, rows, P\)/.test(cli) && /function drawHunter\(g, x, feet, rows, P, rim\)/.test(cli)
+    && /function drawPickup\(g, tx, gy, P, lit\)/.test(cli)
+    && /const doeX = Math\.round\(w \* 0\.5\), fawnX = Math\.round\(w \* 0\.5 \+ 20\);/.test(cli)
+    && /const WALK_IN = 4\.6, DRAW = 6\.4, LOOSE = 7\.5, HIT = 7\.95, STAGGER = 8\.9, DOWN = 10\.6;/.test(cli)
+    && /const WALK_UP = 13\.8, DRAG = 16\.4, HOIST = 19\.4, BOARD = 20\.6, DRIVE = 21\.6;/.test(cli)
+    && /bloodPool\(g, fawnX \+ 22, gy, 2 \+ t \* 3\.4, clock, P\.blood\);/.test(cli)
+    /* the man is drawn at the wheel and the fawn in the bed, so both leave when it drives */
+    && /putCell\(g, tx \+ 15, gy - 7, '█', P\.hat\);/.test(cli) && /drawAnimal\(g, tx \+ 4, gy - 6, FAWN_DOWN, P\);/.test(cli)
+    && /const tx = Math\.round\(truckX \+ driveT \* \(w - truckX \+ 40\)\);/.test(cli));
+  ok('mcode: the line under the mark is written for each picture, forest included',
+    /forest: 'the woods are never empty'/.test(cli) && /const tagline = \(\) => TAGLINES\[UI\.theme\]/.test(cli)
+    && /mute\(tagline\(\)\)/.test(cli));
+  ok('mcode: /gray takes the colour out of every picture and leaves the words alone',
+    /function grayGrid\(g\)/.test(cli) && /function vividGrid\(g, k\)/.test(cli)
+    && /if \(UI\.gray\) grayGrid\(g\);/.test(cli) && /cmd === '\/gray'/.test(cli)
+    && /gray: false \};/.test(cli));
   ok('mcode: a rotating show of big set pieces runs over every picture',
-    /const SHOW_LEN = 18;/.test(cli) && /const SHOWS = \{/.test(cli) && /function showRows\(g, w, h, rain\)/.test(cli)
+    /const SHOW_LEN = 72;/.test(cli) && /const SHOWS = \{/.test(cli) && /function showRows\(g, w, h, rain\)/.test(cli)
+    && /if \(local >= 12\) return;/.test(cli)
     && /const list = SHOWS\[theme\]\[rain === false \? 'dry' : 'wet'\];/.test(cli)
     && /Math\.floor\(clock \/ SHOW_LEN\) % list\.length/.test(cli) && /showRows\(g, w, h, rain\);/.test(cli)
     && ['fxMeteors', 'fxRibbons', 'fxBolts', 'fxSwarm', 'fxFireworks', 'fxTornado', 'fxLanterns', 'fxSnow', 'fxWhale', 'fxPlane', 'fxGlyphbloom', 'fxGlitch']
@@ -308,12 +367,12 @@ module.exports = async ok => {
     && /FX\[name\]\(g, w, h, clock, local, V, ground, name === 'firewhirl'\)/.test(cli));
   const SH = new Function((cli.match(/const SHOWS = \{[\s\S]*?\n\};/) || [''])[0] + '; return SHOWS;')();
   ok('mcode: every theme has a running order for rain and for calm, and between them a dozen different shows',
-    Object.keys(SH).length === 8 && Object.values(SH).every(x => x.wet.length >= 4 && x.dry.length >= 4)
+    Object.keys(SH).length === 9 && Object.values(SH).every(x => x.wet.length >= 4 && x.dry.length >= 4)
     && new Set(Object.values(SH).flatMap(x => x.wet.concat(x.dry))).size >= 11);
   ok('mcode: the chase paints behind the conversation only, and cannot touch the chat',
-    /function sceneRows\(/.test(cli) && /try \{ night = sceneRows\(W, trH, UI\.rain\); \} catch \(e\) \{ night = null; \}/.test(cli)
+    /function sceneRows\(/.test(cli) && /try \{ night = sceneRows\(W, trH, UI\.mood === 'tragedy'\); \} catch \(e\) \{ night = null; \}/.test(cli)
     && /night && night\[i\] \? overRow\(l, night\[i\], W\) : l/.test(cli) && /for \(let i = 0; i < trH; i\+\+\)/.test(cli)
-    && /if \(UI\.scene !== 'off' && W >= 56 && trH >= 15\)/.test(cli) && /sceneRows\(W, trH, UI\.rain\)/.test(cli) && /function overRow\(line, bg, w\)/.test(cli)
+    && /if \(UI\.scene !== 'off' && W >= 56 && trH >= 15\)/.test(cli) && /sceneRows\(W, trH, UI\.mood === 'tragedy'\)/.test(cli) && /function overRow\(line, bg, w\)/.test(cli)
     && !/rainOn/.test(cli) && !/paintScene/.test(cli)
     && /for \(const l of logoCardRows\(cardW\)\)/.test(cli) && /out\.push\(spaces\(Math\.max\(2, Math\.floor\(\(w - sw\(caption\)\)/.test(cli));
 
@@ -333,14 +392,16 @@ module.exports = async ok => {
     /animMode: 'smooth'/.test(cli) && /UI\.animMode = j\.animMode === 'off' \? 'off' : 'smooth'/.test(cli)
     && /UI\.anim = on; UI\.animMode = on \? 'smooth' : 'off'/.test(cli)
     && /openMenu\('animation'/.test(cli) && /item\('the glow while typing and writing'/.test(cli) && /item\('still'/.test(cli));
-  ok('mcode: one /scene command, and the arrow keys walk moving, dry, paused and off — from the terminal only',
+  ok('mcode: /scene offers peace, tragedy, pause and off, and saves the selected mood',
     /UI\.scene === 'paused' && SCENE_PAUSED_AT/.test(cli) && /if \(rain === false\) return g;/.test(cli)
     && /cmd === '\/scene'/.test(cli) && !/cmd === '\/rain'/.test(cli)
     && /openMenu\(sceneName\(\), \[/.test(cli) && /SCENE_NAME = \{ aurora: 'the night ride'/.test(cli)
-    && /item\('moving, with rain'/.test(cli) && /item\('moving, dry/.test(cli)
-    && /item\('paused, with rain/.test(cli) && /item\('paused, dry/.test(cli) && /item\('off               a plain black screen'/.test(cli)
-    && /UI\.scene = mode;/.test(cli) && /UI\.rain = rain === undefined \? UI\.rain : !!rain;/.test(cli)
-    && /UI\.scene !== 'off' && W >= 56/.test(cli) && /scene: UI\.scene, rain: UI\.rain/.test(cli));
+    && /item\('Peace /.test(cli) && /item\('Tragedy /.test(cli) && /item\('Pause /.test(cli) && /item\('Off /.test(cli)
+    && /w2 === 'peace'/.test(cli) && /w2 === 'tragedy'/.test(cli)
+    && /Choose \/scene peace, \/scene tragedy, \/scene pause, or \/scene off/.test(cli)
+    && /UI\.mood = mode;/.test(cli) && /UI\.scene !== 'off' && W >= 56/.test(cli)
+    && /mood: UI\.mood/.test(cli) && /else if \(j\.rain === false\) UI\.mood = 'peace'/.test(cli)
+    && !/item\([^\n]*rain/.test(cli.slice(cli.indexOf("if (cmd === '/scene'"), cli.indexOf("if (cmd === '/gray'"))));
   ok('mcode: you, the answer and the thinking are each painted in their own colour of the theme',
     /you: \[[0-9]+, [0-9]+, [0-9]+\], agent: \[/.test(cli) && /const youc = s => paint\$\(PAL\.you, s\), agentc = s => paint\$\(PAL\.agent, s\), thinkc = s => paint\$\(PAL\.think, s\)/.test(cli)
     && /label\('◆', youc, 'YOU', '', youc\)/.test(cli) && /for \(const l of wrap\(b\.text, w - 6\)\) out\.push\('     ' \+ youWave\(l\)\)/.test(cli)
@@ -354,8 +415,9 @@ module.exports = async ok => {
     && /Math\.sin\(i \* 0\.3 - phase\)/.test(cli) && /Date\.now\(\) - APP_STARTED\) \/ 260/.test(cli));
   ok('mcode: a plain black-and-white theme, and a picture of its own behind every theme',
     /plain: \{ bg: \[0, 0, 0\]/.test(cli) && /text: \[255, 255, 255\]/.test(cli)
-    && /const SCENES = \{ aurora: sleepyHollow, ember: emberScene, ocean: oceanScene, forest: forestScene, candy: candyScene, mono: cityScene, matrix: matrixScene, plain: meadowScene \};/.test(cli)
-    && /function sceneRows\(w, h, rain\) \{/.test(cli) && /const g = \(SCENES\[UI\.theme\] \|\| sleepyHollow\)\(w, h, rain\);/.test(cli)
+    && /const SCENES = \{ aurora: sleepyHollow, ember: emberScene, ocean: oceanScene, forest: forestScene, candy: candyScene, mono: cityScene, matrix: matrixScene, plain: meadowScene, garden: gardenScene \};/.test(cli)
+    && /function sceneRows\(w, h, rain\) \{/.test(cli) && /g = \(SCENES\[UI\.theme\] \|\| sleepyHollow\)\(w, h, rain\);/.test(cli)
+    && /catch \(e\) \{ g = newGrid\(w, h\); \}/.test(cli)
     && /calmWeather\(g, w, h, clock, P\)/.test(cli) && /rainWeather\(g, w, h, clock, P\)/.test(cli)
     && /function emberScene\(w, h, rain\)/.test(cli) && /function oceanScene\(w, h, rain\)/.test(cli) && /function forestScene\(w, h, rain\)/.test(cli)
     && /function candyScene\(w, h, rain\)/.test(cli) && /function cityScene\(w, h, rain\)/.test(cli) && /function matrixScene\(w, h, rain\)/.test(cli) && /function meadowScene\(w, h, rain\)/.test(cli));
@@ -390,16 +452,75 @@ module.exports = async ok => {
         && /set_autonomy: 'deciding'/.test(block)
         && (cli.match(/'(mulling it over|drafting|hunting for it|driving the shell|splicing it in|laying out the work|taking it apart)'/g) || []).length >= 5;
     })());
+  const musicLib = require(path.join(__dirname, '..', 'lib', 'mcode-music'));
   ok('mcode: there is a loop for every picture, written here, played by the machine, and silent until asked for',
     /const MUSIC = \{ on: false/.test(cli) && /function writeMusic\(file, name\)/.test(cli) && /System\.Media\.SoundPlayer/.test(cli)
     && /cmd === '\/music'/.test(cli) && /musicOff\(\)/.test(cli)
-    && /const musicTrackName = \(\) => mcodeMusic\.trackFor\(UI\.theme, UI\.rain\);/.test(cli)
-    && /function musicNext\(\)/.test(cli) && /function musicSync\(\)/.test(cli) && /cmd === '\/music'/.test(cli));
+    && /const musicTrackName = \(\) => mcodeMusic\.trackFor\(UI\.theme, UI\.mood === 'tragedy'\);/.test(cli)
+    && /function musicNext\(\)/.test(cli) && /function musicSync\(\)/.test(cli) && /cmd === '\/music'/.test(cli)
+    && / · peace$/.test(musicLib.pretty('garden-dry')) && / · tragedy$/.test(musicLib.pretty('garden-wet')));
   const mm = rd('lib/mcode-music.js');
-  const musicLib = require(path.join(__dirname, '..', 'lib', 'mcode-music'));
+  ok('mcode: the garden is a theme of its own, with a gate, a pond, a tree and music of its own',
+    /garden: \{ panel: \[/.test(cli) && /garden: 'the gravel remembers every footstep'/.test(cli) && /garden: 'the garden' \}/.test(cli)
+    && /function gardenScene\(/.test(cli) && /function drawTorii\(/.test(cli) && /function gardenEvent\(/.test(cli)
+    && /garden: gardenScene \}/.test(cli) && musicLib.KEYS.garden && musicLib.KEYS.garden.wet.style === 'eastern' && musicLib.KEYS.garden.dry.style === 'eastern'
+    && /HIRAJOSHI = \[0, 2, 3, 7, 8/.test(mm) && /case 'koto':/.test(mm) && /case 'shaku':/.test(mm));
+  ok('mcode: the garden sounds like a garden — koto, shakuhachi, taiko, temple bell, in its own scale',
+    /const easternBar = \(b, t0, chord, beat, K, wet\)/.test(mm) && /the maezuke/.test(mm)
+    && /const ka = \(at, amp\)/.test(mm) && /thump\(t0 \+ beat \* 3 \+ k \* beat \* 0\.14/.test(mm)
+    && /a run up the strings/.test(mm) && /suzu: a handful of small bells/.test(mm)
+    && /semis\(K\.root, HIRAJOSHI\[idx\] - 1\) \* 2/.test(mm)
+    && /'gong', 0\.002/.test(mm) && musicLib.KEYS.garden.wet.taiko === 1 && musicLib.KEYS.garden.dry.taiko === 0);
+  ok('mcode: the matrix sounds cyberpunk — a sequencer, four on the floor, a pulse arpeggio and detuned saws',
+    musicLib.KEYS.matrix.wet.style === 'cyber' && musicLib.KEYS.matrix.dry.style === 'cyber'
+    && /const cyberBar = \(b, t0, chord, beat, K, wet\)/.test(mm) && /const snare = \(at, amp\)/.test(mm)
+    && /const hat = \(at, amp\)/.test(mm) && /case 'saw':/.test(mm) && /case 'square':/.test(mm)
+    && /four on the floor, a snare cracking on two and four/.test(mm) && /the storm has a siren in it/.test(mm)
+    && /cyber: cyberBar, eastern: easternBar/.test(mm) && /if \(BAR\[K\.style\]\)/.test(mm)
+    && musicLib.KEYS.matrix.wet.bpm > 90 && musicLib.KEYS.matrix.dry.bpm > 80);
+  ok('mcode: the bomb vaporizes the buildings near it and throws the ones at the edges out of the frame',
+    /function cityRow\(w, h\)/.test(cli) && /const ROW = cityRow\(w, h\);/.test(cli)
+    && /const blastR = Math.max\(6, w \* 0\.15\);/.test(cli) && /const vapor = d < blastR;/.test(cli)
+    && /const t = clamp01\(tHit \/ 4\.0\);/.test(cli) && /const ox = dir \* Math\.pow\(t, 2\.6\)/.test(cli)
+    && /const spin = dir \* t \* 1\.5;/.test(cli) && /const cs = Math\.cos\(spin\)/.test(cli)
+    && /the torn stump it left standing on/.test(cli)
+    && /the top goes first/.test(cli) && /the footprint: a scorched notch in the street, still hot/.test(cli)
+    && /only the far skyline is drawn here/.test(cli));
+  ok('mcode: the city has people, a dog, a cart and a car on the street, and they are caught too',
+    /const peds = \[/.test(cli) && /const lampX = Math\.round\(w \* 0\.11\);/.test(cli)
+    && /const carX = Math\.round\(\(w \* 0\.3 \+ clock \* 7\)/.test(cli) && /const cartX = Math\.round\(w \* 0\.63\);/.test(cli)
+    && /lit white for an instant/.test(cli) && /thrown, head over heels/.test(cli)
+    && /const sigX = Math\.round\(w \* 0\.8\);/.test(cli) && /if \(i === 3\) \{ putCell\(g, px \+ 3/.test(cli));
+  ok('mcode: the rain brings a monster to the garden and a break-in to the matrix; dry, a prank and root',
+    /w \+ 16 - enter \* \(w \* 0\.42\)/.test(cli) && /function godzilla\(/.test(cli)
+    && /'HACKED'/.test(cli) && /'ROOT'/.test(cli) && /'GRANTED'/.test(cli)
+    && /function padlock\(/.test(cli) && /const FONT5 = \{/.test(cli)
+    && /C\.frog/.test(cli) && /the brothers, and the frog/.test(cli));
+  ok('mcode: the monks are dressed, they fight the monster, and they are burnt for it',
+    /const MONK_ART = \{/.test(cli) && /function drawMonk\(/.test(cli)
+    && /robe: \[230, 134, 46\]/.test(cli) && /skin: \[228, 190, 152\]/.test(cli) && /sandal: \[118, 94, 60\]/.test(cli)
+    && /const MONK_STAND = \[/.test(cli) && /const MONK_LUNGE = \[/.test(cli) && /const MONK_BURNT = \[/.test(cli)
+    && /const spots = \[Math\.round\(w \* 0\.27\)/.test(cli) && /const caught = u > burntAt \+ i \* 0\.3;/.test(cli)
+    && /staff\(g, x \+/.test(cli) && /const burntAt = 13\.4;/.test(cli));
+  ok('mcode: a dragon crosses the evening sky behind the garden when it is at peace',
+    /function drawDragon\(/.test(cli) && /if \(rain === false\) drawDragon\(g, w, hz, clock\);/.test(cli)
+    && cli.indexOf('if (rain === false) drawDragon(g, w, hz, clock);') < cli.indexOf('/* the cherry tree on the left')
+    && /const HEAD = \[/.test(cli) && /antlers, swept back/.test(cli));
+  ok('mcode: every picture has its own arrangement, not only the two that got one',
+    ['glacial', 'fire', 'tide', 'woodland', 'toy', 'noir', 'meadow', 'eastern', 'cyber'].every(st => Object.values(musicLib.KEYS).some(k => k.wet.style === st))
+    && /const glacialBar = \(b, t0, chord, beat, K, wet\)/.test(mm) && /const fireBar = \(/.test(mm) && /const tideBar = \(/.test(mm)
+    && /const woodlandBar = \(/.test(mm) && /const toyBar = \(/.test(mm) && /const noirBar = \(/.test(mm) && /const meadowBar = \(/.test(mm)
+    && /case 'flute':/.test(mm) && /case 'piano':/.test(mm) && /const BAR = \{ cyber: cyberBar, eastern: easternBar/.test(mm)
+    && /if \(BAR\[K\.style\]\)/.test(mm)
+    && musicLib.trackNames().every(n => {
+      const { buf } = musicLib.compose(n);
+      let peak = 0;
+      for (const v of buf) peak = Math.max(peak, Math.abs(v));
+      return peak > 0.01;
+    }));
   ok('mcode: sixteen loops, one for each theme in each weather, and the storm is not the calm one',
     /function compose\(name\)/.test(mm) && /const trackFor = \(theme, rain\) =>/.test(mm)
-    && musicLib.trackNames().length === 16 && musicLib.trackNames().every(n => /-(wet|dry)$/.test(n))
+    && musicLib.trackNames().length === 18 && musicLib.trackNames().every(n => /-(wet|dry)$/.test(n))
     && JSON.stringify(musicLib.KEYS.ocean.wet.prog) !== JSON.stringify(musicLib.KEYS.ocean.dry.prog)
     && musicLib.KEYS.ocean.wet.bpm !== musicLib.KEYS.ocean.dry.bpm && musicLib.trackFor('ocean', true) === 'ocean-wet' && musicLib.trackFor('ocean', false) === 'ocean-dry');
   ok('mcode: the player is loaded before it plays, kept in the foreground where it survives, and its complaint is kept',
@@ -442,6 +563,40 @@ module.exports = async ok => {
   ok('mcode: /model opens a list walked with the arrow keys, and the frame can see it', /^let MODELS = \[\];/m.test(cli) && /state\.pick = \{ i: Math\.max\(0, cur\) \}/.test(cli) && /key\.name === 'up'\) \{ p\.i = \(p\.i - 1 \+ n\) % n/.test(cli) && /panel\('models'/.test(cli) && /↑↓ choose/.test(cli));
   ok('mcode: a model that cannot use tools is still chosen, in chat mode', /cannot use tools\/i\.test\(c\.error \|\| ''\)/.test(cli) && /const alt = checkFor\(m\.name, 'chat', state\.ctx\)/.test(cli) && /const mode = fell \? 'chat' : state\.mode/.test(cli) && /Hn\.start\(\{ check: c, dir, mode, keep: true \}\)/.test(cli));
   ok('mcode: /net and /reach are switches, not just reports', /cmd === '\/net'/.test(cli) && /Hn\.setWeb/.test(cli) && /cmd === '\/reach'/.test(cli) && /Hn\.setReach/.test(cli));
+
+  /* ---- Moundshroud Code opens no matter what (even without gemma4:e4b) and offers a model dropdown ---- */
+  const customModels = [
+    { name: 'bonsai27b:latest', size: 15e9, tools: true, maxCtx: 32768 },
+    { name: 'qwen9b:latest', size: 6e9, tools: true, maxCtx: 65536 },
+    { name: 'smol1:latest', size: 1e9, tools: false, maxCtx: 32768 },
+  ];
+  const lMissing = await A.launch('', { model: 'gemma4:e4b', harness: 'native', dry: true }, customModels);
+  ok('mcode: opens even when gemma4:e4b is not installed, falling back to an available model',
+    lMissing.ok && lMissing.harness === 'native' && lMissing.model === 'bonsai27b:latest' && lMissing.fellBackFrom === 'gemma4:e4b', JSON.stringify(lMissing));
+  const lChatOnly = await A.launch('', { model: 'gemma4:e4b', harness: 'native', dry: true }, [{ name: 'smol1:latest', size: 1e9, tools: false }]);
+  ok('mcode: opens even when only chat-only models exist',
+    lChatOnly.ok && lChatOnly.model === 'smol1:latest' && lChatOnly.chat === true, JSON.stringify(lChatOnly));
+  const lEmpty = await A.launch('', { model: 'gemma4:e4b', harness: 'native', dry: true }, []);
+  ok('mcode: opens even with an empty model list (Ollama asleep)',
+    lEmpty.ok && lEmpty.model === A.FREE && lEmpty.free === true, JSON.stringify(lEmpty));
+  ok('mcode: Agent UI shows a real model select dropdown and never disables terminal launch for native',
+    /<select class="agchip" id="agcmod"/.test(ag) && /isNative\(\) \? false/.test(ag) && /cmd === 'model'/.test(srv));
+  ok('mcode: terminal opens cleanly with a missing model instead of aborting with Ollama does not have gemma4:e4b', (() => {
+    const cp2 = require('child_process');
+    const r = cp2.spawnSync(process.execPath, [path.join(__dirname, '..', 'lib', 'moundshroud-code.js'), '--model', 'gemma4:e4b'], {
+      input: '/model\n/quit\n', encoding: 'utf8', timeout: 15000,
+    });
+    const out = String(r.stdout || '') + String(r.stderr || '');
+    return r.status === 0 && !/Ollama does not have the model/.test(out) && /Moundshroud Code/.test(out);
+  })());
+  ok('mcode: paused scene shows only the still landscape with all animations, weather and shows hidden',
+    /if \(UI\.scene !== 'paused'\) \{/.test(cli)
+    && /paused · ' \+ sceneMood\(\)/.test(cli)
+    && (cli.match(/const still = UI\.scene === 'paused';/g) || []).length >= 9
+    && /if \(!still\) emberEvent\(g, w, h, hz, clock, rain\);/.test(cli)
+    && /if \(!still\) forestEvent\(g, w, h, hz, clock, rain\);/.test(cli)
+    && /if \(!still\) gardenEvent\(g, w, h, hz, clock, rain\);/.test(cli)
+    && /if \(!still\) \{ if \(rain === false\) drawDragon\(g, w, hz, clock\); \}/.test(cli));
 
   try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) { }
   try { fs.rmSync(dir2, { recursive: true, force: true }); } catch (e) { }

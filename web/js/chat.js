@@ -575,26 +575,31 @@ function readBudget(m) {
   };
 
   /* ---------- models ---------- */
-  async function loadModels(tries = 0) {
-    $('status').textContent = tries ? 'starting the AI engine...' : 'connecting...';
+  async function loadModels(tries = 0, fromSettings = false) {
+    if (!fromSettings) $('status').textContent = tries ? 'starting the AI engine...' : 'connecting...';
     try {
       const r = await A.api('/api/models');
       if (!r.models.length) { if (tries < 8) { setTimeout(() => loadModels(tries + 1), 2500); return; } $('model').innerHTML = '<option>(no model)</option>'; $('status').textContent = 'AI engine not available'; return; }
-      const saved = ls.get('model', '');      const pref = r.models.map(m => m.name), cloudOf = {}; r.models.forEach(m => { if (m.cloud) cloudOf[m.name] = m.label || ('☁ ' + m.name); });
-      /* each model shows its size, and the copies the Agent tab makes of a model sit in a group of their own under the everyday ones */
-      const opt = m => '<option value="' + esc(m.name) + '">' + esc(m.cloud ? (m.label || m.name) : m.name.replace(/:latest$/, '') + (m.size ? ' · ' + (m.size / 1073741824).toFixed(1) + ' GB' : '')) + '</option>';
-      const isCopy = m => !m.cloud && /-agent(-\d+k)?(:|$)/i.test(m.name), main = r.models.filter(m => !isCopy(m)), copies = r.models.filter(isCopy);
+      const def = A.modelOrder ? A.modelOrder.sync(r.defaultModel) : '';
+      const list = A.modelOrder ? A.modelOrder.sort(r.models, def) : r.models;
+      const saved = ls.get('model', ''), pref = list.map(m => m.name);
+      /* each model shows its size (ordered largest-first, or with the Settings default pinned first), and Agent copies sit in their own group */
+      const opt = m => '<option value="' + esc(m.name) + '">' + esc(A.modelOrder ? A.modelOrder.label(m, { defaultModel: def }) : (m.cloud ? (m.label || m.name) : m.name.replace(/:latest$/, '') + (m.size ? ' · ' + (m.size / 1073741824).toFixed(1) + ' GB' : ''))) + '</option>';
+      const isCopy = m => !m.cloud && /-agent(-\d+k)?(:|$)/i.test(m.name), main = list.filter(m => !isCopy(m)), copies = list.filter(isCopy);
       $('model').innerHTML = copies.length ? '<optgroup label="Models">' + main.map(opt).join('') + '</optgroup><optgroup label="Agent tab copies (same models, larger memory)">' + copies.map(opt).join('') + '</optgroup>' : main.map(opt).join('');
-      $('model').title = 'The AI model that answers in Chat. A larger model (more GB) usually answers better and more slowly.';
-      /* the local model is still the default: Claude only when it was picked on purpose */
-      const small = /qwen3\.5:(2|0\.8)b|:(0\.\d|[1-3](\.\d)?)b\b|:\d+m\b/i, local = r.models.filter(m => !m.cloud);
-      const bigQwen = local.filter(m => /qwen/i.test(m.name) && !small.test(m.name)).sort((a, b) => b.size - a.size)[0];
-      const pick = pref.includes(saved) ? saved : ((bigQwen && bigQwen.name) || local.filter(m => !small.test(m.name)).sort((a, b) => b.size - a.size)[0]?.name || pref[0]); $('model').value = pick;
-      $('status').textContent = 'ready'; warm();
+      $('model').title = 'The AI model that answers in Chat. Models are ordered largest first unless you choose a default in Settings.';
+      const defHit = def && list.find(m => A.modelOrder && A.modelOrder.matches(m, def));
+      const biggestLocal = main.find(m => !m.cloud) || list.find(m => !m.cloud);
+      const pick = defHit ? defHit.name : ((!fromSettings && pref.includes(saved)) ? saved : ((biggestLocal && biggestLocal.name) || pref[0]));
+      $('model').value = pick;
+      if (fromSettings && pick) ls.set('model', pick);
+      $('status').textContent = 'ready'; warm(); cloudBanner();
     } catch (e) { if (tries < 8) setTimeout(() => loadModels(tries + 1), 2500); }
   }
   const warm = () => { if (model() && model() !== '(no model)') A.api('/api/warm', { model: model() }); };
   $('model').onchange = () => { ls.set('model', model()); warm(); cloudBanner(); };
+  A.chat.loadModels = loadModels;
+  if (A.on) A.on('default-model', () => loadModels(0, true));
   /* while Claude answers, say so plainly, every time */
   function cloudBanner() {
     let b = document.getElementById('clban'); const on = A.ai && A.ai.isCloud(model());

@@ -11,7 +11,7 @@
   const big = n => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : n >= 1024 ? Math.round(n / 1024) + ' KB' : n + ' B';
   let path = '', search = '', busy = false, filesCur = { dirs: [], files: [] };
   /* open files, VS Code style: a tab each, the unsaved ones marked */
-  let tabs = [], activeId = null;
+  let tabs = [], activeId = null, chat = [], suggestions = [], localModels = [];
   const tab = id => tabs.find(t => t.id === id) || null;
   const curTab = () => tab(activeId);
   const anyDirty = () => tabs.some(t => t.dirty);
@@ -23,13 +23,14 @@
       '<button class="ib" id="aechanged" title="Files you have changed here, with a way back">✏️ Files you changed</button>' +
       '<button class="ib" id="aereload" title="Reload the page (picks up anything changed under web)">⟳ Reload the page</button></div>' +
       '<div class="rd-banner" style="margin:0 0 8px">🛡 <b>You are editing Moundshroud itself.</b><span class="small" style="flex:1;min-width:200px">Every save keeps the previous version first, JavaScript is checked before it is written, and ↩ History puts an older version back. Files under <b>web/</b> show after a reload; <b>lib/</b> and <b>server.js</b> need the app restarted.</span></div>' +
-      '<div class="ae-split"><div class="ae-side"><input id="aeq" type="search" placeholder="Filter the files here…" autocomplete="off"><div class="ae-path" id="aepath"></div><div class="scroll" id="aefiles"></div></div>' +
+      '<div class="ae-split"><div class="ae-side"><input id="aeq" type="search" placeholder="Filter the files here…" autocomplete="off"><div class="ae-path" id="aepath"></div><div class="row" style="padding:0 7px 6px;gap:4px"><button class="ib" id="aenew">＋ File</button><button class="ib" id="aefolder">＋ Folder</button><button class="ib" id="aemove">↪ Move</button><button class="ib dang" id="aeremove">Delete</button></div><div class="scroll" id="aefiles"></div></div>' +
       '<div class="ae-main"><div class="ae-head"><b id="aename">Pick a file on the left</b><span class="small mute" id="aemeta"></span><span style="flex:1"></span>' +
       '<button class="ib" id="aehist" title="Older versions of this file">↩ History</button><button class="ib" id="aecheck" title="Check the JavaScript without saving">✓ Check</button><button class="pri" id="aesave" title="Save (Ctrl+S)">💾 Save</button></div>' +
       '<div class="small" id="aemsg"></div>' +
       '<div class="ce-tabs" id="aetabs"></div>' +
       '<textarea id="aeta" data-code data-save="aesave" spellcheck="false" placeholder="Open a file on the left. Nothing here is saved until you press 💾 Save."></textarea>' +
-      '<div class="small mute" id="aehint" style="margin-top:6px">Ctrl+S saves · Ctrl+F finds · Ctrl+H replaces · Ctrl+Shift+P opens the command palette · Ctrl+G goes to a line · Ctrl+W closes the tab · Ctrl+/ comments. A save that would break the JavaScript is refused and the reason is shown above.</div></div></div>';
+      '<div class="small mute" id="aehint" style="margin-top:6px">Ctrl+S saves · Ctrl+F finds · Ctrl+H replaces · Ctrl+Shift+P opens the command palette · Ctrl+G goes to a line · Ctrl+W closes the tab · Ctrl+/ comments. A save that would break the JavaScript is refused and the reason is shown above.</div>' +
+      '<section class="ae-chat"><div class="row" style="padding:6px 9px;border-bottom:1px solid var(--line);gap:8px"><b>Local code helper</b><select id="aecmodel" aria-label="Local model" style="max-width:250px"><option value="">Loading local models…</option></select><span class="small mute" style="flex:1">Ask about this file; suggested code stays unsaved until you save.</span><button class="ib" id="aeclear">Clear</button></div><div class="ae-chatlog" id="aeclog" aria-live="polite"><div class="small mute">Open any file, choose a local model, and ask it to explain, debug, or revise the code.</div></div><div class="ae-chatbar"><textarea id="aecinput" rows="2" placeholder="Ask the local model to explain, debug, or revise the open file…"></textarea><button class="pri" id="aesend">Send</button></div></section></div></div>';
     $('#aeq').addEventListener('input', e => { search = e.target.value.trim().toLowerCase(); drawFiles(); });
     $('#aechanged').onclick = changedFiles;
     $('#aereload').onclick = () => { if (anyDirty() && !confirm('Discard the unsaved changes and reload the page?')) return; location.reload(); };
@@ -37,6 +38,9 @@
     $('#aesave').onclick = save;
     $('#aecheck').onclick = checkNow;
     $('#aehist').onclick = history;
+    $('#aenew').onclick = newFile; $('#aefolder').onclick = newFolder; $('#aemove').onclick = moveFile; $('#aeremove').onclick = removeFile;
+    $('#aesend').onclick = sendChat; $('#aeclear').onclick = () => { chat = []; suggestions = []; renderChat(); };
+    $('#aecinput').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } });
     const ta = $('#aeta');
     ta.addEventListener('input', () => {
       const t = curTab(); if (!t) return;
@@ -70,6 +74,7 @@
     const ta = $('#aeta'), m = $('#aemeta');
     if (m) m.textContent = t ? ta.value.split('\n').length + ' lines · ' + big(new Blob([ta.value]).size) + (t.dirty ? ' · not saved yet' : '') : '';
     drawTabs();
+    ['aemove','aeremove','aehist','aecheck','aesave'].forEach(id => { const el = $('#' + id); if (el) el.disabled = !t; });
   }
 
   async function loadDir(dir) {
@@ -139,6 +144,76 @@
     if (!r || r.error) { A.toast((r && r.error) || 'That file could not be opened.', 6000); return; }
     tabs.push({ id: r.rel, name: r.rel.split('/').pop(), text: r.text, orig: r.text, dirty: false, scroll: 0 });
     activate(r.rel);
+  }
+
+  async function newFile() {
+    const name = prompt('New file name (for example, helper.js):'); if (!name) return;
+    const rel = (path ? path + '/' : '') + name.trim().replace(/\\/g, '/');
+    const r = await A.api('/api/appedit/create', { path: rel, text: '' }).catch(() => null);
+    if (!r || r.error) return A.toast((r && r.error) || 'Could not create that file.', 6000);
+    await loadDir(path); await open(rel);
+  }
+  async function newFolder() {
+    const name = prompt('New folder name:'); if (!name) return;
+    const rel = (path ? path + '/' : '') + name.trim().replace(/\\/g, '/');
+    const r = await A.api('/api/appedit/mkdir', { path: rel }).catch(() => null);
+    if (!r || r.error) return A.toast((r && r.error) || 'Could not create that folder.', 6000);
+    await loadDir(path);
+  }
+  async function moveFile() {
+    const t = curTab(); if (!t) return;
+    if (t.dirty && !confirm('This file has unsaved edits. Move the last saved version and keep the edits open in this tab?')) return;
+    const to = prompt('Move file to this app-relative path:', t.id);
+    if (!to || to.trim() === t.id) return;
+    const r = await A.api('/api/appedit/move', { path: t.id, to: to.trim() }).catch(() => null);
+    if (!r || r.error) return A.toast((r && r.error) || 'Could not move the file.', 6000);
+    if (!t.dirty) { tabs = tabs.filter(x => x !== t); activeId = null; $('#aeta').value = ''; }
+    else { t.id = to.trim().replace(/\\/g, '/'); t.name = t.id.split('/').pop(); }
+    await loadDir((to.trim().replace(/\\/g, '/').split('/').slice(0, -1).join('/')));
+    if (t.dirty) { activeId = t.id; drawTabs(); mark(); }
+    else if (tabs[0]) activate(tabs[0].id);
+  }
+  async function removeFile() {
+    const t = curTab(); if (!t) return;
+    if (!confirm('Remove ' + t.id + '? A backup will be kept in Files you changed / History.')) return;
+    const r = await A.api('/api/appedit/remove', { path: t.id }).catch(() => null);
+    if (!r || r.error) return A.toast((r && r.error) || 'Could not remove the file.', 6000);
+    tabs = tabs.filter(x => x !== t); activeId = null; $('#aeta').value = '';
+    if (tabs[0]) activate(tabs[0].id); else mark();
+    await loadDir(path); A.toast('Removed ' + t.id + (r.backedUp ? '; a backup was kept.' : '.'), 4000);
+  }
+
+  function renderChat() {
+    const box = $('#aeclog'); if (!box) return;
+    box.innerHTML = chat.map((m, i) => '<div class="ae-chatmsg ' + (m.role === 'user' ? 'user' : '') + '"><b>' + (m.role === 'user' ? 'You' : 'Local model') + '</b><div>' + esc(m.content) + '</div>' + (m.role === 'assistant' && suggestions[i] ? '<button class="ib" data-apply="' + i + '">Apply code to open file (unsaved)</button>' : '') + '</div>').join('') || '<div class="small mute">Open a file and ask the local model to explain, debug, or revise it.</div>';
+    box.scrollTop = box.scrollHeight;
+    box.onclick = e => { const b = e.target.closest('[data-apply]'); if (!b) return; const code = suggestions[+b.dataset.apply]; if (code == null || !curTab()) return; const ta = $('#aeta'); ta.value = code; ta.dispatchEvent(new Event('input', { bubbles: true })); ta.focus(); A.toast('Suggested code is in the editor, unsaved. Review it before saving.', 4500); };
+  }
+  async function loadLocalModels() {
+    const r = await A.api('/api/models').catch(() => null), sel = $('#aecmodel'); if (!sel) return;
+    localModels = ((r && r.models) || []).filter(m => m && !m.cloud && m.name && m.name !== 'free-auto');
+    const preferred = r && r.defaultModel;
+    sel.innerHTML = localModels.length ? localModels.map(m => '<option value="' + esc(m.name) + '"' + (m.name === preferred ? ' selected' : '') + '>' + esc(m.label || m.name) + '</option>').join('') : '<option value="">No local models found</option>';
+  }
+  async function sendChat() {
+    const input = $('#aecinput'), ask = input.value.trim(), model = $('#aecmodel').value;
+    if (!ask) return;
+    if (!model) return A.toast('Download or start a local Ollama model first.', 5000);
+    const t = curTab();
+    chat.push({ role: 'user', content: (t ? 'File: ' + t.id + '\n' : '') + ask }); input.value = ''; renderChat();
+    const btn = $('#aesend'); btn.disabled = true; btn.textContent = '…';
+    const context = t ? '\n\nCurrent file (' + t.id + '):\n```\n' + $('#aeta').value.slice(0, 50000) + '\n```' : '\n\nNo file is open. Ask what file to open before proposing edits.';
+    const system = 'You are the local coding helper inside Moundshroud Edit the app. Help debug, explain, and revise the currently open file. The user may open another file between messages; use the file path and contents in the latest prompt. If revising, return the complete replacement file in one fenced code block and explain key changes briefly. Never claim you saved or tested code. Do not ask the user to run destructive commands.' + context;
+    const messages = [{ role: 'system', content: system }, ...chat.slice(-12)];
+    try {
+      const r = await A.api('/api/chat', { model, messages, stream: false });
+      const text = r && (r.message && r.message.content || r.choices && r.choices[0] && r.choices[0].message && r.choices[0].message.content || r.response);
+      if (!text) throw new Error((r && r.error) || 'The model did not return a reply.');
+      const match = String(text).match(/```(?:[\w+-]+)?\s*\n([\s\S]*?)```/);
+      chat.push({ role: 'assistant', content: String(text) });
+      suggestions[chat.length - 1] = match ? match[1].replace(/\n$/, '') : null;
+    } catch (e) { chat.push({ role: 'assistant', content: 'I could not get a reply: ' + (e.message || 'Check that the local model is running.') }); }
+    btn.disabled = false; btn.textContent = 'Send'; renderChat();
   }
 
   async function save() {
@@ -221,6 +296,7 @@
 
   async function onShow() {
     if (!$('#aeta')) shell();
+    loadLocalModels();
     if (!path && !tabs.length) await loadDir('web/js');
     else { drawFiles(); mark(); }
   }
