@@ -42,7 +42,7 @@ const practice = require('./lib/practice');
 const forge = require('./lib/forge');
 const heretic = require('./lib/heretic');
 const toolkit = require('./lib/toolkit');
-const ROOT = __dirname, DATA = path.join(ROOT, 'data'), WEB = path.join(ROOT, 'web'), CHEF = path.join(ROOT, 'nomad', 'cyberchef');
+const ROOT = __dirname, DATA = process.env.MOUNDSHROUD_DATA ? path.resolve(process.env.MOUNDSHROUD_DATA) : path.join(ROOT, 'data'), WEB = path.join(ROOT, 'web'), CHEF = path.join(ROOT, 'nomad', 'cyberchef');
 const ROOT_DIR_GE = path.join(ROOT, 'engines', 'godot', 'web-editor');          // Godot's official web editor build
 fs.mkdirSync(DATA, { recursive: true });
 const PORT = +process.env.MOUNDSHROUD_PORT || +process.env.ATLAS_PORT || 47231, OLLAMA = { host: '127.0.0.1', port: 11434 };

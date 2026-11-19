@@ -18,7 +18,7 @@
     tools: ['/web/js/tools.js', '/web/js/markitdown.js', '/web/js/apis.js', '/web/js/calculator.js', '/web/js/scanner.js', '/web/js/meetings.js'],
     health: ['/web/js/health.js'],
     guide: ['/web/js/guide.js', '/web/js/guide-book.js', '/web/js/tutorial.js', '/web/js/walk.js'],
-    play: ['/web/js/play.js', '/web/js/play-levels.js', '/web/js/play-g1.js', '/web/js/play-g2.js', '/web/js/play-g3.js', '/web/js/play-g4.js', '/web/js/play-depths.js', '/web/js/play-trader.js', '/web/js/president-engine.js', '/web/js/play-president.js', '/web/js/play-defense.js', '/web/js/play-germ.js', '/web/js/play-boards.js', '/web/js/play-cards.js', '/web/js/play-poker.js', '/web/js/play-classics.js', '/web/js/play-help.js', '/web/js/play-meta.js', '/web/js/play-hub.js', '/web/js/play-ports.js'],
+    play: ['/web/js/play.js', '/web/js/play-levels.js', '/web/js/play-g1.js', '/web/js/play-g2.js', '/web/js/play-g3.js', '/web/js/play-g4.js', '/web/js/play-worlds.js', '/web/js/play-depths.js', '/web/js/play-trader.js', '/web/js/president-engine.js', '/web/js/play-president.js', '/web/js/play-defense.js', '/web/js/play-germ.js', '/web/js/play-boards.js', '/web/js/play-cards.js', '/web/js/play-poker.js', '/web/js/play-classics.js', '/web/js/play-help.js', '/web/js/play-meta.js', '/web/js/play-hub.js', '/web/js/play-ports.js'],
     music: ['/web/js/music.js', '/web/js/music-mine.js', '/web/js/music-lib.js'],
     radio: ['/web/js/radio.js'],
     tv: ['/web/js/tv.js'],

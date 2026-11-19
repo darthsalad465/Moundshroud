@@ -1,0 +1,91 @@
+{
+  "name": "moundshroud-desktop",
+  "productName": "Moundshroud",
+  "version": "1.3.0",
+  "description": "Moundshroud — Private Offline AI Assistant, 3D World Globe, 3D Brain & Local Workspace",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist:win": "electron-builder --win nsis portable --x64",
+    "dist:nsis": "electron-builder --win nsis --x64"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "electron": "^35.2.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "org.moundshroud.desktop",
+    "productName": "Moundshroud",
+    "copyright": "Copyright © Moundshroud",
+    "directories": {
+      "output": "dist"
+    },
+    "asar": true,
+    "files": [
+      "main.js",
+      "preload.js",
+      "splash.html",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "..",
+        "to": "app-core",
+        "filter": [
+          "server.js",
+          "VERSION",
+          "LICENSE",
+          "README.md",
+          "ocr.ps1",
+          "pc-volume.ps1",
+          "lib/**/*",
+          "web/**/*",
+          "bin/**/*",
+          "py/**/*",
+          "data/cmudict.dict",
+          "data/cmudict-LICENSE.txt",
+          "!web/music/**",
+          "!**/__pycache__/**",
+          "!**/*.log",
+          "!**/*.bak*",
+          "!**/.env*",
+          "!**/*.key",
+          "!**/*.pem",
+          "!.author-copy"
+        ]
+      }
+    ],
+    "win": {
+      "icon": "../web/moundshroud.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "artifactName": "Moundshroud-${target}-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Moundshroud",
+      "uninstallDisplayName": "Moundshroud — Private Offline AI",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true,
+      "artifactName": "Moundshroud-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "Moundshroud-Portable-${version}.${ext}"
+    }
+  }
+}

@@ -24,6 +24,9 @@ jobs:
         with:
           node-version: 24
 
+      - name: Check pushed files for accidental private data and credentials
+        run: node scripts/check-github-safety.js --revision "$GITHUB_SHA"
+
       - name: Refresh generated README details
         run: node scripts/update-readme.js
 
