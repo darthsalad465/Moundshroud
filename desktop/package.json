@@ -42,11 +42,13 @@
           "pc-volume.ps1",
           "lib/**/*",
           "web/**/*",
-          "bin/**/*",
+          "bin/mcode",
+          "bin/mcode.cmd",
           "py/**/*",
           "data/cmudict.dict",
           "data/cmudict-LICENSE.txt",
           "!web/music/**",
+          "!lib/artex.js",
           "!**/__pycache__/**",
           "!**/*.log",
           "!**/*.bak*",
@@ -55,6 +57,10 @@
           "!**/*.pem",
           "!.author-copy"
         ]
+      },
+      {
+        "from": "unavailable-artex.js",
+        "to": "app-core/lib/artex.js"
       }
     ],
     "win": {

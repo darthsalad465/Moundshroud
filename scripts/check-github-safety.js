@@ -33,6 +33,7 @@ function allowedPath(file) {
   const normalized = file.replace(/\\/g, '/');
   if (ROOT_FILES.has(normalized) || SCRIPT_FILES.has(normalized) || SAFE_DATA.has(normalized)) return true;
   if (normalized === '.dev/settings.json' || normalized === '.githooks/pre-push') return true;
+  if (normalized === '.github/workflows/build-installer.yml') return true;
   if (normalized === '.github/workflows/refresh-readme.yml' || normalized === '.github/workflows/github-safety.yml') return true;
   if (PRIVATE_NAME.test(normalized) || PRIVATE_EXTENSION.test(normalized)) return false;
   return SOURCE_DIRS.some(prefix => normalized.startsWith(prefix)) && !normalized.split('/').some(part => part === 'node_modules' || part === 'dist' || part === '.env' || part === 'secrets');

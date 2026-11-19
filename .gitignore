@@ -28,6 +28,7 @@
 /.github/workflows/*
 !/.github/workflows/refresh-readme.yml
 !/.github/workflows/github-safety.yml
+!/.github/workflows/build-installer.yml
 !/restore-progress.ps1
 !/install-art-model.ps1
 !/install-music-model.ps1

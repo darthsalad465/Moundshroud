@@ -1,0 +1,110 @@
+name: Build Windows Desktop Installer
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: 'Publish installer directly to GitHub Releases?'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows-installer:
+    name: Build Moundshroud-Setup.exe (Windows x64)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Security & Regression Gate
+        run: |
+          foreach ($suite in 'security', 'offline', 'globe', 'chat-ux') {
+            node "tests/$suite-test.js"
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          }
+
+      - name: Sync version from VERSION file
+        shell: pwsh
+        run: |
+          $ver = (Get-Content VERSION -Raw).Trim()
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$ver") { throw "Tag must match VERSION ($ver)" }
+          $pkgPath = "desktop/package.json"
+          $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
+          $pkg.version = $ver
+          $pkg | ConvertTo-Json -Depth 10 | Set-Content $pkgPath -Encoding UTF8
+          "APP_VERSION=$ver" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Install desktop packager dependencies
+        working-directory: desktop
+        run: npm ci --no-audit --no-fund
+
+      - name: Build Moundshroud-Setup.exe & Portable.exe
+        working-directory: desktop
+        run: npm run dist:win -- --publish never
+
+      - name: Verify installed application on Windows
+        shell: pwsh
+        run: |
+          $destination = Join-Path $env:RUNNER_TEMP 'Moundshroud'
+          $setup = Resolve-Path "desktop/dist/Moundshroud-Setup-$env:APP_VERSION.exe"
+          $p = Start-Process $setup -ArgumentList "/S /D=$destination" -WindowStyle Hidden -Wait -PassThru
+          if ($p.ExitCode) { throw "Installer exited with $($p.ExitCode)" }
+          node desktop/smoke-test.js "$destination"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $uninstaller = Get-ChildItem $destination -Filter 'Uninstall*.exe' | Select-Object -First 1
+          $p = Start-Process $uninstaller.FullName -ArgumentList "/S _?=$destination" -WindowStyle Hidden -Wait -PassThru
+          if ($p.ExitCode -or (Test-Path "$destination/Moundshroud.exe")) { throw 'Uninstall failed' }
+
+      - name: Generate SHA-256 checksums
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem desktop/dist -Filter "Moundshroud-*.exe"
+          $lines = foreach ($f in $files) {
+            $h = (Get-FileHash $f.FullName -Algorithm SHA256).Hash.ToLower()
+            "$h  $($f.Name)"
+          }
+          $lines | Set-Content desktop/dist/SHA256SUMS.txt -Encoding ASCII
+          Get-Content desktop/dist/SHA256SUMS.txt
+
+      - name: Upload installer artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Moundshroud-Windows-x64-${{ env.APP_VERSION }}
+          path: |
+            desktop/dist/Moundshroud-Setup-*.exe
+            desktop/dist/Moundshroud-Portable-*.exe
+            desktop/dist/SHA256SUMS.txt
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.publish_release == true
+        uses: softprops/action-gh-release@v2
+        with:
+          target_commitish: ${{ github.sha }}
+          fail_on_unmatched_files: true
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}', env.APP_VERSION) }}
+          name: Moundshroud ${{ env.APP_VERSION }} (Windows Desktop App)
+          generate_release_notes: true
+          body: |
+            ## Moundshroud ${{ env.APP_VERSION }} — Windows Desktop App
+
+            ### Quick Install (No Setup Scripts Needed)
+            1. Download **`Moundshroud-Setup-${{ env.APP_VERSION }}.exe`** below.
+            2. Double-click to install (adds Start Menu & Desktop shortcuts + clean Windows Uninstaller).
+            3. Launch **Moundshroud** — runs as a real standalone desktop app with zero browser chrome.
+
+            *(Prefer zero-install? Download **`Moundshroud-Portable-${{ env.APP_VERSION }}.exe`** instead.)*
+          files: |
+            desktop/dist/Moundshroud-Setup-*.exe
+            desktop/dist/Moundshroud-Portable-*.exe
+            desktop/dist/SHA256SUMS.txt
