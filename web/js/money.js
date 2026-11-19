@@ -61,21 +61,21 @@ function txs() {
   const draw = () => ({ over, tx: txs, bud: buds, goal: goals, tools })[st.tab]();
   const csvEsc = s => /[",\n]/.test(s) ? '"' + String(s).replace(/"/g, '""') + '"' : s;
   const parseCsv = text => { const rows = []; let row = [], cur = '', q = false; for (let i = 0; i < text.length; i++) { const ch = text[i]; if (q) { if (ch === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += ch; } else if (ch === '"') q = true; else if (ch === ',') { row.push(cur); cur = ''; } else if (ch === '\n' || ch === '\r') { if (ch === '\r' && text[i + 1] === '\n') i++; row.push(cur); rows.push(row); row = []; cur = ''; } else cur += ch; } if (cur || row.length) { row.push(cur); rows.push(row); } return rows; };
-  root.addEventListener('click', e => {
+  root.addEventListener('click', async e => {
     const T = e.target, c = s => T.closest(s); let el;
     if ((el = c('[data-tab]'))) { st.tab = el.dataset.tab; st.q = ''; st.cat = ''; draw(); return; }
     if ((el = c('[data-m]'))) { const n = +el.dataset.m; st.month = n ? shiftM(st.month, n) : mkey(new Date()); draw(); return; }
-    if ((el = c('[data-del]'))) { if (confirm('Delete this transaction?')) { M.tx = M.tx.filter(t => t.id !== el.dataset.del); save(); draw(); } return; }
+    if ((el = c('[data-del]'))) { if ((await A.confirm('Delete this transaction?'))) { M.tx = M.tx.filter(t => t.id !== el.dataset.del); save(); draw(); } return; }
     if (T.id === 'madd') { const a = parseFloat(root.querySelector('#ma').value); if (!(a > 0)) { A.toast('Type an amount first.'); return; } const sg = +root.querySelector('#mt').value, d = root.querySelector('#md').value || dkey(new Date()); M.tx.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), d, a: sg * a, c: root.querySelector('#mc').value, n: root.querySelector('#mn').value.trim() }); save(); st.month = d.slice(0, 7); draw(); A.toast('Added.'); return; }
     if (T.id === 'gadd') { const n = root.querySelector('#gn').value.trim(), t = parseFloat(root.querySelector('#gt').value); if (!n || !(t > 0)) { A.toast('Name the goal and set a target.'); return; } M.goals.push({ id: Date.now().toString(36), n, target: t, saved: 0, by: root.querySelector('#gb').value }); save(); draw(); return; }
     if ((el = c('[data-gplus]'))) { const g = M.goals.find(x => x.id === el.dataset.gplus), v = parseFloat(root.querySelector('[data-gadd="' + g.id + '"]').value); if (g && v) { g.saved = Math.max(0, g.saved + v); save(); draw(); } return; }
-    if ((el = c('[data-gdel]'))) { if (confirm('Delete this goal?')) { M.goals = M.goals.filter(x => x.id !== el.dataset.gdel); save(); draw(); } return; }
+    if ((el = c('[data-gdel]'))) { if ((await A.confirm('Delete this goal?'))) { M.goals = M.goals.filter(x => x.id !== el.dataset.gdel); save(); draw(); } return; }
     if ((el = c('[data-a]'))) {
       const a = el.dataset.a;
       if (a === 'hide') { M.hide = M.hide ? 0 : 1; save(); draw(); }
       else if (a === 'export') { const csv = 'date,amount,category,note\n' + M.tx.slice().sort((x, y) => x.d.localeCompare(y.d)).map(t => [t.d, t.a.toFixed(2), csvEsc(t.c), csvEsc(t.n)].join(',')).join('\n'), b = new Blob([csv], { type: 'text/csv' }), l = document.createElement('a'); l.href = URL.createObjectURL(b); l.download = 'moundshroud-money-' + dkey(new Date()) + '.csv'; l.click(); setTimeout(() => URL.revokeObjectURL(l.href), 4000); }
       else if (a === 'import') { const f = document.createElement('input'); f.type = 'file'; f.accept = '.csv,text/csv'; f.onchange = async () => { const rows = parseCsv(await f.files[0].text()); let n = 0; rows.forEach((r, i) => { if (i === 0 && /date/i.test(r[0])) return; const d = (r[0] || '').trim().slice(0, 10), a2 = parseFloat((r[1] || '').replace(/[^0-9.\-]/g, '')); if (/^\d{4}-\d{2}-\d{2}$/.test(d) && isFinite(a2) && a2 !== 0) { M.tx.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), d, a: a2, c: (r[2] || (a2 > 0 ? 'Other income' : 'Other')).trim(), n: (r[3] || '').trim() }); n++; } }); save(); A.toast(n ? 'Imported ' + n + ' transactions.' : 'No rows could be read. Use: date (YYYY-MM-DD), amount, category, note.', 5000); draw(); }; f.click(); }
-      else if (a === 'wipe') { if (confirm('Delete ALL money data (transactions, budgets and goals)? This cannot be undone.') && confirm('Really delete everything?')) { M = Object.assign({}, DEF, { cur: M.cur }); save(); draw(); } }
+      else if (a === 'wipe') { if ((await A.confirm('Delete ALL money data (transactions, budgets and goals)? This cannot be undone.')) && (await A.confirm('Really delete everything?'))) { M = Object.assign({}, DEF, { cur: M.cur }); save(); draw(); } }
     }
   });
   root.addEventListener('keydown', e => { if (e.target.tagName === 'INPUT') { e.stopPropagation(); if (e.key === 'Enter' && e.target.id === 'ma') root.querySelector('#madd').click(); } });

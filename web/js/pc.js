@@ -26,12 +26,12 @@
       if (ms.length > 1 && ms[0].Name.toLowerCase() !== c.name.toLowerCase()) {
         const choice = await new Promise(res => { A.dlg('<div class="hd"><b>Which one?</b></div><div class="bd">' + ms.map((a, i) => '<div class="hit" data-i="' + i + '"><b>' + esc(a.Name) + '</b></div>').join('') + '<div class="row" style="margin-top:8px"><span class="sp"></span><button class="ib" id="pcn">Cancel</button></div></div>'); $('dlg').onclick = e => { const h = e.target.closest('.hit'); if (h) { A.closeDlg(); res(ms[+h.dataset.i]); } }; $('pcn').onclick = () => { A.closeDlg(); res(null); }; });
         if (!choice) return say('assistant', 'Okay, I will leave it.'); pick = choice;
-      } else if (!(await confirm('Open ' + pick.Name + '?', 'Moundshroud will launch <b>' + esc(pick.Name) + '</b> on this PC.', 'Open'))) return say('assistant', 'Okay, cancelled.');
+      } else if (!(await (await A.confirm('Open ' + pick.Name + '?', 'Moundshroud will launch <b>' + esc(pick.Name) + '</b> on this PC.', 'Open')))) return say('assistant', 'Okay, cancelled.');
       const o = await post({ do: 'open', id: pick.AppID }); return say('assistant', o.ok ? 'Opening **' + pick.Name + '**.' : 'That did not work: ' + (o.error || 'unknown error'));
     }
-    if (c.kind === 'lock') { if (!(await confirm('Lock this PC?', 'Your screen will lock now. You will need your password or PIN.', 'Lock'))) return say('assistant', 'Okay, cancelled.'); await post({ do: 'lock' }); return say('assistant', 'Locking.'); }
+    if (c.kind === 'lock') { if (!(await (await A.confirm('Lock this PC?', 'Your screen will lock now. You will need your password or PIN.', 'Lock')))) return say('assistant', 'Okay, cancelled.'); await post({ do: 'lock' }); return say('assistant', 'Locking.'); }
     const label = c.kind === 'mute' ? 'Mute the sound?' : c.kind === 'unmute' ? 'Unmute the sound?' : c.mode === 'set' ? 'Set the volume to ' + c.value + '%?' : 'Turn the volume ' + c.mode + '?';
-    if (!(await confirm(label, 'This changes your PC speaker volume.', 'Do it'))) return say('assistant', 'Okay, cancelled.');
+    if (!(await (await A.confirm(label, 'This changes your PC speaker volume.', 'Do it')))) return say('assistant', 'Okay, cancelled.');
     const o = await post({ do: 'volume', mode: c.kind === 'volume' ? c.mode : c.kind, value: c.value });
     say('assistant', o.error ? o.error : (o.muted ? 'Muted.' : 'Volume is now **' + o.level + '%**.'));
   }

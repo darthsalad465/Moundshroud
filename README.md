@@ -1,284 +1,140 @@
 # Moundshroud
 
-A private, offline-first AI assistant for Windows that runs entirely on your PC. It answers with local LLMs via Ollama, optionally connects to free cloud providers (22+ providers, 311+ models via [awesome-freellm-apis](https://github.com/lucasdorazio/awesome-freellm-apis)), and bundles a vast suite of tools: offline libraries (Wikipedia, medical, survival, how-to, classic books, chess books), study system (flashcards, quizzes, guides), languages, music (composer, 500+ free songs, recorder), chess (play, analysis, career, daily, clubs, Lichess), games (30+ offline + puzzle maker), cyber course/lab, personal finance, kitchen/garden planners, journal, timeline, sky chart, weather, document tools, scanner, meeting notes, clipboard history, password vault, converter, AI art/music/video, Godot game studio, storybook/comic creator, and more. Nothing leaves your computer unless you explicitly enable it (internet search, cloud AI, Lichess, mail, downloads).
+Moundshroud is a Windows desktop assistant that brings local AI, research tools, creative work, and everyday utilities into one app. It runs its interface in Microsoft Edge app mode and uses a small Node.js server on your own PC. With Ollama and a local model installed, AI chat can run on-device. Online services are optional and controlled through the app’s settings.
+
+> **Launch tip:** If Moundshroud does not open on the first try, wait a few seconds and try launching it **two more times**. If it still will not open, run `Setup-Moundshroud.bat` again and follow the troubleshooting steps below.
+
+## What’s included
+
+Moundshroud opens to **Today**. Its main areas include:
+
+- **Chat:** local-model chat, saved conversations, Agent, Swarm, Debate, and other assistant modes. Chat can search selected files and installed offline libraries. Optional web search and online models require you to enable internet access.
+- **Research and work:** News, Browser, Library, Notes, Files, Mail, Documents, Office Files, Calendar, Reminders, Clipboard, Calculator, Scanner, and Meeting Notes.
+- **Learning:** Study cards and quizzes, Languages, Writing, Practice, Teach Me, Lab, and the searchable Guide.
+- **Maps and science:** interactive 3D Brain, 3D Globe, and Sky chart. The Globe includes offline map data plus optional online map tiles and live data layers.
+- **Creative tools:** Studio, music tools, games, photos and albums, radio, TV, and story creation. Some generation tools require their optional model or engine to be installed.
+- **Personal and preparedness:** Kitchen, Garden, Money, Journal, Health, Spiritual, and preparedness planning.
+- **Development and utility:** Tools, App Map, Edit the app, and Coding. Edit the app works on Moundshroud’s own source files; Coding opens a folder you choose on this PC.
+
+The exact tabs and available features can change by version. The in-app **Guide**, **App Map**, and **Settings → Run a self-test** are the best places to check what is available in your copy.
+
+## Privacy and internet access
+
+Moundshroud is designed to work offline, but not every feature is offline. Local chat uses Ollama and a model installed on this PC. Offline books and other large resources must be downloaded before they can be used. News refresh, web search, online AI providers, mail connections, Lichess, map tiles, live Globe layers, and downloads need internet access.
+
+Internet features are controlled in Settings. Review each feature before enabling it: requests to an online provider may include the information needed for that feature. Moundshroud does not automatically upload your entire notes, files, or Password Vault to an AI provider. Content you submit, attach, or ask an AI feature to process may be sent to the selected online provider. The Password Vault is encrypted locally, and its contents are not shown to Chat.
 
 ## Requirements
-| | |
-|---|---|
-| **OS** | Windows 10/11, 64-bit |
-| **Node.js** | Current LTS (tested on Node 24) — zero npm dependencies |
-| **Ollama** | For local models (e.g., `qwen3.5:9b`, `qwen3.5:2b` for low-power) |
-| **Microsoft Edge** | Used for the app window (built into Windows) |
-| **Disk** | ~100 MB app; libraries/models are separate downloads (tens of GB) |
-| **Optional** | LibreOffice (documents), GPU (faster AI), winget (auto-setup) |
 
-## Quick Start
-- **Hotkey**: `Ctrl+Alt+A` anywhere in Windows (also `open-moundshroud.ps1`, Desktop/Start shortcut)
-- The tray program (`assistant-listener.exe`) handles hotkeys, reminders, and 8 AM verse notifications
-- Closing the window stops the server after a few minutes; tray stays for reminders
+- Windows 10 or Windows 11, 64-bit.
+- Node.js LTS. The server has no npm package-install step; the repository is tested with Node.js 24.
+- Microsoft Edge for the app window.
+- Ollama and at least one compatible local model for on-device AI. Setup can offer to install Ollama and download a small starter model.
+- Enough disk space for the models and optional offline libraries you choose. These downloads can be many gigabytes.
 
-## Key Hotkeys
-| Key | Action |
-|-----|--------|
-| `Ctrl+Alt+A` | Open/hide Moundshroud |
+LibreOffice and additional local engines enable some optional features. Setup can offer Kiwix, which is needed to read downloaded `.zim` offline books. Optional components can also be installed later from the relevant app section or setup scripts.
+
+## Install and open
+
+### Packaged release
+
+1. Extract the program archive and the matching data archive into the **same folder**. Do not run Moundshroud from inside a ZIP file.
+2. Run `Setup-Moundshroud.bat` and follow its prompts. It checks for Node.js and Ollama, can download a starter model and Kiwix, and creates a Moundshroud shortcut.
+3. Open Moundshroud with the desktop or Start menu shortcut, or press **Ctrl+Alt+A**.
+4. In the app, open **Settings → Run a self-test** to check the installation.
+5. To add offline books and other optional resources, use **Prepare → Stock up** and check the size before downloading.
+
+Setup is safe to run again: it checks what is already installed and offers to fill in missing components.
+
+### Running from a source checkout
+
+Install the requirements above, then open PowerShell in the project folder and run:
+
+```powershell
+.\open-moundshroud.ps1
+```
+
+That launcher starts the local server if needed and opens the app window. To start only the server for development, run `node server.js`; the default address is `http://127.0.0.1:47231`. The server listens on loopback. You can set `MOUNDSHROUD_PORT` to use another port.
+
+## First steps
+
+1. Open **Settings** to review privacy, internet access, appearance, and AI choices.
+2. Confirm Ollama is running and that a model is installed. The installer’s small starter model is a good baseline; larger models need more memory and may run more slowly.
+3. Run the self-test from **Settings → Backup & data** after setup or an update.
+4. Make a backup in **Settings → Backup & data**. You can also check a backup archive there without restoring it.
+5. Press **Ctrl+K** to search chats, notes, files, library content, app pages, and commands.
+6. Press **F1** to open the Guide or use the walkthroughs in Settings.
+
+## Useful keyboard shortcuts
+
+| Shortcut | Action |
+| --- | --- |
+| `Ctrl+Alt+A` | Open or hide Moundshroud from anywhere in Windows |
 | `Ctrl+Alt+Q` | Ask about selected text |
-| `Ctrl+Alt+W` | Look up in offline library |
-| `Ctrl+Alt+D` | Define selected word |
-| `Ctrl+Alt+S` | Copy text from screen (images, videos, PDFs) |
-| `Ctrl+Alt+N` | Quick note / reminder |
-| `Ctrl+Alt+V` | Voice mode |
-| `Ctrl+Alt+C` | Clipboard history |
-| `Ctrl+Alt+E` | Emergency cards |
-| `Ctrl+K` | Command palette (search everything) |
-| `Ctrl+N` | New chat/note |
-| `Alt+1`–`Alt+9` | Jump to tab group |
-| `F1` | Guide |
-| `Esc` | Stop reply / close panel / go back to Today / close app |
+| `Ctrl+Alt+W` | Look up selected text in the offline library |
+| `Ctrl+Alt+D` | Define the selected word |
+| `Ctrl+Alt+S` | Select an area of the screen and read its text |
+| `Ctrl+Alt+N` | Create a quick note or reminder |
+| `Ctrl+Alt+V` | Open voice mode |
+| `Ctrl+Alt+C` | Open clipboard history, when enabled |
+| `Ctrl+Alt+E` | Open emergency cards |
+| `Ctrl+K` | Search the app and run commands |
+| `Ctrl+N` | Start a new chat |
+| `Alt+1`–`Alt+9` | Jump to a tab |
+| `F1` | Open the Guide |
+| `Esc` | Stop a reply or close the current dialog or panel |
 
-## Tabs (in order, grouped by the sidebar menus)
+The app’s Guide and Settings list additional shortcuts. Some system-wide shortcuts require the tray helper (`assistant-listener.exe`).
 
-### 🏠 Today (`home`)
-Dashboard with weather, calendar, reminders, quick actions, recent notes, and system status.
+## Data, backups, and recovery
 
----
+Moundshroud keeps its working data on this PC. The `data` folder stores server-side app data; the Edge app profile stores browser-side preferences and progress. Notes are kept in the location shown by the app. The app’s storage and privacy screens explain these locations and what is included in a backup.
 
-### 🏢 Office
-| Tab | Icon | Description |
-|-----|------|-------------|
-| **Library** | 📚 | Offline Wikipedia (Kiwix), Project Gutenberg classics, chess books, medical/survival/how-to libraries, Bible texts. Virtual-scrolled, searchable, with bookmarks and holographic book view. |
-| **My Files** | 🗂️ | File browser for your indexed folders (notes, documents, photos, downloads). Open, search, preview PDFs/images/text. |
-| **Notes** | 📝 | Rich notes with folders, tags, pinning, search, Markdown export, and AI-assisted writing. |
-| **Mail** | ✉️ | IMAP client (Gmail, Yahoo, iCloud, Fastmail, Proton via Bridge). Scripts/tracking blocked, scam warnings, AI inbox brief, summaries, reply drafts → your Drafts folder. Moundshroud never sends. |
-| **Documents** | 📄 | LibreOffice integration: create/edit/convert documents, spreadsheets, presentations. Version history, export to PDF. |
-| **Office Files** | 📂 | Quick access to recent LibreOffice files. |
-| **Calculator** | 🧮 | Scientific, programmer, conversion, tip/percent, date/time, smart math modes. |
-| **Scanner** | 📷 | Scan documents/photos from WIA/TWAIN devices (Windows built-in). Multi-page PDF, OCR. |
-| **Meeting Notes** | 🎙️ | Record, transcribe (local Whisper), summarize, extract action items. Speaker diarization. |
-| **Reminders** | ⏰ | One-time, recurring (daily/weekly/monthly/yearly), countdown, snooze, 8 AM verse card. |
-| **Clipboard** | 📋 | History (text/images/files), search, pin, sync across restarts. Optional auto-clear. |
+- **Back up everything** creates a ZIP containing supported app data and browser settings. Save a copy somewhere separate, such as an external drive.
+- **Check a backup** reads the archive and checks its contents without restoring or changing your current data.
+- **Restore from a backup** replaces matching data from that backup. Review the confirmation carefully before proceeding.
+- **Code snapshots** are for rolling back changes to the app itself. See `SNAPSHOTS.txt`; these are separate from personal-data backups.
 
----
+AI models, downloaded libraries, and imported media can be large and may not be included in a full backup. Keep original copies of anything that cannot easily be downloaded again.
 
-### 🎒 Education
-| Tab | Icon | Description |
-|-----|------|-------------|
-| **Study** | 🎓 | Flashcards (spaced repetition), quizzes, study guides, progress tracking, import/export. |
-| **Languages** | 🌍 | Translate (local + cloud), phrasebook, vocabulary builder, conjugation tables. |
-| **Writing** | ✍️ | AI-assisted writing: outlines, drafts, critique, style rewrite, continue, summarize. |
-| **Practice** | 🎤 | Coding exercises with sandboxed execution, graded by AI. Multiple languages. |
-| **Teach Me** | 🧑‍🎓 | Socratic tutor mode: AI guides you to the answer with questions. |
-| **Sky** | 🔭 | Interactive star chart (d3-celestial), planets, constellations, deep-sky objects, time travel, telescope FOV. |
-| **Lab** | 🔬 | Science tools: periodic table, unit converter, chemistry calculator, physics formulas, biology reference. |
+## Troubleshooting
 
----
+### The app window does not appear
 
-### 🏡 Personal
-| Tab | Icon | Description |
-|-----|------|-------------|
-| **Kitchen** | 🍳 | Meal planner (weekly), pantry inventory (barcode scan), 8,000+ recipes (offline), shopping list auto-generated from plan. |
-| **Garden** | 🌱 | Bed planner, planting calendar (latitude-aware or custom frost dates), harvest log, companion planting, pest/disease guide. |
-| **Money** | 💰 | Private budget: accounts, categories, recurring, CSV import/export, savings goals, reports, charts. No cloud sync. |
-| **Journal** | 📓 | Daily entries, mood tracker, streaks, tags, search, export, AI insights (local). |
-| **Albums** | 📚 | Photo albums with AI descriptions ("dog in snow", "birthday 2024"), month view, search by content, EXIF, map view. Files read-only; OneDrive cloud-only files not downloaded unless opened. |
+If it fails on the first launch, wait a few seconds and try again two more times. Then:
 
----
+1. Run `Setup-Moundshroud.bat` again and read any messages it reports.
+2. Confirm Node.js is installed and Ollama is running if you want local AI.
+3. Open Moundshroud from its shortcut or run `open-moundshroud.ps1` from the project folder.
+4. Once the app opens, run **Settings → Backup & data → Run a self-test** and review any failed checks.
+5. If the problem remains, open **Settings → Problems & crash log** and save the relevant details before asking for help.
 
-### 🎉 Entertainment
-| Tab | Icon | Description |
-|-----|------|-------------|
-| **Games** | 🎭 | 30+ offline games: chess, solitaire, minesweeper, 2048, snake, tetris, puzzles, trivia, word games, card games, puzzle maker, storyteller, ambience. |
-| **Music** | 🎼 | Composer (score editor, 55 instruments, MIDI/WAV export), 500+ free classical songs, imports, recorder, playlist, music theory tools. |
-| **Radio** | 📻 | Live radio stations (Radio Browser API), favorites, search by country/genre/language, record to file. |
-| **TV** | 📺 | VLC links for live TV, YouTube search/play (no API key), watch later queue. |
-| **Photos** | 🖼️ | Full photo library: timeline, map, AI search, face grouping, duplicates, favorites, EXIF editor, export. |
+### Chat cannot answer
 
----
+Confirm Ollama is running, a model is installed, and the selected model is available. Local AI quality and speed depend on the chosen model and the PC’s available memory. Online models require internet access and their own provider settings.
 
-### 🛡️ Cyber
-| Tab | Icon | Description |
-|-----|------|-------------|
-| **Cyber Course** | 🛡️ | 11 modules (networking, crypto, web, reversing, forensics, OSINT, malware, wireless, cloud, cert prep), hands-on labs, progress tracking, certificate. |
-| **Cyber Lab** | 🛡️ | Live tools: DNS, WHOIS, port scan, TLS cert, headers, fingerprint, subdomains, traceroute, IP info, hash ID/crack/make, packet capture. |
-| **Passwords** | 🔐 | Encrypted vault (AES-256-GCM, PBKDF2 600k rounds), generator, weak/reused check, browser import (Chrome/Edge/Firefox), version history, clipboard wipe after 30s, AI never sees the page. |
-| **Code Breaker** | 🔓 | Classical ciphers (Caesar, Vigenère, Playfair, Rail Fence, Columnar, Bacon, Polybius, XOR, Affine, Substitution), auto-crack with English scoring, missions. |
-| **CyberChef** | 🍳 | Embedded CyberChef (Apache-2.0) for encoding, encryption, compression, parsing, recipes. |
-| **Hacker Games** | 🎮 | 6 games: packet capture, buffer overflow, SQL injection, XSS, crypto challenges, CTF-style. |
+### Offline books are missing
 
----
+Install Kiwix using setup, then download the books you want from **Prepare → Stock up**. The library index and the books themselves are separate downloads.
 
-### 🎨 Studio
-| Tab | Icon | Description |
-|-----|------|-------------|
-| **Composer** | 🎼 | Full score editor (55 instruments), MIDI/WAV export, playback, music theory tools. |
-| **Game Maker** | 🎮 | Visual game builder: sprites, tiles, events, export to HTML5. |
-| **Game Studio** | 🎮 | **Godot 4 in-app**: create/edit/run Godot projects (GDScript/C#), scene tree, inspector, debugger, live preview. |
-| **Storybook & Comic** | 📖 | Multi-page layout, panels, speech bubbles, character poses, backgrounds, export to PDF/HTML. |
-| **AI Art / Music / Video** | 🎨 | SDXL-Turbo (images), MusicGen (music), text-to-video (local models), prompt library, history. |
+### Changes to app code are not visible
 
----
+Changes under `web/` generally appear after reloading the app page. Changes to `server.js` or `lib/` require restarting Moundshroud. **Edit the app** keeps file versions and checks JavaScript syntax before saving; review proposed code before applying it.
 
-### 🛟 Prepare
-| Tab | Icon | Description |
-|-----|------|-------------|
-| **Readiness** | 🛟 | System check: backups, supplies, skills, documents, comms, power, water, food, meds, shelter, defense. Score + gaps. |
-| **First Aid** | 🩹 | Offline guide: CPR, bleeding, burns, fractures, choking, poisoning, bites, heat/cold, psychological. Printable cards. |
-| **Plans** | 📋 | Family emergency plan, bug-out bag, vehicle kit, home defense, comms plan, rendezvous points. Templates + custom. |
-| **Supplies** | 📦 | Inventory with quantities, expiration tracking, categories (food, water, meds, tools, ammo, comms), low-stock alerts. |
-| **Emergency Cards** | 🆘 | Printable wallet cards: medical info, contacts, allergies, blood type, meds, ICE. QR code for digital version. |
-| **Radio / Morse** | 📡 | Ham radio reference (bands, calling frequencies, phonetic alphabet, Q-codes), Morse trainer (learn/practice/decode), CW keyer. |
-| **Downloads** | ⬇️ | One-click offline packs: Wikipedia, medical, survival, maps, books, software (Ollama, kiwix-tools, Stockfish, Tor, Piper, Whisper, yt-dlp). |
-| **Printable Binder** | 📄 | Auto-generates a complete preparedness binder (PDF) from your data: plans, supplies, contacts, medical, skills, maps. |
+## For developers
 
----
+- `server.js` starts the loopback Node.js server.
+- `web/` contains the interface and static assets; most feature code is under `web/js/`.
+- `lib/` contains server-side features and local APIs.
+- `tests/` contains the project’s automated checks. Run them with `node tests/run.js`; some integration checks require local services or network access.
+- No `npm install` is needed for the core server.
+- `data/`, browser profiles, downloaded models and libraries, snapshots, and release builds may contain personal or generated data. Review `.gitignore` and the files you plan to share before publishing a copy.
+- `make-release.ps1` builds packaged releases. `Setup-Moundshroud.bat` runs `setup.ps1`.
 
-### ✝️ Spiritual
-| Tab | Icon | Description |
-|-----|------|-------------|
-| **Bible** | 📖 | Two translations (WEB modern + Douay-Rheims), search, cross-refs, parallel view, reading plans, bookmarks, notes, audio. |
-| **Prayers** | 🙏 | Traditional prayers (Rosary, Divine Mercy, Stations, Angelus, Memorare, more), customizable, audio. |
-| **Liturgical Calendar** | 📅 | Daily readings, saints, feasts/fasts, seasons, color, 9-day novena tracker, patron saints. |
-| **Devotional Classics** | 📚 | Complete texts: Imitation of Christ, Dark Night of the Soul, Introduction to the Devout Life, Practice of the Presence, Cloud of Unknowing, more. |
-| **Holy Hour** | ⏳ | Guided Eucharistic adoration with scripture, silence, prayer, examination. Timer, journal. |
-| **Stations of the Cross** | ✝️ | 14 stations with art, meditations, prayers, audio. Franciscan + traditional versions. |
-| **Divine Mercy / Seven Sorrows** | 💙 | Chaplet, novena, image, promises, audio. Seven Sorrows Rosary with meditations. |
-| **Liturgy of the Hours** | 🕊️ | Simplified from local Bible files: Office of Readings, Morning, Daytime, Evening, Night. Psalter, canticles, intercessions. |
-| **Saints Calendar** | 👼 | Daily saint, bio, patronage, prayer, novena tracker (9 days), custom feast days. |
+## AI-generated code note
 
----
+LLMs used to generate or modify code for Moundshroud are liable for bugs in the code they produce.
 
-### 🗺️ Guide & Tools
-| Tab | Icon | Description |
-|-----|------|-------------|
-| **App Map** | 🗺️ | Full app structure: every tab, section, how-to, reference sheet, shortcuts, settings, data, downloads, running parts, code files, server addresses. Searchable. |
-| **Guide** | ✨ | Searchable manual, 1-minute tour, full narrated presentation, holographic book view, changelog (collapsible by date), what's new. |
-| **Tools** | 🧰 | Converter (audio/video/image/archive/document), batch rename, hash, base64, QR, UUID, color picker, regex tester, cron builder, unit converter, more. |
-| **Health** | 🛟 | Medical reference (offline): conditions, medications, first aid, anatomy, symptoms, drug interactions, ICD-10, printable cards. |
-| **Calendar** | 📅 | Month/week/day view, reminders integration, recurring events, import/export ICS, weather overlay. |
-| **Timeline** | 🏛️ | Historical timeline: world history, science, art, personal events. Zoom, search, add your own eras/events. |
-| **Editor** | ✏️ | Code editor (Monaco) for app files: syntax highlighting, tabs, search/replace, git diff, run tests. Opens `web/js/` by default. |
+## License
 
----
-
-## New in 1.3.0
-- **Free LLMs** (Settings → AI & power): 22+ providers, 311+ models via [awesome-freellm-apis](https://github.com/lucasdorazio/awesome-freellm-apis) — Groq, NVIDIA NIM, Google Gemini, OpenRouter, Mistral, Cohere, Cloudflare, ModelScope, OVHcloud, Ollama Cloud, Glhf.chat, Chutes.ai, LLM7.io, Z.ai, Gonka, Agnes, Aion Labs, SiliconFlow, Grok, OpenCode Zen, and more. Auto-updated from GitHub (6-hour cache) with local fallback in `data/refs/freellm/status.json`.
-- **No API Key Required**: Glhf.chat (unlimited Llama/Mixtral), Chutes.ai (DeepSeek R1), OVHcloud AI (anonymous EU-hosted) — just pick a provider and model, no signup. Uses `rejectUnauthorized: false` for SSL cert issues on these providers.
-- **Free frontier pool** (Settings → AI & power): auto-fallback across working free routes, shows live status and daily usage.
-- **Push to GitHub** (Settings → Backup & data): commit & push changes to your remote (**author copy only** — button hidden on public clones via `.author-copy` marker).
-- **Shareable app zip** (Settings → Backup & data): portable zip of the current version (code only, no personal data). Excludes browser profiles, snapshots, releases, locked files.
-- **Passwords** (Tools): Encrypted vault (AES-256-GCM, PBKDF2 600k rounds), generator, weak/reused check, browser import, version history, clipboard wipe after 30s, AI never sees the page.
-- **Photos**: Month view, AI descriptions ("dog in snow", "birthday 2024"), files read-only, OneDrive cloud-only files not downloaded unless opened.
-- **Mail**: IMAP (Gmail, Yahoo, iCloud, Fastmail, Proton via Bridge), scripts/tracking blocked, scam warnings, AI inbox brief, summaries, reply help — drafts go to your Drafts folder, Moundshroud never sends.
-- **AI Memory**: Say "remember that..." in Chat; `Ctrl+K → What the AI remembers about me` to view/delete; AI can find photos and start email drafts.
-- **Lichess** (Chess): Real games on your free Lichess account via official Board API; all engines/hints locked during play per fair-play rules.
-- **News → Research**, **Tor Browser** (Browser tab), working **Meeting Notes** transcripts, animations respect app Motion setting (not Windows).
-- **Settings → Appearance → Grouped top bar** toggles flat/sidebar layout.
-
----
-
-## Spiritual (Detail)
-Bible in two translations (modern WEB + Douay-Rheims), traditional prayers, Rosary, liturgical calendar, devotional classics, plus five devotional pages: holy hour, Stations of the Cross, Divine Mercy chaplet (and Seven Sorrows), simplified Liturgy of the Hours (from local Bible files), saints calendar with 9-day novena tracker.  
-43 color themes + 29 interface styles (including devotional set: Vespers, Iconostasis, Catacomb, Rose Window, Illuminated, Stained Glass, Monastic). Any theme works with any style.
-
-## Look & Feel
-- Cross-fade tab transitions with card settle-in animation
-- Top-bar progress line for slow fetches
-- Toast stack (bottom-right) with icons, colors, timeout bars
-- Motion setting: **Full** / **Subtle** / **Off** (app controls it, not Windows)
-- 43 color themes × 29 styles, all combinable, fade on change
-- Adaptive polling (`A.every` with visibility/focus tracking), idle callbacks, debounce/throttle, memoization, virtual lists/grids, lazy images, performance monitor
-
----
-
-## AI Backends
-### Local (Ollama)
-Runs entirely on your PC. Models like `qwen3.5:9b`, `qwen3.5:2b` (low-power), `llama3.1:8b`, `nemotron3:8b`, `gemma2:9b`, `phi3:3.8b`. No internet needed. Model memory configurable.
-
-### Cloud (Settings → AI & power)
-- **Anthropic (Claude)**: Your own API key; routes via local [Respan Gateway](https://github.com/respanai/respan-gateway) (MIT/Apache-2.0) — no sign-up, local-only, optional. Without it, direct to Anthropic; `/api/cloud` shows `gateway: off`.
-- **Free LLM providers** (OpenAI-compatible): 22+ providers with free tiers. Keys encrypted via Windows DPAPI in `data/cloud.json` (per-provider under `providers.{id}.keyBlob`). Recommended models per provider shown in dropdown; custom model ID entry supported. Tool calling passed through automatically.
-- **No-key providers**: Glhf.chat, Chutes.ai, OVHcloud AI Endpoints (anonymous) — zero setup. SSL verification relaxed for these.
-- **Local-model check**: Chat checks Ollama `/api/tags` before routing to cloud (fixes "jaahas uncensored model" Ollama model that stopped working).
-
----
-
-## Data & Backups
-- **Local only**: Notes → `Documents\Assistant Notes`, server data → `data\`, browser storage → `edge-profile\`
-- **Full backup**: Settings → Back up everything → one zip (choose location, e.g., external drive); Restore puts it back; imported songs/libraries/models not included
-- **Progress copies**: Auto-dated zip every start + daily to `Documents\Moundshroud Backups\progress-YYYY-MM-DD` (notes, data files, browser storage — ratings, journal, favorites, Bible notes, reading plans, playlists, preferences); newest 10 kept with `READ-ME-FIRST.txt`
-- **Emergency restore**: `.\restore-progress.ps1 -List` / `-Backup` / `-Name latest` / `-Name before-restore-...` — works with app closed, no internet needed
-- **Program snapshots**: `snapshot.ps1` / `restore-snapshot.ps1` (see `SNAPSHOTS.txt`)
-
----
-
-## Self-Test
-Settings → Run a self-test — opens every tab/page, checks data files and local services. Run after install/update. Red crosses explained inline; "needs restart" = close all windows and reopen.
-
----
-
-## Folder Map
-```
-server.js, lib\        → local server (zero npm deps)
-web\                   → app (web\js\ = one file/feature, web\data\ = Bibles, recipes, stars)
-Listener.cs            → tray program source (C#, compiles to assistant-listener.exe)
-py\                    → document helpers (LibreOffice automation)
-nomad\library\         → offline Kiwix .zim files (never downloaded twice)
-engines\stockfish\     → chess engine (auto-downloads official release + verifies fingerprint)
-data\                  → your server data (not shipped — encrypted keys, settings, caches)
-releases\              → built release zips (not committed)
-.chlaude\              → Kilo agent config (not committed)
-```
-
----
-
-## Sharing with a Friend
-`.\make-release.ps1 -Verify` creates two zips under Discord's 10 MB limit in `releases\`:
-- `Moundshroud-<ver>-part1-program.zip` (program + setup)
-- `Moundshroud-<ver>-part2-data.zip` (Bibles, recipes, star data)
-- `MESSAGE-FOR-DISCORD.txt` (ready-to-paste note with steps + checksums)
-- `SHA256.txt`
-
-**No personal data, libraries, music, AI models, or pre-built `.exe`.** Friend unzips both, runs `Setup-Moundshroud.bat` (offers Node.js/Ollama via winget, downloads chosen model, fetches kiwix-tools, compiles hotkey helper, makes shortcuts, starts app). `START-HERE.txt` has same steps.
-
----
-
-## Licenses
-Moundshroud code: **MIT** (see `LICENSE`). Third-party content keeps its own terms:
-
-| Content | License |
-|---------|---------|
-| Bible texts (WEB, Douay-Rheims) | Public domain |
-| Music (Kevin MacLeod, classical) | CC BY 4.0 / Public domain |
-| Star data (d3-celestial) | BSD-3-Clause |
-| Fonts (Atkinson Hyperlegible, Pixelify Sans, Silkscreen) | SIL OFL 1.1 |
-| Rhyming dictionary (CMU) | BSD-style |
-| Chess engine (Stockfish) | GPL-3.0 |
-| Cookbooks, classics, libraries | Public domain / CC terms |
-
-**Downloaded at runtime (not bundled):** Stockfish, kiwix-tools (GPL-3.0), CyberChef (Apache-2.0), Tor Browser (BSD/MIT), Piper voices (MIT/Apache/CC-BY), Whisper (MIT), Ollama models (various), SDXL-Turbo (OpenRAIL-M), MusicGen (CC-BY-NC/MIT), yt-dlp/ffmpeg (user supplies).
-
----
-
-## For Developers
-- `node tests/run.js` — 120+ automated checks (chess, news, markets, vault, photos, mail, release rules). Run before every release.
-- `install-gateway.ps1` — adds Respan Gateway (`.venv`, `respan-gateway==0.3.0`); `lib/gateway.js` starts it; `py/gatewayworker.py` is the worker
-- `make-release.ps1 -Verify` — builds zips, installs to folder with spaces/accents/apostrophe to prove setup works
-- Server has **zero npm deps**: `node server.js` with Node 24 is all it needs
-- `MOUNDSHROUD_PORT` runs second copy on another port (same `data` folder — test carefully)
-- `.gitignore` allowlists only program files; personal data/downloads/browser profile/snapshots/releases never committed
-- Tab scripts lazy-loaded on demand via `web/js/lazy.js` (preload on hover/idle); all 200+ JS files now lazy
-- Virtual scrolling on long lists (classics, chess books, money, notes, study decks/cards, tools repos/clipboard)
-- API endpoints: `/api/about`, `/api/is-author`, `/api/cloud/*`, `/api/git/push`, `/api/app/share`, `/api/free/*`, `/api/net/*`, `/api/lichess/*`, `/api/mail/*`, `/api/photos/*`, `/api/notes/*`, `/api/study/*`, `/api/cards/*`, `/api/reminders/*`, `/api/budget/*`, `/api/journal/*`, `/api/albums/*`, `/api/chess/*`, `/api/cyber/*`, `/api/studio/*`, `/api/prepare/*`, `/api/faith/*`, `/api/tools/*`, `/api/convert/*`, `/api/vault/*`, `/api/brain/*`, `/api/forge/*`, `/api/practice/*`, `/api/finetune/*`, `/api/modellab/*`, `/api/artex/*`, `/api/office/*`, `/api/convlib/*`, `/api/search`, `/api/web/search`, `/api/prep/*`, `/api/inv/*`, `/api/tor/*`, `/api/ocr`, `/api/transcribe`, `/api/quick`, `/api/sys`, `/api/extract`, `/api/backup`, `/api/restore`, `/api/autocommit`, `/api/unload`, `/api/embed`, `/api/art/flux`, `/api/modelcaps`, `/api/file`, `/api/rhyme`, `/api/thesaurus`, `/api/harness/kind`, `/api/wake`, `/api/problems`, `/api/safe`, `/api/clip/*`, `/api/kv/*`, `/api/pc/*`, `/api/convlib/*`, `/api/office/*`, `/api/juiceshop/*`, `/api/cyber/*`, `/api/storybook/*`, `/api/forge/*`, `/api/practice/*`, `/api/finetune/*`, `/api/modellab/*`, `/api/artex/*`, and more.
-
----
-
-## Known Limits
-- AI quality = local model quality; Ask Moundshroud Everything always shows sources
-- Sky → Weather uses only your barometer; News front page shows live forecast for one place (Open-Meteo, internet on)
-- Garden dates = latitude estimates unless you enter frost dates
-- Recipe shopping lists = approximate (old running-text recipes)
-- No compass sensor → Compass page uses manual dial
-- Windows Focus Assist may hide toast part; verse card on screen still appears
-- Lichess fair-play: all engines/hints locked during live games
-- Mail never sends; drafts only go to your Drafts folder
-- Passwords vault: AI never sees the page content
-- Offline libraries require Kiwix .zim downloads (first run downloads index only; full .zim on demand)
+Moundshroud’s source code is distributed under the MIT License; see [`LICENSE`](LICENSE). Downloaded models, libraries, engines, and other third-party components have their own licenses and terms. Check the terms for each component before redistributing it.

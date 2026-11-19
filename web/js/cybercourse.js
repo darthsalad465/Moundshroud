@@ -49,11 +49,11 @@
       function draw() {
         const el = cc(); el.innerHTML = view.t === 'home' ? home() : view.t === 'mod' ? mod(view.a) : view.t === 'lesson' ? lesson(view.a) : view.t === 'exam' ? examView() : view.t === 'cert' ? cert() : home();
       }
-      host.onclick = e => {
+      host.onclick = async e => {
         const c = s => e.target.closest(s); let el;
         if (c('[data-home]')) return go('home'); if ((el = c('[data-lesson]'))) return go('lesson', el.dataset.lesson); if ((el = c('[data-mod]'))) return go('mod', el.dataset.mod);
         if ((el = c('[data-try]'))) { try { A.tools.go(el.dataset.try); } catch (x) { } return; }
-        if (c('#ccexam')) return startExam(); if (c('#cccert')) return go('cert'); if (c('#ccreset')) { if (confirm('Reset all course progress and your exam result?')) { S = { done: {}, exam: { best: 0, passed: false, date: '', tries: 0 }, name: S.name, last: '' }; save(S); go('home'); } return; }
+        if (c('#ccexam')) return startExam(); if (c('#cccert')) return go('cert'); if (c('#ccreset')) { if ((await A.confirm('Reset all course progress and your exam result?'))) { S = { done: {}, exam: { best: 0, passed: false, date: '', tries: 0 }, name: S.name, last: '' }; save(S); go('home'); } return; }
         if (c('#ccsub')) { const l = allLessons().find(x => x.l.id === view.a).l, right = gradeQuiz(l.quiz, 'q', $q()), pass = right >= Math.ceil(l.quiz.length * .67); const r = host.querySelector('#ccres'); r.innerHTML = right + ' of ' + l.quiz.length + (pass ? ' <b style="color:var(--ok)">— lesson complete!</b>' : ' — review the explanations and try again (you need ' + Math.ceil(l.quiz.length * .67) + ').'); if (pass) { const was = S.done[l.id]; if (!was || right > was.s) S.done[l.id] = { s: right, t: Date.now() }; save(S); try { A.sfx && A.sfx.play('good'); } catch (x) { } } return; }
         if (c('#ccexsub')) { const box = host.querySelector('#ccexbox'), right = gradeQuiz(exam, 'x', box), pct = Math.round(right / exam.length * 100), pass = pct >= 80; S.exam.tries++; if (pct > S.exam.best) S.exam.best = pct; if (pass && !S.exam.passed) { S.exam.passed = true; S.exam.date = new Date().toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric' }); } save(S); host.querySelector('#ccexres').innerHTML = '<b style="color:' + (pass ? 'var(--ok)' : 'var(--bad)') + '">' + pct + '% (' + right + ' of ' + exam.length + ')</b> ' + (pass ? 'You passed! ' : 'You need 80%. Review the answers below and try again. ') + (pass ? '<button class="pri" id="cccert2" style="margin-left:6px">🏅 Get your certificate</button>' : ''); try { if (pass) ChessFx.confetti(); } catch (x) { } return; }
         if (c('#cccert2')) return go('cert');

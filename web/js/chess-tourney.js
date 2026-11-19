@@ -99,9 +99,9 @@
       const sizes = () => { const fm = FORMATS.find(f => f.id === o.fmt); q('tsz').innerHTML = fm.sizes.map(([n, r]) => '<option value="' + n + '"' + (o.size === n ? ' selected' : '') + '>' + n + ' players' + (o.fmt === 'swiss' ? ', ' + r + ' rounds' : o.fmt === 'ko' ? ', ' + r + ' rounds' : ', ' + r + ' rounds') + '</option>').join(''); if (!fm.sizes.some(s => s[0] === o.size)) { o.size = fm.sizes[0][0]; q('tsz').value = o.size; } o.rounds = fm.sizes.find(s => s[0] === o.size)[1]; info(); };
       const info = () => { const fm = FORMATS.find(f => f.id === o.fmt), games = o.rounds, mins = Math.round(games * (+o.tc.split('+')[0] * 2 + (+o.tc.split('+')[1] || 0) * 60) / 60 * .75); q('tinfo').textContent = 'You play up to ' + games + ' games, about ' + mins + ' minutes if you play them all (you can skip any of them).'; };
       sizes();
-      host.onclick = e => {
+      host.onclick = async e => {
         const f = e.target.closest('[data-f]'); if (f) { o.fmt = f.dataset.f; ls.set('chtouropt', JSON.stringify(o)); host.querySelectorAll('.tfm').forEach(c => { c.style.borderColor = c.dataset.f === o.fmt ? 'var(--acc)' : ''; }); sizes(); return; }
-        if (e.target.id === 'tcont') { T = cur; view(); } else if (e.target.id === 'tdrop') { if (confirm('Abandon this tournament? It will not be saved to your history.')) { const s = load(); s.cur = null; save(s); T = null; lobby(); } } else if (e.target.id === 'tgo') { if (cur && !confirm('Starting a new tournament abandons the one in progress. Continue?')) return; T = create({ fmt: o.fmt, size: o.size, rounds: o.rounds, tier: o.tier, tc: o.tc, rated: o.rated }); tab = null; persist(); ls.set('chtouropt', JSON.stringify(o)); view(); }
+        if (e.target.id === 'tcont') { T = cur; view(); } else if (e.target.id === 'tdrop') { if ((await A.confirm('Abandon this tournament? It will not be saved to your history.'))) { const s = load(); s.cur = null; save(s); T = null; lobby(); } } else if (e.target.id === 'tgo') { if (cur && !(await A.confirm('Starting a new tournament abandons the one in progress. Continue?'))) return; T = create({ fmt: o.fmt, size: o.size, rounds: o.rounds, tier: o.tier, tc: o.tc, rated: o.rated }); tab = null; persist(); ls.set('chtouropt', JSON.stringify(o)); view(); }
       };
       host.onchange = e => { if (e.target.id === 'tsz') { o.size = +e.target.value; o.rounds = FORMATS.find(f => f.id === o.fmt).sizes.find(s => s[0] === o.size)[1]; } if (e.target.id === 'ttr') o.tier = e.target.value; if (e.target.id === 'ttc') o.tc = e.target.value; if (e.target.id === 'trt') { o.rated = e.target.checked; if (o.rated && o.tc === '300+5') o.tc = '300+0'; ls.set('chtouropt', JSON.stringify(o)); return lobby(); } ls.set('chtouropt', JSON.stringify(o)); info(); };
     };
@@ -174,10 +174,10 @@
       b.innerHTML = h;
     };
 
-    const tourClick = e => {
+    const tourClick = async e => {
       const c = e.target;
       if (c.closest('#tback')) return lobby(); if (c.closest('#tplay')) return play(); if (c.closest('#tsim')) { simMine(); const last = T.rounds[T.rounds.length - 1]; return roundDone(last) && !myPair() ? view() : view(); }
-      if (c.closest('#tnext')) return nextRound(); if (c.closest('#tnew')) { T = null; return lobby(); } if (c.closest('#tall')) { if (confirm('Simulate the whole rest of the tournament, including your games?')) { simAll(); if (!T) return lobby(); view(); } return; }
+      if (c.closest('#tnext')) return nextRound(); if (c.closest('#tnew')) { T = null; return lobby(); } if (c.closest('#tall')) { if ((await A.confirm('Simulate the whole rest of the tournament, including your games?'))) { simAll(); if (!T) return lobby(); view(); } return; }
       const t = c.closest('[data-tab]'); if (t) { tab = t.dataset.tab; return view(); } const an = c.closest('[data-an]'); if (an) { UI.pending = { id: an.dataset.an }; UI.show('analysis'); }
     };
 

@@ -36,7 +36,7 @@
     $('rmpinb').onclick = async () => { const r = await A.api('/api/remote/pin', { pin: $('rmpin').value }); if (!r.ok) { $('rmpinm').textContent = r.error; return; } A.toast('PIN saved'); render(box); };
     box.querySelectorAll('[name=rmmode]').forEach(x => x.onchange = async () => { $('rmmsg').textContent = 'Switching…'; const r = await A.api('/api/remote/config', { mode: x.value }); if (!r.ok) { $('rmmsg').textContent = r.error; return; } render(box); });
     $('rmport').onchange = async () => { const r = await A.api('/api/remote/config', { port: +$('rmport').value }); if (!r.ok) $('rmmsg').textContent = r.error; else render(box); };
-    $('rmforget').onclick = async () => { if (!confirm('Sign every phone out? They will need the PIN again.')) return; await A.api('/api/remote/forget', {}); render(box); };
+    $('rmforget').onclick = async () => { if (!(await A.confirm('Sign every phone out? They will need the PIN again.'))) return; await A.api('/api/remote/forget', {}); render(box); };
   }
   A.remotePage = render;
 })();

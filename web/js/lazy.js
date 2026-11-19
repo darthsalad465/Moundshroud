@@ -48,7 +48,8 @@
     kitchen: ['/web/js/kitchen.js'],
     garden: ['/web/js/garden.js'],
     prep: ['/web/js/prepare.js', '/web/js/prep-plans.js', '/web/js/prep-supplies.js', '/web/js/prep-people.js', '/web/js/prep-signals.js', '/web/js/prep-sky.js', '/web/js/prep-recipes.js'],
-    appedit: ['/web/js/appedit.js'],
+    appedit: ['/web/js/code-stats.js', '/web/js/appedit.js'],
+    coding: ['/web/js/code-stats.js', '/web/js/coding.js'],
   };
 
   // Load a script dynamically

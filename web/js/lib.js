@@ -41,7 +41,7 @@
     let st; try { st = await A.api('/api/tor'); } catch (e) { return A.notify('err', 'Could not reach Moundshroud: ' + e.message); }
     if (st.installed) { const r = await A.api('/api/tor/open', { url }); return r.error ? A.notify('err', 'Tor Browser could not be opened: ' + r.error) : A.notify('ok', '🧅 Tor Browser is opening in its own window. Press “Connect” there the first time.' + (url ? ' It opens ' + url + '.' : ''), 7000); }
     if (st.job && st.job.status === 'downloading') return A.toast('Tor Browser is still being downloaded (' + st.job.pct + '%).');
-    if (!confirm('Tor Browser is not on this PC yet.\n\nDownload it now? It is the official Tor Browser from torproject.org (about 120 MB). Moundshroud checks it against the fingerprint the Tor Project publishes before installing it, and it can be removed again in Prepare › Stock up.')) return;
+    if (!(await A.confirm('Tor Browser is not on this PC yet.\n\nDownload it now? It is the official Tor Browser from torproject.org (about 120 MB). Moundshroud checks it against the fingerprint the Tor Project publishes before installing it, and it can be removed again in Prepare › Stock up.'))) return;
     const g = await A.api('/api/inv/get', { id: 'torbrowser' }); if (g.error) return A.notify('err', 'Could not start the download: ' + g.error);
     const btn = $('ltor'); btn.disabled = true;
     const poll = async () => {

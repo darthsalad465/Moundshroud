@@ -130,7 +130,7 @@
       S = res; if (!st.q && st.cat === 'fav') list = S.fav; return drawList();
     }
     if (a === 'rm' && s) {
-      if (!confirm('Remove “' + s.name + '” from your stations?')) return;
+      if (!(await A.confirm('Remove “' + s.name + '” from your stations?'))) return;
       if (cur && cur.id === s.id) stop();
       try { S = await A.api('/api/radio/custom', { remove: s.id }); } catch (x) { return A.notify('err', 'Could not remove it: ' + x.message); }
       if (!st.q && st.cat === 'add') list = S.custom; else list = list.filter(x => x.id !== s.id); return drawList();

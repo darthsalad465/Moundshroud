@@ -211,7 +211,7 @@
         drawStats();
         q('#twwk').onclick = () => { T.me.shift = Date.now(); T.me.coins += 15; T.me.rep += 1; feed('🧺', T.me.name + ' worked a shift.'); saveT(); drawMe(); };
         bindExtras();
-        q('#twreset').onclick = () => { if (confirm('Leave Hollow Creek and start the town over? Friendships and chat history there will be erased (character memories stay).')) { A.community.reset(W); T = { me: null, rel: {}, loc: {}, act: {}, mood: {}, feed: [], aff: {}, away: [], last: 0, events: [], dm: [] }; saveT(); draw(); } };
+        q('#twreset').onclick = async () => { if ((await A.confirm('Leave Hollow Creek and start the town over? Friendships and chat history there will be erased (character memories stay).'))) { A.community.reset(W); T = { me: null, rel: {}, loc: {}, act: {}, mood: {}, feed: [], aff: {}, away: [], last: 0, events: [], dm: [] }; saveT(); draw(); } };
       };
       const draw = () => {
         if (cleanup) { try { cleanup(); } catch (e) { } cleanup = null; } if (panel) { panel.remove(); panel = null; }

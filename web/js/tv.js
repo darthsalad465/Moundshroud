@@ -306,14 +306,14 @@
   }
   async function dlClick(a, b) {
     const card = b.closest('[data-did]'), it = card && S.dl ? S.dl.items.find(x => x.id === card.dataset.did) : null;
-    if (a === 'dlnewf') { const n = prompt('Name of the new folder:'); if (!n) return; const r = await post('/api/tv/dl/folder', { name: n }); if (r) { S.dl = r; dlF = r.created; ls.set('tv_dlf', dlF); drawBody(); } return; }
-    if (a === 'dlrenf') { const f = S.dl.folders.find(x => x.id === dlF), n = prompt('New name for this folder:', f ? f.name : ''); if (!n) return; const r = await post('/api/tv/dl/folder', { rename: dlF, name: n }); if (r) { S.dl = r; drawBody(); } return; }
-    if (a === 'dldelf') { if (!confirm('Remove this folder? Its downloads stay, under "Not in a folder".')) return; const r = await post('/api/tv/dl/folder', { remove: dlF }); if (r) { S.dl = r; dlF = ''; drawBody(); } return; }
+    if (a === 'dlnewf') { const n = (await A.prompt('Name of the new folder:')); if (!n) return; const r = await post('/api/tv/dl/folder', { name: n }); if (r) { S.dl = r; dlF = r.created; ls.set('tv_dlf', dlF); drawBody(); } return; }
+    if (a === 'dlrenf') { const f = S.dl.folders.find(x => x.id === dlF), n = (await A.prompt('New name for this folder:', f ? f.name : '')); if (!n) return; const r = await post('/api/tv/dl/folder', { rename: dlF, name: n }); if (r) { S.dl = r; drawBody(); } return; }
+    if (a === 'dldelf') { if (!(await A.confirm('Remove this folder? Its downloads stay, under "Not in a folder".'))) return; const r = await post('/api/tv/dl/folder', { remove: dlF }); if (r) { S.dl = r; dlF = ''; drawBody(); } return; }
     if (a === 'dlstop') { const j = b.closest('[data-job]'); const r = await post('/api/tv/dl/cancel', { id: j.dataset.job }); if (r) { S.dl = r; drawBody(); } return; }
     if (!it) return;
     if (a === 'dlplay') { const n = +b.closest('[data-n]').dataset.n, f = it.files[n]; playChannel({ id: it.id + ':' + n, name: it.title + (it.files.length > 1 ? ' · ' + (f.kind === 'audio' ? 'sound' : 'picture') : ''), file: 1 }, '/api/tv/dl/file?id=' + encodeURIComponent(it.id) + '&n=' + n); return; }
-    if (a === 'dlren') { const n = prompt('New name:', it.title); if (!n || n === it.title) return; const r = await post('/api/tv/dl/rename', { id: it.id, title: n }); if (r) { S.dl = r; drawBody(); } return; }
-    if (a === 'dldel') { if (!confirm('Delete “' + it.title + '”? Its file' + (it.files.length > 1 ? 's are' : ' is') + ' removed from ' + S.dl.home + '. This cannot be undone.')) return; if (P.item && String(P.item.id).startsWith(it.id + ':')) stop(); const r = await post('/api/tv/dl/remove', { id: it.id }); if (r) { S.dl = r; drawBody(); } return; }
+    if (a === 'dlren') { const n = (await A.prompt('New name:', it.title)); if (!n || n === it.title) return; const r = await post('/api/tv/dl/rename', { id: it.id, title: n }); if (r) { S.dl = r; drawBody(); } return; }
+    if (a === 'dldel') { if (!(await A.confirm('Delete “' + it.title + '”? Its file' + (it.files.length > 1 ? 's are' : ' is') + ' removed from ' + S.dl.home + '. This cannot be undone.'))) return; if (P.item && String(P.item.id).startsWith(it.id + ':')) stop(); const r = await post('/api/tv/dl/remove', { id: it.id }); if (r) { S.dl = r; drawBody(); } return; }
   }
   function draw() { drawTop(); drawPlayer(); drawBody(); }
 
@@ -335,7 +335,7 @@
     if (a === 'next') return flip(1);
     if (a === 'camfind') return findCams();
     if (a === 'camcheck') return checkCams();
-    if (a === 'camforget') { e.stopPropagation(); const card = b.closest('[data-cam]'); if (!card) return; if (!confirm('Remove this camera from your saved ones?')) return; await A.api('/api/tv/cams/forget', { id: card.dataset.cam }); await loadCams(); return drawBody(); }
+    if (a === 'camforget') { e.stopPropagation(); const card = b.closest('[data-cam]'); if (!card) return; if (!(await A.confirm('Remove this camera from your saved ones?'))) return; await A.api('/api/tv/cams/forget', { id: card.dataset.cam }); await loadCams(); return drawBody(); }
     if (a === 'cammore') { camShown += 90; return drawBody(); }
     if (a === 'camplay') { const cid = b.closest('[data-cam]'); if (!cid) return; const id2 = cid.dataset.cam; return playCam((CAM && CAM.cams.find(x => x.id === id2)) || (camFound || []).find(x => x.id === id2)); }
     if (a === 'fs') return toggleFs();
@@ -351,8 +351,8 @@
     if (!item) return;
     if (a === 'yt') return playYt(item);
     if (a === 'save') { e.stopPropagation(); const r = await post('/api/tv/add', { channel: item.id }); if (r) { S = r; A.notify('ok', 'Saved “' + item.name + '” to My channels.'); } return; }
-    if (a === 'ren') { e.stopPropagation(); const n = prompt('New name for this channel:', item.name); if (n == null) return; const r = await post('/api/tv/rename', { id: item.id, name: n }); if (r) { S = r; drawBody(); } return; }
-    if (a === 'rm') { e.stopPropagation(); if (!confirm('Remove “' + item.name + '” from My channels?')) return; if (P.item && P.item.id === item.id) stop(); const r = await post('/api/tv/remove', { id: item.id }); if (r) { S = r; drawBody(); } return; }
+    if (a === 'ren') { e.stopPropagation(); const n = (await A.prompt('New name for this channel:', item.name)); if (n == null) return; const r = await post('/api/tv/rename', { id: item.id, name: n }); if (r) { S = r; drawBody(); } return; }
+    if (a === 'rm') { e.stopPropagation(); if (!(await A.confirm('Remove “' + item.name + '” from My channels?'))) return; if (P.item && P.item.id === item.id) stop(); const r = await post('/api/tv/remove', { id: item.id }); if (r) { S = r; drawBody(); } return; }
     if (a === 'openlist' || (a === 'play' && item.list)) {
       if (!S.internet) return A.notify('warn', 'Internet access is off. Turn it on at the top of the TV tab.');
       busy = 'Opening “' + item.name + '”…'; drawBody();

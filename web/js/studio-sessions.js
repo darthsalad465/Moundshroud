@@ -75,7 +75,7 @@
     }
     $('q').oninput = drawList;
     $('list').onclick = async e => {
-      const d = e.target.closest('[data-del]'); if (d) { e.stopPropagation(); if (busy(d.dataset.del)) return A.toast('That session is still making something.'); if (!confirm('Delete this session and everything made in it? Pictures saved elsewhere are kept.')) return; await S.del(d.dataset.del); if (d.dataset.del === sid) { sid = ''; sess = null; drawConv(); } drawList(); return; }
+      const d = e.target.closest('[data-del]'); if (d) { e.stopPropagation(); if (busy(d.dataset.del)) return A.toast('That session is still making something.'); if (!(await A.confirm('Delete this session and everything made in it? Pictures saved elsewhere are kept.'))) return; await S.del(d.dataset.del); if (d.dataset.del === sid) { sid = ''; sess = null; drawConv(); } drawList(); return; }
       const r = e.target.closest('[data-sid]'); if (r) { await open(r.dataset.sid); if (x.classList.contains('narrow')) x.classList.remove('sideopen'); }
     };
     $('new').onclick = () => { sid = ''; sess = null; drawConv(); drawList(); $('in').focus(); };

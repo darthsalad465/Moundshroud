@@ -79,7 +79,7 @@
     const q = id => document.getElementById(id); q('ce-t').focus(); if (e.bmin != null) q('ce-b').value = String(e.bmin);
     q('ce-x').onclick = A.closeDlg;
     const dropRem = async () => { if (e.rid) { try { const all = await A.api('/api/reminders'); const r = (Array.isArray(all) ? all : []).find(x => x.id === e.rid); if (r) await A.api('/api/reminders/delete', { id: e.rid }); } catch (er) { } } };
-    if (q('ce-del')) q('ce-del').onclick = async () => { if (!confirm('Delete this event?')) return; await dropRem(); ev = ev.filter(x => x.id !== e.id); save(); A.closeDlg(); draw(); };
+    if (q('ce-del')) q('ce-del').onclick = async () => { if (!(await A.confirm('Delete this event?'))) return; await dropRem(); ev = ev.filter(x => x.id !== e.id); save(); A.closeDlg(); draw(); };
     q('ce-s').onclick = async () => {
       const t = q('ce-t').value.trim(); if (!t) { q('ce-m').textContent = 'Give the event a name.'; return; } if (!q('ce-d').value) { q('ce-m').textContent = 'Pick a date.'; return; }
       const n = { id: e.id, t, d: q('ce-d').value, time: q('ce-h').value, note: q('ce-n').value.trim(), color: (document.querySelector('input[name=ce-c]:checked') || {}).value || COLORS[0], rep: q('ce-r').value, rid: '', bmin: +q('ce-b').value };

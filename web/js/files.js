@@ -36,7 +36,7 @@
     await A.api('/api/docs/sources', { add: r.path }); await load(); scan();
   };
   $('fre').onclick = scan;
-  $('fsrc').onclick = async e => { const x = e.target.closest('[data-rm]'); if (!x) return; if (!confirm('Stop searching this folder? Your files are not touched.')) return; await A.api('/api/docs/sources', { remove: x.dataset.rm }); load(); };
+  $('fsrc').onclick = async e => { const x = e.target.closest('[data-rm]'); if (!x) return; if (!(await A.confirm('Stop searching this folder? Your files are not touched.'))) return; await A.api('/api/docs/sources', { remove: x.dataset.rm }); load(); };
 
   async function search(term) {
     term = term.trim(); if (!term) return; lastQ = term;
@@ -67,7 +67,7 @@
   };
   $('fwsites').onclick = async e => {
     const b = e.target.closest('[data-wrm]'); if (!b) return;
-    if (!confirm('Remove the saved pages from ' + b.dataset.wrm + '? The website itself is not touched.')) return;
+    if (!(await A.confirm('Remove the saved pages from ' + b.dataset.wrm + '? The website itself is not touched.'))) return;
     await A.api('/api/web/remove', { host: b.dataset.wrm }); sites(); sleep(() => load(), 400);
   };
   const sleep = (fn, ms) => setTimeout(fn, ms);
@@ -155,7 +155,7 @@
       if (r.error) { A.toast(r.error, 7000); go.disabled = false; go.textContent = 'Download & index'; return; }
       loadRefs();
     } else if (rm) {
-      if (!confirm('Delete this library from this PC? You can download it again later.')) return;
+      if (!(await A.confirm('Delete this library from this PC? You can download it again later.'))) return;
       await A.api('/api/refs/remove', { slug: rm.dataset.rrm }); loadRefs(); load();
     }
   };

@@ -2,8 +2,12 @@
 (() => {
   let chats = [], cur = null, busy = false, ctl = null, saveT = null;
   const msgsEl = $('msgs'), inEl = $('in');
-  const newChat = () => ({ id: Date.now().toString(36), title: 'New chat', msgs: [], updated: Date.now() });
-  const persist = () => { clearTimeout(saveT); saveT = setTimeout(() => { fetch('/api/chats', { method: 'POST', body: JSON.stringify(chats.filter(c => c.msgs.length).map(c => ({ id: c.id, title: c.title, updated: c.updated, messages: c.msgs.map(m => ({ role: m.role, content: m.content, thinking: m.thinking, local: m.local, img: m.img, runs: m.runs, ms: m.ms, thinkMs: m.thinkMs, sources: (m.sources || []).map(s => ({ title: s.title, page: s.page, kind: s.kind, path: s.path, url: s.url, where: s.where, text: s.kind === 'attach' ? '' : (s.text || '').slice(0, 700) })) })) }))) }).catch(() => {}); }, 600); };
+  const newChat = () => ({ id: Date.now().toString(36), title: 'New chat', msgs: [], updated: Date.now(), pinned: false });
+  const persist = () => {
+    renderSidebar();
+    clearTimeout(saveT);
+    saveT = setTimeout(() => { fetch('/api/chats', { method: 'POST', body: JSON.stringify(chats.filter(c => c.msgs.length).map(c => ({ id: c.id, title: c.title, updated: c.updated, pinned: !!c.pinned, messages: c.msgs.map(m => ({ role: m.role, content: m.content, thinking: m.thinking, local: m.local, img: m.img, runs: m.runs, ms: m.ms, thinkMs: m.thinkMs, sources: (m.sources || []).map(s => ({ title: s.title, page: s.page, kind: s.kind, path: s.path, url: s.url, where: s.where, text: s.kind === 'attach' ? '' : (s.text || '').slice(0, 700) })) })) }))) }).catch(() => {}); }, 600);
+  };
   const model = () => $('model').value;
 
   /* ---------- rendering ---------- */
@@ -104,9 +108,95 @@
   function setStatus(t, k) { const s = $('status'); s.textContent = t; if (k) s.dataset.k = k; else delete s.dataset.k; }
   function renderAll() {
     msgsEl.innerHTML = '';
+    updateHeader();
+    renderSidebar();
     if (!cur.msgs.length) { empty(); return; }
     cur.msgs.forEach((m, i) => msgsEl.appendChild(render(m, i)));
     msgsEl.scrollTop = msgsEl.scrollHeight;
+  }
+
+  /* ---------- Agent-style left chat history sidebar ---------- */
+  const chatAgo = t => {
+    const s = Math.max(0, (Date.now() - (t || 0)) / 1000);
+    if (s < 60) return 'just now';
+    if (s < 3600) return Math.floor(s / 60) + 'm ago';
+    if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+    return new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  };
+  function updateHeader() {
+    const tt = $('chtitle'), sub = $('chsub'), has = !!(cur && cur.msgs.length);
+    if (tt) tt.textContent = (cur && cur.title) || 'New chat';
+    if (sub) sub.textContent = has ? (cur.msgs.length + (cur.msgs.length === 1 ? ' message' : ' messages') + (cur.pinned ? ' · 📌 Pinned' : '')) : 'Private · On-device';
+    ['chpin', 'chren', 'chexp', 'chdel'].forEach(id => { const el = $(id); if (el) el.style.display = has ? '' : 'none'; });
+    const pinBtn = $('chpin'); if (pinBtn && cur) pinBtn.classList.toggle('on', !!cur.pinned);
+  }
+  function renderSidebar() {
+    const listEl = $('chlist'); if (!listEl) return;
+    const q = (($('chsq') && $('chsq').value) || '').trim().toLowerCase();
+    const saved = chats.filter(c => c.msgs.length).sort((a, b) => (b.updated || 0) - (a.updated || 0));
+    const filtered = q ? saved.filter(c => (c.title || '').toLowerCase().includes(q) || c.msgs.some(m => String(m.content || '').toLowerCase().includes(q))) : saved;
+    const clrBtn = $('chclr'); if (clrBtn) clrBtn.style.display = saved.length ? '' : 'none';
+    if (!filtered.length) {
+      listEl.innerHTML = '<div class="chsempty small mute">' + (q ? 'No chats match “' + esc(q) + '”.' : 'Your saved conversations appear here, grouped by date.') + '</div>';
+      return;
+    }
+    const now = new Date(), dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const yestStart = dayStart - 864e5, weekStart = dayStart - 7 * 864e5;
+    const buckets = [['📌 Pinned', []], ['Today', []], ['Yesterday', []], ['Last 7 days', []], ['Older', []]];
+    filtered.forEach(c => {
+      if (c.pinned) buckets[0][1].push(c);
+      else if ((c.updated || 0) >= dayStart) buckets[1][1].push(c);
+      else if ((c.updated || 0) >= yestStart) buckets[2][1].push(c);
+      else if ((c.updated || 0) >= weekStart) buckets[3][1].push(c);
+      else buckets[4][1].push(c);
+    });
+    listEl.innerHTML = buckets.filter(g => g[1].length).map(([label, items]) =>
+      '<div class="aggrp">' + label + '</div>' +
+      items.map(c =>
+        '<div class="chrow' + (cur && cur.id === c.id ? ' on' : '') + (c.pinned ? ' pinned' : '') + '" data-id="' + esc(c.id) + '">' +
+          '<div class="agrt"><span>' + esc(c.title || 'Chat') + '</span></div>' +
+          '<div class="agrm">' + c.msgs.length + (c.msgs.length === 1 ? ' msg' : ' msgs') + ' · ' + esc(chatAgo(c.updated)) + '</div>' +
+          '<div class="chacts">' +
+            '<button type="button" class="chact" data-ca="pin" title="' + (c.pinned ? 'Unpin' : 'Pin') + '">📌</button>' +
+            '<button type="button" class="chact" data-ca="ren" title="Rename">✎</button>' +
+            '<button type="button" class="chact dang" data-ca="del" title="Delete chat">✕</button>' +
+          '</div>' +
+        '</div>'
+      ).join('')
+    ).join('');
+  }
+  async function renameChat(id) {
+    const c = chats.find(x => x.id === id); if (!c) return;
+    const next = await A.prompt('Rename this chat:', c.title || 'Chat', { title: 'Rename chat' });
+    if (next == null) return;
+    const clean = next.trim().slice(0, 80);
+    if (!clean) return;
+    c.title = clean;
+    if (cur && cur.id === c.id) updateHeader();
+    persist();
+  }
+  function togglePinChat(id) {
+    const c = chats.find(x => x.id === id); if (!c) return;
+    c.pinned = !c.pinned;
+    if (cur && cur.id === c.id) updateHeader();
+    persist();
+    A.toast(c.pinned ? 'Pinned chat' : 'Unpinned chat');
+  }
+  function exportChatMd(id) {
+    const c = chats.find(x => x.id === id); if (!c || !c.msgs.length) return;
+    const mdOut = '# ' + (c.title || 'Moundshroud Chat') + '\n\n' +
+      c.msgs.map(m => '## ' + (m.role === 'user' ? 'You' : 'Moundshroud') + '\n\n' + (m.content || '')).join('\n\n---\n\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([mdOut], { type: 'text/markdown;charset=utf-8' }));
+    a.download = (c.title || 'chat').replace(/[^a-z0-9._-]+/gi, '-').slice(0, 48) + '.md';
+    a.click();
+    A.toast('Exported Markdown');
+  }
+  async function confirmRemoveChat(id) {
+    const c = chats.find(x => x.id === id); if (!c) return;
+    if (!(await A.confirm('Delete the chat “' + (c.title || 'Chat') + '”? This cannot be undone.', { title: 'Delete chat', okLabel: 'Delete', danger: true }))) return;
+    A.chat.remove(id);
+    A.toast('Chat deleted');
   }
   function empty() {
     const d = document.createElement('div'); d.id = 'empty';
@@ -239,7 +329,7 @@ function readBudget(m) {
     const text = (textOverride != null ? textOverride : inEl.value).trim(); if (!text) return;
     A.showTab('chat'); A.speech.stop();
     if (textOverride == null) { inEl.value = ''; autosize(); $('calcchip').style.display = 'none'; }
-    if (!cur.msgs.length) { msgsEl.innerHTML = ''; cur.title = text.slice(0, 48); }
+    if (!cur.msgs.length) { msgsEl.innerHTML = ''; cur.title = text.slice(0, 48); updateHeader(); }
     /* instant, no-AI answers */
     if (!opts.noLocal) {
       const pic = pictureRequest(text);
@@ -440,9 +530,13 @@ function readBudget(m) {
     busy: () => busy,
     stop() { if (busy && ctl) ctl.abort(); },      // Esc on the Chat page (main.js A.escape) and the Stop button both end the reply here
     newChat() { if (busy && ctl) ctl.abort(); cur = newChat(); chats.unshift(cur); renderAll(); A.showTab('chat'); inEl.focus(); },
-    load(id) { const c = chats.find(x => x.id === id); if (!c) return; cur = c; renderAll(); A.showTab('chat'); },
+    load(id) { const c = chats.find(x => x.id === id); if (!c) return; cur = c; renderAll(); A.showTab('chat'); const cx = $('chatx'); if (cx) cx.classList.remove('sideopen'); },
     history() { return chats.filter(c => c.msgs.length); },
-    remove(id) { chats = chats.filter(c => c.id !== id); if (cur.id === id) { cur = newChat(); chats.unshift(cur); renderAll(); } persist(); },
+    remove(id) { chats = chats.filter(c => c.id !== id); if (cur.id === id) { cur = newChat(); chats.unshift(cur); renderAll(); } else { renderSidebar(); } persist(); },
+    togglePin: togglePinChat,
+    rename: renameChat,
+    exportMd: exportChatMd,
+    confirmRemove: confirmRemoveChat,
     lastAnswer() { for (let i = cur.msgs.length - 1; i >= 0; i--) if (cur.msgs[i].role === 'assistant' && cur.msgs[i].content) return cur.msgs[i].content; return ''; },
     lastExplanation() { for (let i = cur.msgs.length - 1; i >= 0; i--) if (cur.msgs[i].role === 'assistant' && cur.msgs[i].content && !/^✅/.test(cur.msgs[i].content.trim()) && !cur.msgs[i].local) return cur.msgs[i].content; return ''; },
     attachments: () => cur.att || [],
@@ -535,7 +629,7 @@ function readBudget(m) {
   if (comp && window.ResizeObserver) new ResizeObserver(() => { const h = comp.offsetHeight; if (h > 0) document.documentElement.style.setProperty('--composer-h', h + 'px'); }).observe(comp);
   /* after scrolling up in a long chat, one button returns to the newest message */
   const toLatest = document.createElement('button'); toLatest.id = 'tolatest'; toLatest.type = 'button'; toLatest.textContent = '↓ Newest message'; toLatest.title = 'Jump to the newest message';
-  chatPanel.appendChild(toLatest);
+  ($('chmain') || chatPanel).appendChild(toLatest);
   const farUp = () => toLatest.classList.toggle('on', !!cur && cur.msgs.length > 0 && msgsEl.scrollHeight - msgsEl.scrollTop - msgsEl.clientHeight > 260);
   msgsEl.addEventListener('scroll', farUp, { passive: true });
   toLatest.onclick = () => { msgsEl.scrollTo({ top: msgsEl.scrollHeight, behavior: 'smooth' }); inEl.focus(); };
@@ -613,6 +707,53 @@ function readBudget(m) {
   /* the internet box: only offered when Settings has internet access switched on (A.net hides it otherwise) */
   $('useweb').checked = ls.get('useweb', '0') === '1'; $('useweb').onchange = () => ls.set('useweb', $('useweb').checked ? '1' : '0');
   $('newc').onclick = () => A.chat.newChat();
+  /* sidebar controls */
+  const chx = $('chatx'), chlist = $('chlist'), chsq = $('chsq');
+  if ($('chnew')) $('chnew').onclick = () => { A.chat.newChat(); if (chx) chx.classList.remove('sideopen'); };
+  if (chsq) { chsq.oninput = renderSidebar; chsq.onkeydown = e => e.stopPropagation(); }
+  if (chlist) {
+    chlist.onclick = e => {
+      const act = e.target.closest('[data-ca]');
+      const row = e.target.closest('.chrow[data-id]');
+      if (!row) return;
+      const cid = row.dataset.id;
+      if (act) {
+        e.stopPropagation();
+        if (act.dataset.ca === 'pin') togglePinChat(cid);
+        else if (act.dataset.ca === 'ren') renameChat(cid);
+        else if (act.dataset.ca === 'del') { A.chat.remove(cid); A.toast('Chat deleted'); }
+        return;
+      }
+      A.chat.load(cid);
+    };
+  }
+  if ($('chpin')) $('chpin').onclick = () => cur && cur.msgs.length && togglePinChat(cur.id);
+  if ($('chren')) $('chren').onclick = () => cur && cur.msgs.length && renameChat(cur.id);
+  if ($('chexp')) $('chexp').onclick = () => cur && cur.msgs.length && exportChatMd(cur.id);
+  if ($('chdel')) $('chdel').onclick = () => cur && cur.msgs.length && confirmRemoveChat(cur.id);
+  if ($('chclr')) $('chclr').onclick = async () => {
+    const n = chats.filter(c => c.msgs.length).length;
+    if (!n) return;
+    if (!(await A.confirm('Delete all ' + n + ' saved chats? This cannot be undone.', { title: 'Clear all chats', okLabel: 'Delete all', danger: true }))) return;
+    chats = [];
+    cur = newChat();
+    chats.unshift(cur);
+    await A.api('/api/chats', []).catch(() => {});
+    renderAll();
+    A.toast('All chats deleted');
+  };
+  if (chx) {
+    const isNarrow = () => chx.clientWidth < 780;
+    chx.classList.add('sidehide'); // start collapsed by default when opening the app
+    if ($('chtog')) $('chtog').onclick = () => {
+      if (isNarrow()) chx.classList.toggle('sideopen');
+      else chx.classList.toggle('sidehide');
+    };
+    if (typeof ResizeObserver !== 'undefined') {
+      new ResizeObserver(() => chx.classList.toggle('narrow', isNarrow())).observe(chx);
+    }
+    chx.classList.toggle('narrow', isNarrow());
+  }
   $('think').checked = ls.get('think', '0') === '1'; $('think').onchange = () => ls.set('think', $('think').checked ? '1' : '0');
   $('showthink').checked = ls.get('showthink', '0') === '1'; $('showthink').onchange = () => ls.set('showthink', $('showthink').checked ? '1' : '0');
   A.chat.warm = warm;
@@ -620,7 +761,7 @@ function readBudget(m) {
   A.registerTab('chat', 'Chat', () => inEl.focus());
   A.ready.push(async () => {
     try { chats = await A.api('/api/chats'); if (!Array.isArray(chats)) chats = []; } catch (e) { chats = []; }
-    chats = chats.map(c => ({ id: c.id, title: c.title || 'Chat', updated: c.updated || 0, msgs: (c.messages || c.msgs || []).map(m => ({ role: m.role, content: m.content || m.display || '', thinking: m.thinking || '', local: m.local, img: m.img, runs: m.runs, ms: m.ms, thinkMs: m.thinkMs, sources: m.sources || [] })) }));
+    chats = chats.map(c => ({ id: c.id, title: c.title || 'Chat', updated: c.updated || 0, pinned: !!c.pinned, msgs: (c.messages || c.msgs || []).map(m => ({ role: m.role, content: m.content || m.display || '', thinking: m.thinking || '', local: m.local, img: m.img, runs: m.runs, ms: m.ms, thinkMs: m.thinkMs, sources: m.sources || [] })) }));
     cur = newChat(); chats.unshift(cur); renderAll(); loadModels();
     /* the last reply's time is still on screen after a reload */
     const prev = chats.map(c => (c.msgs || []).filter(m => m.role === 'assistant' && m.ms).pop()).filter(Boolean).pop(); if (prev) lastTime(prev);

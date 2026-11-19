@@ -11,10 +11,10 @@
     const onlineVoices = ls.get('online_voices', '0') === '1', np = P.news || {}, ed = P.edge || {};
     let SF = null; try { SF = await A.api('/api/safe'); } catch (e) { }
     const synced = !!(SF && /onedrive/i.test(SF.dir || '')), clOk = k => ls.get('cl_ok_' + k, '0') === '1';
-    const going = [P.internet, P.claude, np.google, onlineVoices, ed.signedIn && !P.signout, synced].filter(Boolean).length;
+    const going = P.appOffline ? 0 : [P.internet, P.claude, np.google, onlineVoices, ed.signedIn && !P.signout, synced].filter(Boolean).length;
     el.innerHTML =
       '<div class="pv-banner" style="padding:12px 15px;border-radius:12px;border:1px solid ' + (going ? 'var(--warn)' : 'var(--ok)') + ';background:color-mix(in srgb,' + (going ? 'var(--warn)' : 'var(--ok)') + ' 10%,var(--panel2));margin:4px 0 10px;color:var(--text);font-size:13.5px">' +
-      (going ? dot(1) + '<span><b>' + going + ' thing' + (going > 1 ? 's are' : ' is') + ' switched on</b> that can send something off this PC. Each is listed below with its switch.</span>' : dot(0) + '<span><b>100% On-Device:</b> Nothing is switched on that sends anything off this PC.</span>') + '</div>' +
+      (P.appOffline ? dot(0) + '<span><b>🛡️ App Offline Lockdown Active:</b> Every outbound internet connection in Moundshroud is hard-blocked at the server level. Local AI, files, library, and downloaded offline 3D Globe regions keep working.</span>' : (going ? dot(1) + '<span><b>' + going + ' thing' + (going > 1 ? 's are' : ' is') + ' switched on</b> that can send something off this PC. Each is listed below with its switch.</span>' : dot(0) + '<span><b>100% On-Device:</b> Nothing is switched on that sends anything off this PC.</span>')) + '</div>' +
       '<div class="row" style="gap:14px;flex-wrap:wrap;font-size:12px;color:var(--mute);margin-bottom:6px;padding:0 4px"><span>' + dot(0) + 'Stays on this PC</span><span>' + dot(1) + 'Can reach the internet while on</span></div>' +
       line(P.internet, 'Internet access', 'Web search and reading pages in Chat, the News tab, and the 🌐 Web box. Searches go to DuckDuckGo; pages and news come straight from each site, with an ordinary browser name and no cookies, account or history. What you ask the AI is never sent along.', sw('pv-net', P.internet)) +
       line(np.google, 'News: AP, Reuters, CNN and USA Today through Google', 'Those four only reach Moundshroud through Google News, so Google sees those requests (not what you read).', sw('pv-ng', np.google)) +
@@ -41,17 +41,17 @@
       '</div>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px"><button class="ib" id="pv-fn">Erase downloaded news and pictures</button><button class="ib" id="pv-fc">Clear search &amp; reading history</button></div>';
     const redo = () => A.privacyPage(el, cset);
-    const bk = el.querySelector('#pv-bk'); if (bk) bk.onchange = async () => { if (bk.value === 'onedrive' && !confirm('Put the daily copies in OneDrive Documents? OneDrive then uploads your chats, journal, clipboard history and other progress to Microsoft’s cloud.')) { bk.value = 'local'; return; } await A.api('/api/safe/place', { place: bk.value }); A.toast(bk.value === 'local' ? 'Daily copies now stay on this PC.' : 'Daily copies now go to OneDrive Documents.'); redo(); };
-    el.querySelectorAll('[data-clok]').forEach(c => c.onchange = () => { const k = c.dataset.clok; if (c.checked && !confirm('Allow Claude to see ' + c.parentElement.querySelector('b').textContent.toLowerCase() + '? It is then sent to Anthropic with the requests that use it.')) { c.checked = false; return; } ls.set('cl_ok_' + k, c.checked ? '1' : '0'); A.emit && A.emit('privacy'); });
+    const bk = el.querySelector('#pv-bk'); if (bk) bk.onchange = async () => { if (bk.value === 'onedrive' && !(await A.confirm('Put the daily copies in OneDrive Documents? OneDrive then uploads your chats, journal, clipboard history and other progress to Microsoft’s cloud.'))) { bk.value = 'local'; return; } await A.api('/api/safe/place', { place: bk.value }); A.toast(bk.value === 'local' ? 'Daily copies now stay on this PC.' : 'Daily copies now go to OneDrive Documents.'); redo(); };
+    el.querySelectorAll('[data-clok]').forEach(c => c.onchange = async () => { const k = c.dataset.clok; if (c.checked && !(await A.confirm('Allow Claude to see ' + c.parentElement.querySelector('b').textContent.toLowerCase() + '? It is then sent to Anthropic with the requests that use it.'))) { c.checked = false; return; } ls.set('cl_ok_' + k, c.checked ? '1' : '0'); A.emit && A.emit('privacy'); });
     el.querySelector('#pv-net').onchange = async e => { if (cset) await cset({ web: e.target.checked }); else await A.api('/api/cloud', { web: e.target.checked }); redo(); };
     el.querySelector('#pv-ng').onchange = async e => { await A.api('/api/news/sources', { google: e.target.checked }); redo(); };
     el.querySelector('#pv-np').onchange = async e => { await A.api('/api/news/sources', { pictures: e.target.checked }); redo(); };
-    el.querySelector('#pv-ov').onchange = e => {
-      if (e.target.checked && !confirm('Online voices send the text being read to Microsoft. Allow them?')) { e.target.checked = false; return; }
+    el.querySelector('#pv-ov').onchange = async e => {
+      if (e.target.checked && !(await A.confirm('Online voices send the text being read to Microsoft. Allow them?'))) { e.target.checked = false; return; }
       ls.set('online_voices', e.target.checked ? '1' : '0'); redo();
     };
     const so = el.querySelector('#pv-so'); if (so) so.onclick = async () => { await A.api('/api/privacy', { signout: !P.signout }); A.toast(P.signout ? 'Sign-in allowed again.' : 'Done. The window is signed out the next time Moundshroud starts.'); redo(); };
-    el.querySelector('#pv-fn').onclick = async () => { if (!confirm('Erase every downloaded news story and picture? (Your followed topics, beats and source choices are kept.)')) return; await A.api('/api/news/forget', {}); A.toast('Downloaded news erased.'); };
+    el.querySelector('#pv-fn').onclick = async () => { if (!(await A.confirm('Erase every downloaded news story and picture? (Your followed topics, beats and source choices are kept.)'))) return; await A.api('/api/news/forget', {}); A.toast('Downloaded news erased.'); };
     el.querySelector('#pv-fc').onclick = () => {
       let n = 0; Object.keys(localStorage).forEach(k => { if (/^oa_(news_seen|news_ai|ws_hist|lib_recent|cmd_recent)$/.test(k)) { try { localStorage.removeItem(k); n++; } catch (e) { } } });
       A.toast(n ? 'Cleared ' + n + ' history list' + (n > 1 ? 's' : '') + '.' : 'There was no search or reading history to clear.');

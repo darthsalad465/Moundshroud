@@ -120,7 +120,7 @@
     /* list */
     const list = q('wxlist'); list.innerHTML = log.length ? log.slice().reverse().slice(0, 40).map((o, i) => '<div class="skrow"><span>' + Sky.fmtDT(o.t) + '</span><span>' + fromHpa(o.p, U.p).toFixed(U.p === 'inHg' ? 2 : 1) + ' ' + U.p + (o.t_c != null ? ' · ' + fromC(o.t_c, U.t).toFixed(0) + '°' + U.t : '') + (o.wd != null ? ' · ' + DIRS[Math.round(o.wd / 22.5) % 16] + ' ' + (o.ws != null ? fromKph(o.ws, U.s).toFixed(0) + ' ' + U.s : '') : '') + (o.sky ? ' · ' + o.sky : '') + ' <a href="#" data-del="' + o.t + '" class="mute">remove</a></span></div>').join('') : '<span class="mute">Nothing logged yet.</span>';
     list.onclick = e => { const t = e.target.dataset.del; if (!t) return; e.preventDefault(); save(load().filter(o => String(o.t) !== t)); Sky.refresh(); };
-    q('wxclr').onclick = () => { if (confirm('Delete every weather reading?')) { save([]); Sky.refresh(); } };
+    q('wxclr').onclick = async () => { if ((await A.confirm('Delete every weather reading?'))) { save([]); Sky.refresh(); } };
     /* calculators */
     const cc = q('wxcalc');
     cc.innerHTML = '<div class="card" style="margin:0"><b>Dew point and cloud base</b><div class="row" style="gap:6px;margin:6px 0"><input class="skin" id="c1t" type="number" placeholder="Temp °C" style="width:90px"><input class="skin" id="c1h" type="number" placeholder="Humidity %" style="width:100px"></div><div class="small" id="c1o"></div></div>' +

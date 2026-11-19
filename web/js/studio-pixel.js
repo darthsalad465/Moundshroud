@@ -77,8 +77,8 @@
     q('#fadd').onclick = () => { snap(); frames.splice(cur + 1, 0, new Uint32Array(W * Hh)); cur++; render(); }; q('#fdup').onclick = () => { snap(); frames.splice(cur + 1, 0, frames[cur].slice()); cur++; render(); }; q('#fdel').onclick = () => { if (frames.length < 2) return A.toast('A picture needs at least one frame'); snap(); frames.splice(cur, 1); cur = Math.min(cur, frames.length - 1); render(); };
     q('#pxplay').onclick = () => { playing = playing ? 0 : 1; q('#pxplay').textContent = playing ? '■ Stop' : '▶ Play'; clearInterval(pt); if (playing) pt = setInterval(tick, 1000 / fps); else render(); };
     q('#pxfps').oninput = e => { fps = +e.target.value; q('#pxfpsv').textContent = fps + ' fps'; if (playing) { clearInterval(pt); pt = setInterval(tick, 1000 / fps); } };
-    q('#pxs').onchange = e => { if (!frames.some(f => f.some(v => v >>> 24)) || confirm('Changing the size starts a new picture. Continue?')) { W = Hh = +e.target.value; ls.set('px_size', String(W)); frames = [new Uint32Array(W * Hh)]; cur = 0; undo = []; redo = []; render(); } else e.target.value = W; };
-    q('#pxnew').onclick = () => { if (frames.some(f => f.some(v => v >>> 24)) && !confirm('Start a new picture? Unsaved work is lost.')) return; frames = [new Uint32Array(W * Hh)]; cur = 0; undo = []; redo = []; name = 'Untitled'; q('#pxn').value = name; render(); };
+    q('#pxs').onchange = async e => { if (!frames.some(f => f.some(v => v >>> 24)) || (await A.confirm('Changing the size starts a new picture. Continue?'))) { W = Hh = +e.target.value; ls.set('px_size', String(W)); frames = [new Uint32Array(W * Hh)]; cur = 0; undo = []; redo = []; render(); } else e.target.value = W; };
+    q('#pxnew').onclick = async () => { if (frames.some(f => f.some(v => v >>> 24)) && !(await A.confirm('Start a new picture? Unsaved work is lost.'))) return; frames = [new Uint32Array(W * Hh)]; cur = 0; undo = []; redo = []; name = 'Untitled'; q('#pxn').value = name; render(); };
     /* export */
     const dl = (blob, fn) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = fn; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); };
     const toCanvas = (fl, sc) => { const c = document.createElement('canvas'); c.width = W * sc * fl.length; c.height = Hh * sc; const x = c.getContext('2d'); fl.forEach((f, k) => { for (let i = 0; i < f.length; i++) if (f[i] >>> 24) { x.fillStyle = n2hex(f[i]); x.fillRect(k * W * sc + (i % W) * sc, Math.floor(i / W) * sc, sc, sc); } }); return c; };
@@ -101,7 +101,7 @@
     let aiBusy = false;
     const aiPixel = async () => {
       if (aiBusy) return; const prompt = q('#aipp').value.trim(), st = q('#aipst'); if (!prompt) { st.textContent = 'Type what you want first.'; return; } if (!window.AIArt) { st.textContent = 'The art engine did not load.'; return; }
-      const n = Math.max(4, Math.min(128, Math.round(+q('#aipn2').value) || 32)), eng = q('#aipe').value; if (frames.some(fr => fr.some(v => v >>> 24)) && !confirm('Make a new ' + n + ' × ' + n + ' picture? It replaces your current one (save it first to keep it).')) return;
+      const n = Math.max(4, Math.min(128, Math.round(+q('#aipn2').value) || 32)), eng = q('#aipe').value; if (frames.some(fr => fr.some(v => v >>> 24)) && !(await A.confirm('Make a new ' + n + ' × ' + n + ' picture? It replaces your current one (save it first to keep it).'))) return;
       aiBusy = true; q('#aipg').disabled = true; const t0 = Date.now(), tk = setInterval(() => { st.textContent = 'Drawing... ' + Math.round((Date.now() - t0) / 1000) + 's' + (eng === 'sd' ? ' (the first picture takes longer while the model loads)' : ''); }, 500);
       try {
         let img; if (eng === 'sd') { const r = await AIArt.image(prompt, { style: 'pixel', w: 512, h: 512, steps: 2, seed: -1 }); img = await loadImg(r.url); } else img = await AIArt.pixelGrid(prompt);

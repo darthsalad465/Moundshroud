@@ -147,7 +147,7 @@
     host.insertBefore(wrap, ta);
     const view = wrap.querySelector('.ce-view');
     view.appendChild(ta);
-    const pre = wrap.querySelector('.ce-hl > code'), gutBox = wrap.querySelector('.ce-gut'), gut = wrap.querySelector('.ce-gi');
+    const pre = wrap.querySelector('.ce-hl'), code = wrap.querySelector('.ce-hl > code'), gutBox = wrap.querySelector('.ce-gut'), gut = wrap.querySelector('.ce-gi');
     const crumb = wrap.querySelector('.ce-crumb'), fin = wrap.querySelector('.ce-find');
     const fq = wrap.querySelector('.ce-fq'), fr = wrap.querySelector('.ce-fr'), fc = wrap.querySelector('.ce-fc');
 
@@ -166,7 +166,7 @@
       api.lang = state.lang;
       const text = ta.value;
       const big = text.length > 400000;
-      pre.innerHTML = big ? esc(text) : highlight(text, state.lang) + '\n';
+      code.innerHTML = big ? esc(text) : highlight(text, state.lang) + '\n';
       const n = text.endsWith('\n') ? text.split('\n').length - 1 : text.split('\n').length;
       if (gut.dataset.n !== String(n)) { gut.dataset.n = n; gut.innerHTML = Array.from({ length: n }, (_, i) => '<i>' + (i + 1) + '</i>').join(''); }
       wrap.querySelector('[data-s=lang]').textContent = LANGNAME[state.lang] || state.lang;
@@ -292,8 +292,8 @@
       d.onclick = e => { if (e.target === d) close(); };
       draw(); q.focus();
     }
-    function goLine() {
-      const n = prompt('Go to line (1 – ' + ta.value.split('\n').length + '):');
+    async function goLine() {
+      const n = (await A.prompt('Go to line (1 – ' + ta.value.split('\n').length + '):'));
       if (!n) return;
       const line = clamp(parseInt(n, 10) || 1, 1, ta.value.split('\n').length);
       const idx = ta.value.split('\n').slice(0, line - 1).join('\n').length + (line > 1 ? 1 : 0);

@@ -24,22 +24,25 @@
       '<button class="ib" id="aereload" title="Reload the page (picks up anything changed under web)">⟳ Reload the page</button></div>' +
       '<div class="rd-banner" style="margin:0 0 8px">🛡 <b>You are editing Moundshroud itself.</b><span class="small" style="flex:1;min-width:200px">Every save keeps the previous version first, JavaScript is checked before it is written, and ↩ History puts an older version back. Files under <b>web/</b> show after a reload; <b>lib/</b> and <b>server.js</b> need the app restarted.</span></div>' +
       '<div class="ae-split"><div class="ae-side"><input id="aeq" type="search" placeholder="Filter the files here…" autocomplete="off"><div class="ae-path" id="aepath"></div><div class="row" style="padding:0 7px 6px;gap:4px"><button class="ib" id="aenew">＋ File</button><button class="ib" id="aefolder">＋ Folder</button><button class="ib" id="aemove">↪ Move</button><button class="ib dang" id="aeremove">Delete</button></div><div class="scroll" id="aefiles"></div></div>' +
-      '<div class="ae-main"><div class="ae-head"><b id="aename">Pick a file on the left</b><span class="small mute" id="aemeta"></span><span style="flex:1"></span>' +
+      '<div class="ae-main"><div class="ae-head"><b id="aename">Pick a file on the left</b><span class="small mute" id="aemeta"></span><span style="flex:1"></span><button class="ib" id="aeassistant" title="Show or hide the local code helper">Assistant</button><button class="ib" id="aefull" title="Expand the code editor">⛶ Fullscreen</button>' +
       '<button class="ib" id="aehist" title="Older versions of this file">↩ History</button><button class="ib" id="aecheck" title="Check the JavaScript without saving">✓ Check</button><button class="pri" id="aesave" title="Save (Ctrl+S)">💾 Save</button></div>' +
       '<div class="small" id="aemsg"></div>' +
       '<div class="ce-tabs" id="aetabs"></div>' +
       '<textarea id="aeta" data-code data-save="aesave" spellcheck="false" placeholder="Open a file on the left. Nothing here is saved until you press 💾 Save."></textarea>' +
       '<div class="small mute" id="aehint" style="margin-top:6px">Ctrl+S saves · Ctrl+F finds · Ctrl+H replaces · Ctrl+Shift+P opens the command palette · Ctrl+G goes to a line · Ctrl+W closes the tab · Ctrl+/ comments. A save that would break the JavaScript is refused and the reason is shown above.</div>' +
+      '<div id="aestats"></div>' +
       '<section class="ae-chat"><div class="row" style="padding:6px 9px;border-bottom:1px solid var(--line);gap:8px"><b>Local code helper</b><select id="aecmodel" aria-label="Local model" style="max-width:250px"><option value="">Loading local models…</option></select><span class="small mute" style="flex:1">Ask about this file; suggested code stays unsaved until you save.</span><button class="ib" id="aeclear">Clear</button></div><div class="ae-chatlog" id="aeclog" aria-live="polite"><div class="small mute">Open any file, choose a local model, and ask it to explain, debug, or revise the code.</div></div><div class="ae-chatbar"><textarea id="aecinput" rows="2" placeholder="Ask the local model to explain, debug, or revise the open file…"></textarea><button class="pri" id="aesend">Send</button></div></section></div></div>';
     $('#aeq').addEventListener('input', e => { search = e.target.value.trim().toLowerCase(); drawFiles(); });
     $('#aechanged').onclick = changedFiles;
-    $('#aereload').onclick = () => { if (anyDirty() && !confirm('Discard the unsaved changes and reload the page?')) return; location.reload(); };
+    $('#aereload').onclick = async () => { if (anyDirty() && !(await A.confirm('Discard the unsaved changes and reload the page?'))) return; location.reload(); };
     $('#aeeverywhere').onclick = findEverywhere;
     $('#aesave').onclick = save;
     $('#aecheck').onclick = checkNow;
     $('#aehist').onclick = history;
     $('#aenew').onclick = newFile; $('#aefolder').onclick = newFolder; $('#aemove').onclick = moveFile; $('#aeremove').onclick = removeFile;
     $('#aesend').onclick = sendChat; $('#aeclear').onclick = () => { chat = []; suggestions = []; renderChat(); };
+    $('#aefull').onclick = toggleExpanded;
+    $('#aeassistant').onclick = () => { const box = $('.ae-chat'); box.classList.toggle('collapsed'); $('#aeassistant').textContent = box.classList.contains('collapsed') ? 'Show assistant' : 'Assistant'; };
     $('#aecinput').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } });
     const ta = $('#aeta');
     ta.addEventListener('input', () => {
@@ -49,6 +52,7 @@
       mark(); $('#aemsg').textContent = '';
     });
     bar = window.CodeEd ? CodeEd.tabbar($('#aetabs'), { onselect: activate, onclose: closeTab }) : null;
+    stats = window.CodeStats ? CodeStats.mount($('#aestats'), { kind: 'app' }) : null;
     ta.addEventListener('keydown', e => {
       const mod = e.ctrlKey || e.metaKey;
       if (mod && e.key.toLowerCase() === 'w') { e.preventDefault(); if (activeId) closeTab(activeId); }
@@ -59,7 +63,23 @@
     });
     window.addEventListener('beforeunload', e => { if (anyDirty()) { e.preventDefault(); e.returnValue = ''; } });
   }
-  let bar = null;
+  let bar = null, stats = null;
+  let enteredNative = false;
+  function toggleExpanded() {
+    const on = !root.classList.contains('ae-expanded');
+    root.classList.toggle('ae-expanded', on);
+    $('#aefull').textContent = on ? '⛶ Exit fullscreen' : '⛶ Fullscreen';
+    if (on && root.requestFullscreen) root.requestFullscreen().then(() => { enteredNative = true; }).catch(() => {});
+    else if (!on && document.fullscreenElement === root) document.exitFullscreen().catch(() => {});
+    requestAnimationFrame(() => { const e = ed(); if (e) e.refresh(); });
+  }
+  document.addEventListener('fullscreenchange', () => {
+    if (enteredNative && document.fullscreenElement !== root) {
+      enteredNative = false; root.classList.remove('ae-expanded');
+      const b = $('#aefull'); if (b) b.textContent = '⛶ Fullscreen';
+      requestAnimationFrame(() => { const e = ed(); if (e) e.refresh(); });
+    }
+  });
   const ed = () => window.CodeEd && window.CodeEd.of($('#aeta'));
 
   function drawTabs() {
@@ -73,6 +93,7 @@
     if (b) b.textContent = t ? t.id + (t.dirty ? ' •' : '') : 'Pick a file on the left';
     const ta = $('#aeta'), m = $('#aemeta');
     if (m) m.textContent = t ? ta.value.split('\n').length + ' lines · ' + big(new Blob([ta.value]).size) + (t.dirty ? ' · not saved yet' : '') : '';
+    if (stats && ta) stats.setFile(t ? t.id : '', ta.value);
     drawTabs();
     ['aemove','aeremove','aehist','aecheck','aesave'].forEach(id => { const el = $('#' + id); if (el) el.disabled = !t; });
   }
@@ -88,6 +109,7 @@
     }).join('');
     $('#aepath').onclick = e => { const b = e.target.closest('[data-dir]'); if (b) loadDir(b.dataset.dir); };
     filesCur = { dirs: r.dirs || [], files: r.files || [] };
+    if (stats) stats.setFolder(path);
     drawFiles();
   }
   function drawFiles() {
@@ -119,9 +141,9 @@
     $('#aemsg').textContent = '';
     mark(); syncSide();
   }
-  function closeTab(id) {
+  async function closeTab(id) {
     const i = tabs.findIndex(t => t.id === id); if (i < 0) return;
-    if (tabs[i].dirty && !confirm('“' + tabs[i].name + '” has unsaved changes. Close it and lose them?')) return;
+    if (tabs[i].dirty && !(await A.confirm('“' + tabs[i].name + '” has unsaved changes. Close it and lose them?'))) return;
     tabs.splice(i, 1);
     if (activeId === id) {
       const next = tabs[i] || tabs[i - 1] || null;
@@ -147,14 +169,14 @@
   }
 
   async function newFile() {
-    const name = prompt('New file name (for example, helper.js):'); if (!name) return;
+    const name = (await A.prompt('New file name (for example, helper.js):')); if (!name) return;
     const rel = (path ? path + '/' : '') + name.trim().replace(/\\/g, '/');
     const r = await A.api('/api/appedit/create', { path: rel, text: '' }).catch(() => null);
     if (!r || r.error) return A.toast((r && r.error) || 'Could not create that file.', 6000);
     await loadDir(path); await open(rel);
   }
   async function newFolder() {
-    const name = prompt('New folder name:'); if (!name) return;
+    const name = (await A.prompt('New folder name:')); if (!name) return;
     const rel = (path ? path + '/' : '') + name.trim().replace(/\\/g, '/');
     const r = await A.api('/api/appedit/mkdir', { path: rel }).catch(() => null);
     if (!r || r.error) return A.toast((r && r.error) || 'Could not create that folder.', 6000);
@@ -162,8 +184,8 @@
   }
   async function moveFile() {
     const t = curTab(); if (!t) return;
-    if (t.dirty && !confirm('This file has unsaved edits. Move the last saved version and keep the edits open in this tab?')) return;
-    const to = prompt('Move file to this app-relative path:', t.id);
+    if (t.dirty && !(await A.confirm('This file has unsaved edits. Move the last saved version and keep the edits open in this tab?'))) return;
+    const to = (await A.prompt('Move file to this app-relative path:', t.id));
     if (!to || to.trim() === t.id) return;
     const r = await A.api('/api/appedit/move', { path: t.id, to: to.trim() }).catch(() => null);
     if (!r || r.error) return A.toast((r && r.error) || 'Could not move the file.', 6000);
@@ -175,7 +197,7 @@
   }
   async function removeFile() {
     const t = curTab(); if (!t) return;
-    if (!confirm('Remove ' + t.id + '? A backup will be kept in Files you changed / History.')) return;
+    if (!(await A.confirm('Remove ' + t.id + '? A backup will be kept in Files you changed / History.'))) return;
     const r = await A.api('/api/appedit/remove', { path: t.id }).catch(() => null);
     if (!r || r.error) return A.toast((r && r.error) || 'Could not remove the file.', 6000);
     tabs = tabs.filter(x => x !== t); activeId = null; $('#aeta').value = '';
@@ -251,7 +273,7 @@
     document.getElementById('aehc').onclick = () => A.closeDlg();
     document.querySelectorAll('#dlg [data-v]').forEach(b => {
       b.onclick = async () => {
-        if (!confirm('Put that version back? The version you have now is saved first.')) return;
+        if (!(await A.confirm('Put that version back? The version you have now is saved first.'))) return;
         const rr = await A.api('/api/appedit/revert', { path: t.id, at: +b.dataset.v }).catch(() => null);
         if (!rr || rr.error) { A.toast((rr && rr.error) || 'That version could not be restored.', 6000); return; }
         A.closeDlg(); t.orig = rr.text; t.text = rr.text; t.dirty = false;
@@ -276,7 +298,7 @@
   }
 
   async function findEverywhere() {
-    const q = prompt('Find a word or a piece of code in every file of the app:');
+    const q = (await A.prompt('Find a word or a piece of code in every file of the app:'));
     if (!q || !q.trim()) return;
     const r = await A.api('/api/app/search', { q: q.trim(), n: 40 }).catch(() => null);
     const hits = (r && r.results) || [];

@@ -141,7 +141,7 @@
   }
   const draw = () => ({ now: drawNow, guide: drawGuide, beds: drawBeds, log: drawLog, moon: drawMoon })[st.tab]();
 
-  root.addEventListener('click', e => {
+  root.addEventListener('click', async e => {
     const T = e.target, c = s => T.closest(s); let el;
     if ((el = c('[data-tab]'))) { st.tab = el.dataset.tab; draw(); return; }
     if ((el = c('[data-p]'))) { plantCard(el.dataset.p); return; }
@@ -153,10 +153,10 @@
     if ((el = c('[data-a]'))) {
       const a = el.dataset.a, b = beds[st.bed];
       if (a === 'frost') { const F = frost(), md = d => pad(d.getMonth() + 1) + '-' + pad(d.getDate()), v = md => '2026-' + md; A.dlg('<div style="display:flex;flex-direction:column;gap:10px;min-width:min(380px,86vw)"><b>Your frost dates</b><label class="small" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="gfn"' + (F.none ? ' checked' : '') + '> No frost where I live</label><label class="small">Last spring frost <input id="gfl" type="date" value="' + v(md(F.last)) + '"></label><label class="small">First autumn frost <input id="gff" type="date" value="' + v(md(F.first)) + '"></label><div class="small mute">Only the month and day matter. Reset goes back to the estimate for your latitude.</div><div class="row" style="gap:8px"><button class="pri" id="gfs">Save</button><button class="ib" id="gfr">Reset</button><button class="ib" id="gfx">Cancel</button></div></div>'); document.getElementById('gfx').onclick = A.closeDlg; document.getElementById('gfr').onclick = () => { fr = {}; wr('gd_frost', fr); A.closeDlg(); draw(); }; document.getElementById('gfs').onclick = () => { fr = { none: document.getElementById('gfn').checked, last: document.getElementById('gfl').value.slice(5), first: document.getElementById('gff').value.slice(5) }; wr('gd_frost', fr); A.closeDlg(); draw(); }; return; }
-      if (a === 'newbed') { const n = prompt('Name the new bed:', 'Bed ' + (beds.length + 1)); if (n) { beds.push({ id: 'b' + Date.now(), name: n.slice(0, 30), r: 4, c: 8, cells: {} }); st.bed = beds.length - 1; wr('gd_beds', beds); draw(); } }
-      else if (a === 'delbed') { if (confirm('Delete "' + b.name + '"?')) { beds.splice(st.bed, 1); st.bed = 0; wr('gd_beds', beds); draw(); } }
-      else if (a === 'clearbed') { if (confirm('Empty every square of "' + b.name + '"?')) { b.cells = {}; wr('gd_beds', beds); draw(); } }
-      else if (a === 'resize') { const s = prompt('Size as rows x columns (for example 4x8):', b.r + 'x' + b.c), m = s && /^(\d{1,2})\s*[x×,]\s*(\d{1,2})$/i.exec(s.trim()); if (m && +m[1] > 0 && +m[2] > 0 && +m[1] <= 20 && +m[2] <= 20) { b.r = +m[1]; b.c = +m[2]; Object.keys(cellsOf(b)).forEach(k => { const [r, cc] = k.split(',').map(Number); if (r >= b.r || cc >= b.c) delete b.cells[k]; }); wr('gd_beds', beds); draw(); } }
+      if (a === 'newbed') { const n = (await A.prompt('Name the new bed:', 'Bed ' + (beds.length + 1))); if (n) { beds.push({ id: 'b' + Date.now(), name: n.slice(0, 30), r: 4, c: 8, cells: {} }); st.bed = beds.length - 1; wr('gd_beds', beds); draw(); } }
+      else if (a === 'delbed') { if ((await A.confirm('Delete "' + b.name + '"?'))) { beds.splice(st.bed, 1); st.bed = 0; wr('gd_beds', beds); draw(); } }
+      else if (a === 'clearbed') { if ((await A.confirm('Empty every square of "' + b.name + '"?'))) { b.cells = {}; wr('gd_beds', beds); draw(); } }
+      else if (a === 'resize') { const s = (await A.prompt('Size as rows x columns (for example 4x8):', b.r + 'x' + b.c)), m = s && /^(\d{1,2})\s*[x×,]\s*(\d{1,2})$/i.exec(s.trim()); if (m && +m[1] > 0 && +m[2] > 0 && +m[1] <= 20 && +m[2] <= 20) { b.r = +m[1]; b.c = +m[2]; Object.keys(cellsOf(b)).forEach(k => { const [r, cc] = k.split(',').map(Number); if (r >= b.r || cc >= b.c) delete b.cells[k]; }); wr('gd_beds', beds); draw(); } }
     }
   });
   root.addEventListener('keydown', e => { if (e.target.tagName === 'INPUT') e.stopPropagation(); });

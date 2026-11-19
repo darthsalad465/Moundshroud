@@ -292,7 +292,7 @@
       A.toast(r.ok ? 'Saved program.md & train.py' : (r.error || 'Save failed'));
     };
     $('arResetBtn').onclick = async () => {
-      if (!confirm('Reset train.py back to the original karpathy/autoresearch baseline?')) return;
+      if (!(await A.confirm('Reset train.py back to the original karpathy/autoresearch baseline?'))) return;
       const r = await A.api('/api/toolkit/autoresearch/reset', {});
       if (r.ok) { $('arTrain').value = r.trainPy || ''; A.toast('Reset train.py'); }
       else A.toast(r.error || 'Reset failed');
@@ -314,7 +314,7 @@
       const del = e.target.closest('[data-del]'), imp = e.target.closest('[data-imp]'), lg = e.target.closest('[data-log]');
       if (del) { await A.api('/api/toolkit/delete', { id: del.dataset.del }); poll(); return; }
       if (imp) {
-        const name = prompt('Model name in Ollama & LM Studio:', imp.dataset.name || 'merged-model');
+        const name = (await A.prompt('Model name in Ollama & LM Studio:', imp.dataset.name || 'merged-model'));
         if (!name) return;
         const r = await A.api('/api/toolkit/merge/import', { id: imp.dataset.imp, ollamaName: name, quant: 'q8_0' });
         A.toast(r.ok ? 'Converting & importing ' + name + '…' : (r.error || 'Import failed'));

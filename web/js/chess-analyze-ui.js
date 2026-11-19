@@ -139,8 +139,8 @@
       d.querySelector('#anpaste').onclick = () => { const b = d.querySelector('#anpastebox'); b.style.display = b.style.display === 'none' ? '' : 'none'; d.querySelector('#anpta').focus(); };
       d.querySelector('#anload').onclick = () => loadText(d.querySelector('#anpta').value, d.querySelector('#anperr'));
       d.querySelector('#anfam').onchange = e => { const g = fam[+e.target.value]; if (!g) return; famousToGame(g); };
-      d.onclick = e => {
-        const del = e.target.closest('[data-del]'); if (del) { e.stopPropagation(); if (confirm('Delete this saved game?')) { AN.GS.remove(del.dataset.del); if (game && game.id === del.dataset.del) { game = null; } renderBody(); } return; }
+      d.onclick = async e => {
+        const del = e.target.closest('[data-del]'); if (del) { e.stopPropagation(); if ((await A.confirm('Delete this saved game?'))) { AN.GS.remove(del.dataset.del); if (game && game.id === del.dataset.del) { game = null; } renderBody(); } return; }
         const gi = e.target.closest('[data-gid]'); if (gi) { const g = AN.GS.get(gi.dataset.gid); if (g) openGame(g, { auto: false }); return; }
         const fg = e.target.closest('[data-fg]'); if (fg) { openGame(Object.assign({}, fileGames[+fg.dataset.fg], { src: 'upload' }), { auto: false }); return; }
         if (e.target.id === 'ansaveall') { let n = 0; fileGames.forEach(g => { if (g.moves.length) { AN.GS.add(Object.assign({ src: 'upload', white: (g.tags || {}).White, black: (g.tags || {}).Black, event: (g.tags || {}).Event, date: ((g.tags || {}).Date || '').replace(/\./g, '-') }, g)); n++; } }); A.toast('Saved ' + n + ' games to My games.'); renderBody(); }

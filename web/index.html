@@ -133,26 +133,48 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
     <div id="swarmpane"></div>
     <div id="olympane"></div>
     <div id="debatepane"></div>
-    <div id="msgs"></div>
-    <div id="sel"></div>
-    <div id="calcchip"></div>
-    <div class="composer">
-      <div id="row">
-        <button class="ib" id="mic" title="Speak (click to start, click again to stop)">&#127908;</button>
-        <textarea id="in" rows="1" placeholder="Ask anything...  (Enter to send, Shift+Enter for a new line)"></textarea>
-        <button class="ib" id="prm" title="Saved prompts">Prompts</button>
-        <button class="pri" id="go">Send</button>
-      </div>
-      <div id="meta">
-        <label class="chk" title="Let Qwen reason step by step first (slower, better on hard questions)"><input type="checkbox" id="think"> Think harder</label>
-        <label class="chk" title="Watch the assistant reason while it works, then fold it away under the answer. Turns thinking on for the models that can do it."><input type="checkbox" id="showthink"> 💭 Show thinking</label>
-        <label class="chk" title="Code interpreter: for sums, data and charts the AI writes Python or JavaScript, Moundshroud runs it in a sealed-off sandbox on this PC, and the AI answers from the real result"><input type="checkbox" id="runcode"> 🧮 Run code</label>
-        <label class="chk" id="uwl" style="display:none" title="Look the question up in your offline libraries first"><input type="checkbox" id="usewiki" checked> Use libraries</label>
-        <label class="chk" id="ufl" title="Search your own files and notes first"><input type="checkbox" id="usefiles" checked> Use my files</label>
-        <label class="chk" id="uwb" style="display:none" title="Search the internet for this question and cite what it finds (turn internet access on in Settings)"><input type="checkbox" id="useweb"> &#127760; Web</label>
-        <button class="ib" id="methelp" type="button" title="What these boxes do" aria-label="What these boxes do">?</button>
-        <span class="sp"></span><span id="lasttime" class="small mute"></span><span id="status" role="status" aria-live="polite">connecting...</span>
-      </div>
+    <div id="chatx" class="chx sidehide">
+      <aside id="chside" class="chside" aria-label="Chat history">
+        <div class="chsidetop">
+          <button type="button" class="agnew" id="chnew" title="Start a fresh chat (Ctrl+N)">✎ New chat</button>
+          <input id="chsq" type="search" placeholder="Search chats…" autocomplete="off">
+        </div>
+        <div class="chslist" id="chlist"></div>
+        <div class="chsidefoot">
+          <button type="button" class="agnavr" id="chclr" title="Delete all saved chats">🗑 Clear all chats</button>
+        </div>
+      </aside>
+      <section class="chmain" id="chmain">
+        <div class="chhead">
+          <button type="button" class="ib agtog" id="chtog" title="Show or hide chat list">☰</button>
+          <div class="chhtitle"><b id="chtitle">New chat</b><span class="small mute" id="chsub">Private · On-device</span></div>
+          <button type="button" class="ib chhact" id="chpin" title="Pin or unpin this chat">📌</button>
+          <button type="button" class="ib chhact" id="chren" title="Rename this chat">✎</button>
+          <button type="button" class="ib chhact" id="chexp" title="Export chat as Markdown">⬇</button>
+          <button type="button" class="ib dang chhact" id="chdel" title="Delete this chat">🗑</button>
+        </div>
+        <div id="msgs"></div>
+        <div id="sel"></div>
+        <div id="calcchip"></div>
+        <div class="composer">
+          <div id="row">
+            <button class="ib" id="mic" title="Speak (click to start, click again to stop)">&#127908;</button>
+            <textarea id="in" rows="1" placeholder="Ask anything...  (Enter to send, Shift+Enter for a new line)"></textarea>
+            <button class="ib" id="prm" title="Saved prompts">Prompts</button>
+            <button class="pri" id="go">Send</button>
+          </div>
+          <div id="meta">
+            <label class="chk" title="Let Qwen reason step by step first (slower, better on hard questions)"><input type="checkbox" id="think"> Think harder</label>
+            <label class="chk" title="Watch the assistant reason while it works, then fold it away under the answer. Turns thinking on for the models that can do it."><input type="checkbox" id="showthink"> 💭 Show thinking</label>
+            <label class="chk" title="Code interpreter: for sums, data and charts the AI writes Python or JavaScript, Moundshroud runs it in a sealed-off sandbox on this PC, and the AI answers from the real result"><input type="checkbox" id="runcode"> 🧮 Run code</label>
+            <label class="chk" id="uwl" style="display:none" title="Look the question up in your offline libraries first"><input type="checkbox" id="usewiki" checked> Use libraries</label>
+            <label class="chk" id="ufl" title="Search your own files and notes first"><input type="checkbox" id="usefiles" checked> Use my files</label>
+            <label class="chk" id="uwb" style="display:none" title="Search the internet for this question and cite what it finds (turn internet access on in Settings)"><input type="checkbox" id="useweb"> &#127760; Web</label>
+            <button class="ib" id="methelp" type="button" title="What these boxes do" aria-label="What these boxes do">?</button>
+            <span class="sp"></span><span id="lasttime" class="small mute"></span><span id="status" role="status" aria-live="polite">connecting...</span>
+          </div>
+        </div>
+      </section>
     </div>
   </section>
   <!-- LIBRARY -->
@@ -167,6 +189,7 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
   <!-- TOOLS -->
   <section class="panel" id="p-tools"></section>
   <section class="panel" id="p-appedit"></section>
+  <section class="panel" id="p-coding"></section>
   <!-- HEALTH -->
   <section class="panel" id="p-health"></section>
   <!-- GUIDE -->
@@ -202,6 +225,7 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
   <section class="panel" id="p-cyber"></section>
   <section class="panel" id="p-faith"></section>
   <section class="panel" id="p-brain"></section>
+  <section class="panel" id="p-globe"></section>
   <section class="panel" id="p-map"></section>
   <section class="panel" id="p-guide"></section>
 </main>
@@ -218,6 +242,7 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
 <script defer src="/web/js/lazy.js"></script>
 <script defer src="/web/js/codeview.js"></script>
 <script defer src="/web/js/code-ed.js"></script>
+<script defer src="/web/js/code-stats.js"></script>
 <script defer src="/web/js/activity.js"></script>
 <script defer src="/web/js/patch.js"></script>
 <script defer src="/web/js/commands.js"></script>
@@ -256,6 +281,7 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
 <script defer src="/web/js/notes.js"></script>
 <script defer src="/web/js/files.js"></script>
 <script defer src="/web/js/brain.js"></script>
+<script defer src="/web/js/globe.js"></script>
 <script defer src="/web/js/study.js"></script>
 <script defer src="/web/js/quiz.js"></script>
 <script defer src="/web/js/documents.js"></script>
@@ -441,6 +467,7 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
 <script defer src="/web/js/mail.js"></script>
 <script defer src="/web/js/tutorial.js"></script>
 <script defer src="/web/js/repo-tutorial.js"></script>
+<script defer src="/web/js/context-menu.js"></script>
 <script defer src="/web/js/guide.js"></script>
 <script defer src="/web/js/guide-book.js"></script>
 <script defer src="/web/js/bible-book.js"></script>

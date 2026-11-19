@@ -61,3 +61,18 @@ __pycache__/
 
 # fetched by the fine-tune setup (llama.cpp GGUF converter)
 /scripts/convert_hf_to_gguf.py
+
+# defense-in-depth: never allow secrets, private keys, env files, or local author flags anywhere in the repo
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+id_rsa*
+id_ed25519*
+/.author-copy
+/data/globe-tiles/
+/data/globe-packs/
+/data/offline-adapters.json

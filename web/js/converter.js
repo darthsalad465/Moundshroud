@@ -260,16 +260,16 @@
         const b = e.target.closest('[data-la]'); if (!b) return;
         const a = b.dataset.la, row = b.closest('[data-id]'), it = row ? LIB.items.find(x => x.id === row.dataset.id) : null;
         try {
-          if (a === 'newf') { const n = prompt('Name of the new folder:'); if (!n) return; const r = await post('/api/convlib/folder', { name: n }); LIB = r; libF = r.created; ls.set('cv_folder', libF); return drawLib(); }
-          if (a === 'renf') { const cur = LIB.folders.find(x => x.id === libF); const n = prompt('New name for this folder:', cur ? cur.name : ''); if (!n) return; LIB = await post('/api/convlib/folder', { rename: libF, name: n }); return drawLib(); }
-          if (a === 'delf') { if (!confirm('Remove this folder? The files in it stay, under "Not in a folder".')) return; LIB = await post('/api/convlib/folder', { remove: libF }); libF = ''; return drawLib(); }
+          if (a === 'newf') { const n = (await A.prompt('Name of the new folder:')); if (!n) return; const r = await post('/api/convlib/folder', { name: n }); LIB = r; libF = r.created; ls.set('cv_folder', libF); return drawLib(); }
+          if (a === 'renf') { const cur = LIB.folders.find(x => x.id === libF); const n = (await A.prompt('New name for this folder:', cur ? cur.name : '')); if (!n) return; LIB = await post('/api/convlib/folder', { rename: libF, name: n }); return drawLib(); }
+          if (a === 'delf') { if (!(await A.confirm('Remove this folder? The files in it stay, under "Not in a folder".'))) return; LIB = await post('/api/convlib/folder', { remove: libF }); libF = ''; return drawLib(); }
           if (!it) return;
           if (a === 'view') return view(it);
           if (a === 'save') return dl(it, 'out');
           if (a === 'orig') { dl(it, 'orig'); return A.notify('ok', 'Saved the original, ' + it.origName + ', to Downloads.'); }
           if (a === 'again') { const r = await fetch(fileUrl(it, 'orig')); if (!r.ok) throw new Error('the original is no longer kept'); add([new File([await r.blob()], it.origName || ('original' + (it.oext || '')))]); A.notify('ok', 'The original is back in the converter. Pick what to turn it into.'); return b.closest('.scroll') && b.closest('.scroll').scrollTo({ top: 0, behavior: 'smooth' }); }
-          if (a === 'ren') { const n = prompt('New name:', it.name); if (!n || n === it.name) return; LIB = await post('/api/convlib/rename', { id: it.id, name: n }); return drawLib(); }
-          if (a === 'del') { if (!confirm('Delete “' + it.name + '”' + (it.hasOrig ? ' and its kept original' : '') + '? This cannot be undone.')) return; LIB = await post('/api/convlib/remove', { ids: [it.id] }); return drawLib(); }
+          if (a === 'ren') { const n = (await A.prompt('New name:', it.name)); if (!n || n === it.name) return; LIB = await post('/api/convlib/rename', { id: it.id, name: n }); return drawLib(); }
+          if (a === 'del') { if (!(await A.confirm('Delete “' + it.name + '”' + (it.hasOrig ? ' and its kept original' : '') + '? This cannot be undone.'))) return; LIB = await post('/api/convlib/remove', { ids: [it.id] }); return drawLib(); }
         } catch (x) { A.notify('err', x.message); }
       });
       q('cvlib').addEventListener('change', async e => {

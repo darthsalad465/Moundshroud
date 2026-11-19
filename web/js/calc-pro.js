@@ -294,11 +294,11 @@
       '<div class="au-row"><span class="au-small" style="width:70px">Digits</span><input type="range" min="6" max="15" value="' + st.digits + '" id="au-dg" style="flex:1"><b id="au-dgv" style="width:24px">' + st.digits + '</b></div>' +
       '<div class="au-row"><span class="au-small" style="width:70px">Word size</span>' + seg('bits', [[8, '8'], [16, '16'], [32, '32'], [64, '64 bit']]) + '</div>' +
       '<div class="au-row" style="margin-top:14px"><button class="au-btn" id="au-ch">Clear history</button><button class="au-btn" id="au-cv">Clear variables</button><button class="au-btn" id="au-close" style="margin-left:auto">Done</button></div></div>';
-    box.onclick = e => {
+    box.onclick = async e => {
       const s = e.target.closest('[data-k]'), b = e.target.closest('[data-v]');
       if (s && b) { const k = s.dataset.k; st[k] = k === 'bits' ? +b.dataset.v : b.dataset.v; ls.set('calcrad', st.angle === 'rad' ? '1' : '0'); AU.save(); s.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); status(); refresh(); return; }
-      if (e.target.id === 'au-ch') { if (confirm('Clear the whole calculator history?')) { S.hist = []; AU.save(); refresh(); } }
-      if (e.target.id === 'au-cv') { if (confirm('Delete every saved variable and function (including memory)?')) { st.vars = {}; st.funcs = {}; AU.save(); status(); refresh(); } }
+      if (e.target.id === 'au-ch') { if ((await A.confirm('Clear the whole calculator history?'))) { S.hist = []; AU.save(); refresh(); } }
+      if (e.target.id === 'au-cv') { if ((await A.confirm('Delete every saved variable and function (including memory)?'))) { st.vars = {}; st.funcs = {}; AU.save(); status(); refresh(); } }
       if (e.target.id === 'au-close') box.innerHTML = '';
     };
     box.querySelector('#au-dg').oninput = e => { st.digits = +e.target.value; box.querySelector('#au-dgv').textContent = st.digits; AU.save(); status(); refresh(); };

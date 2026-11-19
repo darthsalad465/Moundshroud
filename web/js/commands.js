@@ -162,8 +162,9 @@
     /* ---- housekeeping ---- */
     { title: 'Back up everything', sub: 'One zip with notes, chats, progress and settings', icon: '💾', group: 'Do', tags: 'backup export save zip copy', when: () => !!(A.backup && A.backup.make), run: () => A.backup.make() },
     { title: 'Restore from a backup', icon: '📥', group: 'Do', tags: 'restore import backup', when: () => !!(A.backup && A.backup.pick), run: () => A.backup.pick() },
+    { title: 'Check a backup without restoring it', sub: 'Verify a backup file without changing current data', icon: '🔍', group: 'Do', tags: 'verify check backup integrity test rehearsal', when: () => !!(A.backup && A.backup.verifyPick), run: () => A.backup.verifyPick() },
     { title: 'Run a self-test', sub: 'Opens every tab and checks the app', icon: '🩺', group: 'Do', tags: 'test check health diagnose broken errors self-test', when: () => !!(A.selftest && A.selftest.run), run: () => A.selftest.run() },
-    { title: 'Clear search history', sub: 'Recent searches and pages you opened', icon: '🧹', group: 'Do', tags: 'clear history privacy searches', when: () => !!(A.fav && A.fav.clearHistory), run: () => { if (confirm('Clear your recent searches and the list of pages you opened?')) { A.fav.clearHistory('all'); A.toast('🗑️ History cleared'); } } },
+    { title: 'Clear search history', sub: 'Recent searches and pages you opened', icon: '🧹', group: 'Do', tags: 'clear history privacy searches', when: () => !!(A.fav && A.fav.clearHistory), run: async () => { if ((await A.confirm('Clear your recent searches and the list of pages you opened?'))) { A.fav.clearHistory('all'); A.toast('🗑️ History cleared'); } } },
     { title: 'What can this app do?', sub: 'A guided tour of every area', icon: '💡', group: 'Help', tags: 'help what can do features capability tour', when: () => !!(A.walk && A.walk.start), run: () => A.walk.start('app') }
   ]);
 

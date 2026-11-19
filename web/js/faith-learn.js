@@ -211,12 +211,12 @@ if (typeof module !== 'undefined' && module.exports) module.exports = Learn;
     H.innerHTML = h;
   }
 
-  function onClick(e) {
+  async function onClick(e) {
     const el = e.target.closest('[data-ln]'); if (!el || !H || !H.contains(el)) return; const k = el.dataset.ln, c = cur;
     if (k === 'go') { const v = el.dataset.v; if (v === 'lesson') return go('lesson', { i: +el.dataset.i });
       if (v === 'review') { const s = load(), now = Date.now(), key = Object.keys(s.verses).filter(x => s.verses[x].due <= now).sort((a, b) => s.verses[a].due - s.verses[b].due).find(x => verseOfKey(x)); return key ? go('mem', { v: verseOfKey(key), level: 4, from: 'review' }) : go('reviewempty'); } if (v === 'quiz') return go('quiz', { n: 0, right: 0 }); return go(v); }
     if (k === 'expert') { if (F().expert) F().expert(); return; }
-    if (k === 'reset') { if (confirm('Clear your points, streak, lessons and verses in Learn?')) { store({}); go('home'); } return; }
+    if (k === 'reset') { if ((await A.confirm('Clear your points, streak, lessons and verses in Learn?'))) { store({}); go('home'); } return; }
     if (k === 'read') { F().openBible(+el.dataset.b, 0, 1); return; }
     if (k === 'drill') return go('drill', { k: el.dataset.k, n: 0, right: 0, total: 10 });
     if (k === 'pickb') { c.picked.push(+el.dataset.i); return draw(); }

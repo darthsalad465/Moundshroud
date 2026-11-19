@@ -20,7 +20,7 @@
     const personDlg = id => {
       const x = D.people.find(p => p.id === id) || {};
       A.dlg('<div class="hd"><b>' + (id ? 'Edit card' : 'New card') + '</b></div><div class="bd">' + PF.map(f => '<div class="small mute" style="margin-top:6px">' + f[1] + '</div>' + (f[0] === 'name' || f[0] === 'dob' ? '<input id="pf_' + f[0] + '" value="' + esc(x[f[0]] || '') + '">' : '<textarea id="pf_' + f[0] + '" rows="2">' + esc(x[f[0]] || '') + '</textarea>')).join('') + '<div class="small mute" style="margin-top:6px">Blood type</div><select id="pf_blood">' + BLOOD.map(o => '<option' + (x.blood === o ? ' selected' : '') + '>' + o + '</option>').join('') + '</select><div class="row" style="margin-top:12px">' + (id ? '<button class="ib dang" id="pfd">Delete</button>' : '') + '<span class="sp"></span><button class="ib" id="pfc">Cancel</button><button class="pri" id="pfs">Save</button></div></div>');
-      $('pfc').onclick = A.closeDlg; if (id) $('pfd').onclick = () => { if (!confirm('Delete this card?')) return; D.people = D.people.filter(p => p.id !== id); P.save(); A.closeDlg(); render(); };
+      $('pfc').onclick = A.closeDlg; if (id) $('pfd').onclick = async () => { if (!(await A.confirm('Delete this card?'))) return; D.people = D.people.filter(p => p.id !== id); P.save(); A.closeDlg(); render(); };
       $('pfs').onclick = () => { const v = { id: x.id || P.id() }; PF.forEach(f => { v[f[0]] = $('pf_' + f[0]).value.trim(); }); v.blood = $('pf_blood').value; if (!v.name) return A.toast('Add a name'); const i = D.people.findIndex(p => p.id === v.id); if (i >= 0) D.people[i] = v; else D.people.push(v); P.save(); A.closeDlg(); render(); };
     };
     const contactDlg = id => {

@@ -111,9 +111,9 @@
       $p('pcol').value = String(human); $p('pelo').value = elo; $p('pelot').value = elo; api.hud('Moundshroud ' + elo); save(); refresh(); try { bots && bots.event(moves ? 'resume' : 'start'); } catch (e) { }
       if (hist.length >= 1) startClock(); if (!over) check();
     };
-    board.onmove = m => { if (over || thinking || view !== null || gp.side !== human) return; if (window.ChessLive && ChessLive.cfg.on && ChessLive.cfg.guard) { const msg = ChessLive.guard(gp.fen(), gp.uci(m)); if (msg && !confirm(msg + ' Play it anyway?')) return; } const first = hist.length === 0; play(m); if (first || hist.length === 1) startClock(); };
+    board.onmove = async m => { if (over || thinking || view !== null || gp.side !== human) return; if (window.ChessLive && ChessLive.cfg.on && ChessLive.cfg.guard) { const msg = ChessLive.guard(gp.fen(), gp.uci(m)); if (msg && !(await A.confirm(msg + ' Play it anyway?'))) return; } const first = hist.length === 0; play(m); if (first || hist.length === 1) startClock(); };
     $p('pml').onclick = e => { if (e.target.closest('[data-live]')) { view = null; refresh(); return; } const s = e.target.closest('[data-i]'); if (!s) return; const i = +s.dataset.i; view = i >= hist.length ? null : i; refresh(); };
-    $p('pnew').onclick = () => { if (!over && hist.length > 1 && !confirm('Start a new game? The current one will be lost.')) return; sfen = C.START; newGame(); };
+    $p('pnew').onclick = async () => { if (!over && hist.length > 1 && !(await A.confirm('Start a new game? The current one will be lost.'))) return; sfen = C.START; newGame(); };
     $p('pckd').onclick = () => { try { ChessClock.choose(); } catch (e) { A.toast('The clock designs could not be opened.', 4000); } };
     $p('pelo').oninput = () => { if (window.ChessBots && !ChessBots._setting && ChessBots.mode() !== 'elo') ChessBots.setMode('elo'); elo = +$p('pelo').value; $p('pelot').value = elo; $p('pel').textContent = elo >= 3200 ? '3200 · full strength' : elo; $p('plv').textContent = lname(elo); api.hud('Moundshroud ' + elo); bars(); save(); if (bots) bots.head(); };
     $p('pcol').onchange = () => { if (hist.length === 0 || over) newGame(); };
@@ -121,7 +121,7 @@
     $p('pflip').onclick = () => { flipped = !flipped; save(); refresh(); };
     $p('pundo').onclick = () => { if (!hist.length || thinking) return; token++; eng.reset(); thinking = false; const n = hist.length && gp.side === human ? 2 : 1; const keep = hist.slice(0, Math.max(0, hist.length - (over ? (gp.side === human ? 2 : 1) : n))).map(h => h.u); newGame(keep, clock || undefined); status('Move taken back'); };
     $p('phint').onclick = async () => { if (over || thinking || gp.side !== human || view !== null) return; status('Thinking about a hint...'); const r = await eng.ask({ cmd: 'ana', fen: gp.fen(), depth: 5, ms: 2500 }); if (r && r.best) { const m = gp.fromUci(r.best); board.marks = {}; board.marks[m & 63] = 'hint'; board.marks[(m >> 6) & 63] = 'hint'; board.draw(); status('Hint: the blue squares show a strong move.'); } };
-    $p('pres').onclick = () => { if (over || !hist.length) return; if (confirm('Resign this game?')) finish('You resigned. Moundshroud wins.', human > 0 ? '0-1' : '1-0'); };
+    $p('pres').onclick = async () => { if (over || !hist.length) return; if ((await A.confirm('Resign this game?'))) finish('You resigned. Moundshroud wins.', human > 0 ? '0-1' : '1-0'); };
     $p('pdraw').onclick = async () => {
       if (over || thinking || gp.side !== human || hist.length < 2) return; status('Moundshroud is considering your draw offer...'); const r = await eng.ask({ cmd: 'ana', fen: gp.fen(), depth: 4, ms: 1200 });
       const engineEval = r ? -r.bs : 0; if (hist.length >= 30 && engineEval < 40 || drawDeclined >= 0 && engineEval < -150) finish('Draw agreed.', '1/2-1/2'); else { drawDeclined++; status('Moundshroud declines the draw offer.'); }

@@ -298,7 +298,7 @@ A.az = (list, key) => { if (ls.get('alpha', '1') === '0') return list; const k =
 /* top bar: related tabs fold into three menus (switch off in Settings > Appearance > Grouped top bar) */
 /* the menus in the top bar (the ids are kept from the old names so saved settings still match) */
 A.NAVGROUPS = [{ id: 'know', icon: '🏢', label: 'Office', tabs: ['lib', 'files', 'notes', 'mail', 'docs', 'offed', 'calc', 'scan', 'meet', 'rem', 'clip'] }, { id: 'learn', icon: '🎒', label: 'Education', tabs: ['study', 'lang', 'writing', 'practice', 'teach', 'sky', 'lab'] }, { id: 'life', icon: '🏡', label: 'Personal', tabs: ['kitchen', 'garden', 'money', 'journal', 'albums'] }, { id: 'fun', icon: '🎉', label: 'Entertainment', tabs: ['play', 'music', 'radio', 'tv', 'photos'] }];
-A.NAVIC = { brain: '🧠', docs: '📄', offed: '📂', calc: '🧮', scan: '📷', meet: '🎙️', rem: '⏰', clip: '📋', writing: '✍️', practice: '🎤', teach: '🧑‍🎓', albums: '📚', journal: '📓', news: '📰', map: '🗺️', cyber: '🛡️', web: '🌐', chat: '💬', lib: '📚', files: '🗂️', notes: '📝', study: '🎓', tools: '🧰', music: '🎼', radio: '📻', tv: '📺', photos: '🖼️', mail: '✉️', lang: '🌍', studio: '🎨', home: '🏠', faith: '✝️', sky: '🔭', health: '🛟', play: '🎭', guide: '✨', cal: '📅', kitchen: '🍳', garden: '🌱', lab: '🔬', timeline: '🏛️', money: '💰' };
+A.NAVIC = { brain: '🧠', globe: '🌎', docs: '📄', offed: '📂', calc: '🧮', scan: '📷', meet: '🎙️', rem: '⏰', clip: '📋', writing: '✍️', practice: '🎤', teach: '🧑‍🎓', albums: '📚', journal: '📓', news: '📰', map: '🗺️', cyber: '🛡️', web: '🌐', chat: '💬', lib: '📚', files: '🗂️', notes: '📝', study: '🎓', tools: '🧰', music: '🎼', radio: '📻', tv: '📺', photos: '🖼️', mail: '✉️', lang: '🌍', studio: '🎨', home: '🏠', faith: '✝️', sky: '🔭', health: '🛟', play: '🎭', guide: '✨', cal: '📅', kitchen: '🍳', garden: '🌱', lab: '🔬', timeline: '🏛️', money: '💰' };
 A.navOn = () => ls.get('navgroups', '1') !== '0';
 A.groupOf = n => { if (!A.navOn()) return null; const g = A.NAVGROUPS.find(g => g.tabs.includes(n)); return g ? g.id : null; };
 A.navMark = () => {
@@ -420,4 +420,103 @@ A.modelOrder = (() => {
     return txt;
   };
   return { bare, gb, paramScore, matches, get, sync, set, isDefault, sort, label };
+})();
+
+/* ==========================================================================
+   Moundshroud In-App Modals & OS-Popup Guard (A.confirm, A.prompt, A.alert)
+   Replaces all native browser/Windows popups ("127.0.0.1 says...") and OS
+   Notification popups with cohesive, theme-aware Moundshroud dialogs.
+   ========================================================================== */
+(() => {
+  const DANGER_RE = /\b(delete|remove|reset|clear|resign|abort|abandon|retire|disconnect|forget|wipe|overwrite|discard|kick|close .+ for good|lost|replaced)\b/i;
+  let queue = Promise.resolve();
+
+  function openModal(kind, message, defVal, opts) {
+    opts = opts || {};
+    const run = () => new Promise(resolve => {
+      const msg = String(message == null ? '' : message);
+      const isDanger = opts.danger != null ? !!opts.danger : (kind === 'confirm' && DANGER_RE.test(msg));
+      const title = opts.title || (kind === 'prompt' ? 'Moundshroud' : kind === 'alert' ? 'Notice' : isDanger ? 'Please confirm' : 'Confirm');
+      const okLabel = opts.okLabel || (kind === 'alert' ? 'OK' : kind === 'prompt' ? 'Save' : isDanger ? 'Confirm' : 'Continue');
+      const cancelLabel = opts.cancelLabel || 'Cancel';
+      const icon = opts.icon || (kind === 'alert' ? '✦' : kind === 'prompt' ? '✎' : isDanger ? '⚠' : '✦');
+
+      const ov = document.createElement('div');
+      ov.className = 'mdlg-ov';
+      ov.setAttribute('role', 'dialog');
+      ov.setAttribute('aria-modal', 'true');
+      ov.innerHTML =
+        '<div class="mdlg-card' + (isDanger ? ' mdlg-dang' : '') + '">' +
+          '<div class="mdlg-hd">' +
+            '<span class="mdlg-ic">' + esc(icon) + '</span>' +
+            '<div class="mdlg-ht"><b class="mdlg-t">' + esc(title) + '</b><span class="mdlg-brand">Moundshroud</span></div>' +
+          '</div>' +
+          '<div class="mdlg-bd">' +
+            '<div class="mdlg-msg">' + esc(msg).replace(/\n/g, '<br>') + '</div>' +
+            (kind === 'prompt' ? '<input type="text" class="mdlg-in" autocomplete="off">' : '') +
+          '</div>' +
+          '<div class="mdlg-ft">' +
+            (kind !== 'alert' ? '<button type="button" class="ib mdlg-no">' + esc(cancelLabel) + '</button>' : '') +
+            '<button type="button" class="' + (isDanger ? 'ib dang mdlg-ok mdlg-ok-dang' : 'pri mdlg-ok') + '">' + esc(okLabel) + '</button>' +
+          '</div>' +
+        '</div>';
+
+      document.body.appendChild(ov);
+      const inp = ov.querySelector('.mdlg-in');
+      const okBtn = ov.querySelector('.mdlg-ok');
+      const noBtn = ov.querySelector('.mdlg-no');
+      if (inp) {
+        inp.value = defVal == null ? '' : String(defVal);
+        setTimeout(() => { inp.focus(); inp.select(); }, 20);
+      } else {
+        setTimeout(() => { (isDanger && noBtn ? noBtn : okBtn).focus(); }, 20);
+      }
+
+      let done = false;
+      const finish = val => {
+        if (done) return;
+        done = true;
+        document.removeEventListener('keydown', onKey, true);
+        ov.classList.add('out');
+        setTimeout(() => ov.remove(), 150);
+        resolve(val);
+      };
+      const accept = () => finish(kind === 'prompt' ? (inp ? inp.value : '') : true);
+      const cancel = () => finish(kind === 'prompt' ? null : false);
+
+      const onKey = e => {
+        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cancel(); }
+        else if (e.key === 'Enter' && (!inp || document.activeElement === inp || document.activeElement === okBtn)) {
+          if (document.activeElement === noBtn) return;
+          e.preventDefault(); e.stopPropagation(); accept();
+        }
+      };
+      document.addEventListener('keydown', onKey, true);
+      okBtn.onclick = accept;
+      if (noBtn) noBtn.onclick = cancel;
+      ov.addEventListener('click', e => { if (e.target === ov) cancel(); });
+    });
+    const next = queue.then(run, run);
+    queue = next.catch(() => {});
+    return next;
+  }
+
+  A.confirm = (msg, opts) => openModal('confirm', msg, '', opts);
+  A.prompt = (msg, defVal, opts) => openModal('prompt', msg, defVal, opts);
+  A.alert = (msg, opts) => openModal('alert', msg, '', opts);
+
+  /* Intercept stray window.alert & OS Notification calls so Windows popups never appear */
+  try { window.alert = msg => { A.alert(msg); }; } catch (e) { }
+  try {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      function InAppNotification(title, options) {
+        const body = options && options.body ? ' — ' + options.body : '';
+        A.notify('info', String(title || 'Moundshroud') + body, 5000);
+        this.close = () => {};
+      }
+      InAppNotification.permission = 'granted';
+      InAppNotification.requestPermission = () => Promise.resolve('granted');
+      window.Notification = InAppNotification;
+    }
+  } catch (e) { }
 })();

@@ -32,14 +32,14 @@
   /* ---------- the page ---------- */
   function build() {
     P.innerHTML = '<div class="ws-wrap" id="wswrap"><div class="ws-top"><div class="ws-logo" id="wslogo">🌐 <b>Moundshroud</b> Browser</div><div class="ws-box"><input type="text" id="wsq" placeholder="Search Moundshroud’s offline archived internet: how do vaccines work, python sort a list, who was Napoleon..." autocomplete="off"><button class="ws-go" id="wsgo" title="Search">➜</button><div class="ws-sug" id="wssug" style="display:none"></div></div><button class="ib" id="wsdict" title="Dictionary mode: type a word and open its entry">📕 Dictionary</button><button class="ib" id="wsask" title="Ask the chat assistant instead">💬 Ask in chat</button><button class="ib" id="wssave" title="Save this search to your favorites">☆ Save search</button><button class="ib" id="wshist" title="Clear recent searches and the list of pages you opened">🧹 Clear history</button></div><div class="ws-body" id="wsbody"></div></div>'; built = true; try { if (A.privweb) A.privweb.attach(P); } catch (e) { }
-    P.onclick = e => {
+    P.onclick = async e => {
       const T = e.target, c = s => T.closest(s); let el;
       if ((el = c('[data-fav]'))) { const u = el.dataset.fav, on = A.fav.toggle({ u, t: el.dataset.t, k: 'page' }); el.textContent = on ? '⭐' : '☆'; e.stopPropagation(); return; }
       if (c('#wsfavs')) { A.fav.open('all'); return; }
       if (c('#wsdict')) { setDict(!dictOn); $('wsq').focus(); return; }
       if (c('#wsthes')) { A.thes.open(($('wsq').value || '').trim().split(/\s+/)[0]); return; } if (c('#wsrhy')) { A.rhyme.open(($('wsq').value || '').trim().split(/\s+/)[0]); return; }
       if (c('#wssave')) { const v = (query || $('wsq').value).trim(); if (!v) return A.toast('Search for something first'); const on = A.fav.toggle({ u: 'search:' + v.toLowerCase(), t: v, k: 'search' }); $('wssave').textContent = on ? '⭐ Search saved' : '☆ Save search'; return; }
-      if (c('#wshist')) { if (confirm('Clear your recent searches and the list of pages you opened? Your favorites are kept.')) { A.fav.clearHistory('all'); A.toast('History cleared'); } return; }
+      if (c('#wshist')) { if ((await A.confirm('Clear your recent searches and the list of pages you opened? Your favorites are kept.'))) { A.fav.clearHistory('all'); A.toast('History cleared'); } return; }
       if (c('#wsgo')) { run($('wsq').value); return; } if (c('#wslogo')) { query = ''; res = null; $('wsq').value = ''; home(); return; }
       if (c('#wsask')) { const v = $('wsq').value.trim(); A.showTab('chat'); if (v) A.chat.ask(v); return; }
       if ((el = c('[data-sg]'))) { $('wsq').value = el.dataset.sg; hideSug(); run(el.dataset.sg); return; }

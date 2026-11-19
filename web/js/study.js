@@ -55,11 +55,11 @@ function deckPage(d) {
       '<div class="mode">' + tile('flash', 'Flashcards', 'Spaced repetition') + tile('learn', 'Learn', 'Adaptive questions') + tile('test', 'Test', 'Graded practice test', 2) + tile('match', 'Match', 'Beat the clock', 4) + tile('write', 'Write', 'Type each answer') + tile('spell', 'Spell', 'Listen, then type') + '</div>' +
       '<div class="row"><h3 style="margin:0;flex:1">Cards</h3><button class="ib" id="sadd">+ Add card</button><button class="ib" id="sai">+ More with AI</button></div><div id="slist" class="virtual-list" style="max-height:500px;overflow:auto"></div></div>';
     $('sx').onclick = home;
-    $('sdel').onclick = async () => { if (!confirm('Delete the deck "' + d + '"?')) return; cards = cards.filter(c => c.deck !== d); await save(); home(); };
+    $('sdel').onclick = async () => { if (!(await A.confirm('Delete the deck "' + d + '"?'))) return; cards = cards.filter(c => c.deck !== d); await save(); home(); };
     $('sexp').onclick = () => A.dlg('<div class="hd"><b>Export "' + esc(d) + '"</b> <span class="mute small">tab-separated: question, tab, answer</span></div><div class="bd"><textarea id="sxt" rows="12" readonly>' + esc(l.map(c => c.q.replace(/[\t\n]+/g, ' ') + '\t' + c.a.replace(/[\t\n]+/g, ' ')).join('\n')) + '</textarea><div class="row" style="margin-top:8px"><button class="pri" id="sxc">Copy</button><button class="ib" id="sxd">Close</button></div></div>') || ($('sxc').onclick = () => A.copy($('sxt').value), $('sxd').onclick = A.closeDlg);
     $('simp').onclick = () => importDlg(d);
     $('sadd').onclick = () => editDlg(null, d);
-    $('sai').onclick = () => { const t = prompt('Paste text to make more cards from:'); if (t) make(t, d); };
+    $('sai').onclick = async () => { const t = (await A.prompt('Paste text to make more cards from:')); if (t) make(t, d); };
     root.querySelectorAll('[data-mode]').forEach(t => t.onclick = () => ({ flash, learn, test, match, write, spell })[t.dataset.mode](d));
     /* Virtual scrolling for cards list */
     A.virtualList($('slist'), l, c => '<div class="card" style="padding:8px 12px"><div class="row"><div style="flex:1"><b>' + A.esc(c.q) + '</b><div class="mute small" style="white-space:pre-wrap">' + A.esc(c.a) + '</div></div><span class="small mute" title="mastery">' + '&#9679;'.repeat(c.m || 0) + '&#9675;'.repeat(MAXM - (c.m || 0)) + '</span><span class="ib" data-e="' + c.id + '" style="cursor:pointer">Edit</span></div></div>', { itemHeight: 80 });

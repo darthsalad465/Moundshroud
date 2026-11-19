@@ -132,8 +132,8 @@ window.addEventListener('DOMContentLoaded', () => {
     $('caccx').onclick = () => { C.set('acc', ''); C.set('acc2', ''); };
     $('cpre').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; C.preset(C.PRESETS[+b.dataset.i][2]); open(); A.toast('Applied: ' + C.PRESETS[+b.dataset.i][0]); };
     $('cexp').onclick = () => { A.copy ? A.copy(C.exportJson()) : navigator.clipboard.writeText(C.exportJson()); A.toast('Settings copied. Paste them anywhere to keep them.'); };
-    $('cimp').onclick = () => { const s = prompt('Paste the settings you copied earlier:'); if (!s) return; try { C.importJson(s); open(); A.toast('Settings loaded'); } catch (e) { A.toast('That does not look like saved settings'); } };
-    $('crst').onclick = () => { if (!confirm('Put fonts, sizes, spacing and colours back to the defaults?')) return; C.reset(); open(); A.toast('Appearance reset'); };
+    $('cimp').onclick = async () => { const s = (await A.prompt('Paste the settings you copied earlier:')); if (!s) return; try { C.importJson(s); open(); A.toast('Settings loaded'); } catch (e) { A.toast('That does not look like saved settings'); } };
+    $('crst').onclick = async () => { if (!(await A.confirm('Put fonts, sizes, spacing and colours back to the defaults?'))) return; C.reset(); open(); A.toast('Appearance reset'); };
     $('cx').onclick = A.closeDlg;
     if (c.fontOwn) { const o = document.createElement('option'); o.value = '__own'; o.textContent = c.fontOwn; o.selected = true; $('cfont').prepend(o); }
   };

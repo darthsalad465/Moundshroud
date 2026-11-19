@@ -107,7 +107,7 @@
     main.querySelectorAll('.fgrmf').forEach(b => b.onclick = async () => { await A.api('/api/forge/removefile', { id, file: b.dataset.f }); refresh(el); });
     main.querySelectorAll('.fgrms').forEach(b => b.onclick = async () => { await A.api('/api/forge/removesource', { id, index: +b.dataset.i }); refresh(el); });
     q('#fggo').onclick = async () => { const r = await A.api('/api/forge/train', { id }); if (!r.ok) return A.toast(r.error || 'Could not start.'); q('#fggo').disabled = true; watch(el, id); };
-    q('#fgdel').onclick = async () => { if (!confirm('Delete "' + p.name + '"? Its text copies and its Ollama model are removed.')) return; const r = await A.api('/api/forge/remove', { id }); if (!r.ok) return A.toast(r.error || 'Could not delete.'); cur = ''; refresh(el); };
+    q('#fgdel').onclick = async () => { if (!(await A.confirm('Delete "' + p.name + '"? Its text copies and its Ollama model are removed.'))) return; const r = await A.api('/api/forge/remove', { id }); if (!r.ok) return A.toast(r.error || 'Could not delete.'); cur = ''; refresh(el); };
     watch(el, id, true);
   }
 
