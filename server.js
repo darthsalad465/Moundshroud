@@ -340,6 +340,89 @@ const allowedPath = p => { p = path.normalize(String(p || '')); if (p.includes('
    its Host header (blocks DNS rebinding), and any Origin / Sec-Fetch-Site the browser adds must say "this same site" (blocks cross-site
    requests). The tray helper and scripts send neither header and are unaffected. */
 const SELF = new Set(['127.0.0.1:' + PORT, 'localhost:' + PORT]), SELF_ORIGIN = new Set(['http://127.0.0.1:' + PORT, 'http://localhost:' + PORT]);
+/* Model Monsters reads each local model's /api/show metadata; one cached copy is shared by every request. */
+let mmStatsCache = { at: 0, models: null };
+const monsterRules = require('./web/js/modelmon-core');
+let rosterScan;
+function scanModelRoster(fresh = false) {
+  if (!rosterScan) rosterScan = readModelRoster(fresh).finally(() => { rosterScan = null; });
+  return rosterScan;
+}
+async function readModelRoster(fresh) {
+  const tags = await ollamaJson('GET', '/api/tags');
+  if (tags.error) throw Error(tags.error);
+  const all = (tags.data.models || []).map(m => ({ name: String(m.name || ''), size: m.size || 0, digest: m.digest || '', modified_at: m.modified_at || '' })).filter(m => m.name);
+  const agentName = /(^|[-_.])agent($|[-_.:])/i, embedName = /(^|[\/:_-])(embed|embedding|bge|nomic|e5|gte|minilm|rerank)([\/:_-]|$)/i;
+  const list = all;
+  const previous = new Map((mmStatsCache.models || []).map(m => [m.name, m]));
+  const out = new Array(list.length); let next = 0;
+  const worker = async () => {
+    for (;;) {
+      const i = next++; if (i >= list.length) return;
+      const m = list[i];
+      const cached = previous.get(m.name);
+      if (!fresh && cached && !cached.partial && m.digest && cached.digest === m.digest) {
+        out[i] = cached;
+        continue;
+      }
+      const show = await ollamaJson('POST', '/api/show', { model: m.name, name: m.name });
+      const d = show.ok && show.data ? show.data : {};
+      const details = d.details || {}, info = d.model_info || {}, caps = Array.isArray(d.capabilities) ? d.capabilities : [];
+      let context = 0;
+      for (const k of Object.keys(info)) {
+        if (/context_length$/i.test(k)) { const v = +info[k]; if (v > context) context = v; }
+      }
+      let params = mmParamCount(details.parameter_size);
+      if (!params) {
+        for (const k of Object.keys(info)) if (/parameter_count$/i.test(k)) { const v = +info[k]; if (v > 0) { params = v; break; } }
+      }
+      let experts = 0;
+      for (const k of Object.keys(info)) if (/expert_count$/i.test(k)) { const v = +info[k]; if (v > 0) { experts = v; break; } }
+      const quant = details.quantization_level || d.quantization_level || '';
+      const family = details.family || (Array.isArray(details.families) && details.families[0]) || '';
+      const name = m.name.toLowerCase(), familyLower = String(family).toLowerCase();
+      const embedding = caps.includes('embedding') || /bert|embedding|nomic|bge/.test(familyLower) || embedName.test(name);
+      out[i] = {
+        partial: !show.ok, name: m.name, size: m.size, digest: m.digest, modified_at: m.modified_at,
+        family, families: details.families || [], parameter_size: details.parameter_size || '',
+        parameters: params, quantization_level: quant, quant_bits: mmQuantBits(quant),
+        context, capabilities: caps, vision: caps.includes('vision'), tools: caps.includes('tools'),
+        thinking: caps.includes('thinking'), embedding, experts
+      };
+      const fighter = monsterRules.buildMonster(out[i]);
+      out[i].battleProfile = { type: fighter.type, tier: fighter.tier, level: fighter.level, signature: fighter.moves[3].name };
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(6, list.length) }, worker));
+  mmStatsCache = { at: Date.now(), models: out };
+  return out;
+}
+// Detect completed downloads from any Ollama client without starting the model engine.
+setInterval(() => { scanModelRoster().catch(() => {}); }, 60000).unref();
+
+const mmQuantBits = q => {
+  const s = String(q || '').toUpperCase();
+  if (/F64|F32|FP32/.test(s)) return 32;
+  if (/F16|BF16|FP16/.test(s)) return 16;
+  if (/Q8/.test(s)) return 8.5;
+  if (/Q6/.test(s)) return 6.5;
+  if (/Q5/.test(s)) return 5.5;
+  if (/Q4/.test(s)) return 4.5;
+  if (/Q3/.test(s)) return 3.4;
+  if (/Q2/.test(s)) return 2.4;
+  if (/IQ1|Q1/.test(s)) return 1.8;
+  return 4.5;
+};
+const mmParamCount = v => {
+  if (typeof v === 'number' && isFinite(v)) return v;
+  const s = String(v == null ? '' : v).replace(/,/g, '');
+  const unit = u => (u || '').toUpperCase() === 'K' ? 1e3 : (u || '').toUpperCase() === 'M' ? 1e6 : (u || '').toUpperCase() === 'T' ? 1e12 : (u || '').toUpperCase() === 'B' ? 1e9 : 1;
+  const moe = s.match(/([\d.]+)\s*[xX]\s*([\d.]+)\s*([KMBT])?/);
+  if (moe) { const n = parseFloat(moe[1]) * parseFloat(moe[2]); if (isFinite(n)) return n * unit(moe[3]); }
+  const m = s.match(/([\d.]+)\s*([KMBT])?/i);
+  if (!m) return 0;
+  return (parseFloat(m[1]) || 0) * unit(m[2]);
+};
 const CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: data:; worker-src 'self' blob:; frame-src 'self' blob: data: http://127.0.0.1:" + LIBPORT + " http://localhost:" + LIBPORT + " http://127.0.0.1:" + artexmod.PORT + " http://localhost:" + artexmod.PORT + " http://127.0.0.1:" + juiceshop.FRAME + " http://localhost:" + juiceshop.FRAME + " https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
 const CSP_OFFLINE = CSP.replace(' https://www.youtube-nocookie.com', '');
 function allowedCaller(req) {
@@ -472,9 +555,24 @@ if (url === '/api/models/rename' && req.method === 'POST') {
   try { lmstudioSync.removeModel(source); lmstudioSync.syncAll({ force: true }); } catch (e) { }
   return json(res, 200, { ok: true, source, destination, defaultModel: modelOrder.getDefault(DATA) });
 }
+/* what this PC can hold, so the model list can say what will actually run: the graphics card is asked once, and RAM comes
+   from the system. Nothing is downloaded and nothing leaves the PC. */
+let hwCache = { at: 0, v: null };
+function hardware() {
+  if (hwCache.v && Date.now() - hwCache.at < 600000) return hwCache.v;
+  const ramGB = Math.round(os.totalmem() / 1073741824 * 10) / 10;
+  let vramGB = 0, gpu = '';
+  try {
+    const line = String(cp.execFileSync('nvidia-smi', ['--query-gpu=name,memory.total', '--format=csv,noheader,nounits'], { encoding: 'utf8', timeout: 4000, windowsHide: true })).split(/\r?\n/).find(l => l.trim()) || '';
+    if (line) { const [n, m] = line.split(','); gpu = (n || '').trim(); vramGB = Math.round((+m || 0) / 1024 * 10) / 10; }
+  } catch (e) { }
+  hwCache = { at: Date.now(), v: { ramGB, vramGB, gpu } };
+  return hwCache.v;
+}
 if (url === '/api/models') {
   const cs = await cloud.status();
   const def = modelOrder.getDefault(DATA);
+  const hw = hardware();
   /* the free pool is always offered: no key, no setup, and it moves to another free route or the local model by itself */
   let cloudList = [{ name: 'free-auto', size: 0, cloud: true, label: '✦ Free frontier · auto (free, no key)' }];
   if (cs.on && cs.provider === 'anthropic') {
@@ -484,10 +582,18 @@ if (url === '/api/models') {
     cloudList = cs.models.map(m => ({ name: m.id, size: 0, cloud: true, label: '☁ ' + m.name + (m.note ? ' - ' + m.note : ''), provider: cs.provider }));
   }
   return ensureOllama(up => {
-    if (!up) return json(res, 200, { ollama: false, cloud: cs.on, defaultModel: def, models: modelOrder.sortModels(cloudList, def), provider: cs.provider });
-    http.get({ ...OLLAMA, path: '/api/tags' }, r => { let b = ''; r.on('data', c => b += c); r.on('end', () => { try { const j = JSON.parse(b); const all = (j.models || []).map(m => ({ name: m.name, size: m.size || 0 })).concat(cloudList); json(res, 200, { ollama: true, cloud: cs.on, defaultModel: def, models: modelOrder.sortModels(all, def), provider: cs.provider }); } catch (e) { json(res, 200, { ollama: true, cloud: cs.on, defaultModel: def, models: modelOrder.sortModels(cloudList, def), provider: cs.provider }); } }); })
-      .on('error', () => json(res, 200, { ollama: false, cloud: cs.on, defaultModel: def, models: modelOrder.sortModels(cloudList, def), provider: cs.provider }));
+    if (!up) return json(res, 200, { ollama: false, cloud: cs.on, defaultModel: def, models: modelOrder.sortModels(cloudList, def), provider: cs.provider, hardware: hw });
+    http.get({ ...OLLAMA, path: '/api/tags' }, r => { let b = ''; r.on('data', c => b += c); r.on('end', () => { try { const j = JSON.parse(b); const all = (j.models || []).map(m => ({ name: m.name, size: m.size || 0 })).concat(cloudList); json(res, 200, { ollama: true, cloud: cs.on, defaultModel: def, models: modelOrder.sortModels(all, def), provider: cs.provider, hardware: hw }); } catch (e) { json(res, 200, { ollama: true, cloud: cs.on, defaultModel: def, models: modelOrder.sortModels(cloudList, def), provider: cs.provider, hardware: hw }); } }); })
+      .on('error', () => json(res, 200, { ollama: false, cloud: cs.on, defaultModel: def, models: modelOrder.sortModels(cloudList, def), provider: cs.provider, hardware: hw }));
   });
+}
+if (url === '/api/models/stats' && req.method === 'GET') {
+  try {
+    const models = await scanModelRoster(q.get('fresh') === '1');
+    return json(res, 200, { ok: true, models, updated: mmStatsCache.at });
+  } catch (error) {
+    return json(res, 200, { ok: false, error: error.message, models: [] });
+  }
 }
 /* AI: a local model, or a cloud provider (Anthropic or Free LLM) when the user has saved a key.
    Both answer in the same shape, so every feature in the app (chat, the buddy, quizzes, documents, the chess coach) works with either. */

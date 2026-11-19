@@ -189,7 +189,7 @@ Changes under `web/` generally appear after reloading the app page. Changes to `
 - `data/`, browser profiles, downloaded models and libraries, snapshots, and release builds may contain personal or generated data. Review `.gitignore` and the files you plan to share before publishing a copy.
 - `make-release.ps1` builds packaged releases. `Setup-Moundshroud.bat` runs `setup.ps1`.
 - `node scripts/update-readme.js` refreshes the generated app reference in this README. The release builder runs it automatically, and GitHub Actions runs it after pushes.
-- `scripts/check-github-safety.js` checks outgoing pushes and GitHub revisions for private-data paths, common credentials, private keys, and local home-folder paths. Enable its local push hook once by running `.\scripts\install-git-safety.ps1` from PowerShell; pushes are blocked when the scan finds a problem. GitHub Actions repeats the scan on pushes and pull requests.
+- `scripts/check-github-safety.js` checks outgoing pushes and GitHub revisions for private-data paths and common credentials, including private keys and provider tokens. The local push hook is enabled in this checkout; after a fresh clone, run `.\scripts\install-git-safety.ps1` once from PowerShell. Pushes are blocked when the scan finds a problem. GitHub Actions repeats the scan on pushes and pull requests.
 - For an additional GitHub-side block on exposed credentials, enable **Secret scanning** and **Push protection** in the repository’s **Settings → Security**. Require the **GitHub safety scan** check in branch protection for pull requests. The hosted scan is a second line of defense; the local hook is what prevents an ordinary push from uploading a flagged change.
 
 ## AI-generated code note

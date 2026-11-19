@@ -540,6 +540,7 @@ try {
     try { await require('./freeroute-test.js')(ok); } catch (e) { ok('the free ai test loads', false, e.message); }
     try { await require('./cyber-offsec-test.js')(ok); } catch (e) { ok('the Cyber labs test loads', false, e.message); }
     try { await require('./agentbridge-test.js')(ok); } catch (e) { ok('the free-agent bridge test loads', false, e.message); }
+    try { await require('./games-test.js')(ok); } catch (e) { ok('the games test loads', false, e.message); }
     try { await require('./checker-test.js')(ok); } catch (e) { ok('the page checker test loads', false, e.message); }
     try { await require('./pages-test.js')(ok); } catch (e) { ok('the Tools and Cyber games pages test loads', false, e.message); }
     try { await require('./radio-test.js')(ok); } catch (e) { ok('the radio test loads', false, e.message); }
@@ -556,6 +557,7 @@ try {
     try { await require('./brain-test.js')(ok); } catch (e) { ok('the 3D Brain performance test loads', false, e.message); }
     try { await require('./chat-ux-test.js')(ok); } catch (e) { ok('the Chat UX & zero-OS-popup test loads', false, e.message); }
     try { await require('./globe-test.js')(ok); } catch (e) { ok('the 3D World Globe test loads', false, e.message); }
+    try { await require('./modelmon-test.js')(ok); } catch (e) { ok('the Model Monsters test loads', false, e.message); }
     try { const MT = require(path.join(__dirname, '..', 'lib', 'mail.js'))._t, pw = 'tést "pw" ✓', blob = await MT.protectPw(pw); ok('mail: Windows keeps the password protected and gives it back', !blob.includes('pw') && await MT.unprotectPw(blob) === pw); } catch (e) { ok('mail: Windows keeps the password protected', false, e.message); }
     console.log('\n' + pass + ' passed, ' + fail + ' failed');
     process.exit(fail ? 1 : 0);
