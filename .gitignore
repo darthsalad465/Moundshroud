@@ -22,6 +22,11 @@
 !/update.json
 !/publish-update.ps1
 !/RELEASE-NOTES.txt
+!/.github/
+/.github/*
+!/.github/workflows/
+/.github/workflows/*
+!/.github/workflows/refresh-readme.yml
 !/restore-progress.ps1
 !/install-art-model.ps1
 !/install-music-model.ps1
@@ -45,6 +50,7 @@
 !/scripts/
 /scripts/*
 !/scripts/auto-commit.ps1
+!/scripts/update-readme.js
 !/.dev/
 /.dev/*
 !/.dev/settings.json

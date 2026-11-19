@@ -10,6 +10,12 @@
 param([switch]$Verify)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$readmeUpdater = Join-Path $root 'scripts\update-readme.js'
+if (Test-Path $readmeUpdater) {
+  Write-Host 'Refreshing the README from the app version and navigation...'
+  & node $readmeUpdater
+  if ($LASTEXITCODE -ne 0) { throw 'README refresh failed; release packaging stopped so the release does not contain stale app information.' }
+}
 $ver = (Get-Content (Join-Path $root 'VERSION') -Raw).Trim()
 $out = Join-Path $root 'releases'; New-Item -ItemType Directory -Force $out | Out-Null
 Get-ChildItem $out -File -ErrorAction SilentlyContinue | Remove-Item -Force

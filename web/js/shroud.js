@@ -179,22 +179,35 @@
   };
   const undress = () => { Object.keys(keep).forEach(id => { const b = $(id); if (b) b.innerHTML = keep[id]; delete keep[id]; }); const f = $('shfold'); if (f) f.remove(); };
 
-  /* ---------- a soft light and subtle 3D tilt under the pointer on cards (one listener for the whole app) ---------- */
-  let lit = null, raf = 0, px = 0, py = 0;
+  /* ---------- a soft light and subtle 3D tilt under the pointer on cards (zero-reflow cached rect) ---------- */
+  const CARD_SEL = '.card, .td-card, .td-tile, .feat, .gcard, .nw-ev, .mk-tile, .am-card, #sst .stl, #sth .thm, .poC';
+  let lit = null, litRect = null, litRectAt = 0, raf = 0, px = 0, py = 0, lastTarget = null;
   const clearLit = el => { if (!el) return; el.classList.remove('lit'); el.style.removeProperty('--rx'); el.style.removeProperty('--ry'); };
+  addEventListener('scroll', () => { litRect = null; }, { passive: true, capture: true });
+  addEventListener('resize', () => { litRect = null; }, { passive: true });
   document.addEventListener('pointermove', e => {
-    if (!on || e.pointerType === 'touch') return; px = e.clientX; py = e.clientY; if (raf) return;
+    if (!on || document.hidden || e.pointerType === 'touch') return;
+    const t = e.target;
+    // Skip WebGL/heavy interactive canvases completely so 3D Brain, 3D Globe & Games stay locked at max FPS
+    if (!t || t.tagName === 'CANVAS' || t.tagName === 'IFRAME' || A.cur === 'brain' || A.cur === 'globe') {
+      if (lit) { clearLit(lit); lit = null; litRect = null; }
+      return;
+    }
+    px = e.clientX; py = e.clientY; lastTarget = t;
+    if (raf) return;
     raf = requestAnimationFrame(() => {
       raf = 0; if (A.motion && A.motion.still && A.motion.still()) return;
-      const el = document.elementFromPoint(px, py), c = el && el.closest && el.closest('.card, .td-card, .td-tile, .feat, .gcard, .nw-ev, .mk-tile, .am-card, #sst .stl, #sth .thm, .poC');
-      if (lit && lit !== c) clearLit(lit);
+      const c = lastTarget && lastTarget.closest ? lastTarget.closest(CARD_SEL) : null;
+      if (lit && lit !== c) { clearLit(lit); litRect = null; }
       if (c) {
-        const r = c.getBoundingClientRect(), x = px - r.left, y = py - r.top;
+        const now = performance.now();
+        if (lit !== c || !litRect || now - litRectAt > 350) { litRect = c.getBoundingClientRect(); litRectAt = now; }
+        const r = litRect, x = px - r.left, y = py - r.top;
         c.style.setProperty('--mx', x + 'px'); c.style.setProperty('--my', y + 'px');
         if (r.width > 30 && r.height > 24 && r.height < 420) {
           const rx = Math.max(-1, Math.min(1, (y - r.height / 2) / (r.height / 2))), ry = Math.max(-1, Math.min(1, (x - r.width / 2) / (r.width / 2)));
-          c.style.setProperty('--rx', (-rx * 3.2).toFixed(2) + 'deg');
-          c.style.setProperty('--ry', (ry * 3.2).toFixed(2) + 'deg');
+          c.style.setProperty('--rx', (-rx * 2.6).toFixed(2) + 'deg');
+          c.style.setProperty('--ry', (ry * 2.6).toFixed(2) + 'deg');
         }
         c.classList.add('lit');
       }
@@ -231,10 +244,11 @@
   new MutationObserver(sync).observe(root, { attributes: true, attributeFilter: ['data-style'] });
   /* other scripts add their top-bar buttons (History, Focus) after this one runs, and Talk changes its words while listening */
   A.ready.push(() => {
-    dress(); setTimeout(dress, 600);
+    dress(); setTimeout(() => { if (on) { dress(); ink(); } }, 700);
+    setTimeout(() => { if (on) { dress(); ink(); } }, 2400);
     if (A.cmd && A.cmd.reg) A.cmd.reg({ id: 'look:replay-boot', title: 'Replay opening animation', sub: 'Watch the Moundshroud awakening sequence again', icon: '✨', group: 'Look', tags: 'boot splash intro animation logo opening', run: replayBoot });
   });
-  setInterval(() => { if (on) { dress(); if (!document.hidden) ink(); } }, 1500);
+  if (A.on) A.on('tab', () => { if (on && !document.hidden) ink(); });
 
   /* ---------- the first time the new look appears: say so, and offer the way back ---------- */
   A.ready.push(() => {

@@ -38,7 +38,7 @@
 .gem.big { font-size: 76px; }
 .gcard:hover .gem { transform: scale(1.18) rotate(-6deg); }
 .gnew { position: absolute; left: 8px; top: 8px; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 800; letter-spacing: .08em; background: #ffd23f; color: #3a2a00; box-shadow: 0 4px 10px rgba(0, 0, 0, .35); }
-.gfav { position: absolute; right: 8px; top: 8px; width: 30px; height: 30px; border-radius: 50%; border: 0; background: rgba(0, 0, 0, .35); color: #fff; font-size: 16px; line-height: 1; backdrop-filter: blur(6px); transition: transform .15s, background .2s; }
+.gfav { position: absolute; right: 8px; top: 8px; width: 30px; height: 30px; border-radius: 50%; border: 0; background: rgba(0, 0, 0, .58); color: #fff; font-size: 16px; line-height: 1; transition: transform .15s, background .2s; }
 .gfav:hover { transform: scale(1.15); background: rgba(0, 0, 0, .55); }
 .gfav.on { color: #ffd23f; }
 .gdiff { position: absolute; left: 8px; bottom: 6px; font-size: 9px; letter-spacing: 1px; color: rgba(255, 255, 255, .9); text-shadow: 0 1px 3px rgba(0, 0, 0, .6); }
@@ -58,7 +58,7 @@
 .gdelbtn:hover { background: color-mix(in srgb, var(--bad, #e5484d) 24%, var(--panel)); }
 
 /* ---------- detail sheet and trophies ---------- */
-.gmodal { position: fixed; inset: 0; z-index: 250; background: rgba(0, 0, 0, .62); backdrop-filter: blur(5px); display: flex; align-items: center; justify-content: center; padding: 14px; animation: fadeIn .18s ease-out; }
+.gmodal { position: fixed; inset: 0; z-index: 250; background: rgba(0, 0, 0, .72); display: flex; align-items: center; justify-content: center; padding: 14px; animation: fadeIn .18s ease-out; }
 .gsheet { width: min(680px, 100%); max-height: 90vh; overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 22px; box-shadow: 0 30px 80px rgba(0, 0, 0, .55); animation: dlgIn .25s cubic-bezier(.22, .8, .24, 1); }
 .gscover { position: relative; height: 150px; display: flex; align-items: center; justify-content: center; }
 .gscover .ib { position: absolute; right: 12px; top: 12px; background: rgba(0, 0, 0, .35); color: #fff; border: 0; }
@@ -93,7 +93,7 @@
 .ginfo .gtimer { font-variant-numeric: tabular-nums; padding: 2px 8px; border-radius: 8px; background: var(--panel2); }
 .gframe #plstage { margin: 10px 12px 12px; border-radius: 20px; border: 1px solid hsl(var(--gh) 50% 50% / .25); background: radial-gradient(900px 380px at 50% -12%, hsl(var(--gh) 70% 50% / .17), transparent 70%), radial-gradient(640px 320px at 100% 100%, hsl(calc(var(--gh) + 40) 70% 45% / .13), transparent 70%), color-mix(in srgb, var(--panel) 60%, transparent); box-shadow: inset 0 0 60px hsl(var(--gh) 70% 40% / .08), 0 12px 40px -18px rgba(0, 0, 0, .6); }
 .gframe #plstage canvas { border-radius: 14px; box-shadow: 0 16px 44px -16px hsl(var(--gh) 75% 45% / .65), 0 0 0 1px rgba(255, 255, 255, .09); }
-.gframe #plstage .card { background: color-mix(in srgb, var(--panel) 80%, transparent); backdrop-filter: blur(8px); border-radius: 16px; }
+.gframe #plstage .card { background: color-mix(in srgb, var(--panel) 96%, var(--bg)); border-radius: 16px; }
 .gc-cards #plstage { background: radial-gradient(900px 420px at 50% 0, hsl(150 60% 30% / .45), transparent 72%), repeating-linear-gradient(45deg, rgba(255, 255, 255, .03) 0 8px, transparent 8px 16px), color-mix(in srgb, #0d3b24 40%, var(--panel)); }
 .gc-arcade #plstage { background: linear-gradient(rgba(255, 255, 255, .035) 1px, transparent 1px) 0 0 / 26px 26px, linear-gradient(90deg, rgba(255, 255, 255, .035) 1px, transparent 1px) 0 0 / 26px 26px, radial-gradient(800px 340px at 50% -10%, hsl(var(--gh) 80% 55% / .2), transparent 70%), color-mix(in srgb, var(--bg) 85%, #12002a); }
 .gc-cyber #plstage { background: repeating-linear-gradient(0deg, rgba(0, 255, 150, .045) 0 2px, transparent 2px 6px), radial-gradient(800px 340px at 50% -10%, rgba(0, 255, 150, .14), transparent 70%), color-mix(in srgb, var(--bg) 80%, #00140c); font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }

@@ -55,16 +55,14 @@
       return picked.length;
     } catch (e) { return 0; }
   };
-  /* Most pages fill themselves in a moment *after* they are shown, so one attempt at the wrong instant would mean the
-     effect never appears. Try a few times over the next second, then stop. New cards that arrive are picked up; the
-     ones already settled are left alone. */
+  /* Single lightweight settle pass per page visit (no 5-timer layout-thrash cascade) */
   const settleSoon = panel => {
     const mine = ++satToken;
-    [0, 140, 380, 720, 1100].forEach(ms => setTimeout(() => {
+    requestAnimationFrame(() => {
       if (mine !== satToken || still() || !panel) return;
-      if (panel !== document.getElementById('p-' + A.cur)) return;                                 // the user moved on
+      if (panel !== document.getElementById('p-' + A.cur)) return;
       settle(panel, mine);
-    }, ms));
+    });
   };
   A.motion.settle = panel => settle(panel || document.querySelector('.panel.on'), ++satToken);
   document.addEventListener('click', e => {
@@ -79,19 +77,17 @@
     const wrap = panels() && panels().parentElement;
     /* name the content region, so the browser cross-fades only this area and leaves the app bar alone */
     if (wrap) wrap.classList.add('content-swap');
+    const HEAVY_TABS = new Set(['brain', 'globe', 'play', 'studio', 'web', 'coding', 'photos']);
     const orig = A.showTab;
     let inflight = 0;
     A.showTab = function (name) {
-      const to = A.order.indexOf(name), from = A.order.indexOf(A.cur);
+      const prev = A.cur;
+      const to = A.order.indexOf(name), from = A.order.indexOf(prev);
       const dir = to >= from ? 1 : -1;
       let panel = null; try { panel = document.getElementById('p-' + name); } catch (e) { }
-      /* motion off, hidden window, a missing panel, or a browser without view transitions: switch cleanly, no animation */
-      if (still() || !panel || !document.startViewTransition) {
+      /* Skip heavy full-screen GPU screenshot viewTransition on WebGL/interactive tabs so switching is instant (<16ms) */
+      if (still() || !panel || !document.startViewTransition || HEAVY_TABS.has(name) || HEAVY_TABS.has(prev)) {
         orig(name);
-        if (!still() && panel && panel.animate) {                                  // the gentler fallback: the page rises into place
-          try { panel.getAnimations().forEach(a => a.cancel()); panel.animate([{ opacity: 0, transform: 'translateY(' + (10 * mv() * dir) + 'px)' }, { opacity: 1, transform: 'none' }], { duration: 240, easing: EASE }); } catch (e) { }
-          settleSoon(panel);
-        }
         return;
       }
       try {

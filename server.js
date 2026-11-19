@@ -1031,10 +1031,16 @@ if (url === '/api/chat' && req.method === 'POST') {
       res.writeHead(200, { 'Content-Type': 'application/zip', 'Content-Disposition': 'attachment; filename="' + path.basename(z) + '"', 'Content-Length': fs.statSync(z).size });
       return fs.createReadStream(z).on('close', () => extra.rm(z)).pipe(res);
     }
-    /* ---- Git push to GitHub (execFileSync only + strict ref validation + pre-push secret scan) ---- */
+    /* ---- Git push to GitHub (async execFile + strict ref validation + pre-push secret scan + instant ship) ---- */
     if (url === '/api/git/push' && req.method === 'POST') {
       if (!fs.existsSync(path.join(ROOT, '.author-copy'))) {
         return json(res, 403, { error: 'Git push is only enabled on the author copy.' });
+      }
+      if (offline.isAppOffline()) {
+        return json(res, 400, { error: 'App Offline Lockdown is ON — switch it off in Settings › Offline & Air-Gap to push to GitHub.' });
+      }
+      if (global._msGitPushBusy) {
+        return json(res, 409, { error: 'A GitHub push is already running — please wait a few seconds.' });
       }
       const b = await jbody(req, 1e4);
       const addAll = b && typeof b.addAll === 'boolean' ? b.addAll : true;
@@ -1047,7 +1053,14 @@ if (url === '/api/chat' && req.method === 'POST') {
       if (rawBranch && !/^[A-Za-z0-9][A-Za-z0-9._\/-]{0,79}$/.test(rawBranch)) {
         return json(res, 400, { error: 'Invalid git branch name.' });
       }
-      const gitRun = (args, timeout = 15000) => cp.execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', timeout, windowsHide: true });
+      const gitEnv = Object.assign({}, process.env, { GIT_TERMINAL_PROMPT: '0' });
+      const gitRunAsync = (args, timeout = 30000) => new Promise((resolve, reject) => {
+        cp.execFile('git', args, { cwd: ROOT, encoding: 'utf8', timeout, windowsHide: true, env: gitEnv, maxBuffer: 8 * 1024 * 1024 }, (err, stdout, stderr) => {
+          if (err) { err.stdout = stdout; err.stderr = stderr; return reject(err); }
+          resolve({ stdout: String(stdout || ''), stderr: String(stderr || '') });
+        });
+      });
+      global._msGitPushBusy = true;
       try {
         // Pre-push security gate: block push if ANY secret, private key, PII path, or forbidden data/ file is present
         const scan = secGuard.scanRepo(ROOT);
@@ -1057,55 +1070,70 @@ if (url === '/api/chat' && req.method === 'POST') {
         }
 
         let repoUrl = '';
-        try { repoUrl = gitRun(['config', '--get', 'remote.' + remote + '.url'], 5000).trim(); } catch (e) {}
+        try { repoUrl = (await gitRunAsync(['config', '--get', 'remote.' + remote + '.url'], 5000)).stdout.trim(); } catch (e) {}
         let currentBranch = '';
-        try { currentBranch = gitRun(['rev-parse', '--abbrev-ref', 'HEAD'], 5000).trim(); } catch (e) {}
+        try { currentBranch = (await gitRunAsync(['rev-parse', '--abbrev-ref', 'HEAD'], 5000)).stdout.trim(); } catch (e) {}
         const pushBranch = rawBranch || (currentBranch && currentBranch !== 'HEAD' ? currentBranch : 'main');
         if (!/^[A-Za-z0-9][A-Za-z0-9._\/-]{0,79}$/.test(pushBranch)) {
           return json(res, 400, { error: 'Invalid target branch.' });
         }
 
         let status = '';
-        try { status = gitRun(['status', '--porcelain'], 5000).trim(); } catch (e) {}
+        try { status = (await gitRunAsync(['status', '--porcelain'], 8000)).stdout.trim(); } catch (e) {}
 
+        let committed = false;
         if (addAll && status) {
-          gitRun(['add', '-A'], 10000);
+          await gitRunAsync(['add', '-A'], 20000);
           const stagedScan = secGuard.scanStaged(ROOT);
           if (!stagedScan.ok) {
-            try { gitRun(['reset'], 5000); } catch (e2) { }
+            try { await gitRunAsync(['reset'], 8000); } catch (e2) { }
             const preview = (stagedScan.findings || []).slice(0, 5).map(f => f.file + (f.line ? ':' + f.line : '') + ' (' + f.reason + ')').join('; ');
             return json(res, 400, { error: 'Commit blocked by security scanner: ' + (preview || stagedScan.error || 'secret detected') });
           }
-          const commitMsg = rawMessage || ('Auto-commit from Moundshroud: ' + new Date().toISOString().slice(0, 19).replace('T', ' '));
-          gitRun(['commit', '-m', commitMsg], 15000);
+          const commitMsg = rawMessage || ('Ship from Moundshroud: ' + new Date().toISOString().slice(0, 19).replace('T', ' '));
+          try {
+            await gitRunAsync(['commit', '-m', commitMsg], 20000);
+            committed = true;
+          } catch (ce) {
+            const cwhy = String(ce.stderr || ce.stdout || ce.message || '');
+            if (!/nothing to commit/i.test(cwhy)) throw ce;
+          }
         }
 
-        let pushOutput = '', forced = false;
-        try { pushOutput = gitRun(['push', remote, pushBranch], 120000); } catch (e) {
+        let pushOut = '', forced = false;
+        try {
+          const pr = await gitRunAsync(['push', remote, pushBranch], 120000);
+          pushOut = (pr.stdout + '\n' + pr.stderr).trim();
+        } catch (e) {
           const why = String(e.stderr || e.stdout || e.message || '');
           if (!/non-fast-forward|fetch first|rejected|behind its remote counterpart/i.test(why)) {
             return json(res, 500, { error: 'Git push failed: ' + why });
           }
-          try { gitRun(['fetch', remote, pushBranch], 60000); } catch (e2) { }
+          try { await gitRunAsync(['fetch', remote, pushBranch], 60000); } catch (e2) { }
           try {
-            pushOutput = gitRun(['push', '--force-with-lease=' + pushBranch, remote, pushBranch], 120000);
+            const pr2 = await gitRunAsync(['push', '--force-with-lease=' + pushBranch, remote, pushBranch], 120000);
             forced = true;
-            pushOutput = 'The history on ' + remote + '/' + pushBranch + ' was replaced with this PC\'s version.\n' + String(pushOutput || '');
+            pushOut = 'Synced ' + remote + '/' + pushBranch + ' with this PC.\n' + (pr2.stdout + '\n' + pr2.stderr).trim();
           } catch (e3) {
             return json(res, 500, { error: 'Git push failed: ' + String(e3.stderr || e3.stdout || e3.message || '') });
           }
         }
 
+        let sha = '';
+        try { sha = (await gitRunAsync(['rev-parse', '--short', 'HEAD'], 5000)).stdout.trim(); } catch (e) {}
         let webUrl = repoUrl.replace(/^(https?:\/\/)[^@\s]+@/, '$1');
         if (webUrl) {
           webUrl = webUrl.replace(/^git@github\.com:/, 'https://github.com/').replace(/\.git$/, '');
         }
-        return json(res, 200, { ok: true, repo: webUrl || 'unknown', branch: pushBranch, forced, output: String(pushOutput || '').trim(), hadChanges: !!status });
+        const upToDate = !committed && /everything up-to-date/i.test(pushOut);
+        return json(res, 200, { ok: true, repo: webUrl || 'unknown', branch: pushBranch, sha, committed, upToDate, forced, output: pushOut, hadChanges: !!status || !upToDate });
       } catch (e) {
-        return json(res, 500, { error: 'Git operation failed: ' + e.message });
+        return json(res, 500, { error: 'Git operation failed: ' + String(e.stderr || e.message || e) });
+      } finally {
+        global._msGitPushBusy = false;
       }
     }
-    /* ---- Share app: create portable zip (no personal data, secrets, or local runtimes) ---- */
+    /* ---- Share app: create portable zip (async, non-blocking, no personal data/secrets/runtimes) ---- */
     if (url === '/api/app/share' && req.method === 'POST') {
       const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
       const zipName = 'Moundshroud-' + stamp + '.zip';
@@ -1141,7 +1169,9 @@ if (url === '/api/chat' && req.method === 'POST') {
         const psScriptPath = path.join(tmpDir, 'zip.ps1');
         const psScript = `$ErrorActionPreference = 'Stop'\nCompress-Archive -Path "${appDir.replace(/\\/g, '\\\\')}\\*" -DestinationPath "${zipPath.replace(/\\/g, '\\\\')}" -Force`;
         fs.writeFileSync(psScriptPath, psScript, 'utf8');
-        cp.execFileSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', psScriptPath], { timeout: 120000, encoding: 'utf8', windowsHide: true });
+        await new Promise((resolve, reject) => {
+          cp.execFile('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', psScriptPath], { timeout: 120000, encoding: 'utf8', windowsHide: true }, err => err ? reject(err) : resolve());
+        });
         
         // Cleanup temp dir
         extra.rm(tmpDir);
