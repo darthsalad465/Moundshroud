@@ -1,8 +1,7 @@
 # What is new in this version: one line each. Shown in the app's "Update available" box and on the release page.
 # Lines starting with # are ignored. Replace these lines for each new version.
-Updates from inside the app: you are told when a new version is out, and one click installs it while keeping all your things.
-Chess › Scan: turn a picture of any chess position (a screenshot, a book diagram or a photo) into a board you can analyse or play.
-Chess › Lichess: play real games online on your own free Lichess account.
-A tidier top bar: Office, Education, Personal, Entertainment, Cyber, Studio, Tools and Prepare.
-Claude can be connected for harder questions, with private material kept on your PC unless you allow it.
-Stronger and safer: a page that fails can no longer freeze the app, and the offline library is kept apart from the rest.
+True standalone desktop app: runs directly on app://moundshroud/ with zero localhost server, zero open TCP ports, and an off-thread Node backend.
+Built-in Ctrl+Alt+A global hotkey, system tray controls, Start with Windows option, and automatic one-time data migration from previous Edge profiles.
+Instant startup even with multi-gigabyte search indexes (skips unchanged notes on boot instead of rescanning the full FTS5 database).
+35 micro open-source tools integrated across Notes, Search, Money, Sky, Study, Vault, Photos, Calendar, Kitchen, Music, Paint, and Tools › Micro Tools.
+Rebuilt Terminal Hacker game with real Unix-style help, pipes, chaining, tab autocomplete, and fixed commands.
