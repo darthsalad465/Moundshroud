@@ -603,4 +603,89 @@ module.exports = async ok => {
   try { fs.rmSync(dir4, { recursive: true, force: true }); } catch (e) { }
   try { fs.rmSync(dir7, { recursive: true, force: true }); } catch (e) { }
   try { fs.unlinkSync(outside); } catch (e) { }
+
+  /* ---- chat mode works like Ollama's own chat: no tools offered, none run, and only the plain conversation sent ---- */
+  {
+    const dirC = fs.mkdtempSync(path.join(require('os').tmpdir(), 'mc-chat-'));
+    const sentC = [], toolsC = [];
+    let replyC = { ok: true, text: 'Here you go.', calls: [{ function: { name: 'write_file', arguments: { path: 'made.txt', content: 'x' } } }] };
+    const HC = N.create({ dataDir: dirC, prepare: async () => ({ ok: true }), ask: async (msgs, tools) => { sentC.push(JSON.parse(JSON.stringify(msgs))); toolsC.push(tools); return replyC; } });
+    await HC.start({ check: { model: 'm', agentModel: 'm-agent', ctx: 32768 }, dir: dirC, mode: 'chat' });
+    HC.send('please write made.txt');
+    for (let i = 0; i < 300 && HC.state(0).busy; i++) await new Promise(r => setTimeout(r, 10));
+    ok('chat mode: no tools are offered to the model', toolsC.length > 0 && toolsC.every(t => !t || !t.length));
+    ok('chat mode: a tool call the model sends anyway is never run', !fs.existsSync(path.join(dirC, 'made.txt')));
+    const sys = (sentC[0] || []).find(m => m.role === 'system');
+    ok('chat mode: the system line names no tools', !!sys && !/read_file|run_command|write_file|craft_anything|update_plan/.test(sys.content), sys && sys.content);
+    /* code-mode history (a tool call and its result) is left out of what chat sends */
+    replyC = { ok: true, text: 'Done.', calls: [] };
+    HC.setMode('code');
+    const before = sentC.length;
+    replyC = { ok: true, text: '', calls: [{ function: { name: 'list_files', arguments: { path: '.' } } }] };
+    let flip = 0;
+    const HC2 = N.create({ dataDir: dirC, prepare: async () => ({ ok: true }), ask: async (msgs, tools) => { sentC.push(JSON.parse(JSON.stringify(msgs))); toolsC.push(tools); return flip++ === 0 ? { ok: true, text: '', calls: [{ function: { name: 'list_files', arguments: { path: '.' } } }] } : { ok: true, text: 'Two files.', calls: [] }; } });
+    await HC2.start({ check: { model: 'm', agentModel: 'm-agent', ctx: 32768 }, dir: dirC, mode: 'code' });
+    HC2.send('list the files');
+    for (let i = 0; i < 300 && HC2.state(0).busy; i++) { const st = HC2.state(0); if (st.pending.length) HC2.answer(st.pending[0].id, true); await new Promise(r => setTimeout(r, 10)); }
+    HC2.setMode('chat');
+    HC2.send('thanks, what did you find?');
+    for (let i = 0; i < 300 && HC2.state(0).busy; i++) await new Promise(r => setTimeout(r, 10));
+    const lastChat = sentC[sentC.length - 1] || [];
+    ok('chat mode: tool calls and tool results from code mode are not sent', sentC.length > before && lastChat.every(m => m.role !== 'tool' && !m.tool_calls), JSON.stringify(lastChat.map(m => m.role)));
+    ok('chat mode: the earlier plain answers are still in the conversation', lastChat.some(m => m.role === 'assistant' && /Two files/.test(m.content)) && lastChat.some(m => m.role === 'user' && /list the files/.test(m.content)));
+    /* a session that opens in chat makes no agent copy until the first code-mode turn needs it, and then only once */
+    let preps = 0;
+    const HP = N.create({ dataDir: dirC, prepare: async () => { preps++; return { ok: true }; }, ask: async () => ({ ok: true, text: 'fine', calls: [] }) });
+    await HP.start({ check: { model: 'm', agentModel: 'm-agent', ctx: 32768 }, dir: dirC, mode: 'chat' });
+    ok('chat start: no agent copy is made while it only talks', preps === 0);
+    HP.send('hello'); for (let i = 0; i < 200 && HP.state(0).busy; i++) await new Promise(r => setTimeout(r, 10));
+    HP.setMode('code'); HP.send('now work'); for (let i = 0; i < 200 && HP.state(0).busy; i++) await new Promise(r => setTimeout(r, 10));
+    HP.send('again'); for (let i = 0; i < 200 && HP.state(0).busy; i++) await new Promise(r => setTimeout(r, 10));
+    ok('chat start: the first code turn makes the copy, once', preps === 1, String(preps));
+    try { fs.rmSync(dirC, { recursive: true, force: true }); } catch (e) { }
+  }
+
+  /* ---- edits small models get wrong: spacing, a missing path, an edit that changes nothing, a call repeated ---- */
+  {
+    const dirE = fs.mkdtempSync(path.join(require('os').tmpdir(), 'mc-edit-'));
+    const cfg = path.join(dirE, 'config.json');
+    fs.writeFileSync(cfg, '{\n  "port": 3000,\n  "debug": true\n}\n');
+    const runScript = async (calls, autonomy) => {
+      let i = 0; const results = [];
+      const HE = N.create({ dataDir: dirE, prepare: async () => ({ ok: true }), ask: async () => (i < calls.length ? { ok: true, text: '', calls: [calls[i++]] } : { ok: true, text: 'done', calls: [] }) });
+      await HE.start({ check: { model: 'm', agentModel: 'm', ctx: 32768 }, dir: dirE });
+      HE.setAutonomy && HE.setAutonomy(autonomy || 'auto');
+      HE.send('go');
+      for (let k = 0; k < 500 && HE.state(0).busy; k++) { const st = HE.state(0); if (st.pending.length) HE.answer(st.pending[0].id, true); await new Promise(r => setTimeout(r, 10)); }
+      return HE.state(0).events.filter(e => e.kind === 'result').map(e => ({ text: e.text, bad: !!e.isError }));
+    };
+    const call = (name, args) => ({ function: { name, arguments: args } });
+    /* one space of indentation where the file has two: matched anyway, once */
+    let r = await runScript([call('edit_file', { path: 'config.json', find: '{\n "port": 3000,\n "debug": true\n}', replace: '{\n "port": 8080,\n "debug": true\n}' })]);
+    ok('edit: a copy with different spacing still matches the one place', /"port": 8080/.test(fs.readFileSync(cfg, 'utf8')) && JSON.parse(fs.readFileSync(cfg, 'utf8')).debug === true && /different spacing/.test(r[0].text), r[0] && r[0].text);
+    /* no path, right after reading the file: the file read last is used */
+    r = await runScript([call('read_file', { path: 'config.json' }), call('edit_file', { find: '"debug": true', replace: '"debug": false' })]);
+    ok('edit: no path after a read uses the file read last, and says so', JSON.parse(fs.readFileSync(cfg, 'utf8')).debug === false && /file used last/.test(r[1].text), r[1] && r[1].text);
+    /* an edit whose new text equals the old is refused, not reported as done */
+    r = await runScript([call('edit_file', { path: 'config.json', find: '"debug": false', replace: '"debug": false' })]);
+    ok('edit: an edit that changes nothing is refused', r[0].bad && /changes nothing/.test(r[0].text), r[0] && r[0].text);
+    /* the same failing call a third time is not run */
+    const same = call('edit_file', { path: 'config.json', find: 'nowhere in the file', replace: 'x' });
+    r = await runScript([same, same, same]);
+    ok('edit: a call that failed twice is not run a third time', r.length === 3 && r.every(x => x.bad) && /already failed twice/.test(r[2].text), JSON.stringify(r.map(x => x.text.slice(0, 40))));
+    /* multi_edit sent as JSON text still works */
+    r = await runScript([call('multi_edit', { path: 'config.json', edits: JSON.stringify([{ find: '"port": 8080', replace: '"port": 9090' }]) })]);
+    ok('edit: a multi_edit list sent as JSON text works', /9090/.test(fs.readFileSync(cfg, 'utf8')) && !r[0].bad, r[0] && r[0].text);
+    /* a failed command shows its exit code and its error output, not "unknown" */
+    fs.writeFileSync(path.join(dirE, 'boom.js'), 'throw new Error("kaboom here")\n');
+    r = await runScript([call('run_command', { command: 'node boom.js' })]);
+    ok('command: a failed command shows its exit code and its error', r[0].bad && /exit code 1/.test(r[0].text) && /kaboom here/.test(r[0].text), r[0] && r[0].text.slice(0, 200));
+    /* a name that is almost right gets the right one suggested */
+    r = await runScript([call('read_file', { path: 'confg.json' })]);
+    ok('read: a misspelled name gets the close one suggested', r[0].bad && /Did you mean config\.json/.test(r[0].text), r[0] && r[0].text);
+    /* "*.js" given to search_files lists the files it names */
+    r = await runScript([call('search_files', { pattern: '*.js' })]);
+    ok('search: a file-name pattern lists the files it names', !r[0].bad && /boom\.js/.test(r[0].text) && /file-name pattern/.test(r[0].text), r[0] && r[0].text);
+    try { fs.rmSync(dirE, { recursive: true, force: true }); } catch (e) { }
+  }
 };

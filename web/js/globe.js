@@ -2006,7 +2006,7 @@
               '<div class="glb-pk-lbl">2. Choose Map Style &amp; Detail Level</div>' +
               '<select class="glb-sel" id="glb-pk-style" style="width:100%">' +
                 '<option value="streets">🏙️ Street Map OSM (Best for roads &amp; towns)</option>' +
-                '<option value="hybrid">🛰️ Satellite + Labels (Aerial imagery + names)</option>' +
+                '<option value="hybrid" selected>🛰️ Satellite + Labels (Aerial imagery + names)</option>' +
                 '<option value="satellite">🛰️ Satellite Pure (Aerial imagery only)</option>' +
                 '<option value="topo">⛰️ Topographic (Terrain, elevation &amp; trails)</option>' +
                 '<option value="dark">🌑 Dark Street Map (Low-light streets)</option>' +
@@ -2174,6 +2174,7 @@
       // Click handling: prioritizes OSINT contacts -> Webcams -> Cables -> Pins -> Cities -> Countries -> Ocean
       map.on('click', e => {
         stopSpinOnInteract();
+        if (A.globe?.measurementClick?.(e.lngLat)) return;
         if (S.measureOn) {
           if (S.measurePts.length >= 2) S.measurePts = [];
           S.measurePts.push([e.lngLat.lng, e.lngLat.lat]);
@@ -2589,7 +2590,8 @@
     }
   }
 
-  A.globe = { open: () => A.showTab('globe'), flyTo: flyToPlace, cmd: runAiCommand };
+  A.globe = { open: () => A.showTab('globe'), flyTo: flyToPlace, cmd: runAiCommand,
+    measurementMap: () => S.map, savedPlaces: () => S.pins.map(({name,lat,lon})=>({name,lat,lon})) };
   A.registerTab('globe', '3D Globe', () => {
     build();
     if (S.map) {

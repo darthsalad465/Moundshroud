@@ -72,12 +72,26 @@
         if (tm) { hh = +tm[1]; mm = +(tm[2] || 0); const ap = (tm[3] || '').toLowerCase(); if (ap === 'pm' && hh < 12) hh += 12; if (ap === 'am' && hh === 12) hh = 0; if (hh > 23 || mm > 59 || (ap && +tm[1] > 12)) return null; used.push(tm[0]); }
         else if (d = low.match(/\b(?:at\s+)?(noon|midday|midnight)\b/)) { hh = d[1] === 'midnight' ? 0 : 12; used.push(d[0]); if (d[1] === 'midnight' && !dayWord) { base.setDate(base.getDate() + 1); dayWord = 'midnight'; } }
         else if (d = low.match(/\bin the (morning|afternoon|evening)\b/)) { hh = { morning: 9, afternoon: 15, evening: 19 }[d[1]]; used.push(d[0]); }
-        if (hh === null && !dayWord) return null;
-        if (hh === null) hh = 9;
-        base.setHours(hh, mm, 0, 0);
-        if (base.getTime() <= now.getTime() && !dayWord) base.setDate(base.getDate() + 1);
-        else if (base.getTime() <= now.getTime() && (dayWord === 'today' || dayWord === 'date')) return null;
-        at = base.getTime();
+        if (!dayWord && typeof window !== 'undefined' && window.chrono && typeof window.chrono.parse === 'function') {
+          try {
+            const hit = window.chrono.parse(t, now, { forwardDate: true })[0];
+            if (hit && hit.start) {
+              const dt = hit.start.date();
+              if (dt && dt.getTime() > now.getTime() && (hh === null || dt.toDateString() !== now.toDateString())) {
+                at = dt.getTime();
+                used.push(hit.text.toLowerCase());
+              }
+            }
+          } catch (e) { }
+        }
+        if (!at && hh === null && !dayWord) return null;
+        if (!at) {
+          if (hh === null) hh = 9;
+          base.setHours(hh, mm, 0, 0);
+          if (base.getTime() <= now.getTime() && !dayWord) base.setDate(base.getDate() + 1);
+          else if (base.getTime() <= now.getTime() && (dayWord === 'today' || dayWord === 'date')) return null;
+          at = base.getTime();
+        }
       }
       let what = t; for (const u of used) { const i = what.toLowerCase().indexOf(u); if (i >= 0) what = what.slice(0, i) + ' ' + what.slice(i + u.length); }
       what = what.replace(/\b(please|remind me|set (a|an) reminder|reminder)\b/gi, ' ').replace(/^\s*(to|about|that)\s+/i, '').replace(/\s+(to|about|that)\s*$/i, '').replace(/\s+/g, ' ').replace(/^[\s,:-]+|[\s,:-]+$/g, '');

@@ -77,6 +77,18 @@
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const host = u => { try { return new URL(/^https?:/i.test(u) ? u : 'https://' + u).hostname.replace(/^www\./, ''); } catch (e) { return ''; } };
   const ago = t => { if (!t) return ''; const d = (Date.now() - t) / 864e5; return d < 1 ? 'today' : d < 2 ? 'yesterday' : d < 60 ? Math.round(d) + ' days ago' : d < 730 ? Math.round(d / 30) + ' months ago' : Math.round(d / 365) + ' years ago'; };
+  let totpIv = 0;
+  function totpNow(raw) {
+    if (!raw || !window.OTPAuth) return null;
+    try {
+      const s = String(raw).trim();
+      const t = /^otpauth:\/\//i.test(s)
+        ? window.OTPAuth.URI.parse(s)
+        : new window.OTPAuth.TOTP({ algorithm: 'SHA1', digits: 6, period: 30, secret: window.OTPAuth.Secret.fromBase32(s.replace(/[\s-]+/g, '').toUpperCase()) });
+      const period = t.period || 30, left = period - (Math.floor(Date.now() / 1000) % period);
+      return { code: t.generate(), left, period };
+    } catch (e) { return null; }
+  }
 
   /* ---------- drawing ---------- */
   function shell(inner) {
@@ -148,13 +160,14 @@
     const ql = q.toLowerCase(), shown = items.filter(x => !ql || [x.title, x.user, x.url, x.tags, x.notes].join(' ').toLowerCase().includes(ql));
     shell(bar() + '<div class="nw-row" style="gap:6px;margin-bottom:10px"><input id="vtq" placeholder="Search ' + items.length + ' logins…" value="' + esc(q) + '" style="flex:1"><button class="pri" id="vtadd">＋ Add a login</button></div>' +
       (items.length ? '' : '<div class="card"><b>Your vault is empty.</b><div class="small mute" style="margin-top:4px;line-height:1.5">Press <b>＋ Add a login</b>, or bring in the passwords saved in Edge, Chrome, Firefox or another password manager: export them there as a CSV file, then use <b>⚙ Vault › Import</b>. Delete that CSV file afterwards: it is not encrypted.</div></div>') +
-      '<div class="vt-list">' + shown.map(x => '<div class="vt-row card" data-id="' + esc(x.id) + '" tabindex="0"><div class="vt-ic">' + esc((x.title || host(x.url) || '?').trim()[0].toUpperCase()) + '</div><div style="flex:1;min-width:0"><b>' + (x.fav ? '★ ' : '') + esc(x.title || host(x.url) || 'Untitled') + '</b><div class="small mute" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(x.user || '') + (x.url ? ' · ' + esc(host(x.url)) : '') + '</div></div>' +
-        '<button class="ib" data-cu title="Copy the user name">👤</button><button class="ib" data-cp title="Copy the password">🔑</button></div>').join('') + (items.length && !shown.length ? '<div class="mute">Nothing matches.</div>' : '') + '</div>');
+      '<div class="vt-list">' + shown.map(x => '<div class="vt-row card" data-id="' + esc(x.id) + '" tabindex="0"><div class="vt-ic">' + esc((x.title || host(x.url) || '?').trim()[0].toUpperCase()) + '</div><div style="flex:1;min-width:0"><b>' + (x.fav ? '★ ' : '') + esc(x.title || host(x.url) || 'Untitled') + '</b><div class="small mute" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(x.user || '') + (x.url ? ' · ' + esc(host(x.url)) : '') + (x.totp ? ' · 🔐 2FA' : '') + '</div></div>' +
+        (x.totp ? '<button class="ib" data-c2fa title="Copy current 2FA code">🔐</button>' : '') + '<button class="ib" data-cu title="Copy the user name">👤</button><button class="ib" data-cp title="Copy the password">🔑</button></div>').join('') + (items.length && !shown.length ? '<div class="mute">Nothing matches.</div>' : '') + '</div>');
     wireBar();
     const qi = root.querySelector('#vtq'); qi.oninput = () => { q = qi.value; const pos = qi.selectionStart; drawList(); const n = root.querySelector('#vtq'); n.focus(); n.setSelectionRange(pos, pos); };
     root.querySelector('#vtadd').onclick = () => { sel = null; view = 'edit'; draw(); };
     root.querySelector('.vt-list').onclick = e => {
       const row = e.target.closest('[data-id]'); if (!row) return; const it = data.items.find(x => x.id === row.dataset.id); if (!it) return;
+      if (e.target.closest('[data-c2fa]')) { const t = totpNow(it.totp); return t ? copySecret(t.code, '2FA code (' + t.code + ')') : A.toast('Invalid 2FA secret.'); }
       if (e.target.closest('[data-cu]')) return copySecret(it.user || '', 'User name');
       if (e.target.closest('[data-cp]')) return copySecret(it.pw || '', 'Password');
       sel = it.id; view = 'edit'; draw();
@@ -162,33 +175,45 @@
   }
 
   function drawEdit() {
-    const it = sel ? data.items.find(x => x.id === sel) : null, x = it || { title: '', user: '', pw: '', url: '', notes: '', tags: '' };
+    clearInterval(totpIv);
+    const it = sel ? data.items.find(x => x.id === sel) : null, x = it || { title: '', user: '', pw: '', totp: '', url: '', notes: '', tags: '' };
     shell(bar() + '<div class="card" style="max-width:640px"><h3 style="margin:0 0 10px">' + (it ? esc(it.title || 'Login') : 'Add a login') + '</h3>' +
       '<label class="small mute">Name</label><input id="vtt" value="' + esc(x.title) + '" placeholder="e.g. Bank, Email" style="width:100%;margin-bottom:8px">' +
       '<label class="small mute">Web address</label><div style="display:flex;gap:6px;margin-bottom:8px"><input id="vtu" value="' + esc(x.url) + '" placeholder="https://…" style="flex:1">' + (x.url ? '<a class="ib" href="' + esc(/^https?:/i.test(x.url) ? x.url : 'https://' + x.url) + '" target="_blank" rel="noopener noreferrer">↗ Open</a>' : '') + '</div>' +
       '<label class="small mute">User name or email</label><div style="display:flex;gap:6px;margin-bottom:8px"><input id="vtus" value="' + esc(x.user) + '" style="flex:1" autocomplete="off"><button class="ib" id="vtcu">Copy</button></div>' +
       '<label class="small mute">Password</label><div style="display:flex;gap:6px"><input id="vtp" type="password" value="' + esc(x.pw) + '" style="flex:1;font-family:monospace" autocomplete="new-password"><button class="ib" id="vtshow">👁</button><button class="ib" id="vtcp">Copy</button><button class="ib" id="vtgen" title="Make a strong one">🎲</button></div><div id="vtps" style="margin:6px 0 8px">' + meter(x.pw) + '</div>' +
+      '<label class="small mute">2FA Authenticator secret or otpauth:// URI (optional, offline TOTP)</label><div style="display:flex;gap:6px;margin-bottom:6px"><input id="vt2fa" value="' + esc(x.totp || '') + '" placeholder="Base32 key or otpauth://totp/…" style="flex:1;font-family:monospace" autocomplete="off"><button class="ib" id="vt2cp" title="Copy 6-digit code">Copy 2FA</button></div><div id="vt2live" class="small" style="margin-bottom:8px;font-family:monospace"></div>' +
       '<label class="small mute">Notes (security questions, PINs, recovery codes…)</label><textarea id="vtn" rows="3" style="width:100%;margin-bottom:8px">' + esc(x.notes) + '</textarea>' +
       '<label class="small mute">Tags</label><input id="vttg" value="' + esc(x.tags) + '" placeholder="work, family…" style="width:100%;margin-bottom:8px">' +
       '<label class="small" style="display:flex;gap:6px;align-items:center;margin-bottom:10px"><input type="checkbox" id="vtfav"' + (x.fav ? ' checked' : '') + '> ★ Favourite (shown first)</label>' +
       (it ? '<div class="small mute" style="margin-bottom:10px">Added ' + ago(it.created) + ' · password changed ' + ago(it.pwAt || it.created) + (it.hist && it.hist.length ? ' · <a href="#" id="vthist">' + it.hist.length + ' earlier password' + (it.hist.length > 1 ? 's' : '') + '</a>' : '') + '</div><div id="vthl"></div>' : '') +
       '<div style="display:flex;gap:6px"><button class="pri" id="vtsave">Save</button><button class="ib" id="vtcancel">Cancel</button><span style="flex:1"></span>' + (it ? '<button class="ib" id="vtdel" style="color:var(--bad)">Delete</button>' : '') + '</div></div>');
     wireBar();
-    const p = root.querySelector('#vtp'); p.oninput = () => { root.querySelector('#vtps').innerHTML = meter(p.value); };
+    const p = root.querySelector('#vtp'), f2 = root.querySelector('#vt2fa'), l2 = root.querySelector('#vt2live');
+    const tick2 = () => {
+      if (!l2.isConnected) return clearInterval(totpIv);
+      const raw = f2.value.trim();
+      if (!raw) { l2.innerHTML = ''; return; }
+      const t = totpNow(raw);
+      l2.innerHTML = t ? '<b style="font-size:18px;letter-spacing:3px;color:var(--ok)">' + t.code.slice(0, 3) + ' ' + t.code.slice(3) + '</b> <span class="mute">(' + t.left + 's left)</span>' : '<span style="color:var(--warn)">Enter a valid Base32 secret or otpauth:// URI</span>';
+    };
+    f2.oninput = tick2; tick2(); totpIv = setInterval(tick2, 1000);
+    root.querySelector('#vt2cp').onclick = () => { const t = totpNow(f2.value); if (t) copySecret(t.code, '2FA code'); else A.toast('No valid 2FA secret entered.'); };
+    p.oninput = () => { root.querySelector('#vtps').innerHTML = meter(p.value); };
     root.querySelector('#vtshow').onclick = () => { p.type = p.type === 'password' ? 'text' : 'password'; };
     root.querySelector('#vtcp').onclick = () => p.value && copySecret(p.value, 'Password');
     root.querySelector('#vtcu').onclick = () => { const u = root.querySelector('#vtus').value; if (u) copySecret(u, 'User name'); };
     root.querySelector('#vtgen').onclick = () => { p.value = generate(genOpts()); p.type = 'text'; p.oninput(); };
     const h = root.querySelector('#vthist'); if (h) h.onclick = e => { e.preventDefault(); root.querySelector('#vthl').innerHTML = '<div class="card small">' + it.hist.map((o, i) => '<div style="display:flex;gap:6px;align-items:center;padding:2px 0"><code style="flex:1">••••••••</code><span class="mute">until ' + new Date(o.until).toLocaleDateString() + '</span><button class="ib" data-hc="' + i + '">Copy</button></div>').join('') + '</div>'; root.querySelectorAll('[data-hc]').forEach(b => b.onclick = () => copySecret(it.hist[+b.dataset.hc].pw, 'Earlier password')); };
-    root.querySelector('#vtcancel').onclick = () => { view = 'list'; sel = null; draw(); };
-    const del = root.querySelector('#vtdel'); if (del) del.onclick = async () => { if (!(await A.confirm('Delete “' + (it.title || 'this login') + '” from the vault? The previous five versions of the vault are kept, so a mistake can still be undone from ⚙ Vault.'))) return; data.items = data.items.filter(y => y.id !== it.id); if (await persist()) { A.toast('Deleted.'); view = 'list'; sel = null; draw(); } };
+    root.querySelector('#vtcancel').onclick = () => { clearInterval(totpIv); view = 'list'; sel = null; draw(); };
+    const del = root.querySelector('#vtdel'); if (del) del.onclick = async () => { if (!(await A.confirm('Delete “' + (it.title || 'this login') + '” from the vault? The previous five versions of the vault are kept, so a mistake can still be undone from ⚙ Vault.'))) return; data.items = data.items.filter(y => y.id !== it.id); if (await persist()) { clearInterval(totpIv); A.toast('Deleted.'); view = 'list'; sel = null; draw(); } };
     root.querySelector('#vtsave').onclick = async () => {
       const v = id => root.querySelector(id).value, now = Date.now();
-      const rec = { title: v('#vtt').trim(), url: v('#vtu').trim(), user: v('#vtus').trim(), pw: v('#vtp'), notes: v('#vtn'), tags: v('#vttg').trim(), fav: root.querySelector('#vtfav').checked };
+      const rec = { title: v('#vtt').trim(), url: v('#vtu').trim(), user: v('#vtus').trim(), pw: v('#vtp'), totp: v('#vt2fa').trim(), notes: v('#vtn'), tags: v('#vttg').trim(), fav: root.querySelector('#vtfav').checked };
       if (!rec.title && !rec.url && !rec.user) return A.toast('Give it a name, an address or a user name first.');
       if (it) { if (it.pw && it.pw !== rec.pw) { it.hist = [{ pw: it.pw, until: now }].concat(it.hist || []).slice(0, 5); it.pwAt = now; } Object.assign(it, rec, { updated: now }); }
       else data.items.push(Object.assign({ id: uid(), created: now, updated: now, pwAt: now }, rec));
-      if (await persist()) { A.toast('Saved and encrypted.'); view = 'list'; sel = null; draw(); }
+      if (await persist()) { clearInterval(totpIv); A.toast('Saved and encrypted.'); view = 'list'; sel = null; draw(); }
     };
   }
 

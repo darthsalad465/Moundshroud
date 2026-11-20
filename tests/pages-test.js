@@ -46,8 +46,47 @@ module.exports = async ok => {
     const tg = el.found.tg, to = el.found.to, ti = el.found.ti;
     ok('cyber games: the terminal shows the first mission', !!tg && /Mission 1 of/.test(tg.innerHTML), tg && tg.innerHTML.slice(0, 80));
     if (ti && ti.onkeydown && to) {
+      const runCmd = cmd => { to.kids = []; ti.value = cmd; ti.onkeydown({ key: 'Enter', preventDefault() { } }); return to.kids.map(k => k.textContent || k.innerHTML || '').join('\n'); };
       ti.value = 'pwd'; ti.onkeydown({ key: 'Enter', preventDefault() { } });
       ok('cyber games: typing pwd and Enter prints the folder', to.kids.some(k => k.textContent === '/home/you'), to.kids.map(k => k.textContent).join(' | ').slice(0, 160));
+      const helpOut = runCmd('help');
+      ok('cyber games: help prints structured terminal sections', /NAVIGATION/.test(helpOut) && /FILES &amp; SEARCH|FILES & SEARCH/.test(helpOut) && /DECODING &amp; PERMISSIONS|DECODING & PERMISSIONS/.test(helpOut), helpOut.slice(0, 160));
+      ok('cyber games: help <cmd> and --help show per-command usage', /Usage:/.test(runCmd('help grep')) && /Usage:/.test(runCmd('find --help')));
+      ok('cyber games: chaining (cd Documents && ls -a) and ~ paths work', /\.hidden_flag\.txt/.test(runCmd('cd Documents && ls -a')) && /todo\.txt/.test(runCmd('ls ~/Documents')));
+      ok('cyber games: cd - returns to previous folder', /\/home\/you/.test(runCmd('cd -')));
+      ok('cyber games: head -n, tail -n, cat -n, wc -l, tree, whoami work',
+        runCmd('head -n 2 Documents/todo.txt').split('\n').length >= 2 &&
+        /hide the flag better/.test(runCmd('tail -n 1 Documents/todo.txt')) &&
+        /1  buy milk/.test(runCmd('cat -n Documents/todo.txt')) &&
+        /3/.test(runCmd('wc -l Documents/todo.txt')) &&
+        /Documents\//.test(runCmd('tree')) &&
+        /you/.test(runCmd('whoami')));
+      ti.value = 'cd Doc'; ti.onkeydown({ key: 'Tab', preventDefault() { } });
+      ok('cyber games: Tab autocompletes folder names', ti.value === 'cd Documents/', ti.value);
+      runCmd('mission 2');
+      ok('cyber games: grep flags (-in) and pipes (cat | grep) work on Mission 2',
+        /FLAG\{grep_finds_needles\}/.test(runCmd('grep -in flag server.log')) &&
+        /FLAG\{grep_finds_needles\}/.test(runCmd('cat server.log | grep FLAG')));
+      runCmd('mission 3');
+      ok('cyber games: find works bare, with -iname, and with -type',
+        /master\.key/.test(runCmd('find /srv')) &&
+        /master\.key/.test(runCmd('find / -iname "MASTER.KEY"')) &&
+        /master\.key/.test(runCmd('find / -type f -name "*.key"')));
+      runCmd('mission 4');
+      ok('cyber games: base64 supports --decode, encode, and pipes',
+        /FLAG\{base64_is_not_encryption\}/.test(runCmd('base64 --decode message.b64')) &&
+        /FLAG\{base64_is_not_encryption\}/.test(runCmd('cat message.b64 | base64 -d')) &&
+        /hello/.test(runCmd('echo hello | base64 | base64 -d')));
+      runCmd('mission 5');
+      ok('cyber games: ls -l <file> shows permissions and chmod 644 unlocks vault.txt',
+        /----------/.test(runCmd('ls -l vault.txt')) &&
+        /readable/.test(runCmd('chmod 644 vault.txt')) &&
+        /FLAG\{permissions_matter\}/.test(runCmd('cat vault.txt')));
+      runCmd('mission 6');
+      ok('cyber games: Mission 6 full pipeline (find + chmod u+r + cat | base64 -d) works',
+        /\.vault_2026/.test(runCmd('find / -name ".vault*"')) &&
+        /readable/.test(runCmd('chmod u+r /opt/data/backups/.vault_2026')) &&
+        /FLAG\{you_are_a_terminal_wizard\}/.test(runCmd('cat /opt/data/backups/.vault_2026 | base64 -d')));
     } else ok('cyber games: the terminal input answers the Enter key', false, 'no input handler');
   }
 

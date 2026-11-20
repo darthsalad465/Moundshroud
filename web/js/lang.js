@@ -35,7 +35,7 @@
   const cefr = n => n < 150 ? 'Starter' : n < 600 ? 'A1' : n < 1200 ? 'A2' : n < 2000 ? 'B1' : n < 2800 ? 'B2' : 'B2+ Hero';
   const streak = () => { const d = new Set(P.days); let n = 0, t = new Date(); const key = x => x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); if (!d.has(key(t))) t.setDate(t.getDate() - 1); while (d.has(key(t))) { n++; t.setDate(t.getDate() - 1); } return n; };
   const sfx = n => { try { A.sfx && A.sfx.play(n); } catch (e) { } };
-  const confetti = () => { try { window.ChessFx && ChessFx.confetti(); } catch (e) { } };
+  const confetti = () => { try { if (typeof window.confetti === 'function') window.confetti({ particleCount: 70, spread: 65, origin: { y: 0.65 } }); else if (window.ChessFx) ChessFx.confetti(); } catch (e) { } };
   const addXp = n => { P.xp += n; P.dxp[today()] = (P.dxp[today()] || 0) + n; if (P.dxp[today()] >= S.goal && !P.days.includes(today())) P.days.push(today()); if (P.days.length > 400) P.days = P.days.slice(-400); };
   const W = i => D.words[i], SN = i => D.sents[i];
   const known = () => P.intro;                                        // words 0..known-1 are introduced

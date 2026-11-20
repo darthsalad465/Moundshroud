@@ -55,6 +55,7 @@
 !/scripts/update-readme.js
 !/scripts/check-github-safety.js
 !/scripts/install-git-safety.ps1
+!/scripts/install-micro-repos.ps1
 !/.githooks/
 /.githooks/*
 !/.githooks/pre-push

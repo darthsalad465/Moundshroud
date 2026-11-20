@@ -25,7 +25,7 @@
       '<div class="rd-banner" style="margin:0 0 8px">🛡 <b>You are editing Moundshroud itself.</b><span class="small" style="flex:1;min-width:200px">Every save keeps the previous version first, JavaScript is checked before it is written, and ↩ History puts an older version back. Files under <b>web/</b> show after a reload; <b>lib/</b> and <b>server.js</b> need the app restarted.</span></div>' +
       '<div class="ae-split"><div class="ae-side"><input id="aeq" type="search" placeholder="Filter the files here…" autocomplete="off"><div class="ae-path" id="aepath"></div><div class="row" style="padding:0 7px 6px;gap:4px"><button class="ib" id="aenew">＋ File</button><button class="ib" id="aefolder">＋ Folder</button><button class="ib" id="aemove">↪ Move</button><button class="ib dang" id="aeremove">Delete</button></div><div class="scroll" id="aefiles"></div></div>' +
       '<div class="ae-main"><div class="ae-head"><b id="aename">Pick a file on the left</b><span class="small mute" id="aemeta"></span><span style="flex:1"></span><button class="ib" id="aeassistant" title="Show or hide the local code helper">Assistant</button><button class="ib" id="aefull" title="Expand the code editor">⛶ Fullscreen</button>' +
-      '<button class="ib" id="aehist" title="Older versions of this file">↩ History</button><button class="ib" id="aecheck" title="Check the JavaScript without saving">✓ Check</button><button class="pri" id="aesave" title="Save (Ctrl+S)">💾 Save</button></div>' +
+      '<button class="ib" id="aehist" title="Older versions of this file">↩ History</button><button class="ib" id="aediff" title="Compare unsaved edits against the saved file (jsdiff)">± Diff</button><button class="ib" id="aecheck" title="Check the JavaScript without saving">✓ Check</button><button class="pri" id="aesave" title="Save (Ctrl+S)">💾 Save</button></div>' +
       '<div class="small" id="aemsg"></div>' +
       '<div class="ce-tabs" id="aetabs"></div>' +
       '<textarea id="aeta" data-code data-save="aesave" spellcheck="false" placeholder="Open a file on the left. Nothing here is saved until you press 💾 Save."></textarea>' +
@@ -39,6 +39,14 @@
     $('#aesave').onclick = save;
     $('#aecheck').onclick = checkNow;
     $('#aehist').onclick = history;
+    $('#aediff').onclick = () => {
+      const t = curTab(); if (!t) return A.toast('Open a file first.');
+      const cur = $('#aeta').value;
+      if (cur === t.orig) return A.toast('No unsaved changes in ' + t.id);
+      const body = A.micro && A.micro.diffHtml ? A.micro.diffHtml(t.orig, cur, 'lines') : '<pre class="small">Diff helper unavailable.</pre>';
+      A.dlg('<div class="hd"><b>± Unsaved changes — ' + esc(t.id) + '</b></div><div class="bd">' + body + '<div class="row" style="margin-top:10px"><span class="sp"></span><button class="ib" id="aedc">Close</button></div></div>', true);
+      document.getElementById('aedc').onclick = () => A.closeDlg();
+    };
     $('#aenew').onclick = newFile; $('#aefolder').onclick = newFolder; $('#aemove').onclick = moveFile; $('#aeremove').onclick = removeFile;
     $('#aesend').onclick = sendChat; $('#aeclear').onclick = () => { chat = []; suggestions = []; renderChat(); };
     $('#aefull').onclick = toggleExpanded;
@@ -300,9 +308,16 @@
   async function findEverywhere() {
     const q = (await A.prompt('Find a word or a piece of code in every file of the app:'));
     if (!q || !q.trim()) return;
-    const r = await A.api('/api/app/search', { q: q.trim(), n: 40 }).catch(() => null);
-    const hits = (r && r.results) || [];
-    A.dlg('<div class="hd"><b>🔎 “' + esc(q) + '”</b></div><div class="bd">' +
+    let hits = [], via = '';
+    const rg = await A.api('/api/micro/rg', { q: q.trim(), max: 80 }).catch(() => null);
+    if (rg && rg.ok && Array.isArray(rg.hits)) {
+      hits = rg.hits.map(h => ({ rel: h.rel, snippet: 'L' + h.line + ': ' + h.text }));
+      via = ' · ripgrep';
+    } else {
+      const r = await A.api('/api/app/search', { q: q.trim(), n: 40 }).catch(() => null);
+      hits = (r && r.results) || [];
+    }
+    A.dlg('<div class="hd"><b>🔎 “' + esc(q) + '”</b><span class="small mute">' + via + '</span></div><div class="bd">' +
       (hits.length ? hits.map(h => '<div class="row" style="gap:8px;padding:6px 0;border-top:1px solid var(--line);cursor:pointer" data-open="' + esc(h.rel || h.path || '') + '"><b style="flex:1;min-width:150px">' + esc(h.rel || h.path || '') + '</b><span class="small mute">' + esc(String(h.snippet || h.text || '').slice(0, 70)) + '</span></div>').join('')
         : '<div class="mute small">Nothing in the app mentions that.</div>') +
       '<div class="row" style="margin-top:10px"><span class="sp"></span><button class="ib" id="aefc">Close</button></div></div>', true);

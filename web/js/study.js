@@ -82,14 +82,43 @@ function deckPage(d) {
     };
   }
 
-  /* ---------------- flashcards (spaced repetition) ---------------- */
+  /* ---------------- flashcards (FSRS spaced repetition with SM-2 fallback) ---------------- */
+  const fsrsEngine = () => (window.FSRS && typeof window.FSRS.fsrs === 'function' ? window.FSRS.fsrs() : null);
+  const fsrsCardOf = c => {
+    if (!window.FSRS) return null;
+    if (c.fsrs) {
+      const f = Object.assign({}, c.fsrs);
+      f.due = new Date(f.due || Date.now());
+      if (f.last_review) f.last_review = new Date(f.last_review);
+      return f;
+    }
+    const empty = window.FSRS.createEmptyCard(new Date(c.due || Date.now()));
+    if (c.reps > 0) { empty.reps = c.reps; empty.scheduled_days = c.int || 1; empty.stability = Math.max(1, c.int || 1); empty.state = window.FSRS.State.Review; }
+    return empty;
+  };
+  const fmtWait = ms => {
+    const m = Math.max(1, Math.round(ms / 6e4));
+    if (m < 60) return m + 'm';
+    const h = Math.round(m / 60);
+    if (h < 24) return h + 'h';
+    const d = Math.round(h / 24);
+    return d < 30 ? d + 'd' : d < 365 ? Math.round(d / 30) + 'mo' : (d / 365).toFixed(1) + 'y';
+  };
   function flash(d) {
     queue = due(d).sort((a, b) => a.due - b.due); if (!queue.length) return A.toast('Nothing due - nice!'); showing = false; flashStep(d);
   }
   function flashStep(d) {
     if (!queue.length) { logDay(); return done('All due cards reviewed', '', d); }
     const c = queue[0];
-    shell(head(c.deck, queue.length + ' left'), '<div class="flip"><div class="flash" id="fl" style="margin-top:10px">' + esc(showing ? c.a : c.q) + '</div></div>' + (showing ? '<div class="grade"><button data-g="0">Again</button><button data-g="3">Hard</button><button data-g="4">Good</button><button data-g="5">Easy</button></div>' : '<button class="pri" id="sr" style="width:100%">Show answer</button>') + '<div class="small mute" style="text-align:center;margin-top:8px">Space flips &middot; 1-4 grade</div>');
+    let hints = ['', '', '', ''];
+    const eng = fsrsEngine();
+    if (showing && eng && window.FSRS.Rating) {
+      try {
+        const now = new Date(), sc = eng.repeat(fsrsCardOf(c), now), R = window.FSRS.Rating;
+        hints = [R.Again, R.Hard, R.Good, R.Easy].map(r => ' <span class="small mute">(' + fmtWait(new Date(sc[r].card.due).getTime() - now.getTime()) + ')</span>');
+      } catch (e) { }
+    }
+    shell(head(c.deck, queue.length + ' left' + (eng ? ' · FSRS' : '')), '<div class="flip"><div class="flash" id="fl" style="margin-top:10px">' + esc(showing ? c.a : c.q) + '</div></div>' + (showing ? '<div class="grade"><button data-g="0">Again' + hints[0] + '</button><button data-g="3">Hard' + hints[1] + '</button><button data-g="4">Good' + hints[2] + '</button><button data-g="5">Easy' + hints[3] + '</button></div>' : '<button class="pri" id="sr" style="width:100%">Show answer</button>') + '<div class="small mute" style="text-align:center;margin-top:8px">Space flips &middot; 1-4 grade</div>');
     $('sx').onclick = () => back(d);
     $('fl').onclick = () => { showing = !showing; flashStep(d); };
     if (!showing) $('sr').onclick = () => { showing = true; flashStep(d); };
@@ -97,6 +126,21 @@ function deckPage(d) {
   }
   async function grade(g, d) {
     const c = queue.shift();
+    const eng = fsrsEngine();
+    if (eng && window.FSRS.Rating) {
+      try {
+        const now = new Date(), R = window.FSRS.Rating;
+        const rating = g < 3 ? R.Again : g === 3 ? R.Hard : g === 4 ? R.Good : R.Easy;
+        const next = eng.repeat(fsrsCardOf(c), now)[rating].card;
+        c.fsrs = Object.assign({}, next, { due: new Date(next.due).getTime(), last_review: now.getTime() });
+        c.due = c.fsrs.due;
+        c.reps = next.reps;
+        c.int = Math.max(0, Math.round(next.scheduled_days || 0));
+        if (g < 3) { c.m = Math.max(0, (c.m || 0) - 1); queue.push(c); }
+        else { c.m = Math.min(MAXM, (c.m || 0) + (g === 3 ? 0 : 1)); }
+        showing = false; await save(); flashStep(d); return;
+      } catch (e) { /* fall back to classic scheduler below */ }
+    }
     if (g < 3) { c.reps = 0; c.int = 0; c.due = Date.now() + 60000; c.m = Math.max(0, (c.m || 0) - 1); queue.push(c); }
     else { c.reps = (c.reps || 0) + 1; c.int = c.reps === 1 ? 1 : c.reps === 2 ? 3 : Math.round((c.int || 1) * (c.ease || 2.5)); if (g === 3) c.int = Math.max(1, Math.round(c.int * 0.8)); if (g === 5) c.int = Math.round(c.int * 1.3); c.due = Date.now() + c.int * DAY; c.m = Math.min(MAXM, (c.m || 0) + (g === 3 ? 0 : 1)); }
     c.ease = Math.max(1.3, (c.ease || 2.5) + (0.1 - (5 - g) * (0.08 + (5 - g) * 0.02)));
@@ -109,6 +153,7 @@ function deckPage(d) {
   });
 
   function done(title, detail, d) {
+    try { if (typeof window.confetti === 'function') window.confetti({ particleCount: 65, spread: 60, origin: { y: 0.6 } }); } catch (e) { }
     root.innerHTML = '<div class="pad" style="text-align:center;margin-top:50px"><h2>' + esc(title) + '</h2><div class="mute" style="margin:8px 0 16px">' + (detail || '') + '</div><div class="row" style="justify-content:center"><button class="pri" id="sh">Back</button></div></div>';
     $('sh').onclick = () => back(d);
   }

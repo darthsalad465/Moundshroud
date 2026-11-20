@@ -7,7 +7,7 @@
   const TAB_SCRIPTS = {
     // Core tabs (load quickly)
     home: ['/web/js/today.js'],
-    chat: ['/web/js/chat.js', '/web/js/voicemode.js', '/web/js/agent.js', '/web/js/swarm.js', '/web/js/olympics.js', '/web/js/debate.js'],
+    chat: ['/web/js/anymodel.js', '/web/js/chat.js', '/web/js/voicemode.js', '/web/js/agent.js', '/web/js/swarm.js', '/web/js/olympics.js', '/web/js/debate.js'],
     brain: ['/web/js/brain.js', '/web/js/appmap.js', '/web/js/whatsnew.js'],
     web: ['/web/js/net.js', '/web/js/websearch.js', '/web/js/search.js'],
     lib: ['/web/js/lib.js', '/web/js/libframe.js', '/web/js/classics.js', '/web/js/wikibooks.js', '/web/js/chessbooks.js', '/web/js/bookmarks.js', '/web/js/library.js', '/web/js/thesaurus.js', '/web/js/rhyme.js', '/web/js/viewer.js', '/web/js/pc.js'],
@@ -15,10 +15,10 @@
     notes: ['/web/js/notes.js'],
     study: ['/web/js/study.js', '/web/js/quiz.js', '/web/js/play-chess-study.js'],
     lang: ['/web/js/lang.js', '/web/js/lang-notes.js'],
-    tools: ['/web/js/tools.js', '/web/js/markitdown.js', '/web/js/apis.js', '/web/js/calculator.js', '/web/js/scanner.js', '/web/js/meetings.js'],
+    tools: ['/web/js/micro.js', '/web/js/tools.js', '/web/js/markitdown.js', '/web/js/apis.js', '/web/js/calculator.js', '/web/js/scanner.js', '/web/js/meetings.js'],
     health: ['/web/js/health.js'],
     guide: ['/web/js/guide.js', '/web/js/guide-book.js', '/web/js/tutorial.js', '/web/js/walk.js'],
-    play: ['/web/js/play.js', '/web/js/play-levels.js', '/web/js/play-g1.js', '/web/js/play-g2.js', '/web/js/play-g3.js', '/web/js/play-g4.js', '/web/js/world-renderer.js', '/web/js/world-landscapes.js', '/web/js/play-worlds.js', '/web/js/play-valley.js', '/web/js/play-harvest-orbit.js', '/web/js/play-fleet-armour.js', '/web/js/play-depths.js', '/web/js/play-trader.js', '/web/js/president-engine.js', '/web/js/play-president.js', '/web/js/play-defense.js', '/web/js/play-germ.js', '/web/js/play-boards.js', '/web/js/play-cards.js', '/web/js/play-poker.js', '/web/js/play-classics.js', '/web/js/play-help.js', '/web/js/play-meta.js', '/web/js/play-hub.js', '/web/js/play-ports.js', '/web/js/modelmon-core.js', '/web/js/play-modelmon.js'],
+    play: ['/web/js/play.js', '/web/js/play-levels.js', '/web/js/play-g1.js', '/web/js/play-g2.js', '/web/js/play-g3.js', '/web/js/play-g4.js', '/web/js/world-renderer.js', '/web/js/world-landscapes.js', '/web/js/emberwild-expedition.js', '/web/js/play-worlds.js', '/web/js/play-valley.js', '/web/js/play-harvest-orbit.js', '/web/js/play-fleet-armour.js', '/web/js/play-depths.js', '/web/js/play-trader.js', '/web/js/president-engine.js', '/web/js/play-president.js', '/web/js/play-defense.js', '/web/js/play-germ.js', '/web/js/play-boards.js', '/web/js/play-cards.js', '/web/js/play-poker.js', '/web/js/play-classics.js', '/web/js/play-help.js', '/web/js/play-meta.js', '/web/js/play-hub.js', '/web/js/play-ports.js', '/web/js/modelmon-core.js', '/web/js/play-modelmon.js'],
     music: ['/web/js/music.js', '/web/js/music-mine.js', '/web/js/music-lib.js'],
     radio: ['/web/js/radio.js'],
     tv: ['/web/js/tv.js'],

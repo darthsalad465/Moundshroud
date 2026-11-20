@@ -5,14 +5,14 @@
   const root = $('p-tools');
   let sub = 'sys', chefLoaded = false;
   root.innerHTML = '<div class="row" style="padding:8px 12px;gap:6px;border-bottom:1px solid var(--line);flex-wrap:wrap" id="tsub"></div><div id="tbody" style="flex:1;min-height:0;display:flex;flex-direction:column"></div>';
-  const SUBS = [['sys', 'System'], ['conv', '🔄 Converter'], ['md', '📝 MarkItDown'], ['repos', '📦 Repositories'], ['apis', '🌐 API Explorer'], ['safe', '🛡 File safety'], ['opt', '✨ Prompt optimizer']];   // the Agent moved to Chat > Agent (web/js/agent.js)
+  const SUBS = [['sys', 'System'], ['conv', '🔄 Converter'], ['md', '📝 MarkItDown'], ['micro', '🧩 Micro Tools'], ['repos', '📦 Repositories'], ['apis', '🌐 API Explorer'], ['safe', '🛡 File safety'], ['opt', '✨ Prompt optimizer']];   // the Agent moved to Chat > Agent (web/js/agent.js)
   /* a tool is still running only while the page it was opened in is the one on screen */
   const live = b => !!(b && b.isConnected && b.closest('.panel.on'));
   function tabs() { $('tsub').innerHTML = SUBS.filter(s => s[0] !== 'chef' || A.caps.chef).map(s => '<button class="ib' + (sub === s[0] ? ' on' : '') + '" data-s="' + s[0] + '">' + s[1] + '</button>').join(''); }
   $('tsub').onclick = e => { const b = e.target.closest('[data-s]'); if (b) go(b.dataset.s); };
   let tok = 0;
   /* the one list of pages: the Tools buttons (go) and the other tabs (A.tools.show) both read it, so a page added here works in both */
-  const RENDER = () => ({ docs: (x, my) => A.docs.render(x, my), office: x => A.officeEdit.render(x), sys, repos, apis: x => A.apiExplorer.render(x), safe, calc, rem, trans, clip, prm, cyber: x => A.cyber.render(x), codes: x => A.cbLab.render(x), course: x => A.cybercourse.render(x), conv: x => A.converter.render(x), md: x => A.markitdown && A.markitdown.render(x), opt: x => A.promptOpt.render(x), agent: x => A.agent.render(x), scan: x => A.scanner.render(x), meet: x => A.meetings.render(x), vault: x => A.vault.render(x), puzz: x => A.puzzlemaker.render(x), journal: x => A.journal.render(x), storage: x => A.storage.render(x), chef });
+  const RENDER = () => ({ docs: (x, my) => A.docs.render(x, my), office: x => A.officeEdit.render(x), sys, repos, apis: x => A.apiExplorer.render(x), safe, calc, rem, trans, clip, prm, cyber: x => A.cyber.render(x), codes: x => A.cbLab.render(x), course: x => A.cybercourse.render(x), conv: x => A.converter.render(x), md: x => A.markitdown && A.markitdown.render(x), micro: x => A.micro && A.micro.render(x), opt: x => A.promptOpt.render(x), agent: x => A.agent.render(x), scan: x => A.scanner.render(x), meet: x => A.meetings.render(x), vault: x => A.vault.render(x), puzz: x => A.puzzlemaker.render(x), journal: x => A.journal.render(x), storage: x => A.storage.render(x), chef });
   function go(s) { if (s === 'agent' && A.agent && A.agent.open) return A.agent.open(); if (!SUBS.some(x => x[0] === s)) s = 'sys'; sub = s; tabs(); const b = $('tbody'); const f = RENDER()[s] || sys; A.keep(b, s, el => f(el, ++tok)); }
 
   /* ---- system dashboard ---- */
@@ -135,8 +135,13 @@ const paint = async () => {
     const opts = (sel) => LANGS.map(l => '<option' + (l === sel ? ' selected' : '') + '>' + l + '</option>').join('');
     b.innerHTML = '<div class="scroll pad" style="flex:1"><h2>Translate</h2><div class="mute small">Private translation by your local AI model. Quality is best for common languages; double-check anything important.</div>' +
       '<div class="row" style="margin:10px 0"><select id="tfrom"><option>Detect language</option>' + opts('') + '</select><button class="ib" id="tswap" title="Swap">&#8644;</button><select id="tto">' + opts(ls.get('tlang', 'Spanish')) + '</select></div>' +
-      '<textarea id="tin" rows="5" placeholder="Type or paste text..."></textarea><div class="row" style="margin:8px 0"><button class="pri" id="tgo">Translate</button><span class="small mute" id="tst"></span></div>' +
+      '<textarea id="tin" rows="5" placeholder="Type or paste text..."></textarea><div class="row" style="margin:8px 0"><button class="pri" id="tgo">Translate</button><span class="small mute" id="tdet"></span><span class="small mute" id="tst"></span></div>' +
       '<div class="card" id="tout" style="min-height:80px;white-space:pre-wrap"></div><div class="row"><button class="ib" id="tcp">Copy</button><button class="ib" id="tls">Listen</button></div></div>';
+    $('tin').oninput = () => {
+      const det = $('tdet'); if (!det || !A.micro || !A.micro.detectLang) return;
+      const d = A.micro.detectLang($('tin').value);
+      det.textContent = d ? 'Detected offline: ' + d.name + ' (' + d.code + ')' : '';
+    };
     $('tto').onchange = () => ls.set('tlang', $('tto').value);
     $('tswap').onclick = () => { const f = $('tfrom').value === 'Detect language' ? 'English' : $('tfrom').value, o = $('tout').textContent; $('tfrom').value = $('tto').value; $('tto').value = f; if (o.trim()) { $('tin').value = o; $('tout').textContent = ''; } };
     $('tcp').onclick = () => A.copy($('tout').textContent); $('tls').onclick = function () { A.speech.speak($('tout').textContent, this); };

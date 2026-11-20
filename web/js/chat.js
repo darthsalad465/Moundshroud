@@ -6,7 +6,7 @@
   const persist = () => {
     renderSidebar();
     clearTimeout(saveT);
-    saveT = setTimeout(() => { fetch('/api/chats', { method: 'POST', body: JSON.stringify(chats.filter(c => c.msgs.length).map(c => ({ id: c.id, title: c.title, updated: c.updated, pinned: !!c.pinned, messages: c.msgs.map(m => ({ role: m.role, content: m.content, thinking: m.thinking, local: m.local, img: m.img, runs: m.runs, ms: m.ms, thinkMs: m.thinkMs, sources: (m.sources || []).map(s => ({ title: s.title, page: s.page, kind: s.kind, path: s.path, url: s.url, where: s.where, text: s.kind === 'attach' ? '' : (s.text || '').slice(0, 700) })) })) }))) }).catch(() => {}); }, 600);
+    saveT = setTimeout(() => { fetch('/api/chats', { method: 'POST', body: JSON.stringify(chats.filter(c => c.msgs.length).map(c => ({ id: c.id, title: c.title, updated: c.updated, pinned: !!c.pinned, messages: c.msgs.map(m => ({ role: m.role, content: m.content, thinking: m.thinking, local: m.local, img: m.img, made: m.made, runs: m.runs, ms: m.ms, thinkMs: m.thinkMs, sources: (m.sources || []).map(s => ({ title: s.title, page: s.page, kind: s.kind, path: s.path, url: s.url, where: s.where, text: s.kind === 'attach' ? '' : (s.text || '').slice(0, 700) })) })) }))) }).catch(() => {}); }, 600);
   };
   const model = () => $('model').value;
 
@@ -26,7 +26,7 @@
   }
   function fill(d, m) {
     if (m.role === 'user') { d.innerHTML = '<div class="bd">' + esc(m.content) + '</div>' + toolsHtml('user'); return; }
-    d.innerHTML = (m.thinking ? '<details><summary>Thinking</summary><div>' + esc(m.thinking) + '</div></details>' : '') + '<div class="bd">' + (m.content ? md(m.content) : waitHtml('Thinking…')) + '</div>' + timeHtml(m) + runsHtml(m) + imgHtml(m) + srcChips(m.sources) +
+    d.innerHTML = (m.thinking ? '<details><summary>Thinking</summary><div>' + esc(m.thinking) + '</div></details>' : '') + '<div class="bd">' + (m.content ? md(m.content) : waitHtml('Thinking…')) + '</div>' + timeHtml(m) + runsHtml(m) + imgHtml(m) + madeHtml(m) + srcChips(m.sources) +
       (m.err ? '<div class="errbar"><button class="ib" data-t="redo">↻ Try again</button><span class="small mute">Nothing was lost. Your question is still above.</span></div>' : '') + (m.local ? '' : toolsHtml('assistant'));
     /* ▶ Run on every Python and JavaScript block: it runs in the sealed-off sandbox and the output shows under it */
     if (window.A && A.interp) d.querySelectorAll('.bd pre[data-lang]').forEach(p => { if (A.interp.LANG(p.dataset.lang)) p.insertAdjacentHTML('afterbegin', '<button class="cp runbtn" title="Run this code in the sealed-off sandbox on this PC">▶ Run</button>'); });
@@ -44,6 +44,12 @@
   function imgHtml(m) {
     if (!m.img || !/^\/api\/art\/file\?id=[a-z0-9-]+$/.test(String(m.img.url || ''))) return '';
     return '<div class="chatimg"><img src="' + esc(m.img.url) + '" alt="' + esc(m.img.subject || 'picture') + '" data-t="imgopen"><div class="row"><button class="ib" data-t="imgsave">💾 Save</button><button class="ib" data-t="imgmore">🎲 Another version</button><button class="ib" data-t="imgedit">🪄 Edit it</button></div></div>';
+  }
+
+  /* a picture, clip or sound made by any model on this PC (A.anyModel, kept in datamade and shown from /api/models/made) */
+  function madeHtml(m) {
+    if (!m.made || !/^\/api\/models\/made\?id=[0-9a-f]{12}$/.test(String(m.made.url || '')) || !A.anyModel) return '';
+    return A.anyModel.mediaHTML(m.made, m.made.caption || '');
   }
 
   /* "make me an image of…", "draw a…", "/imagine …": the picture is drawn on this PC and sent back in the chat.
@@ -330,6 +336,8 @@ function readBudget(m) {
     A.showTab('chat'); A.speech.stop();
     if (textOverride == null) { inEl.value = ''; autosize(); $('calcchip').style.display = 'none'; }
     if (!cur.msgs.length) { msgsEl.innerHTML = ''; cur.title = text.slice(0, 48); updateHeader(); }
+    /* a model chosen that is not a chat model (a picture, voice, music, search or import model) does its own job */
+    if (A.anyModel && A.anyModel.isAny(model())) return anySend(text);
     /* instant, no-AI answers */
     if (!opts.noLocal) {
       const pic = pictureRequest(text);
@@ -665,8 +673,10 @@ function readBudget(m) {
     if (A.voice.rec) { A.voice.stop(); return; }
     A.voice.start(t => { inEl.value = (inEl.value ? inEl.value + ' ' : '') + t; autosize(); inEl.focus(); }, (st, s) => {
       $('mic').classList.toggle('rec', st === 'rec'); $('status').textContent = st === 'rec' ? 'listening ' + Math.floor(s) + 's - click the mic to stop' : st === 'busy' ? 'transcribing...' : 'ready';
-    });
+    }, { model: listenModel() });
   };
+  /* a speech-to-text model chosen in the model list is the one the 🎙 button uses */
+  function listenModel() { const m = A.anyModel && A.anyModel.entry(model()); return m && m.use === 'listen' ? m.id : ''; }
 
   /* ---------- models ---------- */
   async function loadModels(tries = 0, fromSettings = false) {
@@ -696,11 +706,59 @@ function readBudget(m) {
       const pick = defHit ? defHit.name : ((!fromSettings && pref.includes(saved)) ? saved : ((biggestLocal && biggestLocal.name) || pref[0]));
       $('model').value = pick;
       if (fromSettings && pick) ls.set('model', pick);
+      addAnyModels(saved);
       $('status').textContent = 'ready'; warm(); cloudBanner();
     } catch (e) { if (tries < 8) setTimeout(() => loadModels(tries + 1), 2500); }
   }
-  const warm = () => { if (model() && model() !== '(no model)') A.api('/api/warm', { model: model() }); };
-  $('model').onchange = () => { ls.set('model', model()); warm(); cloudBanner(); };
+  /* every other AI model on this PC joins the list, grouped by what it does (web/js/anymodel.js) */
+  async function addAnyModels(saved) {
+    if (!A.anyModel) return;
+    const cat = await A.anyModel.list();
+    const sel = $('model'); if (!sel || !cat.models || !cat.models.length) return;
+    sel.querySelectorAll('optgroup[data-any]').forEach(g => g.remove());
+    /* an embedding model in Ollama cannot answer a chat: it moves to "Search by meaning" below */
+    [...sel.options].forEach(o => { const e = cat.models.find(m => m.use === 'find' && m.ollama === o.value); if (e && !o.closest('optgroup[data-any]')) o.remove(); });
+    const html = A.anyModel.extraOptionsHTML(cat.models).replace(/<optgroup /g, '<optgroup data-any="1" ');
+    sel.insertAdjacentHTML('beforeend', html);
+    if (saved && A.anyModel.isAny(saved) && [...sel.options].some(o => o.value === saved)) { sel.value = saved; anyHint(); }
+  }
+  /* the message box says what the chosen model does when it is not a chat model */
+  function anyHint() {
+    const h = A.anyModel ? A.anyModel.hint(model()) : '';
+    if (!inEl.dataset.ph0) inEl.dataset.ph0 = inEl.placeholder || '';
+    inEl.placeholder = h || inEl.dataset.ph0;
+  }
+  /* sending to a model that is not a chat model runs it at what it does, and the reply shows what it made */
+  async function anySend(text) {
+    const v = model(), m = A.anyModel.entry(v);
+    local('user', text); const am = local('assistant', ''); am.local = true;
+    const el = msgsEl.lastElementChild;
+    const upd = t => { am.content = t; fill(el, am); msgsEl.scrollTop = msgsEl.scrollHeight; };
+    let dir = '';
+    if (m && m.use === 'find') {
+      dir = ls.get('any_find_dir', '');
+      if (!dir || !(await A.confirm('Search ' + dir + ' by meaning?\n\nCancel to choose another folder.'))) {
+        upd('Choose the folder to search in the window that opened…');
+        const r = await A.api('/api/pick-folder', {}).catch(() => null);
+        dir = (r && (r.path || r.dir)) || '';                 // /api/pick-folder answers { path }
+        if (dir) ls.set('any_find_dir', dir);
+      }
+      if (!dir) { upd('No folder was chosen, so nothing was searched.'); cur.updated = Date.now(); persist(); return; }
+    }
+    setBusy(true); setStatus('working…', 'busy');
+    /* the seconds count up behind the note, so a long picture or clip shows it is still going */
+    const t0 = Date.now(), tick = setInterval(() => { const base = (am.content || '⏳ Working…').replace(/\s+\d+s$/, ''); if (/…$/.test(base)) upd(base + ' ' + Math.round((Date.now() - t0) / 1000) + 's'); }, 1000);
+    let r;
+    try { r = await A.anyModel.act(v, text, { dir, onNote: t => upd(t) }); } catch (e) { r = { ok: false, md: '⚠️ ' + (e.message || 'It did not finish.') }; }
+    clearInterval(tick);
+    if (r.made) am.made = Object.assign({}, r.made, { caption: r.caption || '' });
+    upd(r.md || (r.ok ? 'Done.' : '⚠️ It did not finish.'));
+    if (r.imported) { await loadModels(0, true); if ([...$('model').options].some(o => o.value === r.imported || o.value === r.imported + ':latest')) { $('model').value = [...$('model').options].find(o => o.value === r.imported || o.value === r.imported + ':latest').value; ls.set('model', model()); anyHint(); } }
+    if (r.listen) $('mic') && $('mic').focus();
+    setBusy(false); setStatus(r.ok ? 'ready' : 'that did not work', r.ok ? '' : 'err'); cur.updated = Date.now(); persist();
+  }
+  const warm = () => { if (model() && model() !== '(no model)' && !(A.anyModel && A.anyModel.isAny(model()))) A.api('/api/warm', { model: model() }); };
+  $('model').onchange = () => { ls.set('model', model()); warm(); cloudBanner(); anyHint(); };
   A.chat.loadModels = loadModels;
   if (A.on) A.on('default-model', () => loadModels(0, true));
   /* while Claude answers, say so plainly, every time */
@@ -770,7 +828,7 @@ function readBudget(m) {
   A.registerTab('chat', 'Chat', () => inEl.focus());
   A.ready.push(async () => {
     try { chats = await A.api('/api/chats'); if (!Array.isArray(chats)) chats = []; } catch (e) { chats = []; }
-    chats = chats.map(c => ({ id: c.id, title: c.title || 'Chat', updated: c.updated || 0, pinned: !!c.pinned, msgs: (c.messages || c.msgs || []).map(m => ({ role: m.role, content: m.content || m.display || '', thinking: m.thinking || '', local: m.local, img: m.img, runs: m.runs, ms: m.ms, thinkMs: m.thinkMs, sources: m.sources || [] })) }));
+    chats = chats.map(c => ({ id: c.id, title: c.title || 'Chat', updated: c.updated || 0, pinned: !!c.pinned, msgs: (c.messages || c.msgs || []).map(m => ({ role: m.role, content: m.content || m.display || '', thinking: m.thinking || '', local: m.local, img: m.img, made: m.made, runs: m.runs, ms: m.ms, thinkMs: m.thinkMs, sources: m.sources || [] })) }));
     cur = newChat(); chats.unshift(cur); renderAll(); loadModels();
     /* the last reply's time is still on screen after a reload */
     const prev = chats.map(c => (c.msgs || []).filter(m => m.role === 'assistant' && m.ms).pop()).filter(Boolean).pop(); if (prev) lastTime(prev);

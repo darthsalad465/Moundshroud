@@ -58,42 +58,716 @@
   ];
   const isDir = n => n && typeof n === 'object' && !('c' in n);
   const rd = n => typeof n === 'string' ? n : n.c;
+  const isLocked = n => !!(n && typeof n === 'object' && n.locked);
+  const HELP_SECTIONS = [
+    {
+      title: 'NAVIGATION',
+      items: [
+        ['pwd', 'Print the current working directory'],
+        ['ls [-a] [-l] [path...]', 'List files (-a hidden, -l details)'],
+        ['ll / la [path]', 'Shortcuts for ls -la and ls -a'],
+        ['cd [dir | ~ | -]', 'Change folder (.. up, ~ home, - back)'],
+        ['tree [-a] [dir]', 'Show directory tree'],
+      ]
+    },
+    {
+      title: 'FILES & SEARCH',
+      items: [
+        ['cat [-n] <file...>', 'Print file contents (-n line numbers)'],
+        ['head [-n N] <file>', 'Show first N lines (default 10)'],
+        ['tail [-n N] <file>', 'Show last N lines (default 10)'],
+        ['grep [-inrvcl] <pat> [file]', 'Search text (-i case, -n lines, -r tree)'],
+        ['find [dir] [-name <pat>]', 'Find files (-iname ignore case, -type f|d)'],
+        ['wc [-l|-w|-c] [file]', 'Count lines, words, and bytes'],
+        ['strings <file>', 'Show readable text lines in a file'],
+        ['stat / file <path>', 'Show file type, size, and permissions'],
+      ]
+    },
+    {
+      title: 'DECODING & PERMISSIONS',
+      items: [
+        ['base64 [-d] [file|text]', 'Encode or decode (-d/--decode) Base64'],
+        ['chmod <mode> <file...>', 'Change permissions (+r, u+r, 644, -r)'],
+      ]
+    },
+    {
+      title: 'SHELL & MISSIONS',
+      items: [
+        ['echo <text>', 'Print text (works with pipes: |)'],
+        ['whoami / id / uname', 'Show sandbox user and system info'],
+        ['history / clear', 'Show command history / clear screen'],
+        ['hint / skip / reset', 'Get a hint, skip, or restart mission'],
+        ['missions / mission <1-6>', 'List missions or jump to one'],
+        ['submit FLAG{...}', 'Submit a flag to finish the mission'],
+      ]
+    }
+  ];
+  const CMD_DOCS = {
+    pwd: ['pwd', 'Print the absolute path of the current directory.', 'pwd'],
+    ls: ['ls [-a] [-l] [-1] [path...]', 'List directory contents or file metadata.\n  -a  include hidden files (starting with .)\n  -l  long format with permissions and byte size\n  -1  one entry per line', 'ls -la Documents'],
+    ll: ['ll [path...]', 'Alias for ls -la.', 'll'],
+    la: ['la [path...]', 'Alias for ls -a.', 'la'],
+    cd: ['cd [dir | ~ | -]', 'Change the current directory.\n  ..  parent directory\n  ~   home directory\n  -   previous directory', 'cd Documents'],
+    tree: ['tree [-a] [dir]', 'Display a visual tree of directories and files.\n  -a  include hidden files', 'tree -a /srv'],
+    cat: ['cat [-n] <file...>', 'Print the contents of one or more files (or piped input).\n  -n  prefix each line with its line number', 'cat -n readme.txt'],
+    head: ['head [-n N | -N] [file]', 'Show the first N lines of a file or piped input (default 10).', 'head -n 5 server.log'],
+    tail: ['tail [-n N | -N] [file]', 'Show the last N lines of a file or piped input (default 10).', 'tail -n 5 server.log'],
+    grep: ['grep [-i] [-n] [-r] [-v] [-c] [-l] <pattern> [file...]', 'Search for text in files, directories (-r), or piped input.\n  -i  case-insensitive match\n  -n  show line numbers\n  -r  search directories recursively\n  -v  show non-matching lines\n  -c  print only the count of matches\n  -l  print only matching filenames', 'grep -in flag server.log'],
+    find: ['find [dir] [-name|-iname <pattern>] [-type f|d]', 'Walk a directory tree and print matching paths.\n  -name   wildcard match (* and ?)\n  -iname  case-insensitive wildcard match\n  -type   f for files, d for directories', 'find / -name ".vault*"'],
+    wc: ['wc [-l] [-w] [-c] [file...]', 'Count lines (-l), words (-w), and bytes (-c). Works with pipes.', 'wc -l server.log'],
+    strings: ['strings [file]', 'Print readable text runs from a file or piped input.', 'strings cat.jpg'],
+    stat: ['stat <path...>', 'Show file type, byte size, and permission mode.', 'stat vault.txt'],
+    file: ['file <path...>', 'Describe what kind of file or directory a path is.', 'file message.b64'],
+    base64: ['base64 [-d|--decode] [file | text]', 'Encode or decode Base64 from a file, raw text, or piped input.\n  -d, -D, --decode  decode Base64 back to plain text', 'base64 -d message.b64   |   cat message.b64 | base64 -d'],
+    chmod: ['chmod <mode> <file...>', 'Change read permissions on files.\n  Unlock examples: +r, u+r, a+r, +rw, 644, 400, 755\n  Lock examples:   -r, a-r, 000', 'chmod +r vault.txt   |   chmod 644 vault.txt'],
+    echo: ['echo [-n] <text...>', 'Print text to output. Useful with pipes.', 'echo RkxBR3t0ZXN0fQ== | base64 -d'],
+    clear: ['clear', 'Clear the terminal output buffer (shortcut: Ctrl+L).', 'clear'],
+    history: ['history', 'List previously entered commands in this session.', 'history'],
+    whoami: ['whoami', 'Print the current simulated username.', 'whoami'],
+    id: ['id', 'Print simulated user and group IDs.', 'id'],
+    uname: ['uname [-a]', 'Print simulated operating system info.', 'uname -a'],
+    hostname: ['hostname', 'Print the simulated machine hostname.', 'hostname'],
+    help: ['help [command]', 'Show all available commands, or detailed help for one command.', 'help grep'],
+    man: ['man <command>', 'Show the manual entry for a command (same as help <command>).', 'man find'],
+    hint: ['hint', 'Display a hint for the active mission.', 'hint'],
+    skip: ['skip', 'Skip ahead to the next mission.', 'skip'],
+    reset: ['reset', 'Reset the current mission filesystem and working directory.', 'reset'],
+    missions: ['missions', 'List all missions and show your progress.', 'missions'],
+    mission: ['mission <1-6>', 'Switch directly to mission number 1 through 6.', 'mission 1'],
+    submit: ['submit <FLAG{...}>', 'Submit the flag you found to complete the current mission.', 'submit FLAG{example}'],
+  };
   reg('terminal', 'Terminal Hacker', '💻', 'A pretend Linux shell with six missions. Learn ls, cd, cat, grep, find, chmod and base64 by finding flags.', (el, api) => {
-    let mi = Math.min(MIS.length - 1, num('cyterm', 0)), tree, cwd, hist = [], hp = 0;
+    let mi = Math.min(MIS.length - 1, num('cyterm', 0)), doneCount = num('cyterm', 0), tree, cwd, prevCwd = null, hist = [], hp = 0;
     el.style.alignItems = 'stretch';
-    el.innerHTML = '<div style="width:min(760px,100%);margin:0 auto;display:flex;flex-direction:column;height:100%;min-height:380px"><div id="tg" class="small" style="' + box + ';margin-bottom:8px"></div><div id="to" style="flex:1;overflow:auto;background:#05070b;color:#c9f5d4;' + mono + ';font-size:13px;border:1px solid var(--line);border-radius:10px;padding:10px;white-space:pre-wrap;min-height:220px"></div><div class="row" style="gap:6px;margin-top:6px;background:#05070b;border:1px solid var(--line);border-radius:10px;padding:4px 8px"><span id="tp" style="color:#6cf;' + mono + ';font-size:13px"></span><input id="ti" autocomplete="off" spellcheck="false" style="flex:1;background:transparent;border:0;color:#fff;' + mono + ';font-size:13px;outline:none"></div></div>';
+    el.innerHTML = '<div style="width:min(780px,100%);margin:0 auto;display:flex;flex-direction:column;height:100%;min-height:380px"><div id="tg" class="small" style="' + box + ';margin-bottom:8px"></div><div id="to" style="flex:1;overflow:auto;background:#05070b;color:#c9f5d4;' + mono + ';font-size:13px;line-height:1.5;border:1px solid var(--line);border-radius:10px;padding:12px 14px;white-space:pre-wrap;min-height:220px"></div><div class="row" style="gap:6px;margin-top:6px;background:#05070b;border:1px solid var(--line);border-radius:10px;padding:6px 10px"><span id="tp" style="color:#6cf;' + mono + ';font-size:13px;white-space:nowrap"></span><input id="ti" autocomplete="off" spellcheck="false" style="flex:1;background:transparent;border:0;color:#fff;' + mono + ';font-size:13px;outline:none"></div></div>';
     const out = (t, c) => { const o = $('to'); const d = document.createElement('div'); d.textContent = t; if (c) d.style.color = c; o.appendChild(d); o.scrollTop = o.scrollHeight; };
-    const path = () => '/' + cwd.join('/');
+    const outPre = (html, plain) => { const o = $('to'); const d = document.createElement('div'); d.style.whiteSpace = 'pre'; if (html != null) d.innerHTML = html; else d.textContent = plain || ''; o.appendChild(d); o.scrollTop = o.scrollHeight; };
+    const path = (parts) => '/' + (parts || cwd).join('/');
     const walk = parts => { let n = tree; for (const p of parts) { if (!isDir(n) || !(p in n)) return undefined; n = n[p]; } return n; };
-    const resolve = (p, base) => { if (p === '~') p = '/home/you'; let parts = p.startsWith('/') ? [] : (base || cwd).slice(); for (const s of p.split('/')) { if (!s || s === '.') continue; if (s === '..') parts.pop(); else parts.push(s); } return parts; };
-    const mode = (name, n) => (isDir(n) ? 'drwxr-xr-x' : n.locked ? '----------' : '-rw-r--r--');
-    const find = (n, base, pat, res) => { for (const k of Object.keys(n)) { const p = base + '/' + k; if (pat.test(k)) res.push(p); if (isDir(n[k])) find(n[k], p, pat, res); } return res; };
-    const glob = g => new RegExp('^' + g.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.') + '$');
-    const load = () => { const m = MIS[mi]; tree = m.fs(); cwd = m.cwd.split('/').filter(Boolean); $('tg').innerHTML = '<b>Mission ' + (mi + 1) + ' of ' + MIS.length + ': ' + esc(m.name) + '</b><br>' + esc(m.goal) + '<br><span class="mute">Type <b>help</b> for commands, <b>hint</b> if stuck, and <b>submit FLAG{...}</b> when you find it.</span>'; $('tp').textContent = 'you@moundshroud:' + path() + '$ '; api.hud('Missions done ' + mi + '/' + MIS.length); };
+    const homeParts = () => walk(['home', 'you']) ? ['home', 'you'] : MIS[mi].cwd.split('/').filter(Boolean);
+    const resolve = (p, base) => {
+      if (!p || p === '~') return homeParts();
+      if (p.startsWith('~/')) p = '/' + homeParts().join('/') + p.slice(1);
+      let parts = p.startsWith('/') ? [] : (base || cwd).slice();
+      for (const s of p.split('/')) { if (!s || s === '.') continue; if (s === '..') parts.pop(); else parts.push(s); }
+      return parts;
+    };
+    const mode = (n) => (isDir(n) ? 'drwxr-xr-x' : isLocked(n) ? '----------' : '-rw-r--r--');
+    const globRe = (g, ic) => new RegExp('^' + g.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.') + '$', ic ? 'i' : '');
+    const expandArg = arg => {
+      if (!/[*?]/.test(arg)) return [arg];
+      const idx = arg.lastIndexOf('/'), dirPart = idx >= 0 ? arg.slice(0, idx) || '/' : '', pat = idx >= 0 ? arg.slice(idx + 1) : arg;
+      const dir = resolve(dirPart || '.'), node = walk(dir);
+      if (!isDir(node)) return [arg];
+      const re = globRe(pat, false), wantDot = pat.startsWith('.');
+      const hits = Object.keys(node).filter(k => (wantDot || k[0] !== '.') && re.test(k)).sort();
+      if (!hits.length) return [arg];
+      return hits.map(k => (dirPart ? (dirPart === '/' ? '/' : dirPart + '/') : '') + k);
+    };
+    const expandFiles = list => list.flatMap(expandArg);
+    const findWalk = (n, base, pat, type, res) => {
+      for (const k of Object.keys(n).sort()) {
+        const p = base + '/' + k, dir = isDir(n[k]);
+        const typeOk = !type || (type === 'd' && dir) || (type === 'f' && !dir);
+        if (typeOk && (!pat || pat.test(k))) res.push(p);
+        if (dir) findWalk(n[k], p, pat, type, res);
+      }
+      return res;
+    };
+    const updatePrompt = () => {
+      const p = path(), hp0 = '/' + homeParts().join('/');
+      const disp = p === hp0 ? '~' : p.startsWith(hp0 + '/') ? '~' + p.slice(hp0.length) : p;
+      $('tp').textContent = 'you@moundshroud:' + disp + '$ ';
+    };
+    const load = () => {
+      const m = MIS[mi];
+      tree = m.fs();
+      cwd = m.cwd.split('/').filter(Boolean);
+      prevCwd = null;
+      $('tg').innerHTML = '<b>Mission ' + (mi + 1) + ' of ' + MIS.length + ': ' + esc(m.name) + '</b><br>' + esc(m.goal) + '<br><span class="mute">Type <b>help</b> for commands, <b>hint</b> if stuck, and <b>submit FLAG{...}</b> when you find it.</span>';
+      updatePrompt();
+      api.hud('Missions done ' + Math.min(doneCount, MIS.length) + '/' + MIS.length);
+    };
+    const showHelp = (topic, emit) => {
+      if (topic) {
+        const k = topic.toLowerCase(), doc = CMD_DOCS[k];
+        if (!doc) { emit('help: no help topic matching \'' + topic + '\'. Type "help" for all commands.', '#f77', true); return { ok: false }; }
+        emit(k.toUpperCase(), '#6cf');
+        emit('  Usage:   ' + doc[0], '#fff');
+        doc[1].split('\n').forEach(l => emit('  ' + l, '#c9f5d4'));
+        emit('  Example: ' + doc[2], '#fc6');
+        return { ok: true };
+      }
+      if (emit.raw) {
+        outPre('<span style="color:#fff;font-weight:700">Moundshroud Shell</span> <span style="color:#789">— Command Reference</span>');
+        outPre('<span style="color:#2d3b45">' + '─'.repeat(72) + '</span>');
+        HELP_SECTIONS.forEach((sec, idx) => {
+          if (idx > 0) outPre('');
+          outPre('<span style="color:#6cf;font-weight:700">' + esc(sec.title) + '</span>');
+          sec.items.forEach(([cmd, desc]) => {
+            outPre('  <span style="color:#7ee787">' + esc(cmd.padEnd(29)) + '</span><span style="color:#a8bfb0">' + esc(desc) + '</span>');
+          });
+        });
+        outPre('');
+        outPre('<span style="color:#fc6;font-weight:700">TIPS</span>');
+        outPre('  <span style="color:#c9f5d4">Pipes &amp; chaining:</span>  <span style="color:#8fa89a">cat message.b64 | base64 -d   ·   cd Documents &amp;&amp; ls -a</span>');
+        outPre('  <span style="color:#c9f5d4">Shortcuts:</span>         <span style="color:#8fa89a">Tab autocomplete   ·   Up/Down history   ·   Ctrl+L clear</span>');
+        outPre('  <span style="color:#c9f5d4">More details:</span>      <span style="color:#8fa89a">help &lt;command&gt;   or   &lt;command&gt; --help</span>');
+      } else {
+        const lines = ['Moundshroud Shell — Command Reference', '-'.repeat(60)];
+        HELP_SECTIONS.forEach(sec => {
+          lines.push('', sec.title);
+          sec.items.forEach(([cmd, desc]) => lines.push('  ' + cmd.padEnd(29) + desc));
+        });
+        emit(lines.join('\n'));
+      }
+      return { ok: true };
+    };
+    const runLs = (a, emit) => {
+      let flags = '', targets = [];
+      for (const x of a) {
+        if (x.startsWith('-') && x.length > 1) flags += x.slice(1);
+        else targets.push(x);
+      }
+      const showAll = flags.includes('a') || flags.includes('A');
+      const longFmt = flags.includes('l');
+      const onePer = flags.includes('1');
+      if (!targets.length) targets = ['.'];
+      else targets = expandFiles(targets);
+      let ok = true;
+      const fmtLong = (name, n) => mode(n) + '  you  ' + String(isDir(n) ? 4096 : rd(n).length).padStart(6) + '  ' + name + (isDir(n) ? '/' : '');
+      targets.forEach((t, idx) => {
+        const p = resolve(t), n = walk(p);
+        if (n === undefined) { emit('ls: cannot access \'' + t + '\': No such file or directory', '#f77', true); ok = false; return; }
+        if (targets.length > 1) { if (idx > 0) emit(''); emit(t + ':', '#6cf'); }
+        if (!isDir(n)) {
+          emit(longFmt ? fmtLong(t, n) : t);
+          return;
+        }
+        const names = Object.keys(n).filter(k => showAll || k[0] !== '.').sort();
+        if (longFmt) {
+          if (!names.length) emit('total 0');
+          else names.forEach(k => emit(fmtLong(k, n[k])));
+        } else if (onePer) {
+          if (names.length) emit(names.map(k => k + (isDir(n[k]) ? '/' : '')).join('\n'));
+        } else {
+          emit(names.map(k => k + (isDir(n[k]) ? '/' : '')).join('   ') || '(empty)');
+        }
+      });
+      return { ok };
+    };
+    const parseCountArgs = (a, defN) => {
+      let n = defN, files = [];
+      for (let i = 0; i < a.length; i++) {
+        const x = a[i];
+        if (x === '-n' && a[i + 1] != null) { const v = parseInt(a[++i], 10); if (!isNaN(v) && v >= 0) n = v; else return { err: 'invalid line count: ' + a[i] }; }
+        else if (/^-n\d+$/.test(x)) n = parseInt(x.slice(2), 10);
+        else if (/^-\d+$/.test(x)) n = parseInt(x.slice(1), 10);
+        else if (x.startsWith('-') && x.length > 1) return { err: 'invalid option -- ' + x };
+        else files.push(x);
+      }
+      return { n, files: expandFiles(files) };
+    };
+    const setFileLock = (parts, locked) => {
+      const parent = walk(parts.slice(0, -1)), name = parts[parts.length - 1];
+      if (!isDir(parent) || !(name in parent)) return false;
+      const cur = parent[name];
+      if (isDir(cur)) return false;
+      if (typeof cur === 'string') parent[name] = F(cur, locked);
+      else cur.locked = locked;
+      return true;
+    };
+    const parseChmod = m => {
+      if (/^[0-7]{3,4}$/.test(m)) {
+        const owner = parseInt(m[m.length - 3], 8);
+        return { unlock: !!(owner & 4) };
+      }
+      if (/^[ugoa]*\+([rwxXst]*r[rwxXst]*)$/.test(m) || /^[ugoa]*=([rwxXst]*r[rwxXst]*)$/.test(m)) return { unlock: true };
+      if (/^[ugoa]*-([rwxXst]*r[rwxXst]*)$/.test(m) || /^[ugoa]*=[wx]*$/.test(m)) return { unlock: false };
+      return null;
+    };
     const cmds = {
-      help: () => out('ls [-a] [-l] [dir]   list files        cd <dir>   change folder      pwd   where am I\ncat <file>   show a file       head <file>   first lines   grep [-i] <word> <file>   search text\nfind <dir> -name <pattern>   search folders     base64 -d <file or text>   decode\nchmod +r <file>   allow reading   echo <text>   clear   hint   skip   submit FLAG{...}'),
-      pwd: () => out(path()),
-      ls: a => { const fl = a.filter(x => x[0] === '-').join(''), t = a.find(x => x[0] !== '-'), n = t ? walk(resolve(t)) : walk(cwd); if (n === undefined) return out('ls: cannot access: No such file or directory', '#f77'); if (!isDir(n)) return out(t); const names = Object.keys(n).filter(k => fl.includes('a') || k[0] !== '.').sort(); if (fl.includes('l')) names.forEach(k => out(mode(k, n[k]) + '  you  ' + String(isDir(n[k]) ? 4096 : rd(n[k]).length).padStart(6) + '  ' + k + (isDir(n[k]) ? '/' : ''))); else out(names.map(k => k + (isDir(n[k]) ? '/' : '')).join('   ') || '(empty)'); },
-      cd: a => { const p = resolve(a[0] || '~'), n = walk(p); if (n === undefined) return out('cd: ' + (a[0] || '') + ': No such file or directory', '#f77'); if (!isDir(n)) return out('cd: not a directory', '#f77'); cwd = p; $('tp').textContent = 'you@moundshroud:' + path() + '$ '; },
-      cat: a => { if (!a[0]) return out('cat: missing file', '#f77'); const n = walk(resolve(a[0])); if (n === undefined) return out('cat: ' + a[0] + ': No such file or directory', '#f77'); if (isDir(n)) return out('cat: ' + a[0] + ': Is a directory', '#f77'); if (n.locked) return out('cat: ' + a[0] + ': Permission denied', '#f77'); out(rd(n)); },
-      head: a => { const f = a.find(x => x[0] !== '-'), n = f && walk(resolve(f)); if (!n || isDir(n)) return out('head: cannot open', '#f77'); if (n.locked) return out('head: Permission denied', '#f77'); out(rd(n).split('\n').slice(0, 5).join('\n')); },
-      grep: a => { const ic = a.includes('-i'), r = a.filter(x => x !== '-i'), pat = r[0], f = r[1]; if (!pat || !f) return out('usage: grep [-i] <word> <file>', '#f77'); const n = walk(resolve(f)); if (n === undefined || isDir(n)) return out('grep: ' + f + ': No such file', '#f77'); if (n.locked) return out('grep: Permission denied', '#f77'); const hit = rd(n).split('\n').filter(l => ic ? l.toLowerCase().includes(pat.toLowerCase()) : l.includes(pat)); out(hit.length ? hit.join('\n') : '(no matches)'); },
-      find: a => { const i = a.indexOf('-name'); if (i < 0 || !a[i + 1]) return out('usage: find <dir> -name <pattern>', '#f77'); const dir = resolve(a[0] && a[0] !== '-name' ? a[0] : '.'), n = walk(dir); if (!isDir(n)) return out('find: no such directory', '#f77'); const base = '/' + dir.join('/'), res = find(n, base === '/' ? '' : base, glob(a[i + 1].replace(/^["']|["']$/g, '')), []); out(res.length ? res.join('\n') : '(nothing found)'); },
-      base64: a => { if (a[0] !== '-d' || !a[1]) return out('usage: base64 -d <file or text>', '#f77'); const n = walk(resolve(a[1])); let src = n === undefined ? a.slice(1).join('') : isDir(n) ? '' : n.locked ? null : rd(n); if (src === null) return out('base64: Permission denied', '#f77'); try { out(atob(src.trim())); } catch (e) { out('base64: invalid input', '#f77'); } },
-      chmod: a => { if (a[0] !== '+r' || !a[1]) return out('usage: chmod +r <file>', '#f77'); const n = walk(resolve(a[1])); if (n === undefined || isDir(n)) return out('chmod: cannot access ' + a[1], '#f77'); n.locked = false; out('mode of ' + a[1] + ' changed to rw-r--r--'); },
-      echo: a => out(a.join(' ')), clear: () => { $('to').innerHTML = ''; },
-      hint: () => out('Hint: ' + MIS[mi].hint, '#fc6'),
-      skip: () => { out('Skipping this mission.', '#fc6'); mi = Math.min(MIS.length - 1, mi + 1); setTimeout(load, 300); },
-      submit: a => { const f = a.join(' ').trim(); if (f === MIS[mi].flag) { out('Correct! Mission complete.', '#6f6'); ls.set('cyterm', String(Math.min(mi + 1, MIS.length))); api.submit(mi + 1); if (mi + 1 >= MIS.length) { out('You finished every mission. Terminal wizard!', '#6f6'); api.hud('All missions done'); return; } mi++; setTimeout(() => { $('to').innerHTML = ''; load(); }, 900); } else out('That is not the flag for this mission.', '#f77'); },
+      help: (a, _, emit) => showHelp(a[0], emit),
+      man: (a, _, emit) => a[0] ? showHelp(a[0], emit) : (emit('What manual page do you want? Try: man grep  (or type "help")', '#fc6'), { ok: true }),
+      pwd: (_, __, emit) => { emit(path()); return { ok: true }; },
+      ls: (a, _, emit) => runLs(a, emit),
+      ll: (a, _, emit) => runLs(['-la'].concat(a), emit),
+      la: (a, _, emit) => runLs(['-a'].concat(a), emit),
+      dir: (a, _, emit) => runLs(a, emit),
+      cd: (a, _, emit) => {
+        const target = a[0];
+        let p;
+        if (target === '-') {
+          if (!prevCwd) { emit('cd: OLDPWD not set', '#f77', true); return { ok: false }; }
+          p = prevCwd.slice();
+        } else {
+          p = resolve(target || '~');
+        }
+        const n = walk(p);
+        if (n === undefined) { emit('cd: ' + (target || '~') + ': No such file or directory', '#f77', true); return { ok: false }; }
+        if (!isDir(n)) { emit('cd: ' + target + ': Not a directory', '#f77', true); return { ok: false }; }
+        prevCwd = cwd.slice();
+        cwd = p;
+        updatePrompt();
+        if (target === '-') emit(path());
+        return { ok: true };
+      },
+      tree: (a, _, emit) => {
+        const showAll = a.some(x => x.startsWith('-') && x.includes('a'));
+        const t = a.find(x => !x.startsWith('-')) || '.';
+        const p = resolve(t), n = walk(p);
+        if (n === undefined) { emit('tree: ' + t + ': No such file or directory', '#f77', true); return { ok: false }; }
+        if (!isDir(n)) { emit(t); return { ok: true }; }
+        const lines = [t];
+        let dirs = 0, files = 0;
+        const walkTree = (dirNode, prefix) => {
+          const keys = Object.keys(dirNode).filter(k => showAll || k[0] !== '.').sort();
+          keys.forEach((k, i) => {
+            const last = i === keys.length - 1, child = dirNode[k], d = isDir(child);
+            if (d) dirs++; else files++;
+            lines.push(prefix + (last ? '└── ' : '├── ') + k + (d ? '/' : isLocked(child) ? ' [locked]' : ''));
+            if (d) walkTree(child, prefix + (last ? '    ' : '│   '));
+          });
+        };
+        walkTree(n, '');
+        lines.push('', dirs + ' ' + (dirs === 1 ? 'directory' : 'directories') + ', ' + files + ' ' + (files === 1 ? 'file' : 'files'));
+        emit(lines.join('\n'));
+        return { ok: true };
+      },
+      cat: (a, stdin, emit) => {
+        let numbered = false, rawFiles = [];
+        for (const x of a) {
+          if (x === '-n') numbered = true;
+          else if (x.startsWith('-') && x.length > 1) { emit('cat: invalid option -- ' + x, '#f77', true); return { ok: false }; }
+          else rawFiles.push(x);
+        }
+        const fmt = txt => numbered ? txt.split('\n').map((l, i) => String(i + 1).padStart(4) + '  ' + l).join('\n') : txt;
+        if (!rawFiles.length) {
+          if (stdin !== null) { emit(fmt(stdin)); return { ok: true }; }
+          emit('cat: missing file operand. Try: cat <file>', '#f77', true);
+          return { ok: false };
+        }
+        const files = expandFiles(rawFiles);
+        let ok = true;
+        for (const f of files) {
+          const n = walk(resolve(f));
+          if (n === undefined) { emit('cat: ' + f + ': No such file or directory', '#f77', true); ok = false; continue; }
+          if (isDir(n)) { emit('cat: ' + f + ': Is a directory', '#f77', true); ok = false; continue; }
+          if (isLocked(n)) { emit('cat: ' + f + ': Permission denied', '#f77', true); ok = false; continue; }
+          emit(fmt(rd(n)));
+        }
+        return { ok };
+      },
+      head: (a, stdin, emit) => {
+        const parsed = parseCountArgs(a, 10);
+        if (parsed.err) { emit('head: ' + parsed.err, '#f77', true); return { ok: false }; }
+        if (!parsed.files.length) {
+          if (stdin !== null) { emit(stdin.split('\n').slice(0, parsed.n).join('\n')); return { ok: true }; }
+          emit('usage: head [-n N] <file>', '#f77', true);
+          return { ok: false };
+        }
+        let ok = true;
+        parsed.files.forEach((f, idx) => {
+          const n = walk(resolve(f));
+          if (n === undefined) { emit('head: cannot open \'' + f + '\': No such file or directory', '#f77', true); ok = false; return; }
+          if (isDir(n)) { emit('head: error reading \'' + f + '\': Is a directory', '#f77', true); ok = false; return; }
+          if (isLocked(n)) { emit('head: cannot open \'' + f + '\': Permission denied', '#f77', true); ok = false; return; }
+          if (parsed.files.length > 1) emit((idx > 0 ? '\n' : '') + '==> ' + f + ' <==', '#6cf');
+          emit(rd(n).split('\n').slice(0, parsed.n).join('\n'));
+        });
+        return { ok };
+      },
+      tail: (a, stdin, emit) => {
+        const parsed = parseCountArgs(a, 10);
+        if (parsed.err) { emit('tail: ' + parsed.err, '#f77', true); return { ok: false }; }
+        if (!parsed.files.length) {
+          if (stdin !== null) { const ls0 = stdin.split('\n'); emit(parsed.n ? ls0.slice(-parsed.n).join('\n') : ''); return { ok: true }; }
+          emit('usage: tail [-n N] <file>', '#f77', true);
+          return { ok: false };
+        }
+        let ok = true;
+        parsed.files.forEach((f, idx) => {
+          const n = walk(resolve(f));
+          if (n === undefined) { emit('tail: cannot open \'' + f + '\': No such file or directory', '#f77', true); ok = false; return; }
+          if (isDir(n)) { emit('tail: error reading \'' + f + '\': Is a directory', '#f77', true); ok = false; return; }
+          if (isLocked(n)) { emit('tail: cannot open \'' + f + '\': Permission denied', '#f77', true); ok = false; return; }
+          if (parsed.files.length > 1) emit((idx > 0 ? '\n' : '') + '==> ' + f + ' <==', '#6cf');
+          const ls0 = rd(n).split('\n');
+          emit(parsed.n ? ls0.slice(-parsed.n).join('\n') : '');
+        });
+        return { ok };
+      },
+      grep: (a, stdin, emit) => {
+        let flags = '', pos = [], stopOpts = false;
+        for (const x of a) {
+          if (!stopOpts && x === '--') { stopOpts = true; continue; }
+          if (!stopOpts && /^-[inrvRclFE]+$/.test(x)) flags += x.slice(1);
+          else pos.push(x);
+        }
+        const ic = flags.includes('i'), numL = flags.includes('n'), rec = flags.includes('r') || flags.includes('R'), inv = flags.includes('v'), cnt = flags.includes('c'), filesOnly = flags.includes('l');
+        const pat = pos[0], rawTargets = pos.slice(1);
+        if (!pat) { emit('usage: grep [-i] [-n] [-r] [-v] [-c] <pattern> [file...]', '#f77', true); return { ok: false }; }
+        const matchLine = l => {
+          const m = ic ? l.toLowerCase().includes(pat.toLowerCase()) : l.includes(pat);
+          return inv ? !m : m;
+        };
+        if (!rawTargets.length) {
+          if (stdin !== null) {
+            const lines = stdin.split('\n'), hits = [];
+            lines.forEach((l, i) => { if (matchLine(l)) hits.push(numL ? (i + 1) + ':' + l : l); });
+            if (cnt) emit(String(hits.length));
+            else if (hits.length) emit(hits.join('\n'));
+            else emit('(no matches)', '#789');
+            return { ok: hits.length > 0 };
+          }
+          if (rec) rawTargets.push('.');
+          else { emit('usage: grep [-i] [-n] [-r] <pattern> <file>', '#f77', true); return { ok: false }; }
+        }
+        const targets = expandFiles(rawTargets);
+        const fileList = [];
+        let ok = true;
+        const collect = (label, node) => {
+          if (isDir(node)) {
+            if (!rec) { emit('grep: ' + label + ': Is a directory (use -r to search recursively)', '#f77', true); ok = false; return; }
+            for (const k of Object.keys(node).sort()) collect((label === '/' ? '' : label) + '/' + k, node[k]);
+          } else {
+            fileList.push({ label, node });
+          }
+        };
+        for (const t of targets) {
+          const n = walk(resolve(t));
+          if (n === undefined) { emit('grep: ' + t + ': No such file or directory', '#f77', true); ok = false; continue; }
+          collect(t, n);
+        }
+        const multi = fileList.length > 1 || rec;
+        let totalHits = 0;
+        for (const item of fileList) {
+          if (isLocked(item.node)) { emit('grep: ' + item.label + ': Permission denied', '#f77', true); ok = false; continue; }
+          const lines = rd(item.node).split('\n'), hits = [];
+          lines.forEach((l, i) => {
+            if (matchLine(l)) {
+              const pfx = (multi ? item.label + ':' : '') + (numL ? (i + 1) + ':' : '');
+              hits.push(pfx + l);
+            }
+          });
+          totalHits += hits.length;
+          if (filesOnly) { if (hits.length) emit(item.label); }
+          else if (cnt) emit((multi ? item.label + ':' : '') + hits.length);
+          else if (hits.length) emit(hits.join('\n'));
+        }
+        if (!totalHits && !cnt && !filesOnly && ok) emit('(no matches)', '#789');
+        return { ok: ok && (totalHits > 0 || cnt) };
+      },
+      find: (a, _, emit) => {
+        let dirArg = '.', namePat = null, ic = false, type = null;
+        let i = 0;
+        if (a[0] && !a[0].startsWith('-')) dirArg = a[i++];
+        while (i < a.length) {
+          const tok = a[i++];
+          if (tok === '-name' || tok === '-iname') {
+            if (!a[i]) { emit('find: missing argument to ' + tok, '#f77', true); return { ok: false }; }
+            namePat = a[i++].replace(/^["']|["']$/g, '');
+            ic = tok === '-iname';
+          } else if (tok === '-type') {
+            const tv = a[i++];
+            if (tv !== 'f' && tv !== 'd') { emit('find: -type expects f (file) or d (directory)', '#f77', true); return { ok: false }; }
+            type = tv;
+          } else {
+            emit('find: unknown option \'' + tok + '\'. Try: find <dir> -name <pattern>', '#f77', true);
+            return { ok: false };
+          }
+        }
+        const dir = resolve(dirArg), n = walk(dir);
+        if (n === undefined) { emit('find: \'' + dirArg + '\': No such file or directory', '#f77', true); return { ok: false }; }
+        if (!isDir(n)) { emit(dirArg); return { ok: true }; }
+        const base = '/' + dir.join('/');
+        const res = findWalk(n, base === '/' ? '' : base, namePat ? globRe(namePat, ic) : null, type, []);
+        emit(res.length ? res.join('\n') : '(nothing found)');
+        return { ok: true };
+      },
+      base64: (a, stdin, emit) => {
+        let decode = false, rest = [];
+        for (const x of a) {
+          if (x === '-d' || x === '-D' || x === '--decode') decode = true;
+          else if (x.startsWith('-') && x.length > 1) { emit('base64: invalid option -- ' + x + '. Try: base64 -d <file or text>', '#f77', true); return { ok: false }; }
+          else rest.push(x);
+        }
+        let src = null;
+        if (!rest.length) {
+          if (stdin !== null) src = stdin;
+          else { emit('usage: base64 [-d] <file or text>  (or pipe input)', '#f77', true); return { ok: false }; }
+        } else {
+          const cand = expandFiles([rest[0]])[0], n = walk(resolve(cand));
+          if (n !== undefined) {
+            if (isDir(n)) { emit('base64: ' + cand + ': Is a directory', '#f77', true); return { ok: false }; }
+            if (isLocked(n)) { emit('base64: ' + cand + ': Permission denied', '#f77', true); return { ok: false }; }
+            src = rd(n);
+          } else {
+            src = rest.join(' ');
+          }
+        }
+        if (decode) {
+          try { emit(atob(src.replace(/\s+/g, ''))); return { ok: true }; }
+          catch (e) { emit('base64: invalid Base64 input', '#f77', true); return { ok: false }; }
+        }
+        try { emit(btoa(src)); return { ok: true }; }
+        catch (e) { emit('base64: could not encode input', '#f77', true); return { ok: false }; }
+      },
+      chmod: (a, _, emit) => {
+        if (a.length < 2) { emit('usage: chmod <mode> <file...>  (e.g. chmod +r vault.txt or chmod 644 vault.txt)', '#f77', true); return { ok: false }; }
+        const parsed = parseChmod(a[0]);
+        if (!parsed) { emit('chmod: invalid mode \'' + a[0] + '\'. Try +r, u+r, 644, or -r.', '#f77', true); return { ok: false }; }
+        const files = expandFiles(a.slice(1));
+        let ok = true;
+        for (const f of files) {
+          const p = resolve(f), n = walk(p);
+          if (n === undefined) { emit('chmod: cannot access \'' + f + '\': No such file or directory', '#f77', true); ok = false; continue; }
+          if (isDir(n)) { emit('chmod: ' + f + ': skipping directory', '#fc6'); continue; }
+          setFileLock(p, !parsed.unlock);
+          emit('mode of \'' + f + '\' changed to ' + (parsed.unlock ? 'rw-r--r-- (readable)' : '--------- (locked)'));
+        }
+        return { ok };
+      },
+      wc: (a, stdin, emit) => {
+        let flags = '', rawFiles = [];
+        for (const x of a) {
+          if (x.startsWith('-') && x.length > 1) flags += x.slice(1);
+          else rawFiles.push(x);
+        }
+        const onlyL = flags.includes('l'), onlyW = flags.includes('w'), onlyC = flags.includes('c'), any = onlyL || onlyW || onlyC;
+        const stats = txt => {
+          const lines = txt ? txt.split('\n').length : 0;
+          const words = txt.trim() ? txt.trim().split(/\s+/).length : 0;
+          const bytes = txt.length;
+          const cols = [];
+          if (!any || onlyL) cols.push(String(lines).padStart(6));
+          if (!any || onlyW) cols.push(String(words).padStart(6));
+          if (!any || onlyC) cols.push(String(bytes).padStart(6));
+          return cols.join(' ');
+        };
+        if (!rawFiles.length) {
+          if (stdin !== null) { emit(stats(stdin)); return { ok: true }; }
+          emit('usage: wc [-l] [-w] [-c] <file>', '#f77', true);
+          return { ok: false };
+        }
+        let ok = true;
+        for (const f of expandFiles(rawFiles)) {
+          const n = walk(resolve(f));
+          if (n === undefined) { emit('wc: ' + f + ': No such file or directory', '#f77', true); ok = false; continue; }
+          if (isDir(n)) { emit('wc: ' + f + ': Is a directory', '#f77', true); ok = false; continue; }
+          if (isLocked(n)) { emit('wc: ' + f + ': Permission denied', '#f77', true); ok = false; continue; }
+          emit(stats(rd(n)) + '  ' + f);
+        }
+        return { ok };
+      },
+      strings: (a, stdin, emit) => {
+        const extract = s => (s.match(/[\x20-\x7e]{4,}/g) || []).join('\n') || '(no printable strings)';
+        if (!a.length) {
+          if (stdin !== null) { emit(extract(stdin)); return { ok: true }; }
+          emit('usage: strings <file>', '#f77', true);
+          return { ok: false };
+        }
+        let ok = true;
+        for (const f of expandFiles(a)) {
+          const n = walk(resolve(f));
+          if (n === undefined) { emit('strings: ' + f + ': No such file or directory', '#f77', true); ok = false; continue; }
+          if (isDir(n)) { emit('strings: ' + f + ': Is a directory', '#f77', true); ok = false; continue; }
+          if (isLocked(n)) { emit('strings: ' + f + ': Permission denied', '#f77', true); ok = false; continue; }
+          emit(extract(rd(n)));
+        }
+        return { ok };
+      },
+      stat: (a, _, emit) => {
+        if (!a.length) { emit('usage: stat <path>', '#f77', true); return { ok: false }; }
+        let ok = true;
+        for (const f of expandFiles(a)) {
+          const p = resolve(f), n = walk(p);
+          if (n === undefined) { emit('stat: cannot stat \'' + f + '\': No such file or directory', '#f77', true); ok = false; continue; }
+          const dir = isDir(n), sz = dir ? 4096 : rd(n).length;
+          emit('  File: ' + path(p) + '\n  Type: ' + (dir ? 'directory' : isLocked(n) ? 'regular file (locked)' : 'regular file') + '\n  Size: ' + sz + ' bytes\nAccess: ' + mode(n) + '  owner=you');
+        }
+        return { ok };
+      },
+      file: (a, _, emit) => {
+        if (!a.length) { emit('usage: file <path>', '#f77', true); return { ok: false }; }
+        let ok = true;
+        for (const f of expandFiles(a)) {
+          const n = walk(resolve(f));
+          if (n === undefined) { emit(f + ': cannot open (No such file or directory)', '#f77', true); ok = false; continue; }
+          if (isDir(n)) emit(f + ': directory');
+          else if (isLocked(n)) emit(f + ': regular file (permission denied — unreadable)');
+          else {
+            const c = rd(n).trim();
+            const kind = !c ? 'empty' : f.endsWith('.jpg') ? 'simulated image data' : /^[A-Za-z0-9+/]+={0,2}$/.test(c) && c.length >= 12 && c.length % 4 === 0 ? 'ASCII text (looks like Base64)' : 'ASCII text';
+            emit(f + ': ' + kind);
+          }
+        }
+        return { ok };
+      },
+      echo: (a, _, emit) => { emit((a[0] === '-n' ? a.slice(1) : a).join(' ')); return { ok: true }; },
+      whoami: (_, __, emit) => { emit('you'); return { ok: true }; },
+      hostname: (_, __, emit) => { emit('moundshroud'); return { ok: true }; },
+      id: (_, __, emit) => { emit('uid=1000(you) gid=1000(you) groups=1000(you),lab'); return { ok: true }; },
+      uname: (a, _, emit) => { emit(a.includes('-a') ? 'Linux moundshroud 6.8.0-sandbox #1 SMP x86_64 GNU/Linux' : 'Linux'); return { ok: true }; },
+      history: (_, __, emit) => { emit(hist.map((h, i) => String(i + 1).padStart(4) + '  ' + h).join('\n') || '(empty)'); return { ok: true }; },
+      clear: () => { $('to').innerHTML = ''; return { ok: true }; },
+      cls: () => { $('to').innerHTML = ''; return { ok: true }; },
+      hint: (_, __, emit) => { emit('Hint: ' + MIS[mi].hint, '#fc6'); return { ok: true }; },
+      reset: (_, __, emit) => { $('to').innerHTML = ''; load(); emit('Mission ' + (mi + 1) + ' reset.', '#fc6'); return { ok: true }; },
+      restart: (_, __, emit) => { $('to').innerHTML = ''; load(); emit('Mission ' + (mi + 1) + ' reset.', '#fc6'); return { ok: true }; },
+      missions: (_, __, emit) => {
+        const lines = MIS.map((m, i) => {
+          const tag = i === mi ? '[current]' : i < doneCount ? '[done]   ' : '[ ]      ';
+          return '  ' + (i + 1) + '. ' + tag + ' ' + m.name;
+        });
+        emit('Missions:\n' + lines.join('\n') + '\nUse "mission <1-' + MIS.length + '>" to switch.', '#c9f5d4');
+        return { ok: true };
+      },
+      mission: (a, _, emit) => {
+        const n = parseInt(a[0], 10);
+        if (isNaN(n) || n < 1 || n > MIS.length) { emit('usage: mission <1-' + MIS.length + '>', '#f77', true); return { ok: false }; }
+        mi = n - 1;
+        $('to').innerHTML = '';
+        load();
+        emit('Switched to Mission ' + n + ': ' + MIS[mi].name, '#6cf');
+        return { ok: true };
+      },
+      skip: (_, __, emit) => {
+        if (mi + 1 >= MIS.length) { emit('You are already on the final mission. Use "mission 1" to replay earlier missions.', '#fc6'); return { ok: true }; }
+        emit('Skipping to Mission ' + (mi + 2) + '...', '#fc6');
+        mi++;
+        setTimeout(() => { $('to').innerHTML = ''; load(); }, 300);
+        return { ok: true };
+      },
+      submit: (a, _, emit) => {
+        const f = a.join(' ').trim();
+        if (!f) { emit('usage: submit FLAG{...}', '#f77', true); return { ok: false }; }
+        if (f === MIS[mi].flag) {
+          emit('Correct! Mission complete.', '#6f6');
+          doneCount = Math.max(doneCount, mi + 1);
+          ls.set('cyterm', String(Math.min(doneCount, MIS.length)));
+          api.submit(doneCount);
+          if (mi + 1 >= MIS.length) {
+            emit('You finished every mission. Terminal wizard! (Type "missions" to replay any mission.)', '#6f6');
+            api.hud('All missions done');
+            return { ok: true };
+          }
+          mi++;
+          setTimeout(() => { $('to').innerHTML = ''; load(); }, 900);
+          return { ok: true };
+        }
+        emit('That is not the flag for this mission.', '#f77', true);
+        return { ok: false };
+      },
+    };
+    const tokenize = str => {
+      const toks = []; let cur = '', q = '', hasTok = false;
+      for (let i = 0; i < str.length; i++) {
+        const ch = str[i];
+        if (q) { if (ch === q) q = ''; else cur += ch; continue; }
+        if (ch === '"' || ch === "'") { q = ch; hasTok = true; continue; }
+        if (/\s/.test(ch)) { if (hasTok) { toks.push(cur); cur = ''; hasTok = false; } continue; }
+        cur += ch; hasTok = true;
+      }
+      if (hasTok) toks.push(cur);
+      return toks;
+    };
+    const splitUnquoted = (str, ops) => {
+      const segs = []; let cur = '', q = '';
+      for (let i = 0; i < str.length; i++) {
+        const ch = str[i];
+        if (q) { cur += ch; if (ch === q) q = ''; continue; }
+        if (ch === '"' || ch === "'") { q = ch; cur += ch; continue; }
+        const op = ops.find(o => str.startsWith(o, i));
+        if (op) { segs.push({ text: cur.trim(), op }); cur = ''; i += op.length - 1; continue; }
+        cur += ch;
+      }
+      segs.push({ text: cur.trim(), op: null });
+      return segs;
+    };
+    const runPipeline = segText => {
+      const stages = splitUnquoted(segText, ['|']).map(s => s.text).filter(Boolean);
+      if (!stages.length) return true;
+      let piped = null, lastOk = true;
+      for (let idx = 0; idx < stages.length; idx++) {
+        const parts = tokenize(stages[idx]);
+        if (!parts.length) continue;
+        const c = parts.shift(), isLast = idx === stages.length - 1;
+        const buf = [];
+        const emit = (t, col, isErr) => {
+          if (isLast || isErr) out(t, col);
+          else buf.push(t);
+        };
+        emit.raw = isLast;
+        if (parts.includes('--help') || (parts.includes('-h') && c !== 'ls' && c !== 'du' && c !== 'df')) {
+          const r = showHelp(c, emit);
+          lastOk = !!(r && r.ok);
+          piped = isLast ? null : buf.join('\n');
+          continue;
+        }
+        const fn = cmds[c];
+        if (!fn) {
+          out(c + ': command not found. Type "help" for available commands.', '#f77');
+          return false;
+        }
+        const res = fn(parts, piped, emit);
+        lastOk = !res || res.ok !== false;
+        piped = isLast ? null : buf.join('\n');
+      }
+      return lastOk;
+    };
+    const runLine = line => {
+      const chain = splitUnquoted(line, ['&&', ';']);
+      let prevOk = true, prevOp = null;
+      for (const step of chain) {
+        if (prevOp === '&&' && !prevOk) break;
+        if (step.text) prevOk = runPipeline(step.text);
+        prevOp = step.op;
+      }
+    };
+    const autocomplete = () => {
+      const val = $('ti').value;
+      const m = val.match(/(^|[\s|;&])([^\s|;&]*)$/);
+      const prefix = m ? m[2] : '', before = m ? val.slice(0, val.length - prefix.length) : val;
+      const isCmdPos = /^\s*$/.test(before) || /[|;&]\s*$/.test(before);
+      let cands = [];
+      if (isCmdPos) {
+        cands = Object.keys(cmds).filter(k => k.startsWith(prefix)).sort();
+      } else {
+        const slash = prefix.lastIndexOf('/'), dirStr = slash >= 0 ? prefix.slice(0, slash) || '/' : '', base = slash >= 0 ? prefix.slice(slash + 1) : prefix;
+        const dirNode = walk(resolve(dirStr || '.'));
+        if (isDir(dirNode)) {
+          const wantDot = base.startsWith('.');
+          cands = Object.keys(dirNode)
+            .filter(k => (wantDot || k[0] !== '.') && k.startsWith(base))
+            .sort()
+            .map(k => (dirStr ? (dirStr === '/' ? '/' : dirStr + '/') : '') + k + (isDir(dirNode[k]) ? '/' : ''));
+        }
+      }
+      if (cands.length === 1) {
+        $('ti').value = before + cands[0] + (isCmdPos || !cands[0].endsWith('/') ? ' ' : '');
+      } else if (cands.length > 1) {
+        let common = cands[0];
+        for (const c of cands.slice(1)) { while (!c.startsWith(common)) common = common.slice(0, -1); }
+        if (common.length > prefix.length) $('ti').value = before + common;
+        else out(cands.join('   '), '#789');
+      }
     };
     $('ti').onkeydown = e => {
+      if (e.key === 'Tab') { e.preventDefault(); autocomplete(); return; }
+      if (e.ctrlKey && (e.key === 'l' || e.key === 'L')) { e.preventDefault(); $('to').innerHTML = ''; return; }
+      if (e.ctrlKey && (e.key === 'c' || e.key === 'C')) { e.preventDefault(); out($('tp').textContent + $('ti').value + '^C', '#6cf'); $('ti').value = ''; return; }
       if (e.key === 'ArrowUp') { if (hist.length) { hp = Math.max(0, hp - 1); $('ti').value = hist[hp] || ''; } e.preventDefault(); return; }
       if (e.key === 'ArrowDown') { hp = Math.min(hist.length, hp + 1); $('ti').value = hist[hp] || ''; e.preventDefault(); return; }
-      if (e.key !== 'Enter') return; const line = $('ti').value.trim(); $('ti').value = ''; if (!line) return; hist.push(line); hp = hist.length; out('you@moundshroud:' + path() + '$ ' + line, '#6cf');
-      const parts = (line.match(/"[^"]*"|'[^']*'|\S+/g) || []).map(s => s.replace(/^["']|["']$/g, '')), c = parts.shift(); (cmds[c] || (() => out(c + ': command not found. Try "help".', '#f77')))(parts);
+      if (e.key !== 'Enter') return;
+      const line = $('ti').value.trim(); $('ti').value = '';
+      if (!line) return;
+      hist.push(line); hp = hist.length;
+      out($('tp').textContent + line, '#6cf');
+      runLine(line);
     };
     el.onclick = e => { if (!window.getSelection().toString()) $('ti').focus(); };
-    load(); out('Moundshroud lab terminal. No real files are touched: this is a sandbox.\n'); setTimeout(() => $('ti').focus(), 50); return () => { };
+    load(); out('Moundshroud lab terminal. Sandbox only — no real files are touched.\nType "help" to see commands, or "help <command>" for examples.\n', '#8fa89a'); setTimeout(() => $('ti').focus(), 50); return () => { };
   });
 
   /* ================= SQL INJECTION DOJO ================= */

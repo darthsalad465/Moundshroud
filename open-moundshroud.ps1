@@ -1,5 +1,17 @@
-# Opens Moundshroud (used by the desktop shortcut): starts the hotkey listener and the server if they are not running, then shows the window.
+# Opens Moundshroud: prefers the standalone zero-localhost Desktop app (app://moundshroud/) when installed,
+# falling back to Edge + local server only if Electron is not present.
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$electron = Join-Path $root 'desktop\node_modules\electron\dist\electron.exe'
+$desktopDir = Join-Path $root 'desktop'
+
+if (Test-Path $electron) {
+  # Stop legacy assistant-listener.exe if running so Ctrl+Alt+A belongs cleanly to Moundshroud Standalone
+  Get-Process assistant-listener -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+  Start-Process -FilePath $electron -ArgumentList "`"$desktopDir`"" -WorkingDirectory $desktopDir
+  exit 0
+}
+
+# Fallback: legacy Edge + local Node server
 $url = 'http://127.0.0.1:47231'
 function Up { try { (Invoke-WebRequest "$url/api/status" -UseBasicParsing -TimeoutSec 1).StatusCode -eq 200 } catch { $false } }
 

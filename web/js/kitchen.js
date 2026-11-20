@@ -45,7 +45,15 @@
     RE_N.lastIndex = 0; while ((m = RE_N.exec(txt)) && out.length < 30) { const food = m[2].split(' ')[0]; if (NOTFOOD.test(food) || new RegExp('^(?:' + UNITX + ')$', 'i').test(food) || /^(?:and|or|the|it|them|until|when|as|tablespoons?|teaspoons?)$/i.test(food)) continue; const s = (m[1] + ' ' + m[2]).trim(); if (!out.some(o => o.toLowerCase().includes(m[2].toLowerCase().split(' ')[0]))) push(s); }
     return out;
   };  const FR = { '½': .5, '¼': .25, '¾': .75, '⅓': 1 / 3, '⅔': 2 / 3, '⅛': .125 };
-  const nice = v => { const w = Math.floor(v + 1e-6), f = v - w, fr = [[0, ''], [.125, '⅛'], [.25, '¼'], [1 / 3, '⅓'], [.5, '½'], [2 / 3, '⅔'], [.75, '¾'], [1, '']].reduce((a, b) => Math.abs(b[0] - f) < Math.abs(a[0] - f) ? b : a); const ww = fr[0] === 1 ? w + 1 : w; return (ww ? ww : '') + (ww && fr[1] ? ' ' : '') + fr[1] || '0'; };
+  const nice = v => {
+    if (typeof window.Fraction === 'function' && isFinite(v) && v > 0) {
+      try {
+        const f = new window.Fraction(Math.round(v * 24), 24);
+        if (f.d <= 8) return f.toFraction(true).replace(/\b1\/2\b/, '½').replace(/\b1\/4\b/, '¼').replace(/\b3\/4\b/, '¾').replace(/\b1\/3\b/, '⅓').replace(/\b2\/3\b/, '⅔').replace(/\b1\/8\b/, '⅛');
+      } catch (e) { }
+    }
+    const w = Math.floor(v + 1e-6), f = v - w, fr = [[0, ''], [.125, '⅛'], [.25, '¼'], [1 / 3, '⅓'], [.5, '½'], [2 / 3, '⅔'], [.75, '¾'], [1, '']].reduce((a, b) => Math.abs(b[0] - f) < Math.abs(a[0] - f) ? b : a); const ww = fr[0] === 1 ? w + 1 : w; return (ww ? ww : '') + (ww && fr[1] ? ' ' : '') + fr[1] || '0';
+  };
   const scaleText = (text, k) => k === 1 ? text : text.replace(new RegExp('(\\d+\\s+\\d+/\\d+|\\d+/\\d+|\\d*\\.?\\d+\\s?[½¼¾⅓⅔⅛]|[½¼¾⅓⅔⅛]|\\d+(?:\\.\\d+)?)(\\s*(?:' + UNITS + ')\\b)', 'gi'), (m, n, u) => { let v; if (/^\d+\s+\d+\/\d+$/.test(n)) { const p = n.split(/\s+/), f = p[1].split('/'); v = +p[0] + f[0] / f[1]; } else if (/^\d+\/\d+$/.test(n)) { const f = n.split('/'); v = f[0] / f[1]; } else if (/[½¼¾⅓⅔⅛]/.test(n)) { const mm = /^(\d*\.?\d*)\s?([½¼¾⅓⅔⅛])?$/.exec(n.trim()); v = (+mm[1] || 0) + (FR[mm[2]] || 0); } else v = parseFloat(n); return isFinite(v) ? nice(v * k) + u : m; });
 
   /* ---------- drawing ---------- */

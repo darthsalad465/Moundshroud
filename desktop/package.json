@@ -26,6 +26,8 @@
     "files": [
       "main.js",
       "preload.js",
+      "inprocess-bridge.js",
+      "backend-worker.js",
       "splash.html",
       "package.json"
     ],

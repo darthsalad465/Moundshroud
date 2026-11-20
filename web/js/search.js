@@ -91,8 +91,25 @@
     if (vt) {
       const c = A.calc.try(vt); if (c) grp('Answer', [{ ic: '<span class="hic">🟰</span>', title: esc(c.label), sub: 'Click to copy', go: () => { A.copy(c.copy); } }]);
     }
-    /* commands first: they are what most people are after, and they match on their own words */
-    const found = cOnly ? A.cmd.find(vt.slice(1), 26) : A.cmd.find(vt, 26);
+    /* commands first: exact/prefix via A.cmd.find, topped up with MiniSearch fuzzy matching for typos */
+    const qCmd = cOnly ? vt.slice(1) : vt;
+    let found = A.cmd.find(qCmd, 26);
+    if (qCmd.length > 1 && typeof window.MiniSearch === 'function') {
+      try {
+        const list = A.cmd.list();
+        if (!open._ms || open._msN !== list.length) {
+          const ms = new window.MiniSearch({ fields: ['title', 'sub', 'kw', 'group'], storeFields: ['id'], searchOptions: { prefix: true, fuzzy: 0.25, boost: { title: 2 } } });
+          ms.addAll(list.map(c => ({ id: c.id, title: c.title || '', sub: c.sub || '', kw: Array.isArray(c.kw) ? c.kw.join(' ') : String(c.kw || ''), group: c.group || '' })));
+          open._ms = ms; open._msN = list.length;
+        }
+        const seen = new Set(found.map(f => f.cmd.id));
+        for (const hit of open._ms.search(qCmd).slice(0, 12)) {
+          if (seen.has(hit.id)) continue;
+          const cmd = A.cmd.byId(hit.id);
+          if (cmd) { seen.add(hit.id); found.push({ cmd, at: [] }); }
+        }
+      } catch (e) { }
+    }
     const byGroup = [];
     found.forEach(f => { const g = f.cmd.group || 'Do'; (byGroup.find(x => x.n === g) || (byGroup.push({ n: g, items: [] }), byGroup[byGroup.length - 1])).items.push({ cmd: f.cmd, at: f.at }); });
     byGroup.forEach(g => grp(g.n === 'Go to' ? 'Go to' : g.n, g.items.map(x => ({

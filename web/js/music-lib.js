@@ -102,7 +102,26 @@
   const artistCard = a => card({ go: 'artist:' + a, key: a, icon: (GI[ART[a][0].g] || '🎵'), title: a, sub: ns(ART[a].length) + '' });
 
   /* ---------- views ---------- */
+  function chordResult(input) {
+    const query = input.trim().replace(/♯/g, '#').replace(/♭/g, 'b');
+    if (!query) return '';
+    const { Chord, Note } = window.Tonal;
+    const tokens = query.split(/[\s,]+/).filter(Boolean);
+    if (tokens.length > 1 && tokens.every(token => !Note.get(token).empty)) {
+      const matches = Chord.detect(tokens);
+      return matches.length ? matches.join(' · ') : 'No matching chord found.';
+    }
+    const chord = Chord.get(query);
+    return chord.notes.length ? chord.notes.join(' · ') : 'Try a chord symbol like Dm7 or notes like D F A C.';
+  }
   const V = {
+    chords() {
+      const query = view.chordQuery ?? 'C E G B';
+      return '<h2>Chord explorer</h2><label for="mlchord">Chord symbol or notes</label>' +
+        '<p class="small mute" id="mlchordhelp">Enter a symbol like Cmaj7 to see its notes, or enter notes separated by spaces to find matching chords.</p>' +
+        '<input id="mlchord" type="text" maxlength="120" autocomplete="off" spellcheck="false" aria-describedby="mlchordhelp" value="' + esc2(query) + '">' +
+        '<p><output id="mlchordresult" for="mlchord" aria-live="polite">' + esc2(chordResult(query)) + '</output></p>';
+    },
     home() {
       const h = new Date().getHours(), gr = h < 5 ? 'Good night' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening', rec = ids2t(recent).slice(0, 12), day = daySeed();
       const tiles = [['❤️', 'Liked Songs', ns(likes.size) + '', 'liked'], ['🕒', 'Recently played', ns(rec.length) + '', 'recent']].concat([0, 1, 2, 3].map(j => { const i = (day + j * 3) % MIXES.length; return [MIXES[i][1], MIXES[i][0], 'Daily mix', 'mix:' + i]; }));
@@ -262,7 +281,7 @@
   function paintSide() {
     const s = document.getElementById('mlside'); if (!s) return; const on = (t, a) => view.t === t && (a === undefined || view.a === a) ? ' on' : '', nav = (ic, tx, go2, ac) => '<div class="ml-nav' + ac + '" data-go="' + go2 + '" title="' + esc2(tx) + '">' + ic + ' <span>' + esc2(tx) + '</span></div>';
     s.innerHTML = nav('🏠', 'Home', 'home', on('home')) + nav('🔎', 'Search', 'search', on('search')) + '<h4>Browse</h4>' + nav('🎧', 'All songs', 'songs', on('songs')) + nav('🎼', 'Genres', 'genres', on('genres')) + nav('🌈', 'Moods', 'moods', on('moods')) + nav('🎤', 'Artists', 'artists', on('artists')) + nav('💿', 'Albums', 'albums', on('albums')) + (Object.keys(DEC).length ? nav('📅', 'Decades', 'decades', on('decades')) : '') +
-      '<h4>Your library</h4>' + nav('❤️', 'Liked Songs', 'liked', on('liked')) + nav('🕒', 'Recently played', 'recent', on('recent')) + nav('📈', 'Most played', 'most', on('most')) + pls.map(p => nav('🎶', p.name, 'playlist:' + p.id, on('playlist', p.id))).join('') + '<div class="ml-nav" data-newpl="1">➕ <span>New playlist</span></div><h4>My music</h4>' + nav('📁', 'My songs', 'mine', on('mine')) + nav(rec.state === 'rec' ? '🔴' : '🎙️', rec.state === 'rec' ? 'Recording...' : 'Record', 'record', on('record')) + '<h4>About</h4>' + nav('ℹ️', 'Credits & licences', 'credits', on('credits'));
+      '<button type="button" class="ib ml-nav" data-go="chords">Chord explorer</button><h4>Your library</h4>' + nav('❤️', 'Liked Songs', 'liked', on('liked')) + nav('🕒', 'Recently played', 'recent', on('recent')) + nav('📈', 'Most played', 'most', on('most')) + pls.map(p => nav('🎶', p.name, 'playlist:' + p.id, on('playlist', p.id))).join('') + '<div class="ml-nav" data-newpl="1">➕ <span>New playlist</span></div><h4>My music</h4>' + nav('📁', 'My songs', 'mine', on('mine')) + nav(rec.state === 'rec' ? '🔴' : '🎙️', rec.state === 'rec' ? 'Recording...' : 'Record', 'record', on('record')) + '<h4>About</h4>' + nav('ℹ️', 'Credits & licences', 'credits', on('credits'));
   }
   function markPlaying() { document.querySelectorAll('#mlmain .ml-row').forEach(r => { const on = cur && r.dataset.id === cur.i; r.classList.toggle('on', !!on); const n = r.querySelector('.num'); if (n) n.textContent = on && !au.paused ? '♫' : (+r.dataset.n + 1); }); }
   function paintBar() {
@@ -322,6 +341,11 @@
       else if (id === 'mlq-btn') { showQ = !showQ; paintQ(); paintBar(); } else if (id === 'mlsleep') { const r = T.closest('button').getBoundingClientRect(); sleepMenu(r.left - 100, r.top - 190); e.stopPropagation(); }
     };
     P.oninput = e => {
+      if (e.target.id === 'mlchord') {
+        view.chordQuery = e.target.value;
+        document.getElementById('mlchordresult').textContent = chordResult(view.chordQuery);
+        return;
+      }
       if (e.target.id === 'mlq') { view.q = e.target.value; clearTimeout(P._qt); P._qt = setTimeout(() => { view.keepScroll = true; render(); }, 160); }
       else if (e.target.id === 'mlvol') { au.volume = +e.target.value / 100; ls.set('mlvol', e.target.value); } else if (e.target.id === 'mlseek') e.target.dataset.drag = '1';
     };
@@ -330,7 +354,7 @@
     P.addEventListener('drop', e => { if (!hasFiles(e)) return; e.preventDefault(); const p = MLMine.filesFromDrop(e.dataTransfer); if (view.t !== 'mine') go('mine'); p.then(importFiles); });
     P.onchange = e => { if (e.target.id === 'mlseek') { au.currentTime = +e.target.value; delete e.target.dataset.drag; } };
     P.addEventListener('contextmenu', e => { const r = e.target.closest('.ml-row[data-id]'); if (r) { e.preventDefault(); trackMenu(r.dataset.id, e.clientX, e.clientY, view.t === 'playlist'); } });
-    P.addEventListener('keydown', e => { if (e.target.id === 'mlq') e.stopPropagation(); }, true);
+    P.addEventListener('keydown', e => { if (e.target.id === 'mlq' || e.target.id === 'mlchord') e.stopPropagation(); }, true);
     document.addEventListener('click', e => { if (!e.target.closest('.ml-menu') && !e.target.closest('[data-mn]') && !e.target.closest('#mlsleep')) closeMenu(); }, true);
     document.addEventListener('keydown', e => { if (A.cur !== 'music' || /INPUT|TEXTAREA|SELECT/.test((e.target.tagName || ''))) return; if (e.code === 'Space') { e.preventDefault(); toggle(); } else if (e.shiftKey && e.key === 'ArrowRight') nextTrack(1); else if (e.shiftKey && e.key === 'ArrowLeft') prevTrack(); });
     setInterval(() => { if (sleepAt) paintBar(); }, 30000);
@@ -346,8 +370,8 @@
     else if (m === 'sleep') { const v = el.dataset.min; closeMenu(); sleepAt = 0; sleepEnd = false; if (v === 'end') sleepEnd = true; else if (+v) sleepAt = Date.now() + (+v) * 60000; paintBar(); A.toast(+v ? 'Sleep timer set for ' + v + ' minutes.' : v === 'end' ? 'Music will stop after this track.' : 'Sleep timer off.'); }
   };
   A.musicLib = { ensure: async () => { if (!built) build(); await load(); return CAT; }, play: id => { const t = BY[id]; if (t) playCtx([id], 0, ''); }, toggle, next: () => nextTrack(1), pause: () => au.pause(), audio: au, catalog: () => CAT, importFiles, refreshMine, mine: () => mine, state: () => ({ cur, ctx, uq, view, likes: [...likes], pls }), go };
-  A.registerTab('music', 'Music', async () => { if (!built) build(); if (!loaded) { document.getElementById('mlmain').innerHTML = '<div class="mute" style="padding:30px">Loading your library...</div>'; } await load(); if (!CAT.length) {       /* a new install: the music library is not in the download, so offer what works without it */
-      const m = document.getElementById('mlmain'); m.innerHTML = '<div style="padding:30px;max-width:560px;line-height:1.6"><h2 style="margin:0 0 6px">🎼 No music on this PC yet</h2><div class="mute">The free music library is not part of the Moundshroud download, to keep it small. You can bring in your own songs (MP3, M4A, FLAC, Ogg, WAV): they stay on this PC. You can also record, or make music in Studio.</div><div class="row" style="margin-top:12px;gap:6px;flex-wrap:wrap"><button class="pri" id="mlefiles">Add music files…</button><button class="ib" id="mlefolder">Add a whole folder…</button><button class="ib" id="mlerec">🎙️ Record</button><button class="ib" id="mlestudio">🎨 Studio</button></div></div>';
+  A.registerTab('music', 'Music', async () => { if (!built) build(); if (!loaded) { document.getElementById('mlmain').innerHTML = '<div class="mute" style="padding:30px">Loading your library...</div>'; } await load(); if (!CAT.length && view.t === 'home') {       /* a new install: the music library is not in the download, so offer what works without it */
+      const m = document.getElementById('mlmain'); m.innerHTML = '<div style="padding:30px;max-width:560px;line-height:1.6"><h2 style="margin:0 0 6px">🎼 No music on this PC yet</h2><div class="mute">The free music library is not part of the Moundshroud download, to keep it small. You can bring in your own songs (MP3, M4A, FLAC, Ogg, WAV): they stay on this PC. You can also record, or make music in Studio.</div><div class="row" style="margin-top:12px;gap:6px;flex-wrap:wrap"><button class="pri" id="mlefiles">Add music files…</button><button class="ib" id="mlefolder">Add a whole folder…</button><button class="ib" id="mlerec">🎙️ Record</button><button class="ib" data-go="chords">Chord explorer</button><button class="ib" id="mlestudio">🎨 Studio</button></div></div>';
       m.querySelector('#mlefiles').onclick = () => pickFiles(false); m.querySelector('#mlefolder').onclick = () => pickFiles(true);
       m.querySelector('#mlerec').onclick = () => go('record'); m.querySelector('#mlestudio').onclick = () => A.showTab('studio');
       return;

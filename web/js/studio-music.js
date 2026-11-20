@@ -55,7 +55,7 @@
     const engineNote = () => { const el = q('#mcs'); if (!el) return; el.textContent = engine === 'qwen' ? 'Qwen writes the song into the studio.' : mgOk ? 'MusicGen is ready: Compose records a real audio clip.' : engine === 'musicgen' ? 'MusicGen is not installed. Run install-music-model.ps1, or pick Qwen.' : 'MusicGen is not installed, so Qwen will write the song.'; };
     const save = () => { try { ls.set('mstudio', JSON.stringify(S)); } catch (e) { } };
     const P = () => S.pats[cur];
-    root.innerHTML = '<div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><h2 style="margin:0">🎹 Music studio</h2><input id="mn" type="text" style="width:150px" maxlength="40"><span class="sp"></span><button class="pri" id="mplay">▶ Play</button><button class="ib" id="mwav">⬇ WAV</button><button class="ib" id="mmine">➕ Add to My songs</button></div>' +
+    root.innerHTML = '<div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><h2 style="margin:0">🎹 Music studio</h2><input id="mn" type="text" style="width:150px" maxlength="40"><span class="sp"></span><button class="pri" id="mplay">▶ Play</button><button class="ib" id="mwav">⬇ WAV</button><button class="ib" id="mmid" title="Export song as a standard .mid MIDI file">⬇ MIDI</button><button class="ib" id="mmidin" title="Import a .mid MIDI file into this studio">⬆ MIDI</button><button class="ib" id="mmine">➕ Add to My songs</button></div>' +
       '<div class="card" style="margin:0 0 10px"><div class="row" style="gap:12px;align-items:center;flex-wrap:wrap"><label class="small mute">Tempo <input id="mbpm" type="range" min="60" max="200" style="width:110px"> <b id="mbpmv"></b></label><label class="small mute">Swing <input id="msw" type="range" min="0" max="60" style="width:80px"></label><label class="small mute">Key <select id="mkey">' + NOTES.map((n, i) => '<option value="' + i + '">' + n + '</option>').join('') + '</select></label><label class="small mute">Scale <select id="msc">' + Object.keys(SCALES).map(s => '<option>' + s + '</option>').join('') + '</select></label><label class="small mute">Bass <select id="mbv">' + Object.entries(VOICES).map(v => '<option value="' + v[0] + '">' + v[1] + '</option>').join('') + '</select></label><label class="small mute">Lead <select id="mlv">' + Object.entries(VOICES).map(v => '<option value="' + v[0] + '">' + v[1] + '</option>').join('') + '</select></label></div></div>' +
       '<div class="row" style="gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><b class="small">Pattern</b><div id="mpat" style="display:flex;gap:4px"></div><button class="ib" id="mcpy" title="Copy this pattern into another">⧉ Copy to…</button><button class="ib" id="mclr">Clear</button><button class="ib" id="mrand" title="Fill with a random idea in the chosen key">🎲 Surprise me</button><span class="sp"></span><b class="small">Song order</b><input id="mchain" type="text" style="width:110px" title="Patterns played in order, e.g. AABA" placeholder="AABA"><span class="small mute" id="mlen"></span></div>' +
       '<div class="row" style="gap:4px;margin-bottom:6px"><button class="ib" data-tr="drums">🥁 Drums</button><button class="ib" data-tr="bass">🎸 Bass</button><button class="ib" data-tr="lead">🎹 Lead</button></div><div id="mgrid" style="overflow-x:auto"></div>' +
@@ -170,6 +170,64 @@
     q('#mcg').onclick = compose; q('#mcp').onkeydown = e => { e.stopPropagation(); if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) compose(); };
     q('#mcc').onclick = e => { const b = e.target.closest('[data-i]'); if (b) { q('#mcp').value = b.dataset.i; compose(); } };
     q('#mcr').onclick = () => { if (!prevS) return; stop(); S = prevS; prevS = null; cur = 0; save(); setUI(); grid(); q('#mcr').disabled = true; q('#mcs').textContent = 'Your previous song is back.'; };
+    /* MIDI export & import powered by @tonejs/midi */
+    q('#mmid').onclick = () => {
+      if (typeof window.Midi !== 'function') return A.toast('MIDI library unavailable.');
+      try {
+        const midi = new window.Midi();
+        midi.header.setTempo(S.bpm || 110);
+        const sp = 60 / (S.bpm || 110) / 4, order = S.chain.length ? S.chain : [0], base = 48 + (S.key || 0);
+        const trLead = midi.addTrack(), trBass = midi.addTrack(), trDrum = midi.addTrack();
+        trLead.name = 'Lead'; trBass.name = 'Bass'; trDrum.name = 'Drums'; trDrum.channel = 9;
+        const DR_MIDI = { kick: 36, snare: 38, hat: 42, ohat: 46, clap: 39, tom: 45, cow: 56 };
+        let t = 0;
+        order.forEach(pi => {
+          const p = S.pats[pi];
+          for (let i = 0; i < STEPS; i++) {
+            const tt = t + i * sp + (i % 2 ? sp * (S.swing || 0) * .5 : 0);
+            DR.forEach(d => { if (p.drums[d[0]][i]) trDrum.addNote({ midi: DR_MIDI[d[0]] || 36, time: tt, duration: sp * .8, velocity: 0.85 }); });
+            if (p.bass[i] >= 0) trBass.addNote({ midi: base - 12 + scaleNote(S, p.bass[i]), time: tt, duration: sp * 1.6, velocity: 0.8 });
+            if (p.lead[i] >= 0) trLead.addNote({ midi: base + 12 + scaleNote(S, p.lead[i]), time: tt, duration: sp * 1.4, velocity: 0.75 });
+          }
+          t += STEPS * sp;
+        });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([midi.toArray()], { type: 'audio/midi' }));
+        a.download = (S.name || 'moundshroud-song').replace(/[^a-z0-9_-]+/gi, '_') + '.mid';
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+        A.toast('Exported MIDI (.mid) ✓');
+      } catch (e) { A.toast('MIDI export failed: ' + (e.message || e)); }
+    };
+    q('#mmidin').onclick = () => {
+      if (typeof window.Midi !== 'function') return A.toast('MIDI library unavailable.');
+      const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.mid,.midi,audio/midi';
+      inp.onchange = async () => {
+        const f = inp.files[0]; if (!f) return;
+        try {
+          const midi = new window.Midi(await f.arrayBuffer());
+          const bpm = Math.max(60, Math.min(200, Math.round((midi.header.tempos[0] && midi.header.tempos[0].bpm) || 110)));
+          const sp = 60 / bpm / 4;
+          const sc = SCALES[S.scale], base = 48 + (S.key || 0);
+          const toDeg = m => { let best = 0, bd = 999; for (let d = 0; d < 15; d++) { const n = base + 12 + scaleNote(S, d); if (Math.abs(n - m) < bd) { bd = Math.abs(n - m); best = d; } } return best; };
+          const pats = [blank(), blank(), blank(), blank()];
+          const notes = midi.tracks.filter(t => t.channel !== 9 && t.notes.length).flatMap(t => t.notes).sort((a, b) => a.time - b.time);
+          notes.forEach(n => {
+            const step = Math.round(n.time / sp), pi = Math.floor(step / STEPS), si = step % STEPS;
+            if (pi >= 0 && pi < 4 && si >= 0 && si < STEPS) {
+              if (n.midi < 55) pats[pi].bass[si] = toDeg(n.midi + 24);
+              else pats[pi].lead[si] = toDeg(n.midi);
+            }
+          });
+          S.bpm = bpm; S.pats = pats; S.chain = [0, 1, 2, 3].filter(i => pats[i].lead.some(x => x >= 0) || pats[i].bass.some(x => x >= 0));
+          if (!S.chain.length) S.chain = [0];
+          S.name = f.name.replace(/\.midi?$/i, '').slice(0, 40) || 'Imported MIDI';
+          cur = 0; save(); setUI(); grid();
+          A.toast('Imported "' + S.name + '" (' + notes.length + ' notes, ' + bpm + ' BPM) ✓');
+        } catch (e) { A.toast('Could not read MIDI file: ' + (e.message || e)); }
+      };
+      inp.click();
+    };
     window.StudioMusic = { renderSong: () => renderSong(S), state: () => S };
     setUI(); grid();
     fetch('/api/music/status').then(r => r.json()).then(s => { mgOk = !!s.model; if (!composing && !q('#mcs').textContent) engineNote(); }).catch(() => { });
