@@ -96,15 +96,32 @@ if (!gotLock) {
 }
 
 function showMainWindow() {
-  if (!mainWin || mainWin.isDestroyed()) return;
+  if (!mainWin || mainWin.isDestroyed()) {
+    createMainWindow(false);
+    return;
+  }
   if (mainWin.isMinimized()) mainWin.restore();
+  mainWin.setSkipTaskbar(false);
+  // Brief always-on-top + moveTop bypasses Windows 11's foreground lock when waking from tray
+  mainWin.setAlwaysOnTop(true, 'pop-up-menu');
   mainWin.show();
+  mainWin.moveTop();
   mainWin.focus();
+  try { app.focus({ steal: true }); } catch (e) { }
+  setTimeout(() => {
+    if (mainWin && !mainWin.isDestroyed()) {
+      mainWin.setAlwaysOnTop(false);
+      mainWin.focus();
+    }
+  }, 180);
 }
 
 function toggleMainWindow() {
-  if (!mainWin || mainWin.isDestroyed()) return;
-  if (mainWin.isVisible() && mainWin.isFocused()) {
+  if (!mainWin || mainWin.isDestroyed()) {
+    createMainWindow(false);
+    return;
+  }
+  if (mainWin.isVisible() && !mainWin.isMinimized() && mainWin.isFocused()) {
     mainWin.hide();
   } else {
     showMainWindow();
@@ -392,7 +409,7 @@ function createSplash() {
   splashWin.loadFile(path.join(__dirname, 'splash.html'));
 }
 
-function createMainWindow() {
+function createMainWindow(startHidden = false) {
   mainWin = new BrowserWindow({
     width: 1360,
     height: 880,
@@ -443,35 +460,46 @@ function createMainWindow() {
       splashWin.close();
       splashWin = null;
     }
-    mainWin.show();
-    mainWin.focus();
+    if (!startHidden) {
+      showMainWindow();
+    }
   };
   mainWin.once('ready-to-show', revealMain);
   mainWin.webContents.once('did-finish-load', () => setTimeout(revealMain, 150));
   setTimeout(revealMain, 3500);
 
   mainWin.on('close', ev => {
-    if (!quitting && tray) {
+    if (!quitting) {
       ev.preventDefault();
       mainWin.hide();
     }
   });
 
+  mainWin.on('closed', () => {
+    mainWin = null;
+  });
+
   mainWin.loadURL(APP_ORIGIN + '/');
 }
 
-function registerHotkeys() {
+function registerHotkeys(attempt = 1) {
+  const mod = process.platform === 'darwin' ? 'Command+Alt' : 'Control+Alt';
+  let ok = false;
   try {
-    const ok = globalShortcut.register('CommandOrControl+Alt+A', toggleMainWindow);
-    console.log('Hotkey Ctrl+Alt+A registered:', ok);
+    globalShortcut.unregister(mod + '+A');
+    ok = globalShortcut.register(mod + '+A', toggleMainWindow);
+    console.log('Hotkey Ctrl+Alt+A registered:', ok, '(attempt ' + attempt + ')');
   } catch (e) { console.error('Hotkey Ctrl+Alt+A error:', e); }
+  if (!ok && attempt < 4) {
+    setTimeout(() => { if (!quitting) registerHotkeys(attempt + 1); }, 800);
+  }
   const openAction = js => () => {
     showMainWindow();
     if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.executeJavaScript(js).catch(() => { });
   };
-  try { globalShortcut.register('CommandOrControl+Alt+N', openAction('if(window.A&&A.showTab){A.showTab("notes");A.emit&&A.emit("newitem");}')); } catch (e) { }
-  try { globalShortcut.register('CommandOrControl+Alt+V', openAction('if(window.A&&A.showTab){A.showTab("chat");if(A.voiceMode&&A.voiceMode.open)A.voiceMode.open();}')); } catch (e) { }
-  try { globalShortcut.register('CommandOrControl+Alt+E', openAction('if(window.A&&A.showTab){A.showTab("health");}')); } catch (e) { }
+  try { globalShortcut.register(mod + '+N', openAction('if(window.A&&A.showTab){A.showTab("notes");A.emit&&A.emit("newitem");}')); } catch (e) { }
+  try { globalShortcut.register(mod + '+V', openAction('if(window.A&&A.showTab){A.showTab("chat");if(A.voiceMode&&A.voiceMode.open)A.voiceMode.open();}')); } catch (e) { }
+  try { globalShortcut.register(mod + '+E', openAction('if(window.A&&A.showTab){A.showTab("health");}')); } catch (e) { }
 }
 
 function buildTray() {
@@ -481,14 +509,15 @@ function buildTray() {
     const img = iconFile.endsWith('.ico') ? nativeImage.createFromPath(iconFile) : nativeImage.createFromPath(iconFile).resize({ width: 16, height: 16 });
     tray = new Tray(img);
     tray.setToolTip('Moundshroud — Standalone Offline AI (Ctrl+Alt+A)');
+    const loginArgs = app.isPackaged ? ['--background'] : [__dirname, '--background'];
     const rebuildMenu = () => {
       let openAtLogin = false;
-      try { openAtLogin = !!app.getLoginItemSettings().openAtLogin; } catch (e) { }
+      try { openAtLogin = !!app.getLoginItemSettings({ path: process.execPath, args: loginArgs }).openAtLogin; } catch (e) { }
       tray.setContextMenu(Menu.buildFromTemplate([
         { label: 'Open / Hide Moundshroud  (Ctrl+Alt+A)', click: toggleMainWindow },
         { type: 'separator' },
         {
-          label: 'Start with Windows',
+          label: 'Start with Windows (for Ctrl+Alt+A)',
           type: 'checkbox',
           checked: openAtLogin,
           click: item => {
@@ -496,7 +525,7 @@ function buildTray() {
               app.setLoginItemSettings({
                 openAtLogin: !!item.checked,
                 path: process.execPath,
-                args: app.isPackaged ? [] : [__dirname]
+                args: loginArgs
               });
             } catch (e) { }
             rebuildMenu();
@@ -511,10 +540,12 @@ function buildTray() {
   } catch (e) { }
 }
 
+const START_HIDDEN = process.argv.includes('--background');
+
 app.whenReady().then(async () => {
   nativeTheme.themeSource = 'dark';
   Menu.setApplicationMenu(null);
-  createSplash();
+  if (!START_HIDDEN) createSplash();
   buildTray();
   registerAppProtocol();
   try {
@@ -533,7 +564,7 @@ app.whenReady().then(async () => {
     app.quit();
     return;
   }
-  createMainWindow();
+  createMainWindow(START_HIDDEN);
 });
 
 app.on('will-quit', () => {
@@ -548,5 +579,5 @@ app.on('before-quit', () => {
 });
 
 app.on('window-all-closed', () => {
-  if (quitting || !tray) app.quit();
+  if (quitting) app.quit();
 });
