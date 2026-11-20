@@ -1,4 +1,4 @@
-// Cyber labs: small, fun, fully in-app tools. Cisco Packet Tracer (launches the installed app), a SQL playground
+// Cyber labs: small, fun, fully in-app tools. A Packet Tracer network simulator (web/js/pt-*.js, inside the app), a SQL playground
 // (real SQLite in the browser via sql.js, with a SQL-injection demo), a subnet/IP calculator, and a regex tester.
 (() => {
   const esc = t => String(t == null ? '' : t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -22,16 +22,16 @@
   if (!document.getElementById('cyberlabs-css')) { const s = document.createElement('style'); s.id = 'cyberlabs-css'; s.textContent = css; document.head.appendChild(s); }
   const wrap = (el, inner) => { el.innerHTML = '<div class="lab"><div class="lab-wrap">' + inner + '</div></div>'; return el.querySelector('.lab-wrap'); };
 
-  /* ---------- Cisco Packet Tracer (opens the installed app) ---------- */
+  /* ---------- Packet Tracer: the in-app network simulator (web/js/pt-*.js), never an outside program ---------- */
+  const PT_FILES = ['pt-css', 'pt-net', 'pt-route', 'pt-packet', 'pt-apps', 'pt-ios', 'pt-ios-cfg', 'pt-ios-show', 'pt-labs', 'pt-ui', 'pt-ui-dev', 'pt-ui-sim'];
+  let ptLoad = null;
+  const loadPt = () => ptLoad || (ptLoad = PT_FILES.reduce((p, f) => p.then(() => new Promise((res, rej) => {
+    const src = '/web/js/' + f + '.js'; if (document.querySelector('script[src="' + src + '"]')) return res();
+    const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error(f + '.js did not load')); document.head.appendChild(s);
+  })), Promise.resolve()));
   function ptracer(el) {
-    const w = wrap(el, '<h2>🧪 Cisco Packet Tracer</h2><div class="sub">Cisco’s network simulator: build and wire routers, switches and PCs, then watch packets move. It is a full desktop program, so it opens in its own window.</div><div id="ptbody">Checking…</div>');
-    const body = w.querySelector('#ptbody');
-    A.api('/api/cyber/apps').then(r => {
-      const st = r && r.packettracer;
-      if (st && st.installed) body.innerHTML = '<button class="btn" id="ptgo">▶ Open Packet Tracer</button><div class="note">Version found on this PC. It opens in its own window; close it there when done. The in-app <b>Subnet calculator</b> and <b>Packet capture</b> stay inside Moundshroud.</div>';
-      else body.innerHTML = '<div class="bad">Cisco Packet Tracer is not installed on this PC.</div><div class="note">Install it free from the Cisco Networking Academy, then it appears here.</div>';
-      const go = w.querySelector('#ptgo'); if (go) go.onclick = async () => { go.disabled = true; go.textContent = 'Opening…'; const r2 = await A.api('/api/cyber/launch', { app: 'packettracer' }); A.toast(r2 && r2.ok ? 'Packet Tracer is opening.' : (r2 && r2.error) || 'Could not open it.'); go.disabled = false; go.textContent = '▶ Open Packet Tracer'; };
-    }).catch(() => { body.innerHTML = '<div class="bad">Could not check for Packet Tracer.</div>'; });
+    el.innerHTML = '<div class="lab"><div class="note">Loading the network simulator…</div></div>';
+    loadPt().then(() => { A.packetTracer = window.PTSim.mount(el); }).catch(e => { ptLoad = null; el.innerHTML = '<div class="lab"><div class="bad">The simulator did not load: ' + esc(e.message) + '</div></div>'; });
   }
 
   /* ---------- SQL playground: real SQLite (sql.js) in the browser ---------- */

@@ -4,6 +4,8 @@
 // "dog in the snow" find them. Nothing leaves this PC. OneDrive files that are only in the cloud are not opened.
 (() => {
   const root = document.getElementById('p-photos'); if (!root) return;
+  const select = A.collectionSelect;
+  let selection;
   let ALL = [], st = { q: '', view: 'all', folder: '' }, shown = [], limit = 240, built = false, viewerAt = -1, slide = 0, describing = null;
   const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
   const SYN = { puppy: 'dog', puppies: 'dog', dogs: 'dog', kitten: 'cat', cats: 'cat', kid: 'child', kids: 'child', children: 'child', baby: 'child', car: 'car', cars: 'car', sea: 'beach', ocean: 'beach', shore: 'beach', snowy: 'snow', mountains: 'mountain', hills: 'mountain', flowers: 'flower', trees: 'tree', people: 'person', friends: 'person', selfie: 'person', food: 'food', meal: 'food', dinner: 'food', lunch: 'food', screenshot: 'screenshot', screenshots: 'screenshot', sunset: 'sunset', sunrise: 'sunset' };
@@ -12,14 +14,27 @@
 
   function build() {
     built = true;
-    root.innerHTML = '<div class="ph-top"><h2 style="margin:0">🖼️ Photos</h2><input id="phq" placeholder="Search in plain words: beach, dog, birthday, 2023, June…" style="flex:1;min-width:200px"><span id="phv"></span><button class="ib" id="phai" title="Have your local AI look at each photo and describe it, so you can search by what is in it">✨ Describe my photos</button><button class="ib" id="phset" title="Which folders are shown">⚙ Folders</button></div><div id="phstat" class="small mute" style="padding:0 16px 6px"></div><div id="phgrid" class="ph-grid"></div>';
+    root.innerHTML = '<div class="ph-top"><h2 style="margin:0">🖼️ Photos</h2><input id="phq" placeholder="Search in plain words: beach, dog, birthday, 2023, June…" style="flex:1;min-width:200px"><span id="phv"></span><button class="ib" id="phai" title="Have your local AI look at each photo and describe it, so you can search by what is in it">✨ Describe my photos</button><button class="ib" id="phset" title="Which folders are shown">⚙ Folders</button></div><div id="phstat" class="small mute" style="padding:0 16px 6px"></div><div id="phselect"></div><div id="phgrid" class="ph-grid" data-selection-area></div>';
+    root.querySelector('#phselect').innerHTML = select.toolbar(
+      '<button class="ib" data-selection="favourite">Favourite</button><button class="ib" data-selection="unfavourite">Unfavourite</button>' +
+      '<button class="ib" data-selection="hide">Hide</button><button class="ib dang" data-selection="recycle">Move to Recycle Bin</button>');
+    selection = select.bind(root, {
+      favourite: ids => changeGroup(ids, 'favourite'),
+      unfavourite: ids => changeGroup(ids, 'unfavourite'),
+      hide: ids => changeGroup(ids, 'hide'),
+      recycle: ids => changeGroup(ids, 'recycle')
+    });
     const qi = root.querySelector('#phq'); qi.value = st.q; let t; qi.oninput = () => { clearTimeout(t); t = setTimeout(() => { st.q = qi.value; limit = 240; paint(); }, 180); };
     root.querySelector('#phset').onclick = settings;
     root.querySelector('#phai').onclick = () => describing ? stopDescribe() : describe();
     root.querySelector('#phgrid').onclick = e => {
       const tile = e.target.closest('[data-i]'); if (!tile) return;
+      if (e.target.closest('[data-phrename]')) return renamePhoto(shown[+tile.dataset.i]);
       if (e.target.closest('[data-fav]')) { const x = shown[+tile.dataset.i]; toggleFav(x); e.target.closest('[data-fav]').textContent = x.fav ? '★' : '☆'; return; }
       openViewer(+tile.dataset.i);
+    };
+    root.querySelector('#phgrid').onkeydown = e => {
+      if (e.key === 'Enter' && e.target.matches('[data-i]')) e.target.click();
     };
   }
   const views = () => '<span class="ph-chips">' + [['all', 'All'], ['fav', '★ Favourites'], ['new', 'Not described yet'], ['folders', '📁 By folder']].map(([k, l]) => '<button class="ib' + (st.view === k ? ' on' : '') + '" data-pv="' + k + '">' + l + '</button>').join('') + '</span>';
@@ -35,7 +50,7 @@
 
   /* plain-word search over what the AI saw, the file name, the folder and the date */
   function matches(x, toks) {
-    const cap = x.cap ? (x.cap.c + ' ' + x.cap.k.join(' ')).toLowerCase() : '', hay = cap + ' ' + x.n.toLowerCase() + ' ' + x.d.toLowerCase(), d = new Date(x.t);
+    const cap = x.cap ? (x.cap.c + ' ' + x.cap.k.join(' ')).toLowerCase() : '', hay = cap + ' ' + (x.title || x.n).toLowerCase() + ' ' + x.n.toLowerCase() + ' ' + x.d.toLowerCase(), d = new Date(x.t);
     return toks.every(tk => {
       if (/^(19|20)\d\d$/.test(tk)) return d.getFullYear() === +tk;
       const mi = MONTHS.findIndex(m => m === tk || (tk.length >= 3 && m.startsWith(tk))); if (mi >= 0 && tk.length >= 3) return d.getMonth() === mi;
@@ -54,7 +69,8 @@
     root.querySelector('#phv').innerHTML = views();
     root.querySelectorAll('[data-pv]').forEach(b => b.onclick = () => { st.view = b.dataset.pv; st.folder = ''; limit = 240; paint(); });
     const desc = ALL.filter(x => x.cap).length, cloud = ALL.filter(x => x.cloud).length;
-    if (st.view === 'folders' && !st.folder) return paintFolders(g);
+    root.querySelector('#phselect').hidden = st.view === 'folders' && !st.folder;
+    if (st.view === 'folders' && !st.folder) { selection.reset(); return paintFolders(g); }
     shown = filtered();
     root.querySelector('#phstat').innerHTML = (ALL.length ? ALL.length + ' photos · ' + desc + ' described by the AI' + (cloud ? ' · ' + cloud + ' only in OneDrive (☁, opened only when you click)' : '') : 'No photos found. Press ⚙ Folders to choose where your pictures are.') + (st.q || st.view !== 'all' ? ' · <b>' + shown.length + ' shown</b>' : '') + (st.folder ? ' · <a href="#" id="phback">← all folders</a>' : '') + (st.q && !desc ? ' · <span style="color:var(--warn)">Search only knows file names and dates until the AI has described your photos.</span>' : '');
     const bk = root.querySelector('#phback'); if (bk) bk.onclick = e => { e.preventDefault(); st.folder = ''; paint(); };
@@ -62,10 +78,11 @@
     shown.slice(0, limit).forEach((x, i) => {
       const d = new Date(x.t), mk = d.getFullYear() + '-' + d.getMonth();
       if (mk !== last) { last = mk; const n = shown.filter(y => { const e = new Date(y.t); return e.getFullYear() === d.getFullYear() && e.getMonth() === d.getMonth(); }).length; html += '<div class="ph-month">' + d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) + ' <span class="mute small">' + n + '</span></div>'; }
-      html += '<div class="ph-tile" data-i="' + i + '" tabindex="0" title="' + esc(x.n + (x.cap ? '\n' + x.cap.c : '')) + '">' + (x.th ? '<img loading="lazy" src="/api/photos/thumb?id=' + x.id + '" alt="">' : '<span class="ph-ph" data-need="' + x.id + '">' + (x.cloud ? '☁' : x.show ? '' : 'HEIC') + '</span>') + '<button class="ph-fav" data-fav title="Favourite">' + (x.fav ? '★' : '☆') + '</button></div>';
+      html += '<div class="ph-tile" data-i="' + i + '" data-select-id="' + esc(x.id) + '" tabindex="0" title="' + esc((x.title || x.n) + (x.cap ? '\n' + x.cap.c : '')) + '">' + (x.th ? '<img loading="lazy" src="/api/photos/thumb?id=' + x.id + '" alt="">' : '<span class="ph-ph" data-need="' + x.id + '">' + (x.cloud ? '☁' : x.show ? '' : 'HEIC') + '</span>') + select.check('Select ' + (x.title || x.n)) + '<button class="ph-rename" data-phrename title="Rename in Photos" aria-label="Rename in Photos">✎</button><span class="ph-name">' + esc(x.title || x.n) + '</span><button class="ph-fav" data-fav title="Favourite">' + (x.fav ? '★' : '☆') + '</button></div>';
     });
     if (shown.length > limit) html += '<div id="phmore" class="mute" style="grid-column:1/-1;text-align:center;padding:20px">Loading more…</div>';
     g.innerHTML = html || (ALL.length ? '<div class="mute" style="padding:30px">Nothing matches.</div>' : '');
+    selection.sync();
     if (io) io.disconnect();
     io = new IntersectionObserver(es => es.forEach(e => {
       if (!e.isIntersecting) return; io.unobserve(e.target);
@@ -104,6 +121,35 @@
 
   function toggleFav(x) { x.fav = !x.fav; A.api('/api/photos/fav', { id: x.id, on: x.fav }); }
 
+  async function renamePhoto(x) {
+    if (!x) return;
+    const name = await A.prompt('Display name in Photos', x.title || x.n, { title: 'Rename photo' });
+    if (!name?.trim() || name.trim() === (x.title || x.n)) return;
+    try {
+      const r = await A.api('/api/photos/rename', { id: x.id, title: name });
+      if (!r.ok) throw new Error(r.error);
+      x.title = r.title;
+      paint();
+      if (viewerAt >= 0) {
+        viewerAt = shown.findIndex(y => y.id === x.id);
+        drawViewer();
+      }
+    } catch (error) { A.toast(error.message || 'Could not rename the photo.'); }
+  }
+
+  async function changeGroup(ids, action) {
+    if (action === 'recycle' && !(await A.confirm('Move ' + ids.length + ' selected photos to the Recycle Bin?', { title: 'Recycle photos', okLabel: 'Move to Recycle Bin', danger: true }))) return;
+    const result = await A.api('/api/photos/group', { ids, action });
+    if (!result.ok) throw new Error(result.error);
+    const done = new Set(result.done);
+    if (action === 'hide' || action === 'recycle') ALL = ALL.filter(x => !done.has(x.id));
+    else for (const x of ALL) if (done.has(x.id)) x.fav = action === 'favourite';
+    if (done.size !== ids.length) A.toast('Updated ' + done.size + ' of ' + ids.length + ' photos.' +
+      (action === 'recycle' ? ' Only local, available photos can be recycled.' : ' Some photos were unavailable.'));
+    paint();
+    return result.done;
+  }
+
   /* ---------- the viewer ---------- */
   function openViewer(i) {
     viewerAt = i; let o = document.getElementById('phview');
@@ -123,13 +169,14 @@
     document.removeEventListener('keydown', vkey, true); document.addEventListener('keydown', vkey, true);
     const pic = x.cloud && !x.load ? '<div class="ph-cloud">☁ This photo is only in OneDrive.<br><button class="pri" id="pvload">Download it and show it</button></div>' : x.show ? '<img src="/api/photos/file?id=' + x.id + '" alt="">' : '<div class="ph-cloud">Windows’ HEIC photos cannot be shown here. <button class="ib" id="pvrev">Show it in its folder</button></div>';
     o.innerHTML = '<div class="ph-stage">' + pic + '<button class="ph-nav l" id="pvp" title="Previous (←)">‹</button><button class="ph-nav r" id="pvn" title="Next (→)">›</button></div>' +
-      '<aside class="ph-info"><div style="display:flex;gap:6px;justify-content:flex-end"><button class="ib" id="pvx" title="Close (Esc)">✕</button></div><h3 style="margin:6px 0 2px;word-break:break-word">' + esc(x.n) + '</h3><div class="small mute">' + fmtDate(x.t) + (x.ex ? ' · taken' : ' · file date') + ' · ' + size(x.s) + '</div><div class="small mute" style="margin:2px 0 10px;word-break:break-all">' + esc(x.root + (x.d ? '\\' + x.d : '')) + '</div>' +
+      '<aside class="ph-info"><div style="display:flex;gap:6px;justify-content:flex-end"><button class="ib" id="pvx" title="Close (Esc)">✕</button></div><h3 style="margin:6px 0 2px;word-break:break-word"><button class="collection-title" id="pvrename" title="Rename in Photos">' + esc(x.title || x.n) + ' <span aria-hidden="true">✎</span></button></h3><div class="small mute">' + fmtDate(x.t) + (x.ex ? ' · taken' : ' · file date') + ' · ' + size(x.s) + '</div><div class="small mute" style="margin:2px 0 10px;word-break:break-all">' + esc(x.root + (x.d ? '\\' + x.d : '')) + '</div>' +
       (x.cap ? '<div class="card small" style="line-height:1.5">' + esc(x.cap.c) + '<div style="margin-top:6px">' + x.cap.k.map(k => '<span class="ph-tag" data-tag="' + esc(k) + '">' + esc(k) + '</span>').join('') + '</div></div>' : '') +
       '<div class="ph-acts"><button class="ib" id="pvfav">' + (x.fav ? '★ Favourite' : '☆ Favourite') + '</button>' + (x.show && !x.cloud ? '<button class="ib" id="pvai">✨ ' + (x.cap ? 'Describe again' : 'Describe') + '</button><button class="ib" id="pvz0" title="Scroll wheel zooms, drag pans">🔍 Reset zoom</button>' : '') + '<button class="ib" id="pvrev2">📂 Show in folder</button><button class="ib" id="pvslide">' + (slide ? '⏸ Stop slideshow' : '▶ Slideshow') + '</button><button class="ib" id="pvhide" title="Take it out of this library. The file itself is not touched.">🙈 Hide from Photos</button></div>' +
       '<div id="pvexif" class="small mute" style="margin-top:8px"></div>' +
       (x.show && !x.cloud ? '<div class="ph-chat"><div style="font-weight:600;margin:14px 0 6px">💬 Ask about this photo</div><div id="pvmsgs" class="ph-msgs"></div><div style="display:flex;gap:6px;margin-top:6px"><textarea id="pvq" rows="2" style="flex:1;min-width:0" placeholder="What breed is the dog? Where could this be?  (Enter to send)"></textarea><button class="pri" id="pvsend">Ask</button></div><div class="small mute" style="margin-top:4px">Answered by an AI on this PC. The photo never leaves it.</div></div>' : '') +
       '<div class="small mute" style="margin-top:10px">' + (viewerAt + 1) + ' of ' + shown.length + ' · ← → to move · Esc to close</div></aside>';
     const on = (id, f) => { const b = o.querySelector(id); if (b) b.onclick = f; };
+    on('#pvrename', () => renamePhoto(x));
     on('#pvx', closeViewer); on('#pvp', () => step(-1)); on('#pvn', () => step(1));
     on('#pvfav', () => { toggleFav(x); drawViewer(); paintSoon(); });
     on('#pvload', () => { x.load = true; drawViewer(); });
@@ -241,7 +288,7 @@
     let folders = []; try { folders = JSON.parse(root.querySelector('#phstat').dataset.folders || '[]'); } catch (e) { }
     const s = await A.api('/api/photos/stats').catch(() => ({}));
     const draw = () => {
-      A.dlg('<div class="hd"><b>📁 Photo folders</b></div><div class="bd"><div class="small mute" style="margin-bottom:8px;line-height:1.5">Photos shows the pictures in these folders and every folder inside them. Nothing is moved, copied or changed: Moundshroud only reads them.</div>' +
+      A.dlg('<div class="hd"><b>📁 Photo folders</b></div><div class="bd"><div class="small mute" style="margin-bottom:8px;line-height:1.5">Photos shows the pictures in these folders and their subfolders. Select photos to favourite, hide, or move local files to the Recycle Bin.</div>' +
         (folders.length ? folders.map((f, i) => '<div class="row" style="padding:3px 0"><span style="flex:1;word-break:break-all">' + esc(f) + '</span><button class="ib" data-rm="' + i + '">Remove</button></div>').join('') : '<div class="mute">No folders yet.</div>') +
         '<div class="row" style="margin-top:8px"><button class="ib" id="phaddf">＋ Add a folder…</button><button class="ib" id="phrescan">↻ Look again for new photos</button></div>' +
         '<h3 style="margin-top:14px">Kept by Moundshroud</h3><div class="small mute">' + (s.photos || 0) + ' photos indexed · previews ' + (s.thumbsMB || 0) + ' MB · ' + (s.described || 0) + ' described by the AI</div><div class="row" style="margin-top:6px"><button class="ib" id="phfth">Delete the previews</button><button class="ib" id="phfcap">Forget the AI descriptions</button></div>' +

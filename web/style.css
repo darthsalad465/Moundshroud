@@ -892,3 +892,19 @@ button.actp-r{cursor:pointer}button.actp-r:hover{background:var(--panel2)}
 .agengo input{margin-top:3px}
 .agengo .ok{color:var(--ok,#30a46c)}.agengo .bad{color:var(--warn,#d97706)}
 .agengnow{font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;background:color-mix(in srgb,var(--acc,#7c5cff) 18%,transparent);color:var(--acc)}
+
+/* Fullscreen mode for Cyber terminal sandboxes (breaks out of panel layout containment cleanly) */
+html.term-fs-on .panel.on{contain:none!important}
+html.term-fs-on #plstage>*{zoom:1!important}
+.term-fs-box.term-fs{position:fixed!important;inset:0!important;z-index:9600!important;width:auto!important;height:auto!important;max-width:none!important;max-height:none!important;margin:0!important;border-radius:0!important;border:0!important;padding:14px 18px!important;box-sizing:border-box!important;display:flex!important;flex-direction:column!important;background:#05070b!important;zoom:1!important}
+.term-fs-box.term-fs .term-fs-out{flex:1 1 0!important;height:auto!important;min-height:0!important;max-height:none!important;font-size:14px!important;line-height:1.6!important}
+.term-fs-box.term-fs .term-fs-prompt-row{flex:none!important;padding-top:10px!important}
+.term-fs-box.term-fs input{font-size:14px!important}
+/* Full screen for the Browser (core.js A.pageFS): the page fills the window, and the monitor when the window allows it */
+.page-fs-box{position:fixed!important;inset:0!important;z-index:9600!important;width:auto!important;height:auto!important;max-width:none!important;max-height:none!important;margin:0!important;border:0!important;border-radius:0!important;contain:none!important;display:flex!important;flex-direction:column!important;min-height:0!important;background:var(--bg)!important}
+.panel.page-fs-box{display:flex!important}
+.page-fs-box #lframes,.page-fs-box .wh{flex:1;min-height:0}
+.page-fs-box:fullscreen{background:#0b0d13!important}
+/* main's isolation and its tab-change transition name each give it its own layer, which kept the full screen page under the
+   app's top bar; both let go while full screen is on */
+html.page-fs-on main{isolation:auto!important;view-transition-name:none!important}

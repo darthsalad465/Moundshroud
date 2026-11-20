@@ -4,9 +4,31 @@ const fs = require('fs'), os = require('os'), path = require('path');
 
 module.exports = async ok => {
   const N = require(path.join(__dirname, '..', 'lib', 'harness-native.js'));
+  const customFactory = require('../web/js/mcode-custom');
 
   /* ---- the command policy ---- */
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-test-'));
+  let stored;
+  const custom = customFactory.create({ save: value => { stored = value; return true; } });
+  custom.command('rule', 'add explain Use short sentences.');
+  custom.command('tool', 'add words count_words');
+  const resumedCustom = customFactory.create({ load: () => stored });
+  const customTurns = [];
+  const customHarness = N.create({ custom: resumedCustom, prepare: async () => ({ ok: true }), ask: async (messages, tools) => {
+    customTurns.push({ messages: JSON.parse(JSON.stringify(messages)), tools });
+    if (customTurns.length === 1) return {
+      ok: true, text: '', calls: [{ function: { name: 'custom_words', arguments: { text: 'one two three' } } }]
+    };
+    return { ok: true, text: 'Three words.', calls: [] };
+  } });
+  await customHarness.start({ check: { model: 'm', agentModel: 'm', ctx: 32768, guard: false }, dir });
+  customHarness.send('How many words?');
+  for (let i = 0; i < 100 && customHarness.state(0).busy; i++) await new Promise(resolve => setTimeout(resolve, 10));
+  ok('mcode native: saved custom tools are advertised, called, and return text-only results',
+    customTurns[0]?.tools.some(tool => tool.function.name === 'custom_words') &&
+    customTurns[0]?.messages.some(message => message.role === 'system' && message.content.includes('Use short sentences.')) &&
+    customTurns[1]?.messages.some(message => message.role === 'tool' && message.content === '{"ok":true,"value":3}') &&
+    customHarness.state(0).events.some(e => e.kind === 'tool' && e.name === 'custom_words'));
   const J = (c, whole) => N.judge(c, dir, !!whole);
   ok('moundshroud code: listing and checking a file needs no question', ['dir', 'dir /b', 'git status', 'node --check app.js', 'type notes.txt', 'where node'].every(c => J(c).level === 'safe'), ['dir', 'git status', 'node --check app.js', 'type notes.txt', 'where node'].map(c => c + '=' + J(c).level).join(' '));
   ok('moundshroud code: anything else waits for the person', ['del notes.txt', 'npm install', 'git commit -m x', 'node app.js', 'move a.txt b.txt'].every(c => J(c).level === 'ask'));

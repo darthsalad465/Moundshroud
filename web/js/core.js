@@ -368,7 +368,14 @@ A.modelOrder = (() => {
     if ((want === 'free-auto' && k === 'free-agent') || (want === 'free-agent' && k === 'free-auto')) return true;
     return false;
   };
-  const get = () => ls.get('default_model', '');
+  /* Settings › Default model can follow Chat instead of pinning one model: LAST is saved, and the model Chat last
+     used (ls 'model') is the default everywhere until another model is picked there. */
+  const LAST = '__last__';
+  const rawDefault = () => String(ls.get('default_model', '') || '').trim();
+  const isLast = () => rawDefault() === LAST;
+  const get = () => isLast() ? String(ls.get('model', '') || '') : rawDefault();
+  /* a value that may be the LAST marker (for example one that came from the server) becomes a real model name */
+  const resolve = d => String(d == null ? '' : d) === LAST ? get() : String(d == null ? '' : d);
   const sync = serverDefault => {
     if (typeof serverDefault === 'string') ls.set('default_model', serverDefault);
     return get();
@@ -379,18 +386,19 @@ A.modelOrder = (() => {
     /* changing the default model in Settings takes effect across tabs right away */
     try { localStorage.removeItem('agentmodel'); localStorage.removeItem('bible_model'); } catch (e) { }
     ['cmp_ai_model', 'gm_model', 'gd_model'].forEach(k => ls.set(k, ''));
-    if (v) { ls.set('model', v); if (!/^claude-|free-auto|free-agent/i.test(v)) ls.set('local_model', v); }
+    /* following Chat means the chat keeps the model it has: only a real model becomes the default everywhere */
+    if (v && v !== LAST) { ls.set('model', v); if (!/^claude-|free-auto|free-agent/i.test(v)) ls.set('local_model', v); }
     try { await A.api('/api/default-model', { model: v }); } catch (e) { }
     A.emit('default-model', v);
     return v;
   };
   const isDefault = (m, defOverride) => {
-    const def = defOverride !== undefined ? String(defOverride || '') : get();
+    const def = resolve(defOverride !== undefined ? defOverride : get());
     return !!def && matches(m, def) && (!m || m.tools !== false);
   };
   const sort = (list, defOverride) => {
     const arr = Array.isArray(list) ? list.slice() : [];
-    const def = defOverride !== undefined ? String(defOverride || '') : get();
+    const def = resolve(defOverride !== undefined ? defOverride : get());
     return arr.sort((a, b) => {
       const aDef = !!def && matches(a, def) && (!a || a.tools !== false);
       const bDef = !!def && matches(b, def) && (!b || b.tools !== false);
@@ -419,7 +427,7 @@ A.modelOrder = (() => {
     if (!opts.noDefaultTag && isDefault(m, opts.defaultModel)) txt += ' · default';
     return txt;
   };
-  return { bare, gb, paramScore, matches, get, sync, set, isDefault, sort, label };
+  return { LAST, bare, gb, paramScore, matches, get, isLast, sync, set, isDefault, sort, label };
 })();
 
 /* ==========================================================================
@@ -519,4 +527,125 @@ A.modelOrder = (() => {
       window.Notification = InAppNotification;
     }
   } catch (e) { }
+})();
+
+/* Universal fullscreen helper for any terminal sandbox (viewport fullscreen + optional OS monitor fullscreen, Esc to exit) */
+(() => {
+  let active = null;
+  const setHtml = on => {
+    document.documentElement.classList.toggle('term-fs-on', !!on);
+    if (!on && document.fullscreenElement) {
+      try { document.exitFullscreen().catch(() => {}); } catch (e) { }
+    }
+  };
+  function syncOsButtons() {
+    document.querySelectorAll('.term-fs-os').forEach(b => {
+      b.textContent = document.fullscreenElement ? '🗗 Window' : '🖥 Monitor';
+    });
+  }
+  function exit() {
+    const a = active;
+    active = null;
+    if (a && a.box) {
+      a.box.classList.remove('term-fs');
+      a.box.querySelectorAll('.term-fs-os').forEach(n => n.remove());
+    }
+    if (a && a.btn) {
+      a.btn.textContent = '⛶ Fullscreen';
+      a.btn.title = 'Fullscreen terminal (Esc to exit)';
+      a.btn.classList.remove('on');
+    }
+    setHtml(false);
+    if (a && typeof a.onExit === 'function') { try { a.onExit(); } catch (e) { } }
+  }
+  function apply(box, on, btn, onExit) {
+    if (!box) return false;
+    if (on) {
+      if (active && active.box !== box) exit();
+      box.classList.add('term-fs');
+      active = { box, btn, onExit };
+      setHtml(true);
+    } else {
+      box.classList.remove('term-fs');
+      if (active && active.box === box) active = null;
+      if (!document.querySelector('.term-fs-box.term-fs')) setHtml(false);
+    }
+    if (btn) {
+      btn.textContent = on ? '✕ Exit' : '⛶ Fullscreen';
+      btn.title = on ? 'Exit fullscreen (Esc)' : 'Fullscreen terminal (Esc to exit)';
+      btn.classList.toggle('on', !!on);
+    }
+    const bar = btn && btn.parentElement;
+    if (bar) {
+      let osBtn = bar.querySelector('.term-fs-os');
+      if (on && document.documentElement.requestFullscreen) {
+        if (!osBtn) {
+          osBtn = document.createElement('button');
+          osBtn.type = 'button';
+          osBtn.className = 'ib term-fs-os';
+          osBtn.title = 'Toggle monitor fullscreen';
+          osBtn.onclick = ev => {
+            ev.stopPropagation();
+            if (document.fullscreenElement) { try { document.exitFullscreen().catch(() => {}); } catch (e) { } }
+            else { try { document.documentElement.requestFullscreen().catch(() => {}); } catch (e) { } }
+          };
+          bar.insertBefore(osBtn, btn);
+        }
+        osBtn.textContent = document.fullscreenElement ? '🗗 Window' : '🖥 Monitor';
+      } else if (osBtn) {
+        osBtn.remove();
+      }
+    }
+    return !!on;
+  }
+  function toggle(box, btn, onExit) {
+    if (!box) return false;
+    return apply(box, !box.classList.contains('term-fs'), btn, onExit);
+  }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && active) {
+      if (e.target.closest?.('.tpg-manual[open]')) return;
+      if (!active.box || !document.contains(active.box)) { exit(); return; }
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      exit();
+    }
+  }, true);
+  document.addEventListener('fullscreenchange', syncOsButtons);
+  if (A.on) A.on('tab:hide', () => { if (active) exit(); });
+  A.termFS = { apply, toggle, exit, active: () => !!active };
+})();
+
+/* Full screen for the Browser: any page it is showing (search results, an article, a page from this PC) fills this window, and the whole monitor
+   too when the window allows it. Esc or the button brings the rest of the app back. */
+(() => {
+  let on = false, native = false;
+  const box = () => document.getElementById('p-web');
+  function label() {
+    document.querySelectorAll('.page-fs-btn').forEach(b => {
+      /* the words sit in their own span, so a narrow Browser toolbar can show just the icon */
+      b.innerHTML = (on ? '🗗' : '⛶') + '<span class="fsw"> ' + (on ? 'Exit full screen' : 'Full screen') + '</span>';
+      b.title = on ? 'Exit full screen (Esc)' : 'Full screen this page (Esc to exit)';
+      b.classList.toggle('on', on);
+    });
+  }
+  function set(v) {
+    on = !!v; native = false;
+    document.documentElement.classList.toggle('page-fs-on', on);
+    const el = box(); if (el) el.classList.toggle('page-fs-box', on);
+    label();
+    if (on) {
+      /* the class above already fills the window; the monitor is a bonus the window may refuse */
+      if (el && el.requestFullscreen) { try { el.requestFullscreen().then(() => { native = true; }, () => { native = false; }); } catch (e) { } }
+    } else if (document.fullscreenElement) {
+      try { document.exitFullscreen().catch(() => { }); } catch (e) { }
+    }
+    return on;
+  }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && on) { e.preventDefault(); e.stopImmediatePropagation(); set(false); }
+  }, true);
+  document.addEventListener('fullscreenchange', () => { if (on && native && !document.fullscreenElement) set(false); });
+  if (A.on) A.on('tab:hide', () => { if (on) set(false); });
+  A.pageFS = { toggle: () => set(!on), set, refresh: label, on: () => on };
 })();

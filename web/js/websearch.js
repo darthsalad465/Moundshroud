@@ -46,11 +46,12 @@
 
   /* ---------- the page ---------- */
   function build() {
-    P.innerHTML = '<div class="ws-wrap" id="wswrap"><div class="ws-top"><div class="ws-logo" id="wslogo">🌐 <b>Moundshroud</b> Browser</div><div class="ws-box"><input type="text" id="wsq" placeholder="Search Moundshroud’s offline archived internet: how do vaccines work, python sort a list, who was Napoleon..." autocomplete="off"><button class="ws-go" id="wsgo" title="Search">➜</button><div class="ws-sug" id="wssug" style="display:none"></div></div><button class="ib" id="wsdict" title="Dictionary mode: type a word and open its entry">📕 Dictionary</button><button class="ib" id="wsask" title="Ask the chat assistant instead">💬 Ask in chat</button><button class="ib" id="wssave" title="Save this search to your favorites">☆ Save search</button><button class="ib" id="wshist" title="Clear recent searches and the list of pages you opened">🧹 Clear history</button></div><div class="ws-body" id="wsbody"></div></div>'; built = true; try { if (A.privweb) A.privweb.attach(P); } catch (e) { }
+    P.innerHTML = '<div class="ws-wrap" id="wswrap"><div class="ws-top"><div class="ws-logo" id="wslogo">🌐 <b>Moundshroud</b> Browser</div><div class="ws-box"><input type="text" id="wsq" placeholder="Search the offline internet — or paste a .html file name to open it (try index.html)" autocomplete="off"><button class="ws-go" id="wsgo" title="Search">➜</button><div class="ws-sug" id="wssug" style="display:none"></div></div><button class="ib" id="wsopenfile" title="Open an .html page from this PC">📄 Open .html</button><button class="ib" id="wsdict" title="Dictionary mode: type a word and open its entry">📕 Dictionary</button><button class="ib" id="wsask" title="Ask the chat assistant instead">💬 Ask in chat</button><button class="ib" id="wssave" title="Save this search to your favorites">☆ Save search</button><button class="ib" id="wshist" title="Clear recent searches and the list of pages you opened">🧹 Clear history</button></div><div class="ws-body" id="wsbody"></div></div>'; built = true; try { if (A.privweb) A.privweb.attach(P); } catch (e) { }
     P.onclick = async e => {
       const T = e.target, c = s => T.closest(s); let el;
       if ((el = c('[data-fav]'))) { const u = el.dataset.fav, on = A.fav.toggle({ u, t: el.dataset.t, k: 'page' }); el.textContent = on ? '⭐' : '☆'; e.stopPropagation(); return; }
       if (c('#wsfavs')) { A.fav.open('all'); return; }
+      if (c('#wsopenfile')) { pickHtml(); return; }
       if (c('#wsdict')) { setDict(!dictOn); $('wsq').focus(); return; }
       if (c('#wsthes')) { A.thes.open(($('wsq').value || '').trim().split(/\s+/)[0]); return; } if (c('#wsrhy')) { A.rhyme.open(($('wsq').value || '').trim().split(/\s+/)[0]); return; }
       if (c('#wssave')) { const v = (query || $('wsq').value).trim(); if (!v) return A.toast('Search for something first'); const on = A.fav.toggle({ u: 'search:' + v.toLowerCase(), t: v, k: 'search' }); $('wssave').textContent = on ? '⭐ Search saved' : '☆ Save search'; return; }
@@ -103,12 +104,48 @@
   const TC = ['#5b8def', '#e8590c', '#2f9e44', '#9c36b5', '#d6336c', '#0c8599', '#f08c00', '#6741d9', '#1971c2', '#c2255c'];
   function tiles() { const el = $('wstiles'); if (!el) return; let its = []; try { const seen = new Set(); A.fav.list().filter(x => x.k === 'page' && /^\//.test(x.u)).concat(A.fav.history().filter(x => /^\/wiki\/content/.test(x.u))).forEach(x => { if (!seen.has(x.u) && its.length < 10) { seen.add(x.u); its.push(x); } }); } catch (e) { } if (!its.length) { el.innerHTML = ''; return; }
     el.innerHTML = '<div class="ntp-h">SHORTCUTS</div><div class="ntp-tiles">' + its.map((x, i) => '<div class="ntp-tile" data-open="' + esc2(x.u) + '" data-t="' + esc2(x.t) + '"><div class="ic" style="background:' + TC[(x.t || '?').charCodeAt(0) % TC.length] + '">' + esc2((String(x.t || '?').match(/[\p{L}\p{N}]/u) || ['?'])[0].toUpperCase()) + '</div><div class="nm">' + esc2(String(x.t).slice(0, 40)) + '</div></div>').join('') + '</div>'; }
+  /* ---------- a page from this PC: paste its .html file name and it opens here, right-click for the source ---------- */
+  const htmlName = v => /\.(html?|xhtml)$/i.test(String(v || '').trim().replace(/^["']|["']$/g, ''));
+  function showLocalPage(f) {
+    const w = $('wswrap'); if (!w) return; const old = $('wsreader'); if (old) old.remove();
+    const rdr = document.createElement('div'); rdr.id = 'wsreader'; rdr.className = 'ws-reader';
+    rdr.innerHTML = '<div class="ws-rbar"><button class="ib" id="wsrback">← Back</button><b style="flex:1;min-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc2(f.path || f.name) + '">📄 ' + esc2(f.name) + '</b>' +
+      '<button class="ib" id="wsrsrc">📄 View source</button><button class="ib" id="wsrrun">🖥️ Run in terminal</button><button class="ib" id="wsrcopy">📋 Copy path</button><button class="ib page-fs-btn" id="wsrfs" title="Full screen this page (Esc to exit)">⛶ Full screen</button></div>' +
+      '<iframe id="wsrframe" sandbox="allow-scripts allow-forms allow-popups allow-modals" title="' + esc2(f.name) + '"></iframe>' +
+      '<pre id="wsrsource" style="display:none;flex:1;overflow:auto;margin:0;padding:14px 18px;background:#0b0f17;color:#d7e0f5;font-size:12.5px;line-height:1.55;white-space:pre-wrap"></pre>';
+    w.appendChild(rdr);
+    const frame = $('wsrframe'), src = $('wsrsource'); src.textContent = String(f.text || '');
+    const inject = '<scr' + 'ipt>document.addEventListener("contextmenu",function(e){try{parent.postMessage({moundshroudSource:1},"*")}catch(x){}return false},true);</scr' + 'ipt>';
+    const html = String(f.text || '');
+    frame.srcdoc = /<\/body>/i.test(html) ? html.replace(/<\/body>/i, inject + '</body>') : html + inject;
+    $('wsrsrc').onclick = () => { const on = src.style.display === 'none'; src.style.display = on ? 'block' : 'none'; frame.style.display = on ? 'none' : 'block'; $('wsrsrc').textContent = on ? '🌐 Preview' : '📄 View source'; };
+    $('wsrback').onclick = () => { rdr.remove(); openLocal.file = null; };
+    $('wsrrun').onclick = () => { if (A.codeRunner) A.codeRunner.open({ name: f.name, code: f.text }); };
+    $('wsrcopy').onclick = () => A.copy(f.path || f.name);
+    $('wsrfs').onclick = () => { if (A.pageFS) A.pageFS.toggle(); };
+    if (A.pageFS) A.pageFS.refresh();
+    rdr.addEventListener('contextmenu', e => { e.preventDefault(); if (src.style.display === 'none') $('wsrsrc').click(); });
+    openLocal.file = f;
+  }
+  const pickHtml = () => { if (!A.codeRunner) return; A.codeRunner.pickFile(f => showLocalPage({ name: f.name, text: f.text, path: '' })); };
+  async function openLocal(v) {
+    toTop(); if (!built) return; hideSug(); v = String(v).trim().replace(/^["']|["']$/g, '');
+    query = v; $('wsq').value = v; addHist(v);
+    const b = $('wsbody'); b.innerHTML = '<div class="mute" style="padding:30px 4px">Opening ' + esc2(v) + ' from this PC…</div>';
+    let r; try { r = await A.api('/api/file/read?path=' + encodeURIComponent(v)); } catch (e) { r = { error: e.message }; }
+    if (!r || r.error) { b.innerHTML = '<div class="ws-card"><b>Could not open that page</b><div class="small mute" style="margin:4px 0 10px">' + esc2((r && r.error) || 'The file could not be read.') + '</div><button class="ib" id="wsopenpick">📂 Choose the file on this PC…</button></div>'; const p = $('wsopenpick'); if (p) p.onclick = pickHtml; return; }
+    b.innerHTML = '';
+    showLocalPage(r);
+  }
+  addEventListener('message', e => { if (!e.data || !e.data.moundshroudSource) return; const btn = $('wsrsrc'); if (btn && $('wsreader')) { const src = $('wsrsource'); if (src && src.style.display === 'none') btn.click(); } });
+
   /* ---------- searching ---------- */
   let srcs = [], lastFiles = { notes: [], docs: [] };
   async function run(v, keepScope) {
     v = String(v || '').trim(); if (!v) return home(); if (!built) return; toTop();
+    if (htmlName(v)) { openLocal(v); return; }
     if (dictOn && v.split(/\s+/).length <= 3 && /^[\p{L}'\u2019 -]{1,40}$/u.test(v)) { addHist(v); hideSug(); A.lib.define(v); return; } if (!keepScope && v !== query) scope = 'all'; query = v; $('wsq').value = v; hideSug(); addHist(v);
-    const b = $('wsbody'), my = ++seq; if (ctl) { try { ctl.abort(); } catch (e) { } } ctl = null;
+    const b = $('wsbody'), my = ++seq; if (ctl) { try { ctl.abort(); } catch (e) { } } ctl = null; const rdr = $('wsreader'); if (rdr) rdr.remove();
     b.innerHTML = '<div class="mute" style="padding:30px 4px">Searching your libraries...</div>';
     let r; try { r = await A.api('/api/web/search', { q: v, scope, n: 40 }); } catch (e) { b.innerHTML = '<div class="mute" style="padding:30px 4px">Search is not available right now (' + esc2(e.message) + ').</div>'; return; }
     if (my !== seq) return;
@@ -164,9 +201,10 @@
   /* ---------- reading a page inside the tab ---------- */
   function openPage(url, title) {
     if (!/^\//.test(url)) return; if (A.lib && A.lib.openUrl) { A.lib.openUrl(url, title); return; } const w = $('wswrap'); let rdr = $('wsreader'); if (rdr) rdr.remove(); rdr = document.createElement('div'); rdr.id = 'wsreader'; rdr.className = 'ws-reader';
-    rdr.innerHTML = '<div class="ws-rbar"><button class="ib" id="wsrback">← Results</button><b style="flex:1;min-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc2(title || '') + '</b><button class="ib" id="wsrask">💬 Ask about this page</button><button class="ib" id="wsrfav">' + (A.fav.has(url) ? '⭐ Favorited' : '☆ Favorite') + '</button><button class="ib" id="wsrlib">📚 Open in Library</button></div><iframe id="wsrframe"></iframe>'; w.appendChild(rdr);
+    rdr.innerHTML = '<div class="ws-rbar"><button class="ib" id="wsrback">← Results</button><b style="flex:1;min-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc2(title || '') + '</b><button class="ib" id="wsrask">💬 Ask about this page</button><button class="ib" id="wsrfav">' + (A.fav.has(url) ? '⭐ Favorited' : '☆ Favorite') + '</button><button class="ib" id="wsrlib">📚 Open in Library</button><button class="ib page-fs-btn" id="wsrfs" title="Full screen this page (Esc to exit)">⛶ Full screen</button></div><iframe id="wsrframe"></iframe>'; w.appendChild(rdr);
     const fr = $('wsrframe'); A.libframe.attach(fr, { load: () => fr.lf.css(A.lib && A.lib.dark ? A.lib.dark() : 'html,body{background:#0e1016!important;color:#dfe4f7!important}a{color:#a99bff!important}'), ready: () => fr.lf.text().then(x => { fr._text = x; }), key: m => { if (m.key === 'Escape') closePage(); } }); fr.src = A.libframe.src(url);
     try { A.fav.visit(url, title); } catch (e) { } $('wsrfav').onclick = () => { const on = A.fav.toggle({ u: url, t: title || url, k: 'page' }); $('wsrfav').textContent = on ? '⭐ Favorited' : '☆ Favorite'; };
+    $('wsrfs').onclick = () => { if (A.pageFS) A.pageFS.toggle(); }; if (A.pageFS) A.pageFS.refresh();
     $('wsrback').onclick = closePage; $('wsrlib').onclick = () => { closePage(); A.lib.openUrl(url, title); };
     $('wsrask').onclick = () => { const t = fr._text || ''; closePage(); A.showTab('chat'); A.chat.ask('Summarize the article "' + (title || 'this page') + '" in a few clear paragraphs.\n\nARTICLE:\n' + t.slice(0, 9000), { noLocal: true, sources: [] }); };
   }

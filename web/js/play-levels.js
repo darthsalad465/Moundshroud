@@ -21,6 +21,7 @@
     backgammon: D('How well the computer chooses its moves', ['Easy', 'Normal', 'Hard']),
     hearts: D('How carefully the computer passes and plays', ['Easy', 'Normal', 'Hard']),
     bastion: D('Starting gold, lives and how tough the enemies are', ['Easy', 'Normal', 'Hard']),
-    modelmon: D('How well the computer chooses its moves: relaxed, sensible, or ruthless', ['Easy', 'Normal', 'Hard'])
+    modelmon: D('How well the computer chooses its moves: relaxed, sensible, or ruthless', ['Easy', 'Normal', 'Hard']),
+    swindle: D('How big Supervisor Pinch\'s daily quota is', ['Easy', 'Normal', 'Hard'])
   });
 })();

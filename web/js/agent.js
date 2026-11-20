@@ -26,16 +26,16 @@
       '<aside class="agside" id="agside"><div class="agsidetop"><button class="agnew" id="hnew" title="Start a fresh conversation">✎ New session</button>' +
       '<input id="agsq" type="search" placeholder="Search sessions" autocomplete="off"></div>' +
       '<button class="agnavr" id="agrbtn" title="Tasks the agent does by itself on a schedule">⏱ Routines<span class="agbadge" id="agrbadge"></span></button>' +
-      '<div class="agslist" id="aglist"></div>' +
+      '<div class="session-select" id="agselect"></div><div class="agslist" id="aglist" data-selection-area></div>' +
       '<div class="agsidefoot"><button class="agnavr" id="hset">⚙ Agent settings</button></div></aside>' +
       /* ---- the main column ---- */
       '<section class="agmain"><div class="aghead"><button class="ib agtog" id="agtog" title="Show or hide the session list">☰</button>' +
-      '<div class="aghtitle"><b id="agtitle">New session</b><span class="small mute" id="agsub"></span></div>' +
+      '<div class="aghtitle"><button class="collection-title" id="agtitle" title="Rename session" disabled>New session</button><span class="small mute" id="agsub"></span></div>' +
       '<span class="agstat" id="hline"></span><button class="ib" id="hcont" style="display:none" title="Pick this conversation up where it stopped">↻ Continue</button><button class="ib dang" id="hstop" style="display:none">■ Stop</button></div>' +
       '<div id="hconv" class="scroll agconv"><div id="hmsgs" class="agtx"></div></div>' +
       '<div class="agcomp" id="hcomp"><div class="agshot" id="agshot" style="display:none"><img id="agshotimg" alt=""><span id="agshotname"></span><button class="agshotx" id="agshotx" title="Remove the picture">✕</button></div><div class="agbox"><textarea id="hin" rows="2" placeholder="Tell the agent what to build or fix…"></textarea>' +
       '<input type="file" id="agfile" accept="image/*" style="display:none">' +
-      '<div class="agchips"><button class="agchip" id="agphoto" title="Give it a picture to look at or work from — you can also paste one straight into the box">📎 Picture</button><button class="agchip" id="agcdir"></button><select class="agchip" id="agcmod" aria-label="Model" title="Every AI model on this PC, grouped by what it does: chat and agent models drive the session; the others make pictures, video, speech or music, search by meaning, or turn speech into text"></select><button class="agchip" id="agmic" style="display:none" title="Talk: the chosen speech-to-text model writes it in the box">🎙 Talk</button><button class="agchip" id="agcreach"></button><button class="agchip" id="agceng" title="The engine running the agent. Click to switch."></button><span style="flex:1"></span><span class="small mute agkeys">Enter to send · Shift+Enter new line</span><button class="agsend" id="hsend" title="Send (Enter)">↑</button></div></div></div>' +
+      '<div class="agchips"><button class="agchip" id="agphoto" title="Give it a picture to look at or work from — you can also paste one straight into the box">📎 Picture</button><button class="agchip" id="agcdir"></button><select class="agchip" id="agcmod" aria-label="Model" title="Every AI model on this PC, grouped by what it does: chat and agent models drive the session; the others make pictures, video, speech or music, search by meaning, or turn speech into text"></select><button class="agchip" id="agmic" style="display:none" title="Talk: the chosen speech-to-text model writes it in the box">🎙 Talk</button><button class="agchip" id="agcreach"></button><button class="agchip" id="agceng" title="The engine running the agent. Click to switch."></button><button class="agchip" id="agwhip" title="OpenWhip (Alt+W) — Crack the whip to interrupt slow turns & engage Turbo speed! Right-click for options.">🪢 Whip</button><span style="flex:1"></span><span class="small mute agkeys">Enter to send · Shift+Enter new line</span><button class="agsend" id="hsend" title="Send (Enter)">↑</button></div></div></div>' +
       '<div id="agrout" class="scroll pad" style="flex:1;min-height:0;display:none"></div>' +
       '<div id="agset" class="scroll pad" style="flex:1;min-height:0;display:none"><div style="max-width:760px">' +
       '<h2>⚙ Agent settings</h2>' +
@@ -61,6 +61,10 @@
       '<li><b>First run:</b> the first start with a model makes a copy of it with the chosen memory, which takes a minute. The terminal window also asks you to pick a text style once.</li>' +
       '</ul></div></div></div></section></div>';
     const $ = id => b.querySelector('#' + id);
+    const collections = A.collectionSelect;
+    $('agselect').innerHTML = collections.toolbar('<button class="ib dang" data-selection="forget">Forget selected</button>');
+    const selection = collections.bind($('agside'), { forget: forgetGroup });
+
     const post = async (u, body) => { try { return await A.api(u, body || {}); } catch (e) { return { ok: false, error: String(e.message || e) }; } };
     /* a line of the conversation that is the agent talking to you about itself, not the model talking */
     const say = html => { const d = document.createElement('div'); d.className = 'agnote'; d.innerHTML = html; $('hmsgs').appendChild(d); toEnd(); };
@@ -320,7 +324,7 @@
     /* ---------- the pages of the main column: the live conversation, an earlier one, a routine running, routines, settings ---------- */
     let seq = 0, starting = false, view = 'live', recId = '', rec = null, rseq = 0, SESS = [], RT = null, rform = null, NS = 0;
     const timers = [];
-    b._cleanup = () => { alive = false; timers.forEach(clearInterval); ro && ro.disconnect(); if (shot && shot.url) URL.revokeObjectURL(shot.url); };
+    b._cleanup = () => { alive = false; selection.destroy(); timers.forEach(clearInterval); ro && ro.disconnect(); if (shot && shot.url) URL.revokeObjectURL(shot.url); };
     function show(v, opts) {
       view = v; opts = opts || {};
       const conv = v === 'live' || v === 'rec' || v === 'rlive';
@@ -439,7 +443,7 @@
       const s = H || {}, T = $('agtitle'), sub = $('agsub'), line = $('hline');
       let title = 'New session', info = '', stat = '', k = '';
       if (view === 'live') {
-        title = s.title || (s.sessionId ? 'Untitled session' : 'New session');
+        title = SESS.find(x => x.id === s.sessionId)?.title || s.title || (s.sessionId ? 'Untitled session' : 'New session');
         info = s.sessionId || s.running ? [base(s.dir), bare(s.model), s.guard ? 'whole PC, guarded' : 'this folder only'].filter(Boolean).join(' · ') : 'Starts with: ' + [get() ? base(get()) : 'workspace', modelNow()].join(' · ');
         if (starting || s.preparing) { stat = 'Starting'; k = 'busy'; } else if (s.running) { stat = s.pending && s.pending.length ? 'Needs your answer' : s.busy ? (s.thinking ? 'Thinking' : 'Working') : 'Ready'; k = s.pending && s.pending.length ? 'ask' : s.busy ? 'busy' : 'ok'; } else if (s.sessionId) { stat = 'Not running'; k = 'off'; }
       } else if (view === 'rec' && rec) {
@@ -448,6 +452,7 @@
       } else if (view === 'rlive') { const r = RT && RT.running; title = '⏱ ' + (r ? r.name : 'Routine'); info = 'Running by itself. Questions are refused automatically.'; stat = r ? 'Running' : 'Finished'; k = r ? 'busy' : 'off'; }
       else if (view === 'routines') { title = '⏱ Routines'; info = 'Tasks the agent does by itself on a schedule'; }
       else if (view === 'set') { title = '⚙ Agent settings'; }
+      T.disabled = !sessionToRename();
       T.textContent = plain(title) || title; sub.textContent = info; line.textContent = stat; line.dataset.k = k;
       $('hstop').style.display = (view === 'live' && s.running) || (view === 'rlive' && RT && RT.running) ? '' : 'none';
       $('hcont').style.display = view === 'live' && !s.running && s.sessionId && !starting ? '' : 'none';
@@ -472,16 +477,44 @@
         const list = rows.filter(x => gOf(x.at) === gi); if (!list.length) return;
         html += '<div class="aggrp">' + g[0] + '</div>' + list.map(x => {
           const isLive = x.id === s.sessionId, on = (view === 'live' && isLive) || (view === 'rec' && recId === x.id);
-          return '<div class="agrow' + (on ? ' on' : '') + '" data-sid="' + esc(x.id) + '" title="' + esc((x.title || '') + '\n' + (x.dir || '')) + '"><div class="agrt">' + (isLive && s.running ? '<span class="agdotlive"></span>' : '') + (x.routine ? '⏱ ' : '') + esc(plain(x.title) || 'Untitled') + '</div><div class="agrm">' + esc(base(x.dir)) + ' · ' + esc(ago(x.at)) + '</div><button class="agfx" data-forget="' + esc(x.id) + '" title="Forget this conversation">✕</button></div>';
+          return '<div class="agrow' + (on ? ' on' : '') + '" data-sid="' + esc(x.id) + '" data-select-id="' + esc(x.id) + '" title="' + esc((x.title || '') + '\n' + (x.dir || '')) + '">' + collections.check('Select ' + x.title) + '<div class="agrt">' + (isLive && s.running ? '<span class="agdotlive"></span>' : '') + (x.routine ? '⏱ ' : '') + esc(plain(x.title) || 'Untitled') + '</div><div class="agrm">' + esc(base(x.dir)) + ' · ' + esc(ago(x.at)) + '</div><div class="session-actions"><button class="collection-icon" data-rename-session="' + esc(x.id) + '" title="Rename session" aria-label="Rename session">✎</button><button class="collection-icon" data-forget="' + esc(x.id) + '" title="Forget this conversation">✕</button></div></div>';
         }).join('');
       });
       if (!html) html = '<div class="small mute" style="padding:10px">' + (q ? 'Nothing matches.' : 'No conversations yet. They are kept here once the agent has answered.') + '</div>';
       box.innerHTML = html;
+      $('agselect').hidden = !rows.length;
+      selection.sync();
     }
+    function sessionToRename() {
+      return view === 'rec' ? rec : view === 'live' ? SESS.find(x => x.id === H?.sessionId) : null;
+    }
+    async function renameSession(id) {
+      const session = SESS.find(x => x.id === id);
+      if (!session) return;
+      const name = (await A.prompt('Session title', session.title, { title: 'Rename session' }))?.trim();
+      if (!name || name === session.title) return;
+      const result = await post('/api/harness/rename', { id, title: name });
+      if (!result?.ok) return A.toast(result?.error || 'Could not rename the session.');
+      if (rec?.id === id) rec.title = result.title;
+      await loadList();
+      head();
+    }
+    async function forgetGroup(ids) {
+      const allowed = ids.filter(id => id !== H?.sessionId || !H.running);
+      if (!allowed.length) { A.toast('Stop the active session before forgetting it.'); return; }
+      if (!(await A.confirm('Forget ' + allowed.length + (allowed.length === 1 ? ' conversation?' : ' conversations?'), { title: 'Forget conversations', okLabel: 'Forget', danger: true }))) return;
+      const done = await collections.each(allowed, id => id === H?.sessionId && H.running ? null : post('/api/harness/forget', { id }));
+      if (view === 'rec' && done.includes(recId)) show('live');
+      await loadList();
+      return done;
+    }
+    $('agtitle').onclick = () => { const session = sessionToRename(); if (session) renameSession(session.id); };
     $('agsq').oninput = drawList;
     $('aglist').onclick = async e => {
+      const rename = e.target.closest('[data-rename-session]');
+      if (rename) return renameSession(rename.dataset.renameSession);
       const f = e.target.closest('[data-forget]');
-      if (f) { e.stopPropagation(); if (f.dataset.forget === (H && H.sessionId) && H.running) return A.toast('That session is running. Stop it first.'); if (!(await A.confirm('Forget this conversation? It is removed from this list. Files it made are not touched.'))) return; await post('/api/harness/forget', { id: f.dataset.forget }); if (view === 'rec' && recId === f.dataset.forget) show('live'); loadList(); return; }
+      if (f) return forgetGroup([f.dataset.forget]);
       const r = e.target.closest('.agrow'); if (!r) return;
       if (r.dataset.live) return openLive();
       if (r.dataset.rlive) return openRoutineLive();
@@ -603,6 +636,7 @@
       ['/stats', 'what this session has done, and what it is driving'],
       ['/new', 'a fresh conversation'],
       ['/stop', 'stop the turn that is running'],
+      ['/whip', 'OpenWhip: crack the whip to interrupt slow turns & engage Turbo speed (Alt+W) · /whip off'],
       ['/dir', 'the folder it works in · /dir C:\\work changes it'],
       ['/harness', 'the engine · /harness moundshroud · claude · jcode'],
       ['/scan', 'look on every drive for AI models, and list them by what they do'],
@@ -677,6 +711,21 @@
         return;
       }
       if (c === '/new') { await $('hnew').onclick(); return; }
+      if (c === '/whip') {
+        if (/^(off|stop|normal|disable)$/i.test(arg)) {
+          await ctl('turbo', false);
+          if (window.A && A.openwhip) A.openwhip.setTurbo(false);
+          say('OpenWhip Turbo OFF — back to normal speed.');
+        } else if (window.A && A.openwhip) {
+          await A.openwhip.crack(arg, { target: 'agent' });
+          tick();
+        } else {
+          await post('/api/harness/whip', { phrase: arg });
+          say('🪢 <b>*CRACK!*</b> OpenWhip Turbo ON.');
+          tick();
+        }
+        return;
+      }
       if (c === '/stop') {
         if ($('hstop').style.display === 'none') { say('Nothing is running.'); return; }
         await $('hstop').onclick();
@@ -744,6 +793,18 @@
     }
 
     $('hsend').onclick = sendNow;
+    if ($('agwhip')) {
+      $('agwhip').onclick = async () => {
+        if (window.A && A.openwhip) await A.openwhip.crack('', { target: 'agent' });
+        else await post('/api/harness/whip', {});
+        tick();
+      };
+      $('agwhip').oncontextmenu = e => {
+        e.preventDefault();
+        if (window.A && A.openwhip) A.openwhip.openMenu($('agwhip'));
+      };
+      if (window.A && A.openwhip && A.openwhip.isTurbo && A.openwhip.isTurbo()) $('agwhip').classList.add('on');
+    }
     $('hin').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendNow(); } });
 
     /* ---------- routines ---------- */

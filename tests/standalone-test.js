@@ -49,6 +49,37 @@ module.exports = async ok => {
   const postJson = await rPost.json();
   ok('standalone: POST /api/micro/jq reads request body and answers JSON', rPost.status === 200 && postJson.ok && postJson.output.trim() === '10', JSON.stringify(postJson));
 
+  const bridge = require('../lib/openai-bridge');
+  const originalChat = bridge.chat;
+  try {
+    // Inspect what the actual route passes to a provider without opening a socket.
+    bridge.chat = (payload, res) => res.end(JSON.stringify(payload));
+    const sent = {
+      model: 'lms:chat-test', stream: true, think: false, keep_alive: '3m',
+      tools: [{ type: 'image_generation' }], tool_choice: 'required', modalities: ['text', 'image'],
+      messages: [
+        { role: 'system', content: 'Reply in text' },
+        { role: 'user', content: 'Read my attachment', images: ['photo-base64'] },
+        { role: 'assistant', content: 'A text reply', tool_calls: [{ function: { name: 'make_image' } }] },
+        { role: 'tool', content: 'Fake tool output' }
+      ]
+    };
+    const post = (suffix, value) => dispatchToHandler(embedded.handleAppRequest, new Request('app://moundshroud/api/chat' + suffix, {
+      method: 'POST', body: JSON.stringify(value)
+    }));
+    const main = await (await post('?surface=main', sent)).json();
+    const other = await (await post('', sent)).json();
+    const media = await post('?surface=main', { ...sent, model: 'any:picture' });
+    ok('standalone: Main Chat routes plain messages and image attachments without provider tools',
+      main.model === sent.model && main.stream && main.think === false && main.messages.length === 3 &&
+      main.messages[1].images[0] === 'photo-base64' && !main.messages[2].tool_calls &&
+      !main.tools && !main.tool_choice && !main.modalities && media.status === 400);
+    ok('standalone: other chat surfaces still receive their tool definitions and history',
+      other.tools?.length === 1 && other.messages[2].tool_calls?.length === 1 && other.messages[3].role === 'tool');
+  } finally {
+    bridge.chat = originalChat;
+  }
+
   // 6. Isolated library origin (app://moundshroud-lib/__bridge.js)
   const rLib = await dispatchToHandler(embedded.handleLibRequest, new Request('app://moundshroud-lib/__bridge.js'));
   const libJs = await rLib.text();

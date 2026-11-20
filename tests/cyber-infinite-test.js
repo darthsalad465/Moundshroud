@@ -18,6 +18,7 @@ async function run(ok) {
   const A = { play: { games: {} }, toast() { } };
   const ctx = vm.createContext({
     A,
+    TerminalUnix: require(path.join(root, 'web', 'js', 'terminal-unix.js')),
     ls: { get: (k, d) => store.has(k) ? store.get(k) : d, set: (k, v) => store.set(k, String(v)) },
     esc: s => String(s),
     btoa: s => Buffer.from(s, 'binary').toString('base64'),
@@ -71,6 +72,58 @@ async function run(ok) {
   ok('cyber-inf: Terminal shell supports xxd -r, rot13, rev, and "endless hard" mode',
     xxdOut.includes('HELLO') && rotOut.includes('HELLO') && revOut.includes('SHARD') && /Endless CTF/.test(tgHtml),
     JSON.stringify({ xxdOut, rotOut, revOut, tg: tgHtml.slice(0, 60) }));
+
+  // 3b. Verify all 24 campaign missions + new commands (sort, uniq, cut, tr, env, ps, netstat) + all 12 Academy lessons
+  ok('cyber-inf: Terminal Hacker has 24 campaign missions and 12 interactive Academy lessons',
+    Array.isArray(L.terminal.MIS) && L.terminal.MIS.length === 24 && Array.isArray(L.terminal.ACADEMY) && L.terminal.ACADEMY.length === 12 && !!A.play.games.terminal_academy);
+  runCmd('mission 12'); const m12 = runCmd('sort tokens.txt | uniq -u');
+  runCmd('mission 13'); const m13 = runCmd('env | grep FLAG');
+  runCmd('mission 17'); const m17 = runCmd('ps aux');
+  runCmd('mission 21'); const m21 = runCmd('netstat');
+  runCmd('mission 22'); const m22 = runCmd('grep ,root, users.csv | cut -d, -f4 | base64 -d');
+  runCmd('mission 24'); runCmd('chmod 644 /opt/crown/chamber/.grand_vault');
+  const m24 = runCmd('cat /opt/crown/chamber/.grand_vault | xxd -r | base64 -d | rot13');
+  ok('cyber-inf: Campaign missions 12, 13, 17, 21, 22, 24 & sort/uniq/cut/env/ps/netstat all work',
+    m12.includes('FLAG{sort_uniq_spots_outliers}') && m13.includes('FLAG{env_leaks_secrets}') &&
+    m17.includes('beacon.sh') && m21.includes('31337') && m22.includes('FLAG{cut_extracts_columns}') &&
+    m24.includes('FLAG{moundshroud_grand_master}'),
+    JSON.stringify({ m12, m13, m22, m24 }));
+
+  const elA = stub('cygstage');
+  A.play.games.terminal_academy.mount(elA, { hud() { }, submit() { }, level: 1 });
+  const ao = elA.found.to, ai = elA.found.ti;
+  const runAcad = cmd => { ao.kids = []; ai.value = cmd; ai.onkeydown({ key: 'Enter', preventDefault() { } }); return ao.kids.map(k => k.textContent || k.innerHTML || '').join('\n'); };
+  let acadFails = [];
+  for (let i = 0; i < L.terminal.ACADEMY.length; i++) {
+    runAcad('academy ' + (i + 1));
+    for (let j = 0; j < L.terminal.ACADEMY[i].steps.length; j++) {
+      const st = L.terminal.ACADEMY[i].steps[j];
+      const res = runAcad(st.example);
+      if (!res.includes('Step')) acadFails.push('L' + (i + 1) + 'S' + (j + 1) + ':' + st.example + ' => ' + res.slice(0, 80));
+    }
+  }
+  ok('cyber-inf: All 12 Interactive Terminal Academy lessons verify and complete via their real commands', !acadFails.length, acadFails.join(' | '));
+
+  ctx.TerminalOps = require(path.join(root, 'web', 'js', 'terminal-ops-rules.js'));
+  vm.runInContext(fs.readFileSync(path.join(root, 'web', 'js', 'terminal-ops.js'), 'utf8'), ctx, { filename: 'terminal-ops.js' });
+  const opsStage = stub('cygstage');
+  A.play.games.terminal_ops.mount(opsStage, { hud() {} });
+  const clickOps = dataset => opsStage.onclick({ target: { closest: selector => selector === 'button' ? { dataset } : null } });
+  const submitPractice = command => {
+    opsStage.found.toain.value = command;
+    opsStage.found.toaform.onsubmit({ preventDefault() {} });
+  };
+  clickOps({ act: 'start' });
+  const missionNumber = store.get('tops_n');
+  clickOps({ act: 'tab', tab: 'academy' });
+  clickOps({ act: 'practice-command', cmd: 'chmod u+r .filter.b64' });
+  const commandInserted = opsStage.found.toain.value === 'chmod u+r .filter.b64';
+  submitPractice(opsStage.found.toain.value);
+  submitPractice('cat .filter.b64');
+  const completedPermissionLesson = JSON.parse(store.get('tops_lessons')).includes(0) && /Lesson complete/.test(opsStage.innerHTML);
+  clickOps({ act: 'tab', tab: 'missions' });
+  ok('terminal ops: Academy tab runs exercises and preserves the active mission', commandInserted && completedPermissionLesson &&
+    store.get('tops_n') === missionNumber && !!opsStage.found.toin);
 
   // 4. SQL Injection Dojo — 40 procedural puzzles across all 7 archetypes, verifying every single one is solvable
   let sqlValid = true, sqlSolvable = 0;

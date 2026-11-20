@@ -5,7 +5,9 @@
 // Python and JavaScript run in the chat's sandbox (web/js/interp.js); HTML and CSS show a live preview with scripts switched off;
 // the other languages use "what does it print", "fix the bug", "fill the blank" and multiple choice, checked against stored answers.
 // Code boxes act like an editor: Enter is a new line that keeps the indent, Ctrl+Enter runs or checks (keyboard.js leaves [data-ownkeys] alone).
-// 🧪 Playground: write any code in any of the languages; Python and JavaScript run in the sandbox and the local AI explains it.
+// 🧪 Playground: 84 languages listed in code-playground-langs.js. Python, JavaScript, HTML and SQL run in the browser; esoteric
+// languages, Scheme, Prolog, Forth and BASIC run in esolang-worker.js; compiled languages use this PC's tools or the Docker image.
+// Like the Terminal playground it has three modes: Sandbox, 🧩 Challenges and 🌀 Code Labyrinth (puzzles from code-challenges.js).
 // Progress (points, streak, lessons, bosses, badges, best speed scores) stays in this browser under 'codelearn'.
 (() => {
   if (typeof window === 'undefined' || typeof A === 'undefined' || typeof CodeLessons === 'undefined') return;
@@ -25,11 +27,12 @@
     '.cl-ans{flex:1;min-width:220px;min-height:2.6em;box-sizing:border-box;font:13px/1.5 Consolas,"Cascadia Mono",monospace;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--fg,inherit);resize:vertical}' +
     '.cl-keys{margin-top:4px}.cl-keys kbd{font:11px Consolas,monospace;padding:0 4px;border:1px solid var(--line);border-radius:4px}.cl-ai{line-height:1.6;margin-top:10px}.cl-ai code{font-family:Consolas,monospace;background:var(--panel2);padding:0 3px;border-radius:3px}' +
     '.cl-unit.lock{opacity:.6}.cl-chip{display:inline-block;margin:3px 4px 3px 0;padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:var(--panel2);cursor:pointer;font-size:13px}.cl-chip:hover{border-color:var(--acc)}' +
-    '.cl-boss{border-color:color-mix(in srgb,var(--acc) 60%,var(--line))}.cl-big{font-size:30px;font-weight:700}.cl-badge{text-align:center;padding:12px}.cl-badge.off{opacity:.35;filter:grayscale(1)}.cl-badge .ic{font-size:30px}';
+    '.cl-boss{border-color:color-mix(in srgb,var(--acc) 60%,var(--line))}.cl-big{font-size:30px;font-weight:700}.cl-badge{text-align:center;padding:12px}.cl-badge.off{opacity:.35;filter:grayscale(1)}.cl-badge .ic{font-size:30px}' +
+    '.cl-pnote{margin:0 0 8px;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);font-size:13px;line-height:1.45}.cl-pno{border-color:color-mix(in srgb,var(--bad,#c33) 45%,var(--line));background:color-mix(in srgb,var(--bad,#c33) 9%,transparent)}';
   /* Python, JavaScript and HTML run here; every language can be explained by the AI */
   const RUNS = { python: 'python', javascript: 'js', html: 'html' };
   /* the editor's own language name (web/js/code-ed.js), so a lesson's code is coloured in its real language */
-  const ceLang = id => ({ python: 'py', javascript: 'js', html: 'html', css: 'css', bash: 'sh', shell: 'sh', sql: 'sql', json: 'json' }[id] || 'txt');
+  const ceLang = id => ({ python: 'py', javascript: 'js', html: 'html', css: 'css', bash: 'sh', shell: 'sh', sql: 'sql', json: 'json', nodejs: 'js', typescript: 'js', jscript: 'js' }[id] || 'txt');
   const COMMENT = { python: '#', bash: '#', powershell: '#', ruby: '#', sql: '--', lua: '--', asm: ';', html: '' };
   const keysTip = what => '<div class="small mute cl-keys"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> ' + what + ' · <kbd>Enter</kbd> new line (keeps the indent) · <kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd> indent · <kbd>Ctrl</kbd>+<kbd>/</kbd> comment · <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo</div>';
   /* make a textarea behave like a code editor. Edits go through insertText so Ctrl+Z and Ctrl+Y still undo and redo them.
@@ -50,7 +53,7 @@
         put(block, ls0, end); ed.setSelectionRange(ls0, ls0 + block.length); return;
       }
       if (e.key === '/' && (e.ctrlKey || e.metaKey) && !e.altKey) {
-        e.preventDefault(); const mark = COMMENT[lg] === undefined ? '//' : COMMENT[lg]; if (!mark) return;
+        e.preventDefault(); const pl = window.PlayLangs && PlayLangs.byId(lg), mark = COMMENT[lg] !== undefined ? COMMENT[lg] : pl ? pl.cm || '' : '//'; if (!mark) return;
         const le = n > s && v[n - 1] === '\n' ? n - 1 : n, eol = v.indexOf('\n', le), end = eol < 0 ? v.length : eol, ls2 = v.slice(ls0, end).split('\n');
         const q = mark.replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&'), on = ls2.filter(l => l.trim()).every(l => new RegExp('^\\s*' + q).test(l));
         const block = ls2.map(l => !l.trim() ? l : on ? l.replace(new RegExp('^(\\s*)' + q + ' ?'), '$1') : l.replace(/^(\s*)/, '$1' + mark + ' ')).join('\n');
@@ -66,7 +69,7 @@
   const lessonNow = () => curL;
   const lessonById = id => C.LESSONS.find(x => x.id === id);
   function go(v, x) {
-    if (pctl) { pctl.abort(); pctl = null; } if (aictl) { aictl.abort(); aictl = null; } if (sp && sp.timer) { clearInterval(sp.timer); sp.timer = null; }
+    cancelPlay(); if (aictl) { aictl.abort(); aictl = null; } if (sp && sp.timer) { clearInterval(sp.timer); sp.timer = null; }
     view = v; if (v === 'lang') lang = x; if (v === 'lesson') { curL = lessonById(x) || null; shown = false; }
     draw(); const sc = H && H.querySelector('.scroll'); if (sc) sc.scrollTop = 0;
   }
@@ -84,7 +87,7 @@
   function home() {
     const s = load();
     return '<div class="dw-gateway"><div><b>Debug workshop</b><small>Trace a broken program, edit its JavaScript and run the repair against five cases.</small></div><button class="ib" data-cl="workshop">Open a repair ticket →</button></div>' + rankCard(s) +
-      '<div class="cl-card cl-lang" data-cl="play" style="margin-bottom:12px"><div class="row" style="gap:12px;align-items:center"><div style="font-size:28px">🧪</div><div style="flex:1"><b>Code playground</b><div class="small mute" style="line-height:1.45">Write and test any code in any of these ' + C.LANGS.length + ' languages, safely. Python and JavaScript run in a locked sandbox, HTML shows a preview, and the AI explains what any code does or what is wrong with it.</div></div><span class="small" style="color:var(--acc)">Open →</span></div></div>' +
+      '<div class="cl-card cl-lang" data-cl="play" style="margin-bottom:12px"><div class="row" style="gap:12px;align-items:center"><div style="font-size:28px">🧪</div><div style="flex:1"><b>Code playground</b><div class="small mute" style="line-height:1.45">' + (window.PlayLangs ? PlayLangs.LANGS.length + ' languages, from Python and C to Brainfuck and Shakespeare. ' : '') + 'Run programs offline, preview HTML and CSS, or ask the AI to explain your code.</div></div><span class="small" style="color:var(--acc)">Open →</span></div></div>' +
       '<div class="cl-grid">' + C.LANGS.map(x => { const ls2 = C.byLang(x.id), d = ls2.filter(l => s.done[l.id]).length, us = C.unitsOf(x.id), bb = us.filter(u => s.boss[u.id]).length; return '<div class="cl-card cl-lang" data-cl="lang" data-id="' + x.id + '"><div style="font-size:26px">' + x.ic + '</div><b>' + esc(x.n) + '</b>' + (x.run ? ' <span class="small" style="color:var(--acc)">runs here</span>' : '') + '<div class="small mute" style="margin-top:4px;line-height:1.45">' + esc(x.about) + '</div>' + bar(d, ls2.length) + '<div class="small mute">' + us.length + ' units · ' + d + ' of ' + ls2.length + ' lessons' + (bb ? ' · 👑 ' + bb : '') + '</div></div>'; }).join('') + '</div>';
   }
 
@@ -239,53 +242,259 @@
       '<div class="cl-grid">' + C.BADGES.map(b => '<div class="cl-card cl-badge' + (s.badges[b.id] ? '' : ' off') + '"><div class="ic">' + b.ic + '</div><b>' + esc(b.n) + '</b><div class="small mute">' + esc(b.d) + '</div>' + (s.badges[b.id] ? '<div class="small" style="margin-top:4px">Earned ' + esc(s.badges[b.id]) + '</div>' : '') + '</div>').join('') + '</div>';
   }
 
-  /* ----- 🧪 Playground: any code, any of the languages. Python and JavaScript run in the sandbox worker (no files, no network,
-     stopped after a few seconds); HTML shows in a preview with scripts off; the AI on this PC explains what code does or what is wrong. */
-  const PKEY = 'codeplay', START = { python: 'print("Hello!")\n', javascript: 'console.log("Hello!");\n', html: '<h1>Hello!</h1>\n' };
-  const pload = () => { let s = {}; try { s = JSON.parse(ls.get(PKEY, '{}')) || {}; } catch (e) { } return Object.assign({ lang: 'python', code: {} }, s); };
-  let plang = pload().lang, plast = null, pctl = null;
-  const playSave = code => { const s = pload(); s.lang = plang; s.code[plang] = String(code).slice(0, 50000); try { ls.set(PKEY, JSON.stringify(s)); } catch (e) { } };
+  /* ----- Code Playground: the languages and their examples are in web/js/code-playground-langs.js ----- */
+  const PL = window.PlayLangs, PKEY = 'codeplay';
+  const plangOf = id => PL.byId(id) || PL.byId('python');
+  const MINI = ['scheme', 'prolog', 'forth', 'basic'];
+  /* what the server can run, from GET /api/code-playground/status: {local: {id: true}, docker: [ids], dockerInstalled} */
+  let pstat = null, pstatAsk = null;
+  function askStatus() {
+    if (pstat || pstatAsk) return;
+    pstatAsk = fetch('/api/code-playground/status').then(r => r.json()).then(s => { pstat = s && s.local ? s : { local: {}, docker: [] }; })
+      .catch(() => { pstat = { local: {}, docker: [], failed: true }; })
+      .finally(() => { pstatAsk = null; if (view === 'play' && !prun) draw(); });
+  }
+  /* where a language runs now: app, mini, eso, pc, docker or none (with the reason) */
+  function where(l) {
+    if (['py', 'js', 'html', 'sql', 'binary'].includes(l.run)) return { g: 'app' };
+    if (l.run === 'eso') return { g: MINI.includes(l.id) ? 'mini' : 'eso' };
+    if (l.run === 'local' && !pstat) return { g: 'pc', checking: true };
+    if (l.run === 'local' && pstat.local[l.id]) return { g: 'pc' };
+    const dock = PL.DOCKER.includes(l.id);
+    if (dock && pstat && pstat.dockerInstalled) return { g: 'docker' };
+    const why = l.why || (l.run === 'local' ? 'The tools it needs are not installed on this PC.' : PL.NOTOOL);
+    return { g: 'none', why: why + (dock ? ' It can run in the Playground\'s Docker image, but Docker is not installed.' : '') };
+  }
+  const pload = () => {
+    let state;
+    try { state = JSON.parse(ls.get(PKEY, '{}')); } catch (e) { }
+    const obj = v => v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+    return { lang: PL.byId(state?.lang) ? state.lang : 'python', code: obj(state?.code), inp: obj(state?.inp) };
+  };
+  let plang = pload().lang, plast = null, pctl = null, prun = null;
+  const pstore = s => { try { ls.set(PKEY, JSON.stringify(s)); } catch (e) { } };
+  const playSave = code => { const s = pload(); s.lang = plang; s.code[codeKey()] = String(code).slice(0, 50000); pstore(s); };
+  const inputSave = text => { const s = pload(); s.inp[plang] = String(text).slice(0, 20000); pstore(s); };
   /* the AI reply as safe HTML: everything escaped, then code blocks, `code` and **bold** */
   const fmt = t => String(t || '').split(/```[^\n`]*\n?([\s\S]*?)(?:```|$)/).map((p, i) => i % 2 ? '<pre class="cl-pre">' + esc(p.replace(/\n$/, '')) + '</pre>' : esc(p).replace(/`([^`\n]+)`/g, '<code>$1</code>').replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>').replace(/^#{1,4} +(.+)$/gm, '<b>$1</b>').replace(/\n/g, '<br>')).join('');
+  function playNote(x, w) {
+    if (w.g === 'none') return '<div class="cl-pnote cl-pno" id="plnote">⛔ <b>' + esc(x.n) + ' cannot run here.</b> ' + esc(w.why) + ' The example shows what it looks like, and 🧠 Explain still works.</div>';
+    if (w.g === 'pc') return '<div class="cl-pnote" id="plnote">💻 ' + (w.checking ? 'Checking this PC for its tools… ' : '') + esc(x.how || '') + ' It runs on this PC as your Windows user, with no container, like a program started from a terminal.</div>';
+    if (w.g === 'docker') return '<div class="cl-pnote" id="plnote">🐳 Runs in the Playground\'s Docker image, with no network. ' + esc(x.how || '') + '</div>';
+    return x.how ? '<div class="cl-pnote" id="plnote">' + (w.g === 'eso' || w.g === 'mini' ? '🧩 ' : '') + esc(x.how) + '</div>' : '';
+  }
+  /* ----- Playground modes, like the Terminal playground: 🧪 Sandbox, 🧩 Challenges (code-challenges.js) and 🌀 Code Labyrinth ----- */
+  const CC = window.CodeChallenges, CKEY = 'codechal';
+  let pmode = ['sandbox', 'chal', 'lab'].includes(ls.get('codeplay_mode', 'sandbox')) ? ls.get('codeplay_mode', 'sandbox') : 'sandbox';
+  const cload = () => { let s = {}; try { s = JSON.parse(ls.get(CKEY, '{}')) || {}; } catch (e) { } s = Object.assign({ diff: 'easy', cats: CC ? CC.CATS.map(c => c[0]) : [], seed: 1 + Math.floor(Math.random() * 99999), pts: 0, solved: 0, done: {}, depth: 1, best: 0, labSeed: 1 + Math.floor(Math.random() * 99999), custom: [], cust: -1, shown: {} }, s); ['done', 'shown'].forEach(k => { if (!s[k] || typeof s[k] !== 'object') s[k] = {}; }); if (!Array.isArray(s.custom)) s.custom = []; if (!ls.get(CKEY, '')) csave(s); return s; };
+  const csave = s => { try { ls.set(CKEY, JSON.stringify(s)); } catch (e) { } };
+  const runnableIds = () => PL.LANGS.filter(l => where(l).g !== 'none' && !['html', 'binary', 'sql'].includes(l.run)).map(l => l.id);
+  /* the puzzle on screen: a custom one, a Challenges puzzle, or the Labyrinth floor */
+  function curChal() {
+    if (!CC || pmode === 'sandbox') return null;
+    const s = cload();
+    if (pmode === 'lab') return Object.assign(CC.floor(s.depth, s.labSeed, pstat ? runnableIds() : PL.LANGS.filter(l => !['docker', 'none', 'html', 'binary', 'sql'].includes(l.run)).map(l => l.id)), { key: 'lab:' + s.labSeed + ':' + s.depth });
+    if (s.cust >= 0 && s.custom[s.cust]) { const c = s.custom[s.cust]; return { t: c.t, task: c.task, ans: c.ans, pts: 5, diff: 'custom', custom: true, key: 'cus:' + c.id }; }
+    const c = CC.make(s.diff, s.cats, s.seed); c.key = 'chl:' + s.diff + ':' + s.seed + ':' + c.t; return c;
+  }
+  const codeKey = () => pmode === 'sandbox' ? plang : pmode + ':' + plang;
+  function modeTabs() {
+    return '<div class="row" style="gap:6px;flex-wrap:wrap;margin-top:10px">' + [['sandbox', '🧪 Sandbox'], ['chal', '🧩 Challenges'], ['lab', '🌀 Code Labyrinth']].map(([m, l]) => '<button class="ib' + (pmode === m ? ' on' : '') + '" data-cl="pmode" data-m="' + m + '"' + (pmode === m ? ' style="border-color:var(--acc);color:var(--acc)"' : '') + '>' + l + '</button>').join('') + '</div>';
+  }
+  function chalCard(c) {
+    if (!c) return '';
+    const s = cload(), done = !!s.done[c.key], d = CC.DIFFS.find(x => x.id === c.diff);
+    let head = '';
+    if (pmode === 'chal') {
+      head = '<div class="row" style="gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px">' + CC.DIFFS.map(x => '<button class="ib" data-cl="pdiff" data-d="' + x.id + '"' + (s.cust < 0 && s.diff === x.id ? ' style="border-color:' + 'var(--acc);color:var(--acc)"' : '') + ' title="' + esc(x.note) + '">' + x.ic + ' ' + x.label + '</button>').join('') +
+        '<span class="small mute" style="margin-left:6px">' + CC.CATS.map(([k, l]) => '<label style="margin-right:8px;white-space:nowrap"><input type="checkbox" data-cl="pcat" data-c="' + k + '"' + (s.cats.includes(k) ? ' checked' : '') + '> ' + l + '</label>').join('') + '</span></div>' +
+        '<div class="row" style="gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px"><button class="ib" data-cl="pnew">🎲 New puzzle</button><label class="small mute">Seed <input id="plseed" value="' + s.seed + '" style="width:7em" aria-label="Seed"></label><button class="ib" data-cl="pseed">Load seed</button><span class="small mute" id="plpts">⭐ ' + s.pts + ' points · ' + s.solved + ' solved</span></div>';
+    } else {
+      head = '<div class="row" style="gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px"><b>🌀 Floor ' + s.depth + '</b><span class="small mute">' + esc(c.tier || '') + (c.scale > 1 ? ' · size ×' + c.scale : '') + ' · Deepest: ' + s.best + ' · ⭐ ' + s.pts + ' points · run ' + s.labSeed + '</span><button class="ib" data-cl="plabnew" style="margin-left:auto">↺ New descent</button></div>';
+    }
+    const lock = c.lang ? '<div class="small" style="margin:6px 0">🔒 This ' + (pmode === 'lab' ? 'floor' : 'puzzle') + ' only opens to <b>' + esc(plangOf(c.lang).n) + '</b>.</div>' : '';
+    return '<div class="cl-pnote cl-pchal" id="plchal">' + head +
+      '<div><b>' + (c.gate ? '🚪 ' : d ? d.ic + ' ' : '✏️ ') + esc(c.t) + '</b> <span class="small mute">' + (c.custom ? 'your puzzle' : c.gate ? 'esoteric gate' : esc(d.label)) + ' · ' + c.pts + ' points' + (done ? ' · ✅ solved' : '') + '</span></div>' +
+      '<div class="cl-pre" style="margin:6px 0">' + esc(c.task) + '</div>' + lock +
+      '<div class="small mute">Write a program that prints the answer, then press <b>▶ Run and check</b>. Spaces at line ends do not matter.</div>' +
+      (s.shown[c.key] ? '<div class="small" style="margin-top:6px">Answer: <code>' + esc(c.ans) + '</code></div>' : '') +
+      '<div id="plchk"></div>' +
+      (pmode === 'chal' ? '<details class="small" style="margin-top:8px"' + (s.custom.length ? '' : '') + '><summary class="mute" style="cursor:pointer">✏️ My own puzzles (' + s.custom.length + ')</summary>' +
+        s.custom.map((x, i) => '<div class="row" style="gap:6px;align-items:center;margin:4px 0"><span style="flex:1">' + esc(x.t) + '</span><button class="ib" data-cl="pcsolve" data-i="' + i + '">Solve</button><button class="ib" data-cl="pcdel" data-i="' + i + '">Delete</button></div>').join('') +
+        (s.cust >= 0 ? '<button class="ib" data-cl="pcback" style="margin:4px 0">← Back to generated puzzles</button>' : '') +
+        '<div style="display:grid;gap:6px;margin-top:6px"><input id="pct" placeholder="Title" maxlength="80"><textarea id="pctask" class="cl-ans" rows="3" placeholder="The task: what should the program print?" maxlength="4000" data-ownkeys></textarea><textarea id="pcans" class="cl-ans" rows="2" placeholder="The exact expected output" maxlength="4000" data-ownkeys></textarea><button class="ib" data-cl="pcadd">Save puzzle</button></div></details>' : '') +
+      '</div>';
+  }
+  /* after a run in Challenges or the Labyrinth: compare stdout with the answer */
+  function judge(r, lg) {
+    const c = curChal(), box = H && H.querySelector('#plchk'); if (!c || !box) return;
+    if (c.lang && c.lang !== lg) { box.innerHTML = '<div class="cl-fb cl-no">🔒 This one only counts in ' + esc(plangOf(c.lang).n) + '. Switch the language and run again.</div>'; return; }
+    if (!r.ok && !r.stdout) { box.innerHTML = '<div class="cl-fb cl-no">❌ The program did not finish. Fix the error and run again.</div>'; return; }
+    if (CC.check(r.stdout, c.ans)) {
+      const s = cload(), first = !s.done[c.key];
+      if (first) { s.done[c.key] = 1; s.solved++; if (!s.shown[c.key]) s.pts += c.pts; }
+      if (pmode === 'lab') { s.best = Math.max(s.best, s.depth); }
+      csave(s);
+      const pe = H.querySelector('#plpts'); if (pe) pe.textContent = '⭐ ' + s.pts + ' points · ' + s.solved + ' solved';
+      if (pmode === 'lab') { const from = s.depth; clearTimeout(descendTimer); descendTimer = setTimeout(() => descend(from), 1800); }
+      box.innerHTML = '<div class="cl-fb cl-ok">✅ <b>Correct!</b> ' + (first && !s.shown[c.key] ? '+' + c.pts + ' points.' : '') + (pmode === 'lab' ? ' Descending to floor ' + (s.depth + 1) + '… <button class="pri" data-cl="pdown" data-from="' + s.depth + '">⬇ Go now</button>' : ' <button class="pri" data-cl="pnew">🎲 Next puzzle</button>') + '</div>';
+      return;
+    }
+    const got = CC.norm(r.stdout).split('\n'), want = CC.norm(c.ans).split('\n');
+    const line = got.findIndex((l, i) => l !== want[i]), at = line < 0 ? got.length : line;
+    box.innerHTML = '<div class="cl-fb cl-no">❌ Not yet. ' + (got.length !== want.length ? 'The answer has ' + want.length + ' line' + (want.length > 1 ? 's' : '') + '; your program printed ' + got.length + '. ' : '') + 'First difference on line ' + (at + 1) + ': you printed <code>' + esc((got[at] || '(nothing)').slice(0, 120)) + '</code>.' + (pmode === 'chal' && !c.custom ? ' <button class="ib" data-cl="pshow">Show the answer (no points)</button>' : '') + '</div>';
+  }
+  /* the Labyrinth moves to the next floor by itself after a correct run: once only, with an empty editor and output */
+  let descendTimer = null;
+  function descend(from) {
+    clearTimeout(descendTimer); descendTimer = null;
+    const s = cload(); if (pmode !== 'lab' || s.depth !== from) return;
+    s.depth = from + 1; csave(s);
+    const st = pload(); Object.keys(st.code).forEach(k => { if (/^lab:/.test(k)) delete st.code[k]; }); pstore(st);
+    const c = curChal(); if (c && c.lang) plang = c.lang;
+    if (view === 'play' && H) { draw(); try { A.toast('🌀 Floor ' + s.depth + ' · ' + c.tier, 2500); } catch (e) { } }
+  }
+  function chalClick(k, el) {
+    const s = cload();
+    if (k === 'pmode') { clearTimeout(descendTimer); cancelPlay(); pmode = el.dataset.m; ls.set('codeplay_mode', pmode); const c = curChal(); if (c && c.lang) plang = c.lang; draw(); return true; }
+    if (k === 'pcat') { const on = [...H.querySelectorAll('[data-cl="pcat"]')].filter(x => x.checked).map(x => x.dataset.c); if (!on.length) { el.checked = true; return true; } s.cats = on; s.cust = -1; s.seed = 1 + Math.floor(Math.random() * 99999); csave(s); draw(); return true; }
+    if (k === 'pdiff') { s.diff = el.dataset.d; s.cust = -1; s.seed = 1 + Math.floor(Math.random() * 99999); csave(s); draw(); return true; }
+    if (k === 'pnew') { s.seed = 1 + Math.floor(Math.random() * 99999); s.cust = -1; csave(s); draw(); return true; }
+    if (k === 'pseed') { const v = parseInt((H.querySelector('#plseed') || {}).value, 10); if (v > 0) { s.seed = v; s.cust = -1; csave(s); draw(); } return true; }
+    if (k === 'pshow') { const c = curChal(); if (c) { s.shown[c.key] = 1; csave(s); draw(); } return true; }
+    if (k === 'pdown') { descend(+el.dataset.from || s.depth); return true; }
+    if (k === 'plabnew') { clearTimeout(descendTimer); s.depth = 1; s.labSeed = 1 + Math.floor(Math.random() * 99999); csave(s); draw(); return true; }
+    if (k === 'pcadd') {
+      const t = (H.querySelector('#pct').value || '').trim(), task = (H.querySelector('#pctask').value || '').trim(), ans = H.querySelector('#pcans').value || '';
+      if (!t || !task || !CC.norm(ans)) { A.toast('Give the puzzle a title, a task and the expected output.'); return true; }
+      s.custom.push({ id: Date.now().toString(36), t, task, ans }); s.cust = s.custom.length - 1; csave(s); draw(); return true;
+    }
+    if (k === 'pcsolve') { s.cust = +el.dataset.i; csave(s); draw(); return true; }
+    if (k === 'pcdel') { s.custom.splice(+el.dataset.i, 1); if (s.cust >= s.custom.length) s.cust = -1; csave(s); draw(); return true; }
+    if (k === 'pcback') { s.cust = -1; csave(s); draw(); return true; }
+    return false;
+  }
   function playPage() {
-    const x = langOf(plang), code = pload().code[plang], how = RUNS[plang] === 'html' ? 'shows a live preview' : RUNS[plang] ? 'runs here in a locked sandbox' : 'cannot run here, but the AI can read it and explain it';
+    const ch = curChal(); if (ch && ch.lang) plang = ch.lang;
+    const x = plangOf(plang), st = pload(), code = st.code[codeKey()], html = x.run === 'html', w = where(x);
+    const blank = pmode === 'sandbox' ? x.ex : x.cm ? x.cm + ' Print the answer to the puzzle above.\n' : '';
+    const opts = PL.GROUPS.map(([g, label]) => {
+      const ls2 = PL.LANGS.filter(l => where(l).g === g);
+      return ls2.length ? '<optgroup label="' + esc(label + ' (' + ls2.length + ')') + '">' + ls2.map(l => '<option value="' + l.id + '"' + (l.id === plang ? ' selected' : '') + '>' + l.ic + ' ' + esc(l.n) + '</option>').join('') + '</optgroup>' : '';
+    }).join('');
+    const runnable = PL.LANGS.filter(l => where(l).g !== 'none').length;
+    const inp = typeof st.inp[plang] === 'string' ? st.inp[plang] : x.inp || '';
     return back('home', '', 'All languages') +
-      '<div class="cl-card"><b style="font-size:19px">🧪 Code playground</b><div class="small mute" style="line-height:1.5;margin-top:4px">Write and test any code. Python and JavaScript run in a locked sandbox: they cannot touch your files, the internet or the rest of Moundshroud, and they are stopped after a few seconds. HTML shows in a preview with scripts switched off. <b>🧠 Explain</b> asks the AI what the code does or what is wrong with it.</div></div>' +
-      '<div class="cl-card"><div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><label class="small">Language <select id="plang" aria-label="Language">' + C.LANGS.map(l => '<option value="' + l.id + '"' + (l.id === plang ? ' selected' : '') + '>' + l.ic + ' ' + esc(l.n) + '</option>').join('') + '</select></label><span class="small mute">' + esc(x.n) + ' ' + how + '.</span></div>' +
-      '<textarea class="cl-ed" id="clcode" data-lang="' + ceLang(plang) + '" spellcheck="false" style="min-height:240px" placeholder="Type any ' + esc(x.n) + ' code here">' + esc(code == null ? (START[plang] || '') : code) + '</textarea>' + keysTip(RUNS[plang] ? 'runs' : 'explains') +
-      '<div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap">' + (RUNS[plang] && RUNS[plang] !== 'html' ? '<button class="pri" data-cl="prun">▶ Run</button>' : '') + '<button class="' + (RUNS[plang] && RUNS[plang] !== 'html' ? 'ib' : 'pri') + '" data-cl="pexp">🧠 Explain</button><button class="ib" data-cl="pstop" hidden>■ Stop</button><button class="ib" data-cl="pclear">Clear</button></div>' +
-      (RUNS[plang] === 'html' ? '<div class="small mute" style="margin:8px 0 4px">Live preview</div><iframe class="cl-prev" id="clprev" sandbox="" title="Preview"></iframe>' : RUNS[plang] ? '<div class="small mute" style="margin-top:8px">Output</div><pre class="cl-pre" id="clout" style="min-height:2.5em"></pre>' : '') +
-      '<div id="plai" class="cl-ai"></div></div>';
+      '<div class="cl-card"><b style="font-size:19px">🧪 Code playground</b><div class="small mute" style="margin-top:4px">' + PL.LANGS.length + ' languages, ' + runnable + ' of them run here, offline.</div>' + modeTabs() + '</div>' +
+      '<div class="cl-card"><div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><label class="small">Language <select id="plang" aria-label="Language"' + (ch && ch.lang ? ' disabled' : '') + '>' + opts + '</select></label></div>' +
+      chalCard(ch) + playNote(x, w) +
+      '<textarea class="cl-ed" id="clcode" aria-label="Code" data-lang="' + ceLang(plang) + '" spellcheck="false" maxlength="50000" style="min-height:240px" placeholder="Enter ' + esc(x.n) + '">' + esc(typeof code === 'string' ? code : blank) + '</textarea>' + keysTip(html ? 'refreshes the preview' : 'runs') +
+      (html ? '' : '<details class="small" id="plinw"' + (inp ? ' open' : '') + ' style="margin-top:6px"><summary class="mute" style="cursor:pointer">Input for the program (what it reads, like typing into a terminal)</summary><textarea class="cl-ans cl-pin" id="plin" aria-label="Program input" spellcheck="false" maxlength="20000" rows="3" style="display:block;width:100%;margin-top:6px" placeholder="Lines the program can read">' + esc(inp) + '</textarea></details>') +
+      '<div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap"><button class="pri" data-cl="prun"' + (w.g === 'none' ? ' disabled title="' + esc(x.n) + ' cannot run here"' : '') + '>' + (html ? '↻ Refresh preview' : ch ? '▶ Run and check' : '▶ Run') + '</button><button class="ib" data-cl="pkill" hidden>■ Stop program</button><button class="ib" data-cl="pexp">🧠 Explain</button><button class="ib" data-cl="pstop" hidden>■ Stop explanation</button><button class="ib" data-cl="pex">↺ Example</button><button class="ib" data-cl="pclear">Clear</button></div>' +
+      (html ? '<div class="small mute" style="margin:8px 0 4px">Live preview</div><iframe class="cl-prev" id="clprev" sandbox="" title="Preview"></iframe>' : '<div class="small mute" style="margin-top:8px">Output</div><pre class="cl-pre" id="clout" role="status" style="min-height:2.5em"></pre>') +
+      (PL.DOCKER.includes(plang) && w.g !== 'pc' ? '<details class="small mute" id="plruntime"><summary>Docker runtime setup</summary>Install Docker and start it in Linux container mode. From the app folder containing <code>lib</code>, run <code>docker build --platform=linux/amd64 -t moundshroud-code-playground:1 lib/code-playground</code>. After setup, runs work offline.</details>' : '') +
+      '<div id="plai" class="cl-ai"></div>' +
+      (A.cyberPad ? '<div style="display:grid;gap:8px;margin-top:12px">' +
+        A.cyberPad.notesHTML('cppad', { title: '📝 Notes &amp; sketchpad', rows: 4, placeholder: 'Notes, snippets, answers, ideas — saved on this PC.' }) +
+        A.cyberPad.aiHTML('cpai', { hint: 'Ask about your code, the output or the language.', placeholder: 'e.g. why does this loop stop early?' }) +
+        '</div>' : '') +
+      '</div>';
+  }
+  /* run a worker with one message; it is ended when the run stops, fails or takes too long */
+  function runWorker(url, msg, signal, ms, slow) {
+    return new Promise(resolve => {
+      const worker = new Worker(url);
+      const timeout = setTimeout(() => finish({ ok: false, error: slow }), ms);
+      const abort = () => finish({ ok: false, error: 'Run stopped.' });
+      function finish(result) {
+        clearTimeout(timeout);
+        signal.removeEventListener('abort', abort);
+        worker.terminate();
+        resolve(result);
+      }
+      signal.addEventListener('abort', abort, { once: true });
+      worker.onmessage = event => finish(event.data);
+      worker.onerror = event => finish({ ok: false, error: event.message || 'The interpreter could not start.' });
+      worker.postMessage(msg);
+    });
+  }
+  const runSql = (code, signal) => runWorker('/web/js/code-playground-sql.js', code, signal, 10000, 'SQL stopped after 10 seconds.');
+  const runEso = (lang, code, input, signal) => runWorker('/web/js/esolang-worker.js', { lang, code, input, ms: 10000 }, signal, 15000, 'Stopped after 15 seconds.');
+  function runBinary(code) {
+    const rows = [];
+    for (const [index, line] of code.split('\n').entries()) {
+      const value = line.trim();
+      if (!value) continue;
+      if (!/^[+-]?(?:0b[01]+|0x[\da-f]+|\d+)$/i.test(value)) {
+        return { ok: false, error: 'Line ' + (index + 1) + ' needs a decimal, 0b binary, or 0x hex integer.' };
+      }
+      const n = BigInt(value.replace(/^[+-]/, ''));
+      const sign = value.startsWith('-') && n ? '-' : '';
+      rows.push(sign + n + '\t' + sign + '0b' + n.toString(2) + '\t' + sign + '0x' + n.toString(16).toUpperCase());
+    }
+    return { ok: true, stdout: ['Decimal\tBinary\tHex', ...rows].join('\n') };
   }
   async function playRun() {
-    const ed = H.querySelector('#clcode'), out = H.querySelector('#clout'), btn = H.querySelector('[data-cl="prun"]'); if (!ed || !out) return null;
-    if (!A.interp) { out.textContent = 'The code sandbox is not available.'; return null; }
-    const code = ed.value, lg = plang; if (btn) btn.disabled = true; out.textContent = lg === 'python' ? 'Running (starting Python)…' : 'Running…';
-    let r; try { r = await A.interp.run(RUNS[lg], code); } catch (e) { r = { ok: false, error: String(e.message || e), stdout: '' }; }
-    if (btn) btn.disabled = false; if (view !== 'play' || plang !== lg || !H.querySelector('#clout')) return null;
-    const text = (r.stdout || '') + (r.value ? (r.stdout ? '\n' : '') + '→ ' + r.value : '') + (r.ok ? '' : ((r.stdout || r.value) ? '\n' : '') + 'Error: ' + (String(r.error || 'it did not run').split('\n').filter(s => !/^\s+at\s/.test(s)).join('\n').trim()));
-    H.querySelector('#clout').textContent = text || '(it ran, and printed nothing)';
-    plast = { lang: lg, code, text: text || '(nothing was printed)', ok: !!r.ok };
-    { const s = load(); if (!s.played) { s.played = 1; save(s); } }
-    if (!r.ok) { const ai2 = H.querySelector('#plai'); if (ai2 && !pctl) ai2.innerHTML = '<span class="small mute">There is an error. Press <b>🧠 Explain</b> to find out what is wrong and how to fix it.</span>'; }
-    return plast;
+    const ed = H.querySelector('#clcode'), out = H.querySelector('#clout'), btn = H.querySelector('[data-cl="prun"]'), kill = H.querySelector('[data-cl="pkill"]');
+    if (!ed || !btn || prun) return;
+    const code = ed.value, lg = plang, x = plangOf(lg), w = where(x), input = (H.querySelector('#plin') || {}).value || '';
+    if (x.run === 'html') { H.querySelector('#clprev').srcdoc = code; markPlayed(); return; }
+    if (w.g === 'none') { out.textContent = '⛔ ' + x.n + ' cannot run here. ' + w.why; return; }
+    if (!code.trim()) { out.textContent = 'Enter some code first.'; return; }
+    const ctl = prun = new AbortController();
+    btn.disabled = true; if (kill) kill.hidden = false;
+    out.textContent = w.g === 'pc' && /^(c|cpp|masm|rust|csharp|vbnet)$/.test(lg) ? 'Compiling and running…' : 'Running…';
+    let r;
+    try {
+      if (RUNS[lg]) r = await A.interp.run(RUNS[lg], code, { signal: ctl.signal, isolated: true });
+      else if (x.run === 'sql') r = await runSql(code, ctl.signal);
+      else if (x.run === 'binary') r = runBinary(code);
+      else if (x.run === 'eso') r = await runEso(lg, code, input, ctl.signal);
+      else {
+        const res = await fetch('/api/code-playground/run', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lang: lg, code, input }), signal: ctl.signal,
+        });
+        r = await res.json();
+      }
+    } catch (error) { r = { ok: false, error: ctl.signal.aborted ? 'Run stopped.' : error.message }; }
+    if (prun !== ctl) return;
+    prun = null;
+    btn.disabled = false; if (kill) kill.hidden = true;
+    if (view !== 'play' || H.querySelector('#clout') !== out) return;
+    const error = String(r.error || 'The program did not run.').split('\n').filter(line => !/^\s+at\s/.test(line)).join('\n').trim();
+    const failure = /^[A-Za-z]*Error:/.test(error) || /^ICL\d/.test(error) ? error : 'Error: ' + error;
+    const text = [r.stdout, r.stderr, r.value !== undefined && r.value !== '' ? '→ ' + r.value : '', r.ok ? '' : failure]
+      .filter(Boolean).map(part => String(part).replace(/\r?\n$/, '')).join('\n');
+    out.textContent = text || 'Finished with no output.';
+    plast = { lang: lg, code, text: out.textContent };
+    if (pmode !== 'sandbox') judge(r, lg);
+    if (r.ok) markPlayed();
+    else if (r.unavailable) H.querySelector('#plruntime')?.setAttribute('open', '');
+  }
+  function markPlayed() { const s = load(); if (!s.played) { s.played = 1; save(s); } }
+  function cancelPlay() {
+    prun?.abort();
+    pctl?.abort();
+    prun = pctl = null;
+    plast = null;
   }
   async function explain() {
     const ed = H.querySelector('#clcode'), box = H.querySelector('#plai'); if (!ed || !box) return; const code = ed.value.trim();
     if (!code) { box.innerHTML = '<span class="small mute">Type some code first.</span>'; return; }
     if (!A.ai || !A.ai.stream) { box.innerHTML = '<span class="small mute">The AI is not available.</span>'; return; }
-    const lg = plang, x = langOf(lg); let ran = null;
-    if (RUNS[lg] && RUNS[lg] !== 'html') ran = plast && plast.lang === lg && plast.code === ed.value ? plast : await playRun();
+    const lg = plang, x = plangOf(lg);
+    const ran = plast && plast.lang === lg && plast.code === ed.value ? plast : null;
     if (pctl) pctl.abort(); const ctl = pctl = new AbortController(); const stop = H.querySelector('[data-cl="pstop"]'); if (stop) stop.hidden = false;
     box.innerHTML = '<span class="small mute">🧠 Reading your code…</span>';
     const prompt = 'You are a patient coding teacher. The learner is a beginner.\nLanguage: ' + x.n + '\n\nTheir code:\n```\n' + code.slice(0, 8000) + '\n```\n\n' +
-      (ran ? 'It was run in a sandbox. This is everything it printed, errors included:\n```\n' + ran.text.slice(0, 3000) + '\n```\n\n' : RUNS[lg] === 'html' ? 'It is shown in a page preview with scripts switched off.\n\n' : 'This language cannot run here, so read the code carefully.\n\n') +
+      (ran ? 'The Playground showed the following output:\n```\n' + ran.text.slice(0, 3000) + '\n```\n\n' : lg === 'html' ? 'Scripts are disabled in the preview.\n\n' : '') +
       'Answer in plain, short sentences, in three parts:\n1. **What it does**: explain the code step by step (line by line when it is short). Say what it prints or shows.\n2. **Problems**: any errors, bugs or risky parts, which line they are on, and why they happen. If there are none, write "No problems found."\n3. **Fixed code**: only when there was a problem, the corrected code in one code block.\nDo not guess at output you are not sure of; say so instead.';
     try {
       const all = await A.ai.stream([{ role: 'user', content: prompt }], t => { if (!ctl.signal.aborted && H.querySelector('#plai') === box) box.innerHTML = fmt(t); }, ctl.signal, { temp: 0.2 });
       if (H.querySelector('#plai') === box && !all) box.innerHTML = '<span class="small mute">The AI gave no answer. Check that a model is chosen at the top of the window.</span>';
     } catch (e) { if (!ctl.signal.aborted && H.querySelector('#plai') === box) box.innerHTML = '<span class="small mute">The AI could not answer: ' + esc(e.message || e) + '. Check that a model is chosen at the top of the window.</span>'; }
-    if (pctl === ctl) pctl = null; const st = H.querySelector('[data-cl="pstop"]'); if (st) st.hidden = true;
+    if (pctl === ctl) { pctl = null; if (stop) stop.hidden = true; }
   }
 
   function draw() {
@@ -294,15 +503,28 @@
     b.innerHTML = '<div class="cl-wrap">' + page() + '</div>';
     const ed = b.querySelector('#clcode'), l = ['lesson', 'boss', 'speed', 'ai'].includes(view) && curL;
     if (ed) {
-      if (view === 'play') { editorKeys(ed, plang, () => RUNS[plang] ? playRun() : explain()); let t = null; ed.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => playSave(ed.value), 400); }); }
+      if (view === 'play') { editorKeys(ed, plang, playRun); ed.addEventListener('input', () => playSave(ed.value)); const pin = b.querySelector('#plin'); if (pin) { pin.setAttribute('data-ownkeys', ''); pin.addEventListener('input', () => inputSave(pin.value)); } askStatus(); }
       else editorKeys(ed, l ? l.lang : lang, () => l && l.ex.k === 'run' ? run() : check());
-      if (b.querySelector('#clprev')) { const upd = () => { b.querySelector('#clprev').srcdoc = ed.value; }; let t = null; ed.addEventListener('input', () => { clearTimeout(t); t = setTimeout(upd, 250); }); upd(); }
+      const preview = b.querySelector('#clprev');
+      if (preview) { const upd = () => { if (preview.isConnected) preview.srcdoc = ed.value; }; let t = null; ed.addEventListener('input', () => { clearTimeout(t); t = setTimeout(upd, 250); }); upd(); }
     }
     /* answer boxes: Enter is a new line, Ctrl+Enter checks; in fill-the-blank Enter moves to the next blank */
     const a = b.querySelector('#clans');
     if (a) { if (l && l.ex.k === 'fix') editorKeys(a, l.lang, check); else { a.setAttribute('data-ownkeys', ''); a.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); check(); } }); } if (view === 'speed') a.focus(); }
     const ps = b.querySelector('#plang');
-    if (ps) ps.addEventListener('change', () => { if (pctl) pctl.abort(); playSave(ed.value); plang = ps.value; plast = null; const s = pload(); s.lang = plang; try { ls.set(PKEY, JSON.stringify(s)); } catch (e) { } draw(); });
+    if (ps) ps.addEventListener('change', () => { cancelPlay(); playSave(ed.value); plang = ps.value; const s = pload(); s.lang = plang; try { ls.set(PKEY, JSON.stringify(s)); } catch (e) { } draw(); });
+    if (view === 'play' && A.cyberPad) {
+      A.cyberPad.bindNotes(b, 'cppad', 'codeplay');
+      A.cyberPad.bindAI(b, 'cpai', {
+        context: () => {
+          const ce = b.querySelector('#clcode'), out = b.querySelector('#clout');
+          return 'The Moundshroud code playground. Language: ' + plangOf(plang).n + '.' +
+            '\nCode in the editor:\n```\n' + (ce ? ce.value.slice(0, 4000) : '') + '\n```' +
+            '\n' + (plang === 'html' ? 'The live preview has scripts disabled.' : 'Last output shown:\n' + (out ? (out.textContent || '(nothing yet)').slice(0, 1500) : '(not run yet)'));
+        },
+        system: 'You are a concise coding helper in the code playground. Explain or fix the code in short, concrete steps. Never claim to have run anything.'
+      });
+    }
     const bl = [...b.querySelectorAll('[data-blank]')];
     bl.forEach((inp, k) => { inp.setAttribute('data-ownkeys', ''); inp.addEventListener('keydown', e => { if (e.key !== 'Enter') return; e.preventDefault(); if (e.ctrlKey || e.metaKey) return check(); const nx = bl[k + 1] || b.querySelector('[data-cl="check"]'); if (nx) nx.focus(); }); });
     if (view === 'speed' && bl[0]) bl[0].focus();
@@ -357,10 +579,37 @@
     if (k === 'workshop') return A.cybertab.go('workshop');
     if (k === 'play') return go('play');
     if (k === 'badges') return go('badges');
+    if (view === 'play' && chalClick(k, el)) return;
     if (k === 'prun') return playRun();
     if (k === 'pexp') return explain();
+    if (k === 'pkill') { if (prun) prun.abort(); return; }
+    if (k === 'pex') {
+      cancelPlay();
+      const ed = H.querySelector('#clcode'), x = plangOf(plang);
+      ed.focus(); ed.select();
+      if (!document.execCommand('insertText', false, x.ex)) ed.value = x.ex;
+      ed.dispatchEvent(new Event('input'));
+      const pin = H.querySelector('#plin'); if (pin) { pin.value = x.inp || ''; inputSave(pin.value); if (x.inp) H.querySelector('#plinw').open = true; }
+      const out = H.querySelector('#clout'); if (out) out.textContent = '';
+      H.querySelector('[data-cl="prun"]').disabled = where(x).g === 'none';
+      return;
+    }
     if (k === 'pstop') { if (pctl) pctl.abort(); pctl = null; el.hidden = true; const bx = H.querySelector('#plai'); if (bx) bx.insertAdjacentHTML('beforeend', '<div class="small mute">(stopped)</div>'); return; }
-    if (k === 'pclear') { const ed = H.querySelector('#clcode'); ed.focus(); ed.select(); if (!document.execCommand('delete')) ed.value = ''; ed.dispatchEvent(new Event('input')); playSave(''); plast = null; const o = H.querySelector('#clout'); if (o) o.textContent = ''; const bx = H.querySelector('#plai'); if (bx) bx.innerHTML = ''; return; }
+    if (k === 'pclear') {
+      cancelPlay();
+      const ed = H.querySelector('#clcode');
+      ed.focus();
+      ed.select();
+      document.execCommand('delete');
+      if (ed.value) ed.value = '';
+      ed.dispatchEvent(new Event('input'));
+      H.querySelector('[data-cl="prun"]').disabled = where(plangOf(plang)).g === 'none';
+      H.querySelector('[data-cl="pstop"]').hidden = true;
+      const out = H.querySelector('#clout');
+      if (out) out.textContent = '';
+      H.querySelector('#plai').textContent = '';
+      return;
+    }
     if (k === 'lang') return go('lang', el.dataset.id);
     if (k === 'lesson') { const l = lessonById(el.dataset.id); if (l) { lang = l.lang; go('lesson', l.id); } return; }
     if (k === 'boss') return startBoss(el.dataset.id);
@@ -385,7 +634,7 @@
   }
   A.codeLessons = {
     render: host => {
-      H = host; if (!document.getElementById('codelcss')) { const s = document.createElement('style'); s.id = 'codelcss'; s.textContent = css; document.head.appendChild(s); }
+      cancelPlay(); H = host; if (!document.getElementById('codelcss')) { const s = document.createElement('style'); s.id = 'codelcss'; s.textContent = css; document.head.appendChild(s); }
       host.innerHTML = '<div class="scroll pad" id="clbody" style="flex:1;min-height:0"></div>'; if (!host._clBound) { host.addEventListener('click', onClick); host._clBound = true; }
       { const s = load(); if (C.newBadges(s).length) store(s); } /* badges already earned before badges existed */
       draw();

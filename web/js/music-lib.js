@@ -3,6 +3,26 @@
 // Game music (A.music) and this player take turns: starting one pauses the other.
 (() => {
   const P = document.getElementById('p-music'); if (!P) return;
+  const collections = A.collectionSelect;
+  const selection = collections.bind(P, {
+    queue(ids) {
+      uq.push(...ids.filter(id => BY[id]));
+      if (showQ) paintQ();
+      paintBar();
+      A.toast('Added ' + ns(ids.length) + ' to the queue.');
+      return ids;
+    },
+    playlist: addGroupToPlaylist,
+    like(ids) {
+      ids.forEach(id => view.t === 'liked' ? likes.delete(id) : likes.add(id));
+      saveLikes();
+      view.keepScroll = true;
+      render();
+      paintBar();
+      return ids;
+    },
+    remove: removeGroup
+  });
   const esc2 = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const rd = (k, d) => { try { return JSON.parse(ls.get(k, JSON.stringify(d))); } catch (e) { return d; } };
   const wr = (k, v) => { try { ls.set(k, JSON.stringify(v)); } catch (e) { } };
@@ -87,7 +107,17 @@
   /* ---------- building blocks ---------- */
   const L = (ids, name) => { const k = 'l' + (++lid); reg[k] = { ids: ids.map(t => typeof t === 'string' ? t : t.i), name }; return k; };
   const icoFor = t => GI[t.g] || '🎵', coverFor = (t, cls) => t.cv ? '<div class="ml-cv ' + (cls || '') + '" style="background:#222 url(\'' + t.cv + '\') center/cover"></div>' : cv(t.al || t.g || t.a, icoFor(t), cls);
-  const row = (t, i, k, o) => { o = o || {}; const on = cur && cur.i === t.i, lk = likes.has(t.i); return '<div class="ml-row' + (on ? ' on' : '') + '" data-id="' + esc2(t.i) + '" data-l="' + k + '" data-n="' + i + '"><span class="num">' + (on && !au.paused ? '♫' : (i + 1)) + '</span><div class="tt" style="display:flex;gap:10px;align-items:center;min-width:0">' + coverFor(t, 's') + '<div style="min-width:0"><b class="tt" style="display:block">' + esc2(t.t) + '</b><span class="small mute tt" style="display:block"><span class="goart" data-ar="' + esc2(t.a) + '">' + esc2(t.a) + '</span></span></div></div><span class="small mute tt alb">' + esc2(t.al || t.g) + '</span><button class="ml-btn' + (lk ? ' liked' : '') + '" data-lk="' + esc2(t.i) + '" title="' + (lk ? 'Remove from Liked Songs' : 'Add to Liked Songs') + '">' + (lk ? '♥' : '♡') + '</button><span class="small mute">' + (t.d ? fmt(t.d) : '') + '</span><button class="ml-btn" data-mn="' + esc2(t.i) + '" title="More">⋯</button></div>'; };
+  const row = (t, i, k) => {
+    const on = cur && cur.i === t.i, lk = likes.has(t.i), id = esc2(t.i);
+    return '<div class="ml-row' + (on ? ' on' : '') + '" data-id="' + id + '" data-select-id="' + id + '" data-l="' + k + '" data-n="' + i + '" tabindex="0">' +
+      '<span class="ml-index"><span class="num">' + (on && !au.paused ? '♫' : i + 1) + '</span>' + collections.check('Select ' + t.t) + '</span>' +
+      '<div class="tt ml-track">' + coverFor(t, 's') + '<div class="ml-track-copy"><b class="tt">' + esc2(t.t) + '</b>' +
+      '<span class="small mute tt"><span class="goart" data-ar="' + esc2(t.a) + '">' + esc2(t.a) + '</span></span></div></div>' +
+      '<span class="small mute tt alb">' + esc2(t.al || t.g) + '</span><span class="small mute ml-length">' + (t.d ? fmt(t.d) : '') + '</span>' +
+      '<div class="ml-row-actions">' + (t.my ? '<button class="ml-btn" data-track-rename="' + id + '" title="Rename track" aria-label="Rename track">✎</button>' : '') +
+      '<button class="ml-btn' + (lk ? ' liked' : '') + '" data-lk="' + id + '" title="' + (lk ? 'Remove from Liked Songs' : 'Add to Liked Songs') + '">' +
+      (lk ? '♥' : '♡') + '</button><button class="ml-btn" data-mn="' + id + '" title="Track actions" aria-label="Track actions">⋯</button></div></div>';
+  };
   const rows = (list, name, opt) => { opt = opt || {}; const k = L(list, name), lim = opt.all ? list.length : 150; return '<div>' + list.slice(0, lim).map((t, i) => row(t, i, k)).join('') + (list.length > lim ? '<div class="small mute" style="padding:10px"><button class="ib" data-more="' + k + '">Show all ' + ns(list.length) + '</button></div>' : '') + '</div>'; };
   const hero = (o) => { const h = hue(o.key || o.title); return '<div class="ml-hero" style="background:linear-gradient(135deg,hsl(' + h + ' 55% 34%),hsl(' + (h + 50) % 360 + ' 60% 14%))">' + cv(o.key || o.title, o.icon || '🎵') + '<div style="min-width:0"><div class="small" style="opacity:.8;text-transform:uppercase;letter-spacing:.08em">' + esc2(o.kind) + '</div><h1>' + esc2(o.title) + '</h1><div style="opacity:.85">' + esc2(o.sub || '') + '</div></div></div>'; };
   const actions = (list, name, extra) => { const k = L(list, name); return '<div class="row" style="gap:10px;margin:0 0 12px;flex-wrap:wrap;align-items:center"><button class="pri" data-playl="' + k + '" style="padding:9px 22px">▶ Play</button><button class="ib" data-shufl="' + k + '">🔀 Shuffle</button>' + (extra || '') + '</div>'; };
@@ -123,9 +153,11 @@
         '<p><output id="mlchordresult" for="mlchord" aria-live="polite">' + esc2(chordResult(query)) + '</output></p>';
     },
     home() {
-      const h = new Date().getHours(), gr = h < 5 ? 'Good night' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening', rec = ids2t(recent).slice(0, 12), day = daySeed();
+      const rec = ids2t(recent).slice(0, 12), day = daySeed();
       const tiles = [['❤️', 'Liked Songs', ns(likes.size) + '', 'liked'], ['🕒', 'Recently played', ns(rec.length) + '', 'recent']].concat([0, 1, 2, 3].map(j => { const i = (day + j * 3) % MIXES.length; return [MIXES[i][1], MIXES[i][0], 'Daily mix', 'mix:' + i]; }));
-      let h2 = '<h2 style="margin:0 0 12px">' + gr + '</h2><div class="ml-tiles">' + tiles.map(([ic, ti, su, go]) => '<div class="ml-tile" data-go="' + go + '">' + cv(ti, ic, 'm') + '<div style="min-width:0"><b>' + esc2(ti) + '</b><div class="small mute">' + esc2(su) + '</div></div></div>').join('') + '</div>';
+      let h2 = '<div class="ml-feature"><div><h1>Music</h1><p>' + esc2(ns(CAT.length)) + ' in your library</p>' +
+        '<div class="ml-feature-actions"><button class="pri" data-go="search">Search music</button><button class="ib" data-go="mine">My songs</button></div></div>' +
+        '<div class="ml-record" aria-hidden="true"></div></div><div class="ml-tiles">' + tiles.map(([ic, ti, su, go]) => '<div class="ml-tile" data-go="' + go + '">' + cv(ti, ic, 'm') + '<div style="min-width:0"><b>' + esc2(ti) + '</b><div class="small mute">' + esc2(su) + '</div></div></div>').join('') + '</div>';
       if (rec.length) h2 += shelf('Jump back in', rec.map(trackCard), 'recent');
       h2 += shelf('Made for you', Array.from({ length: MIXES.length }, (_, i) => (i + day) % MIXES.length).map(mixCard), '');
       const top = Object.entries(stats).sort((a, b) => b[1].n - a[1].n).slice(0, 12).map(([i]) => BY[i]).filter(Boolean); if (top.length >= 4) h2 += shelf('Your top tracks', top.map(trackCard), 'most');
@@ -262,9 +294,70 @@
     };
   };
   const delMine = async ids => {
-    for (const id of ids) { if (cur && cur.i === id) { au.pause(); cur = null; ++tok; } await MLMine.remove(id); likes.delete(id); uq = uq.filter(x => x !== id); recent = recent.filter(x => x !== id); delete stats[id]; pls.forEach(p => { p.ids = p.ids.filter(x => x !== id); }); }
-    saveLikes(); savePl(); wr('mlrecent', recent); wr('mlstats', stats); await refreshMine(); view.keepScroll = true; render(); paintBar(); A.toast('Removed.');
+    const done = await collections.each(ids, async id => {
+      await MLMine.remove(id);
+      if (cur?.i === id) { au.pause(); cur = null; ++tok; }
+      likes.delete(id);
+      uq = uq.filter(x => x !== id);
+      recent = recent.filter(x => x !== id);
+      delete stats[id];
+      pls.forEach(p => { p.ids = p.ids.filter(x => x !== id); });
+      return { ok: true };
+    });
+    saveLikes(); savePl(); wr('mlrecent', recent); wr('mlstats', stats);
+    await refreshMine(); view.keepScroll = true; render(); paintBar();
+    if (showQ) paintQ();
+    if (done.length) A.toast('Removed ' + ns(done.length) + '.');
+    return done;
   };
+  async function renameTrack(id) {
+    const track = BY[id];
+    if (!track?.my) return;
+    const title = (await A.prompt('Track title', track.t, { title: 'Rename track' }))?.trim();
+    if (!title || title === track.t) return;
+    try {
+      await MLMine.update(id, { t: title.slice(0, 140) });
+      await refreshMine();
+      if (cur?.i === id) { cur = BY[id]; meta(); }
+      view.keepScroll = true;
+      render(); paintBar();
+    } catch (error) { A.toast(error.message || 'Could not rename this track.'); }
+  }
+  async function removeGroup(ids) {
+    if (view.t === 'playlist') {
+      const playlist = pls.find(p => p.id === view.a);
+      if (!playlist) return;
+      const selected = new Set(ids);
+      playlist.ids = playlist.ids.filter(id => !selected.has(id));
+      savePl(); view.keepScroll = true; render();
+      return ids;
+    }
+    if (view.t === 'mine' && await A.confirm('Delete ' + ns(ids.length) + ' from My songs?', { title: 'Delete from My songs', okLabel: 'Delete', danger: true })) {
+      return delMine(ids.filter(id => BY[id]?.my));
+    }
+  }
+  async function addGroupToPlaylist(ids) {
+    if (!pls.length) {
+      const p = await newPlaylist();
+      if (!p) return;
+      p.ids = ids.slice();
+      savePl();
+      return ids;
+    }
+    A.dlg('<div class="hd"><b>Add ' + ns(ids.length) + ' to a playlist</b></div><div class="bd">' +
+      '<label>Playlist <select id="ml-group-playlist">' + pls.map(p => '<option value="' + esc2(p.id) + '">' + esc2(p.name) + '</option>').join('') +
+      '</select></label><div class="row" style="margin-top:12px;justify-content:flex-end">' +
+      '<button class="ib" id="ml-group-cancel">Cancel</button><button class="pri" id="ml-group-add">Add songs</button></div></div>');
+    document.getElementById('ml-group-cancel').onclick = () => A.closeDlg();
+    document.getElementById('ml-group-add').onclick = () => {
+      const p = pls.find(x => x.id === document.getElementById('ml-group-playlist').value);
+      A.closeDlg();
+      if (!p) return;
+      p.ids = [...new Set([...p.ids, ...ids])];
+      savePl();
+      A.toast('Added to ' + p.name + '.');
+    };
+  }
   const saveRec = () => { const ti = (document.getElementById('mlrtitle') || {}).value, ar = (document.getElementById('mlrartist') || {}).value; if (!rec.blob) return; MLMine.saveRecording(rec.blob, rec.secs, { title: ti, artist: ar }).then(async () => { rec.discard(); await refreshMine(); go('mine'); A.toast('Saved to My songs.'); }).catch(() => A.toast('Could not save the recording.')); };
   const dlRec = () => { if (!rec.url) return; const a = document.createElement('a'); a.href = rec.url; a.download = ((document.getElementById('mlrtitle') || {}).value || 'recording').replace(/[^\w .-]+/g, '_') + (/ogg/.test(rec.blob.type) ? '.ogg' : '.webm'); document.body.appendChild(a); a.click(); a.remove(); };
   const showStore = async () => { const e = document.getElementById('mlstore'); if (!e) return; const own = mine.reduce((a, t) => a + (t.sz || 0), 0), est = await MLMine.estimate(); e.textContent = 'Your songs use ' + (own / 1048576).toFixed(own > 1e8 ? 0 : 1) + ' MB of Moundshroud storage' + (est.quota ? ' (the browser allows about ' + Math.round(est.quota / 1073741824) + ' GB in total)' : '') + '.'; };
@@ -273,10 +366,17 @@
   const render = () => {
     const m = document.getElementById('mlmain'); if (!m) return; reg = {}; lid = 0; const keep = m.scrollTop; let h2 = '';
     try { const v = view; h2 = (V[v.t] || V.home)(v.a); } catch (e) { h2 = '<div class="mute">Could not show this page (' + esc2(e.message) + ').</div>'; }
-    m.innerHTML = h2; if (view.keepScroll) m.scrollTop = keep; else m.scrollTop = 0; view.keepScroll = false; paintSide(); markPlaying(); if (view.t === 'mine') showStore();
+    m.innerHTML = h2;
+    if (m.querySelector('[data-select-id]')) m.insertAdjacentHTML('afterbegin', collections.toolbar(
+      '<button class="ib" data-selection="queue">Add to queue</button><button class="ib" data-selection="playlist">Add to playlist</button>' +
+      '<button class="ib" data-selection="like">' + (view.t === 'liked' ? 'Unlike selected' : 'Like selected') + '</button>' +
+      (['mine', 'playlist'].includes(view.t) ? '<button class="ib dang" data-selection="remove">' +
+        (view.t === 'mine' ? 'Delete selected' : 'Remove from playlist') + '</button>' : '')));
+    selection.sync();
+    if (view.keepScroll) m.scrollTop = keep; else m.scrollTop = 0; view.keepScroll = false; paintSide(); markPlaying(); if (view.t === 'mine') showStore();
     const q = document.getElementById('mlq'); if (q && view.t === 'search') { q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
   };
-  const go = (t, a, noHist) => { if (!noHist) hist.push({ t: view.t, a: view.a, q: view.q }); view = { t, a, q: t === 'search' ? (a || '') : undefined }; if (t === 'search') view.a = undefined; render(); };
+  const go = (t, a, noHist) => { selection.reset(); if (!noHist) hist.push({ t: view.t, a: view.a, q: view.q }); view = { t, a, q: t === 'search' ? (a || '') : undefined }; if (t === 'search') view.a = undefined; render(); };
   const goStr = s => { const r = route(s); go(r.t, r.a); };
   function paintSide() {
     const s = document.getElementById('mlside'); if (!s) return; const on = (t, a) => view.t === t && (a === undefined || view.a === a) ? ' on' : '', nav = (ic, tx, go2, ac) => '<div class="ml-nav' + ac + '" data-go="' + go2 + '" title="' + esc2(tx) + '">' + ic + ' <span>' + esc2(tx) + '</span></div>';
@@ -312,24 +412,25 @@
   /* ---------- events ---------- */
   const listOf = el => { const k = el.dataset.l; return reg[k] ? reg[k] : null; };
   const build = () => {
-    P.innerHTML = '<div class="ml-wrap" id="mlwrap" style="position:relative"><div class="ml-side" id="mlside"></div><div class="ml-main" id="mlmain"></div></div><div class="ml-bar" id="mlbar"></div>'; built = true;
+    P.innerHTML = '<div class="ml-wrap" id="mlwrap" style="position:relative"><div class="ml-side" id="mlside"></div><div class="ml-main" id="mlmain" data-selection-area></div></div><div class="ml-bar" id="mlbar"></div>'; built = true;
     P.onclick = async e => {
       const T = e.target, c = sel => T.closest(sel);
       if (!c('.ml-menu')) closeMenu();
       let el;
       if ((el = c('[data-lk]'))) { const id = el.dataset.lk; likes.has(id) ? likes.delete(id) : likes.add(id); saveLikes(); document.querySelectorAll('[data-lk="' + CSS.escape(id) + '"]').forEach(b => { const on = likes.has(id); b.textContent = on ? '♥' : '♡'; b.classList.toggle('liked', on); }); if (view.t === 'liked') { view.keepScroll = true; render(); } e.stopPropagation(); return; }
+      if ((el = c('[data-track-rename]'))) { await renameTrack(el.dataset.trackRename); return; }
       if ((el = c('[data-mn]'))) { const r = el.getBoundingClientRect(), row2 = c('.ml-row'), inPl = view.t === 'playlist'; trackMenu(el.dataset.mn, r.left - 170, r.bottom + 4, inPl); e.stopPropagation(); return; }
       if ((el = c('.ml-menu [data-m]'))) { menuAct(el, e); return; }
       if ((el = c('#mlqx'))) { showQ = false; paintQ(); paintBar(); return; } if (c('#mlqclr')) { uq = []; paintQ(); paintBar(); return; } if ((el = c('[data-qrm]'))) { uq.splice(+el.dataset.qrm, 1); paintQ(); paintBar(); return; }
       if ((el = c('.ml-queue [data-tplay]'))) { const t = BY[el.dataset.tplay]; if (t) playTrack(t); return; }
-      if ((el = c('[data-more]'))) { const l = reg[el.dataset.more]; if (l) { const cont = el.parentElement.parentElement; cont.innerHTML = l.ids.map((i, n) => row(BY[i], n, el.dataset.more)).join(''); } return; }
+      if ((el = c('[data-more]'))) { const l = reg[el.dataset.more]; if (l) { const cont = el.parentElement.parentElement; cont.innerHTML = l.ids.map((i, n) => row(BY[i], n, el.dataset.more)).join(''); selection.sync(); } return; }
       if ((el = c('[data-playl]'))) { const l = reg[el.dataset.playl]; if (l) { const sh = shuffle; shuffle = false; playCtx(l.ids, 0, l.name); shuffle = sh; if (sh) { ctx.order = mkOrder(ctx.ids.length, 0); ctx.pos = 0; } } return; }
       if ((el = c('[data-shufl]'))) { const l = reg[el.dataset.shufl]; if (l) { shuffle = true; ls.set('mlshuf', '1'); playCtx(l.ids, Math.floor(Math.random() * l.ids.length), l.name); } return; }
       if ((el = c('[data-savemix]'))) { const i = +el.dataset.savemix, p = { id: 'p' + Date.now().toString(36), name: MIXES[i][0] + ' ' + new Date().toLocaleDateString(), ids: mixTracks(i, 40).map(t => t.i) }; pls.push(p); savePl(); paintSide(); A.toast('Saved as a playlist.'); return; }
       if ((el = c('[data-plren]'))) { const p = pls.find(x => x.id === el.dataset.plren), n = p && ((await A.prompt('Rename playlist', p.name)) || '').trim(); if (n) { p.name = n.slice(0, 60); savePl(); render(); } return; }
       if ((el = c('[data-pldel]'))) { if ((await A.confirm('Delete this playlist?'))) { pls = pls.filter(x => x.id !== el.dataset.pldel); savePl(); go('home'); } return; }
       if ((el = c('[data-clrmine]'))) { if ((await A.confirm('Remove ALL the songs you imported or recorded from Moundshroud? This cannot be undone.'))) delMine(mine.map(x => x.i)); return; }
-      if (c('[data-newpl]')) { const p = newPlaylist(); if (p) go('playlist', p.id); return; }
+      if (c('[data-newpl]')) { const p = await newPlaylist(); if (p) go('playlist', p.id); return; }
       if ((el = c('[data-cplay]'))) { /* card play button reserved */ }
       if ((el = c('[data-tplay]'))) { const t = BY[el.dataset.tplay]; const l = c('.ml-shelf') ? [...c('.ml-shelf').querySelectorAll('[data-tplay]')].map(x => x.dataset.tplay) : [t.i]; playCtx(l, Math.max(0, l.indexOf(t.i)), 'Selection'); return; }
       if ((el = c('.goart'))) { go('artist', el.dataset.ar); e.stopPropagation(); return; }
@@ -353,25 +454,28 @@
     P.addEventListener('dragover', e => { if (hasFiles(e)) e.preventDefault(); });
     P.addEventListener('drop', e => { if (!hasFiles(e)) return; e.preventDefault(); const p = MLMine.filesFromDrop(e.dataTransfer); if (view.t !== 'mine') go('mine'); p.then(importFiles); });
     P.onchange = e => { if (e.target.id === 'mlseek') { au.currentTime = +e.target.value; delete e.target.dataset.drag; } };
+    P.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && e.target.matches('.ml-row')) e.target.click();
+    });
     P.addEventListener('contextmenu', e => { const r = e.target.closest('.ml-row[data-id]'); if (r) { e.preventDefault(); trackMenu(r.dataset.id, e.clientX, e.clientY, view.t === 'playlist'); } });
     P.addEventListener('keydown', e => { if (e.target.id === 'mlq' || e.target.id === 'mlchord') e.stopPropagation(); }, true);
     document.addEventListener('click', e => { if (!e.target.closest('.ml-menu') && !e.target.closest('[data-mn]') && !e.target.closest('#mlsleep')) closeMenu(); }, true);
-    document.addEventListener('keydown', e => { if (A.cur !== 'music' || /INPUT|TEXTAREA|SELECT/.test((e.target.tagName || ''))) return; if (e.code === 'Space') { e.preventDefault(); toggle(); } else if (e.shiftKey && e.key === 'ArrowRight') nextTrack(1); else if (e.shiftKey && e.key === 'ArrowLeft') prevTrack(); });
+    document.addEventListener('keydown', e => { if (A.cur !== 'music' || P.classList.contains('collection-selecting') || /INPUT|TEXTAREA|SELECT|BUTTON/.test((e.target.tagName || ''))) return; if (e.code === 'Space') { e.preventDefault(); toggle(); } else if (e.shiftKey && e.key === 'ArrowRight') nextTrack(1); else if (e.shiftKey && e.key === 'ArrowLeft') prevTrack(); });
     setInterval(() => { if (sleepAt) paintBar(); }, 30000);
   };
   const menuAct = async (el, e) => {
     const m = el.dataset.m, id = el.dataset.id, t = BY[id], r = el.getBoundingClientRect(); e.stopPropagation();
     if (m === 'next') { uq.unshift(id); A.toast('Playing next: ' + t.t); closeMenu(); } else if (m === 'queue') { uq.push(id); A.toast('Added to queue'); closeMenu(); } else if (m === 'like') { likes.has(id) ? likes.delete(id) : likes.add(id); saveLikes(); closeMenu(); view.keepScroll = true; render(); paintBar(); }
-    else if (m === 'addpl') plMenu(id, r.left, r.top); else if (m === 'pladd') { const p = pls.find(x => x.id === el.dataset.pl); if (p) { if (!p.ids.includes(id)) p.ids.push(id); savePl(); A.toast('Added to ' + p.name); } closeMenu(); } else if (m === 'plnew') { closeMenu(); const p = newPlaylist(id); if (p) A.toast('Added to ' + p.name); }
+    else if (m === 'addpl') plMenu(id, r.left, r.top); else if (m === 'pladd') { const p = pls.find(x => x.id === el.dataset.pl); if (p) { if (!p.ids.includes(id)) p.ids.push(id); savePl(); A.toast('Added to ' + p.name); } closeMenu(); } else if (m === 'plnew') { closeMenu(); const p = await newPlaylist(id); if (p) A.toast('Added to ' + p.name); }
     else if (m === 'plrm' || m === 'plup' || m === 'pldn') { const p = pls.find(x => x.id === view.a); if (p) { const i = p.ids.indexOf(id); if (m === 'plrm') p.ids.splice(i, 1); else { const j = m === 'plup' ? i - 1 : i + 1; if (j >= 0 && j < p.ids.length) { [p.ids[i], p.ids[j]] = [p.ids[j], p.ids[i]]; } } savePl(); } closeMenu(); view.keepScroll = true; render(); }
     else if (m === 'art') { closeMenu(); go('artist', t.a); } else if (m === 'alb') { closeMenu(); go('album', t.al); } else if (m === 'gen') { closeMenu(); go('genre', t.g); } else if (m === 'info') { closeMenu(); info(id); }
     else if (m === 'edit') { closeMenu(); const ti = (await A.prompt('Title', t.t)); if (ti === null) return; const ar = (await A.prompt('Artist', t.a)); if (ar === null) return; const al = (await A.prompt('Album (optional)', t.al || '')); if (al === null) return; const ge = (await A.prompt('Genre', t.g)); if (ge === null) return; const yr = (await A.prompt('Year (optional)', t.y || '')); MLMine.update(id, { t: ti.trim() || t.t, a: ar.trim() || t.a, al: (al || '').trim(), g: (ge || '').trim() || t.g, y: +yr || undefined }).then(async () => { await refreshMine(); if (cur && cur.i === id) cur = BY[id]; view.keepScroll = true; render(); paintBar(); }); }
     else if (m === 'delmine') { closeMenu(); if ((await A.confirm('Delete "' + t.t + '" from your music?'))) delMine([id]); }
     else if (m === 'sleep') { const v = el.dataset.min; closeMenu(); sleepAt = 0; sleepEnd = false; if (v === 'end') sleepEnd = true; else if (+v) sleepAt = Date.now() + (+v) * 60000; paintBar(); A.toast(+v ? 'Sleep timer set for ' + v + ' minutes.' : v === 'end' ? 'Music will stop after this track.' : 'Sleep timer off.'); }
   };
-  A.musicLib = { ensure: async () => { if (!built) build(); await load(); return CAT; }, play: id => { const t = BY[id]; if (t) playCtx([id], 0, ''); }, toggle, next: () => nextTrack(1), pause: () => au.pause(), audio: au, catalog: () => CAT, importFiles, refreshMine, mine: () => mine, state: () => ({ cur, ctx, uq, view, likes: [...likes], pls }), go };
+  A.musicLib = { ensure: async () => { if (!built) build(); await load(); return CAT; }, play: id => { const t = BY[id]; if (t) playCtx([id], 0, ''); }, playList: (ids, start, name) => playCtx(ids, start || 0, name), current: () => cur, toggle, next: () => nextTrack(1), pause: () => au.pause(), audio: au, catalog: () => CAT, importFiles, refreshMine, mine: () => mine, state: () => ({ cur, ctx, uq, view, likes: [...likes], pls }), go };
   A.registerTab('music', 'Music', async () => { if (!built) build(); if (!loaded) { document.getElementById('mlmain').innerHTML = '<div class="mute" style="padding:30px">Loading your library...</div>'; } await load(); if (!CAT.length && view.t === 'home') {       /* a new install: the music library is not in the download, so offer what works without it */
-      const m = document.getElementById('mlmain'); m.innerHTML = '<div style="padding:30px;max-width:560px;line-height:1.6"><h2 style="margin:0 0 6px">🎼 No music on this PC yet</h2><div class="mute">The free music library is not part of the Moundshroud download, to keep it small. You can bring in your own songs (MP3, M4A, FLAC, Ogg, WAV): they stay on this PC. You can also record, or make music in Studio.</div><div class="row" style="margin-top:12px;gap:6px;flex-wrap:wrap"><button class="pri" id="mlefiles">Add music files…</button><button class="ib" id="mlefolder">Add a whole folder…</button><button class="ib" id="mlerec">🎙️ Record</button><button class="ib" data-go="chords">Chord explorer</button><button class="ib" id="mlestudio">🎨 Studio</button></div></div>';
+      const m = document.getElementById('mlmain'); m.innerHTML = '<div class="ml-feature ml-welcome"><div><h2 style="margin:0 0 6px">Your music starts here</h2><div class="mute">The free music library is not part of the Moundshroud download, to keep it small. You can bring in your own songs (MP3, M4A, FLAC, Ogg, WAV): they stay on this PC. You can also record, or make music in Studio.</div><div class="row" style="margin-top:12px;gap:6px;flex-wrap:wrap"><button class="pri" id="mlefiles">Add music files…</button><button class="ib" id="mlefolder">Add a whole folder…</button><button class="ib" id="mlerec">🎙️ Record</button><button class="ib" data-go="chords">Chord explorer</button><button class="ib" id="mlestudio">🎨 Studio</button></div></div><div class="ml-record" aria-hidden="true"></div></div>';
       m.querySelector('#mlefiles').onclick = () => pickFiles(false); m.querySelector('#mlefolder').onclick = () => pickFiles(true);
       m.querySelector('#mlerec').onclick = () => go('record'); m.querySelector('#mlestudio').onclick = () => A.showTab('studio');
       return;

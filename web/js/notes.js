@@ -1,12 +1,15 @@
 // Notes: plain Markdown files in Documents\Assistant Notes, searchable by the assistant.
 (() => {
-  const root = $('p-notes');
-  let list = [], cur = null, saveT = null, dirty = false, preview = false, folder = '';
+  const root = $('p-notes'), collections = A.collectionSelect;
+  let list = [], cur = null, saveT = null, dirty = false, preview = false, folder = '', changing = false, saving = Promise.resolve();
   root.innerHTML =
-    '<div class="split"><div class="side"><div style="padding:8px"><div class="row"><input id="nq" type="text" placeholder="Filter notes..."><button class="pri" id="nnew" title="New note (Ctrl+N when in Notes)">+</button></div></div><div class="list" id="nlist"></div>' +
+    '<div class="split"><div class="side"><div style="padding:8px"><div class="row"><input id="nq" type="text" placeholder="Filter notes..."><button class="pri" id="nnew" title="New note (Ctrl+N when in Notes)">+</button></div></div><div id="nselect"></div><div class="list" id="nlist" data-selection-area></div>' +
     '<div class="small mute" style="padding:8px 10px;border-top:1px solid var(--line)" id="nfold"></div></div>' +
-    '<div class="main"><div class="row" style="padding:8px 12px;gap:6px;flex-wrap:wrap" id="nbar"></div><textarea id="ne" placeholder="Pick a note on the left or press + to start a new one.&#10;&#10;Tip: write in plain text or Markdown (# headings, - lists, **bold**)."></textarea><div id="npv" class="m a" style="max-width:none;margin:0;border-radius:0"></div></div></div>';
+    '<div class="main"><div class="row" style="padding:8px 12px;gap:6px;flex-wrap:wrap" id="nbar"></div><div id="npath" class="small mute" style="padding:6px 12px 0;display:flex;gap:6px;align-items:center;overflow:hidden;white-space:nowrap;cursor:pointer" title="Where this note is saved"></div><textarea id="ne" placeholder="Pick a note on the left or press + to start a new one.&#10;&#10;Tip: write in plain text or Markdown (# headings, - lists, **bold**)."></textarea><div id="npv" class="m a" style="max-width:none;margin:0;border-radius:0"></div></div></div>';
   const ne = $('ne');
+  $('nselect').innerHTML = collections.toolbar('<button class="ib dang" data-selection="delete">Delete selected</button>');
+  const selection = collections.bind(root, { delete: deleteGroup });
+  new MutationObserver(() => selection.update()).observe($('nlist'), { childList: true, subtree: true });
   /* Resizable sidebar/editor divider powered by Split.js */
   try {
     if (typeof window.Split === 'function') {
@@ -22,10 +25,25 @@
     }
   } catch (e) { }
 
+  /* a note named like a program (hello.py, page.html) runs in the safe terminal, like a file in a normal terminal */
+  const runnable = () => !!(cur && A.codeRunner && A.codeRunner.langFor(cur.title || cur.id));
   function bar() {
-    $('nbar').innerHTML = '<span id="ntitle" class="small mute" style="flex:1;min-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>' +
-      '<button class="ib" data-a="pv">' + (preview ? 'Edit' : 'Preview') + '</button><button class="ib" data-a="ai">Ask AI</button><button class="ib" data-a="listen">Listen</button><button class="ib" data-a="cards">Flashcards</button><button class="ib" data-a="open">Open folder</button><button class="ib dang" data-a="del">Delete</button>';
+    $('nbar').innerHTML = '<button type="button" id="ntitle" data-a="rename" class="collection-title" title="Rename note" style="flex:1;min-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></button>' +
+      (runnable() ? '<button class="pri" data-a="run" title="Run this file in the safe terminal sandbox (no network, nothing on this PC is touched)">▶ Run</button>' : '') +
+      '<button class="ib" data-a="pv">' + (preview ? 'Edit' : 'Preview') + '</button><button class="ib" data-a="ai">Ask AI</button><button class="ib" data-a="listen">Listen</button><button class="ib" data-a="cards">Flashcards</button><button class="ib" data-a="runfile" title="Run any script or page from this PC in the safe terminal">🖥️ Run a file…</button><button class="ib" data-a="open">Open folder</button><button class="ib dang" data-a="del">Delete</button>';
+    $('ntitle').textContent = cur?.title || 'New note'; pathLine();
   }
+  /* the exact file this note lives in, shown at the top of the note */
+  function pathLine() {
+    const el = $('npath'); if (!el) return;
+    const p = cur && cur.path;
+    el.dataset.path = p || '';
+    el.title = p ? 'Click to copy the full path' : 'New notes are saved as Markdown files in this folder';
+    el.innerHTML = p
+      ? '<span aria-hidden="true">📄</span><span>Saved as</span><code style="overflow:hidden;text-overflow:ellipsis">' + A.esc(p) + '</code>'
+      : '<span aria-hidden="true">📄</span><span>New note — will be saved in</span><code>' + A.esc(folder || 'Assistant Notes') + '</code>';
+  }
+  $('npath').onclick = () => { const p = $('npath').dataset.path; if (p) A.copy(p); };
   const renderPreview = text => {
     const raw = String(text || '');
     const diags = [];
@@ -54,10 +72,18 @@
   $('nbar').onclick = e => {
     const b = e.target.closest('[data-a]'); if (!b) return; const a = b.dataset.a;
     if (a === 'pv') { preview = !preview; if (preview) $('npv').innerHTML = renderPreview(ne.value); $('npv').style.display = preview ? 'block' : 'none'; ne.style.display = preview ? 'none' : 'block'; bar(); }
+    else if (a === 'run') {
+      if (!A.codeRunner) return;
+      if (!cur) return A.toast('Name the note first, like hello.py, and it will save as that file.');
+      A.codeRunner.open({ name: cur.title, code: ne.value });
+      if (dirty) flush().catch(() => A.toast('The run was fine, but the note could not be saved.'));
+    }
+    else if (a === 'runfile') { if (A.codeRunner) A.codeRunner.openFile(); }
     else if (a === 'listen') A.speech.speak(ne.value, b);
     else if (a === 'cards') A.study.fromText(ne.value, cur ? cur.title : 'Note');
     else if (a === 'open') A.api('/api/docs/open', { path: folder });
     else if (a === 'del') del();
+    else if (a === 'rename') rename(cur?.id);
     else if (a === 'ai') {
       if (!ne.value.trim()) return A.toast('Write something first');
       const p = A.pop(b, ['Summarize', 'Improve the writing', 'Turn into a checklist', 'Ask a question about this note'].map(x => '<div class="hit"><b>' + x + '</b></div>').join(''));
@@ -82,39 +108,113 @@
     const ordered = list.slice().sort((a, b) => (rank.has(a.id) ? rank.get(a.id) : 1e9) - (rank.has(b.id) ? rank.get(b.id) : 1e9));
     const items = ordered.filter(n => !f || (n.title + ' ' + n.snippet).toLowerCase().includes(f));
     const host = $('nlist');
+    const item = n => '<div class="item note-list-item' + (cur?.id === n.id ? ' cur' : '') +
+      '" tabindex="0" data-id="' + A.esc(n.id) + '" data-select-id="' + A.esc(n.id) + '">' +
+      collections.check('Select ' + n.title) + '<div class="note-summary"><b>' + A.esc(n.title) + '</b><span>' +
+      A.esc(n.snippet || '(empty)') + '</span></div><button class="collection-icon" data-note-rename title="Rename note" aria-label="Rename note">✎</button>' +
+      (!f && items.length <= 200 && typeof window.Sortable === 'function' ?
+        '<button class="collection-icon note-sort" data-select-ignore title="Drag to reorder" aria-label="Drag to reorder">⠿</button>' : '') +
+      '</div>';
     if (!f && items.length <= 200 && typeof window.Sortable === 'function') {
-      host.innerHTML = '<div id="nlist-sort" style="height:100%;overflow:auto">' + items.map(n => '<div class="item' + (cur && cur.id === n.id ? ' cur' : '') + '" data-id="' + A.esc(n.id) + '" title="Drag to reorder"><b>' + A.esc(n.title) + '</b><span>' + A.esc(n.snippet || '(empty)') + '</span></div>').join('') + '</div>';
+      host.innerHTML = '<div id="nlist-sort" style="height:100%;overflow:auto">' + items.map(item).join('') + '</div>';
       const box = $('nlist-sort');
-      box.onclick = e => { const i = e.target.closest('.item'); if (i) open(i.dataset.id); };
       window.Sortable.create(box, {
-        animation: 150,
-        onEnd: () => {
-          const ids = [...box.querySelectorAll('.item')].map(el => el.dataset.id);
-          ls.set('notes_order', JSON.stringify(ids));
-        }
+        handle: '.note-sort', animation: 150,
+        onEnd: () => ls.set('notes_order', JSON.stringify([...box.querySelectorAll('.item')].map(el => el.dataset.id)))
       });
-      return;
+    } else {
+      host.innerHTML = '<div id="nlist-virtual" style="height:100%;overflow:auto"></div>';
+      A.virtualList($('nlist-virtual'), items, item, { itemHeight: 54 });
     }
-    host.innerHTML = '<div id="nlist-virtual" style="height:100%;overflow:auto"></div>';
-    A.virtualList($('nlist-virtual'), items, n => '<div class="item' + (cur && cur.id === n.id ? ' cur' : '') + '" data-id="' + A.esc(n.id) + '"><b>' + A.esc(n.title) + '</b><span>' + A.esc(n.snippet || '(empty)') + '</span></div>', { itemHeight: 50 });
-    // Re-bind click events
-    $('nlist-virtual').onclick = e => { const i = e.target.closest('.item'); if (i) open(i.dataset.id); };
+    selection.sync(items.map(n => n.id));
   }
   $('nq').oninput = draw;
-  $('nlist').onclick = e => { const i = e.target.closest('.item'); if (i) open(i.dataset.id); };
+  $('nlist').onclick = e => {
+    const item = e.target.closest('.item');
+    if (!item || e.target.closest('.note-sort')) return;
+    if (e.target.closest('[data-note-rename]')) rename(item.dataset.id);
+    else open(item.dataset.id);
+  };
+  $('nlist').onkeydown = e => {
+    if (e.key === 'Enter' && e.target.matches('.item')) e.target.click();
+  };
   $('nnew').onclick = () => blank();
 
-  async function flush() { clearTimeout(saveT); if (!dirty) return; dirty = false; const r = await A.api('/api/notes/save', { id: cur && cur.id, title: cur && cur.title, content: ne.value }); if (r.id) { cur = { id: r.id, title: r.title }; $('ntitle').textContent = r.title; } await refresh(true); }
+  async function flush() {
+    clearTimeout(saveT);
+    await saving;
+    if (!dirty) return;
+    const content = ne.value;
+    dirty = false;
+    saving = (async () => {
+      try {
+        const r = await A.api('/api/notes/save', { id: cur?.id, title: cur?.title, content });
+        if (!r.id) throw new Error(r.error);
+        cur = { id: r.id, title: r.title, path: r.path };
+        $('ntitle').textContent = r.title;
+        await refresh(true);
+      } catch (error) {
+        dirty = true;
+        throw error;
+      }
+    })();
+    try { await saving; } finally { saving = Promise.resolve(); }
+  }
+  function showNote(note) {
+    cur = note ? { id: note.id, title: note.title, path: note.path } : null;
+    ne.value = note?.content || '';
+    preview = false;
+    $('npv').style.display = 'none';
+    ne.style.display = 'block';
+    bar();
+    draw();
+  }
+  async function changeEditor(work) {
+    if (changing) return;
+    changing = ne.readOnly = true;
+    try { await flush(); return await work(); }
+    catch (error) { A.toast(error.message || 'Could not update your notes.'); }
+    finally { changing = ne.readOnly = false; }
+  }
   async function open(id) {
-    await flush(); const n = await A.api('/api/notes/get?id=' + encodeURIComponent(id)); if (n.error) return A.toast('Note not found');
-    cur = { id: n.id, title: n.title }; ne.value = n.content; preview = false; $('npv').style.display = 'none'; ne.style.display = 'block'; bar(); $('ntitle').textContent = n.title; draw();
+    return changeEditor(async () => {
+      const n = await A.api('/api/notes/get?id=' + encodeURIComponent(id));
+      if (!n.id) throw new Error(n.error || 'Note not found');
+      showNote(n);
+    });
   }
-  async function blank() { await flush(); cur = null; ne.value = ''; preview = false; $('npv').style.display = 'none'; ne.style.display = 'block'; bar(); $('ntitle').textContent = 'New note'; ne.focus(); draw(); }
-  async function del() {
-    if (!cur) return; if (!(await A.confirm('Delete "' + cur.title + '"? This removes the file from your Assistant Notes folder.'))) return;
-    await A.api('/api/notes/delete', { id: cur.id }); cur = null; ne.value = ''; dirty = false; $('ntitle').textContent = ''; await refresh(true); A.toast('Note deleted');
+  async function blank() {
+    return changeEditor(() => { showNote(null); ne.focus(); });
   }
-  ne.addEventListener('input', () => { dirty = true; $('ntitle').textContent = (cur ? cur.title : 'New note') + '  - saving...'; clearTimeout(saveT); saveT = setTimeout(async () => { await flush(); }, 900); });
+  async function rename(id) {
+    const note = list.find(n => n.id === id) || (cur?.id === id ? cur : null);
+    if (!note) return;
+    const title = await A.prompt('Note title', note.title, { title: 'Rename note' });
+    if (!title?.trim() || title.trim() === note.title) return;
+    return changeEditor(async () => {
+      const r = await A.api('/api/notes/rename', { id, title });
+      if (!r.id) throw new Error(r.error || 'Could not rename the note.');
+      if (cur?.id === id) {
+        cur = { id: r.id, title: r.title, path: r.path };
+        ne.value = r.content;
+        if (preview) $('npv').innerHTML = renderPreview(ne.value);
+        bar();
+      }
+      await refresh(true);
+    });
+  }
+  async function deleteGroup(ids) {
+    const message = ids.length === 1 ? 'Delete this note from your Assistant Notes folder?' : 'Delete ' + ids.length + ' selected notes from your Assistant Notes folder?';
+    if (!(await A.confirm(message, { title: 'Delete notes', okLabel: 'Delete', danger: true }))) return;
+    return changeEditor(async () => {
+      const done = await collections.each(ids, id => A.api('/api/notes/delete', { id }));
+      if (cur && done.includes(cur.id)) showNote(null);
+      await refresh(true);
+      return done;
+    });
+  }
+  async function del() { if (cur) await deleteGroup([cur.id]); }
+  ne.addEventListener('input', () => { dirty = true; $('ntitle').textContent = (cur ? cur.title : 'New note') + '  - saving...'; clearTimeout(saveT); saveT = setTimeout(() => flush().catch(error => A.toast(error.message || 'Could not save the note.')), 900); });
   addEventListener('beforeunload', () => { if (dirty) navigator.sendBeacon('/api/notes/save', JSON.stringify({ id: cur && cur.id, title: cur && cur.title, content: ne.value })); });
 
   A.notes = {
@@ -122,7 +222,11 @@
       await flush(); const r = await A.api('/api/notes/save', { title, content: content.startsWith('#') ? content : '# ' + title + '\n\n' + content });
       await refresh(true); A.showTab('notes'); await open(r.id); A.toast('Saved to Notes');
     },
-    async openByPath(p) { await refresh(true); const id = String(p).split(/[\\/]/).pop().replace(/\.[^.]+$/, ''); open(id); },
+    async openByPath(p) {
+      await refresh(true);
+      const f = String(p).split(/[\\/]/).pop();
+      open(A.codeRunner && A.codeRunner.isCodeName(f) ? f : f.replace(/\.[^.]+$/, ''));
+    },
     open
   };
   A.registerTab('notes', 'Notes', () => { bar(); refresh(true); });

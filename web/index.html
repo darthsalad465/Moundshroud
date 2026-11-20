@@ -15,8 +15,11 @@
 <link rel="stylesheet" href="/web/flair.css">
 <link rel="stylesheet" href="/web/shroud.css">
 <link rel="stylesheet" href="/web/chat-ui.css">
+<link rel="stylesheet" href="/web/collections.css">
 <link rel="stylesheet" href="/web/storybook.css">
 <link rel="stylesheet" href="/web/guide-book.css">
+<link rel="stylesheet" href="/web/terminal-manual.css">
+<link rel="stylesheet" href="/web/terminal-command-coach.css">
 <link rel="stylesheet" href="/web/bible-book.css">
 <link rel="stylesheet" href="/web/vendor/micro/uplot.min.css">
 <link rel="stylesheet" href="/web/vendor/micro/temml.min.css">
@@ -144,7 +147,7 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
           <button type="button" class="agnew" id="chnew" title="Start a fresh chat (Ctrl+N)">✎ New chat</button>
           <input id="chsq" type="search" placeholder="Search chats…" autocomplete="off">
         </div>
-        <div class="chslist" id="chlist"></div>
+        <div id="chselect"></div><div class="chslist" id="chlist" data-selection-area></div>
         <div class="chsidefoot">
           <button type="button" class="agnavr" id="chclr" title="Delete all saved chats">🗑 Clear all chats</button>
         </div>
@@ -152,7 +155,7 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
       <section class="chmain" id="chmain">
         <div class="chhead">
           <button type="button" class="ib agtog" id="chtog" title="Show or hide chat list">☰</button>
-          <div class="chhtitle"><b id="chtitle">New chat</b><span class="small mute" id="chsub">Private · On-device</span></div>
+          <div class="chhtitle"><button type="button" class="collection-title" id="chtitle" title="Rename this chat">New chat</button><span class="small mute" id="chsub">Private · On-device</span></div>
           <button type="button" class="ib chhact" id="chpin" title="Pin or unpin this chat">📌</button>
           <button type="button" class="ib chhact" id="chren" title="Rename this chat">✎</button>
           <button type="button" class="ib chhact" id="chexp" title="Export chat as Markdown">⬇</button>
@@ -160,7 +163,6 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
         </div>
         <div id="msgs"></div>
         <div id="sel"></div>
-        <div id="calcchip"></div>
         <div class="composer">
           <div id="row">
             <button class="ib" id="mic" title="Speak (click to start, click again to stop)">&#127908;</button>
@@ -171,9 +173,9 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
           <div id="meta">
             <label class="chk" title="Let Qwen reason step by step first (slower, better on hard questions)"><input type="checkbox" id="think"> Think harder</label>
             <label class="chk" title="Watch the assistant reason while it works, then fold it away under the answer. Turns thinking on for the models that can do it."><input type="checkbox" id="showthink"> 💭 Show thinking</label>
-            <label class="chk" title="Code interpreter: for sums, data and charts the AI writes Python or JavaScript, Moundshroud runs it in a sealed-off sandbox on this PC, and the AI answers from the real result"><input type="checkbox" id="runcode"> 🧮 Run code</label>
-            <label class="chk" id="uwl" style="display:none" title="Look the question up in your offline libraries first"><input type="checkbox" id="usewiki" checked> Use libraries</label>
-            <label class="chk" id="ufl" title="Search your own files and notes first"><input type="checkbox" id="usefiles" checked> Use my files</label>
+            <label class="chk" id="runcodel" title="Allow the assistant to run Python or JavaScript in the sandbox and use its text output"><input type="checkbox" id="runcode"> 🧮 Run code</label>
+            <label class="chk" id="uwl" style="display:none" title="Look the question up in your offline libraries first"><input type="checkbox" id="usewiki"> Use libraries</label>
+            <label class="chk" id="ufl" title="Search your own files and notes first"><input type="checkbox" id="usefiles"> Use my files</label>
             <label class="chk" id="uwb" style="display:none" title="Search the internet for this question and cite what it finds (turn internet access on in Settings)"><input type="checkbox" id="useweb"> &#127760; Web</label>
             <button class="ib" id="methelp" type="button" title="What these boxes do" aria-label="What these boxes do">?</button>
             <span class="sp"></span><span id="lasttime" class="small mute"></span><span id="status" role="status" aria-live="polite">connecting...</span>
@@ -244,6 +246,7 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
 <script defer src="/web/js/styles.js"></script>
 <script defer src="/web/js/custom.js"></script>
 <script defer src="/web/js/core.js"></script>
+<script defer src="/web/js/collection-select.js"></script>
 <script defer src="/web/js/lazy.js"></script>
 <script defer src="/web/js/codeview.js"></script>
 <script defer src="/web/js/code-ed.js"></script>
@@ -316,6 +319,7 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
 <script defer src="/web/js/viewer.js"></script>
 <script defer src="/web/js/pc.js"></script>
 <script defer src="/web/js/actions.js"></script>
+<script defer src="/web/js/code-runner.js"></script>
 <script defer src="/web/js/notes.js"></script>
 <script defer src="/web/js/files.js"></script>
 <script defer src="/web/js/brain.js"></script>
@@ -339,7 +343,10 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
 <script defer src="/web/js/cb-lab2.js"></script>
 <script defer src="/web/js/cybercourse-data.js"></script>
 <script defer src="/web/js/cybercourse.js"></script>
+<script defer src="/web/js/cyber-pad.js"></script>
 <script defer src="/web/js/code-lessons-data.js"></script>
+<script defer src="/web/js/code-playground-langs.js"></script>
+<script defer src="/web/js/code-challenges.js"></script>
 <script defer src="/web/js/code-lessons.js"></script>
 <script defer src="/web/js/cyberlab.js"></script>
 <script defer src="/web/js/cyber-tools.js"></script>
@@ -387,9 +394,38 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
 <script defer src="/web/js/play-classics.js"></script>
 <script defer src="/web/js/modelmon-core.js"></script>
 <script defer src="/web/js/play-modelmon.js"></script>
+<script defer src="/web/js/play-swindle.js"></script>
 <script defer src="/web/js/play-help.js"></script>
+<script defer src="/web/js/terminal-unix.js"></script>
 <script defer src="/web/js/cyber-games.js"></script>
 <script defer src="/web/js/cyber-academy.js"></script>
+<script defer src="/web/js/remote-access-rules.js"></script>
+<script defer src="/web/js/remote-access.js"></script>
+<script defer src="/web/js/terminal-ops-training.js"></script>
+<script defer src="/web/js/terminal-ops-rules.js"></script>
+<script defer src="/web/js/terminal-ops.js"></script>
+<script defer src="/web/js/arena-rules.js"></script>
+<script defer src="/web/js/red-blue-live.js"></script>
+<script defer src="/web/js/vishing.js"></script>
+<script defer src="/web/js/terminal-playground-data.js"></script>
+<script defer src="/web/js/terminal-playground-data2.js"></script>
+<script defer src="/web/js/terminal-playground-data3.js"></script>
+<script defer src="/web/js/terminal-playground-curios.js"></script>
+<script defer src="/web/js/terminal-playground-jobs.js"></script>
+<script defer src="/web/js/terminal-scenarios.js"></script>
+<script defer src="/web/js/mcode-custom.js"></script>
+<script defer src="/web/js/mcode-swarm.js"></script>
+<script defer src="/web/js/mcode-whip.js"></script>
+<script defer src="/web/js/terminal-playground-mcode.js"></script>
+<script defer src="/web/js/terminal-manual-content.js"></script>
+<script defer src="/web/js/terminal-manual-beginner.js"></script>
+<script defer src="/web/js/terminal-manual.js"></script>
+<script defer src="/web/js/terminal-command-coach.js"></script>
+<script defer src="/web/js/terminal-labyrinth-data.js"></script>
+<script defer src="/web/js/terminal-labyrinth-data2.js"></script>
+<script defer src="/web/js/terminal-labyrinth.js"></script>
+<script defer src="/web/js/terminal-puzzles.js"></script>
+<script defer src="/web/js/terminal-playground.js"></script>
 <script defer src="/web/js/chess-engine.js"></script>
 <script defer src="/web/js/chess-study-data.js"></script>
 <script defer src="/web/js/chess-courses.js"></script>
@@ -537,6 +573,7 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
 <link rel="stylesheet" href="/web/section-tools.css">
 <script type="module" src="/web/js/section-tools.mjs"></script>
 <script defer src="/web/js/shroud.js"></script>
+<script defer src="/web/js/openwhip.js"></script>
 <script defer src="/web/js/main.js"></script>
 <script defer src="/web/js/guard.js"></script>
 <script defer src="/web/js/privacy.js"></script>

@@ -23,7 +23,9 @@
   async function pick(opts) { const m = opts.model || model(); if (opts.private && isCloud(m) && !allowed(opts.private)) { const l = await localModel(); if (l) return l; throw new Error('This uses private material, which is not sent to Claude, and no AI model is installed on this PC.'); } return m; }
   async function stream(messages, onText, signal, opts) {
     opts = opts || {};
-    const r = await fetch('/api/chat', { method: 'POST', signal, body: JSON.stringify({ model: await pick(opts), stream: true, think: false, keep_alive: '5m', options: { temperature: opts.temp == null ? .7 : opts.temp }, messages }) });
+    const route = opts.localOnly ? '/api/chat?surface=playground' : '/api/chat';
+    const r = await fetch(route, { method: 'POST', signal, body: JSON.stringify({ model: await pick(opts), stream: true, think: false, keep_alive: '5m', options: { temperature: opts.temp == null ? .7 : opts.temp }, messages }) });
+    if (opts.localOnly && !r.ok) throw new Error('Local chat unavailable');
     const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '', all = '';
     for (; ;) { const { value, done } = await rd.read(); if (done) break; buf += dec.decode(value, { stream: true }); let i; while ((i = buf.indexOf('\n')) >= 0) { const ln = buf.slice(0, i).trim(); buf = buf.slice(i + 1); if (!ln) continue; try { const j = JSON.parse(ln); if (j.message && j.message.content) { all += j.message.content; if (onText) onText(all); } } catch (e) { } } }
     return all;
