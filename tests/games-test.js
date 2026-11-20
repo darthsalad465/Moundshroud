@@ -45,6 +45,16 @@ module.exports = async ok => {
   }
   ok('games: every game brings a name, an icon, a description and a mount', thin.length === 0, thin.join(', '));
 
+  // Large Emberwild worlds store terrain as palette-indexed columns. Losing an air
+  // cell here would fill excavated rooms when reopening an old player's home.
+  const expeditionContext = { A: {}, ls: { set() {}, get() { return ''; } } };
+  vm.runInNewContext(read('emberwild-expedition.js'), expeditionContext);
+  const expedition = expeditionContext.A.emberExpedition;
+  const terrain = [[null, 'oak', 'copper'], ['rope', null, 'starstone']];
+  const restored = expedition.decode(expedition.encode(terrain));
+  ok('games: Emberwild terrain preserves air, buildings and seams', JSON.stringify(restored) === JSON.stringify(terrain));
+  ok('games: Emberwild detects a storage write that did not persist', !expedition.write('test', { terrain }));
+
   /* the lazy loader: every file a tab asks for must exist, or that tab fails the first time it is opened */
   const lazy = read('lazy.js');
   const asked = [...new Set((lazy.match(/'\/web\/[^']+'/g) || []).map(s => s.slice(1, -1)))];

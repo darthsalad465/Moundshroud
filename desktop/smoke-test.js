@@ -1,40 +1,44 @@
-// Exercise the backend with the exact runtime and resources distributed by NSIS.
+// Exercise the standalone zero-localhost backend with the exact Electron runtime distributed by NSIS.
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { setTimeout: delay } = require('node:timers/promises');
 
 async function main() {
   const app = path.resolve(process.argv[2] || path.join(__dirname, 'dist', 'win-unpacked'));
   const core = path.join(app, 'resources', 'app-core');
   const data = fs.mkdtempSync(path.join(os.tmpdir(), 'moundshroud-smoke-'));
-  const port = 42000 + Math.floor(Math.random() * 10000);
-  const base = 'http://127.0.0.1:' + port;
-  const child = spawn(path.join(app, 'Moundshroud.exe'), [path.join(core, 'server.js')], {
-    cwd: core, stdio: 'inherit', windowsHide: true,
-    env: { ...process.env, USERPROFILE: data, ELECTRON_RUN_AS_NODE: '1', MOUNDSHROUD_DATA: data, MOUNDSHROUD_PORT: String(port) }
-  });
+  const bridgePath = path.join(__dirname, 'inprocess-bridge.js');
+
+  const script = `
+    const path = require('path');
+    const { dispatchToHandler } = require(${JSON.stringify(bridgePath)});
+    const embedded = require(path.join(${JSON.stringify(core)}, 'server.js'));
+    (async () => {
+      const st = await dispatchToHandler(embedded.handleAppRequest, new Request('app://moundshroud/api/status'));
+      const sj = await st.json();
+      if (!st.ok || !sj.ok) throw new Error('Status failed: HTTP ' + st.status);
+      const pg = await dispatchToHandler(embedded.handleAppRequest, new Request('app://moundshroud/'));
+      const html = await pg.text();
+      if (!pg.ok || !/Moundshroud/i.test(html)) throw new Error('Missing app UI: HTTP ' + pg.status);
+      embedded.shutdown();
+      console.log('Packaged standalone runtime served status and app UI on app://moundshroud with zero localhost ports.');
+      process.exit(0);
+    })().catch(err => { console.error(err); process.exit(1); });
+  `;
+
   try {
-    for (let i = 0; i < 60; i++) {
-      if (child.exitCode !== null) throw Error('Packaged server exited during startup');
-      const status = await fetch(base + '/api/status').catch(() => null);
-      if (status && !status.ok) throw Error('Status endpoint returned HTTP ' + status.status);
-      if (status?.ok && (await status.json()).ok) {
-        const page = await fetch(base);
-        if (!page.ok || !/Moundshroud/i.test(await page.text())) throw Error('Missing app UI');
-        console.log('Packaged runtime served the status endpoint and the app UI.');
-        return;
-      }
-      await delay(500);
-    }
-    throw Error('Packaged server startup timed out');
+    await new Promise((resolve, reject) => {
+      const child = spawn(path.join(app, 'Moundshroud.exe'), ['-e', script], {
+        cwd: core,
+        stdio: 'inherit',
+        windowsHide: true,
+        env: { ...process.env, USERPROFILE: data, ELECTRON_RUN_AS_NODE: '1', MOUNDSHROUD_DATA: data, MOUNDSHROUD_EMBEDDED: '1', MOUNDSHROUD_DESKTOP: '1' }
+      });
+      child.once('error', reject);
+      child.once('close', code => code === 0 ? resolve() : reject(new Error('Smoke test exited with code ' + code)));
+    });
   } finally {
-    if (child.exitCode === null) {
-      const stopped = new Promise(resolve => child.once('close', resolve));
-      child.kill();
-      await stopped;
-    }
     fs.rmSync(data, { recursive: true, force: true });
   }
 }

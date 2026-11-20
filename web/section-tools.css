@@ -1,0 +1,154 @@
+#section-actions:not([hidden]) {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.35rem 1rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+#section-actions button {
+  font-size: 0.85rem;
+}
+.section-tool {
+  width: min(850px, 94vw);
+  max-height: 88vh;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 18px 75px #0006;
+}
+.section-tool::backdrop {
+  background: #10121bb0;
+}
+.section-tool > header,
+.sf-row,
+.sf-search {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+.section-tool > header {
+  justify-content: space-between;
+  background: var(--panel);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--line);
+}
+.section-tool h2,
+.section-tool h3 {
+  margin: 0.3rem 0;
+}
+.sf-body {
+  padding: 16px 20px;
+  overflow-wrap: anywhere;
+}
+.sf-status:not(:empty) {
+  padding: 8px 20px 16px;
+}
+.sf-body input:not([type='color']),
+.sf-body textarea,
+.sf-body select {
+  max-width: 100%;
+  padding: 0.45rem 0.65rem;
+}
+.sf-search input {
+  min-width: 12em;
+  flex: 1;
+}
+.sf-search,
+.sf-row,
+.sf-list,
+.sf-body article,
+.sf-body figure {
+  margin: 0.65rem 0;
+}
+.sf-list {
+  display: grid;
+  gap: 0.35rem;
+}
+.sf-list button {
+  text-align: left;
+  white-space: normal;
+}
+.sf-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+.sf-table th,
+.sf-table td {
+  border-bottom: 1px solid var(--line);
+  padding: 5px 8px;
+  text-align: left;
+}
+.sf-body textarea {
+  display: block;
+  width: 100%;
+  font: inherit;
+}
+.sf-body pre {
+  overflow: auto;
+  max-width: 100%;
+}
+.sf-body img,
+.sf-body svg {
+  max-width: 100%;
+}
+.sf-board {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  width: min(300px, 100%);
+  line-height: 1;
+}
+.sf-board span {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  font-size: clamp(16px, 5vw, 29px);
+  background: #eadac4;
+  color: #241f2b;
+}
+.sf-board .dark {
+  background: #a48c7a;
+}
+.sf-elements {
+  display: grid;
+  grid-template-columns: repeat(18, minmax(1.7rem, 1fr));
+  gap: 2px;
+  min-width: 550px;
+}
+.sf-elements button {
+  padding: 2px;
+  font-size: 12px;
+}
+.sf-scroll {
+  overflow: auto;
+}
+.sf-score {
+  background: white;
+  color: #181818;
+  border-radius: 8px;
+  margin: 0.6rem 0;
+  overflow: auto;
+}
+.sf-map-controls {
+  position: absolute;
+  z-index: 8;
+  left: 12px;
+  top: 12px;
+  max-width: min(420px, 88%);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  padding: 0.8rem;
+  border-radius: 8px;
+}
+.section-tool [hidden],
+#section-actions[hidden] {
+  display: none !important;
+}

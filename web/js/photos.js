@@ -125,7 +125,8 @@
     o.innerHTML = '<div class="ph-stage">' + pic + '<button class="ph-nav l" id="pvp" title="Previous (←)">‹</button><button class="ph-nav r" id="pvn" title="Next (→)">›</button></div>' +
       '<aside class="ph-info"><div style="display:flex;gap:6px;justify-content:flex-end"><button class="ib" id="pvx" title="Close (Esc)">✕</button></div><h3 style="margin:6px 0 2px;word-break:break-word">' + esc(x.n) + '</h3><div class="small mute">' + fmtDate(x.t) + (x.ex ? ' · taken' : ' · file date') + ' · ' + size(x.s) + '</div><div class="small mute" style="margin:2px 0 10px;word-break:break-all">' + esc(x.root + (x.d ? '\\' + x.d : '')) + '</div>' +
       (x.cap ? '<div class="card small" style="line-height:1.5">' + esc(x.cap.c) + '<div style="margin-top:6px">' + x.cap.k.map(k => '<span class="ph-tag" data-tag="' + esc(k) + '">' + esc(k) + '</span>').join('') + '</div></div>' : '') +
-      '<div class="ph-acts"><button class="ib" id="pvfav">' + (x.fav ? '★ Favourite' : '☆ Favourite') + '</button>' + (x.show && !x.cloud ? '<button class="ib" id="pvai">✨ ' + (x.cap ? 'Describe again' : 'Describe') + '</button>' : '') + '<button class="ib" id="pvrev2">📂 Show in folder</button><button class="ib" id="pvslide">' + (slide ? '⏸ Stop slideshow' : '▶ Slideshow') + '</button><button class="ib" id="pvhide" title="Take it out of this library. The file itself is not touched.">🙈 Hide from Photos</button></div>' +
+      '<div class="ph-acts"><button class="ib" id="pvfav">' + (x.fav ? '★ Favourite' : '☆ Favourite') + '</button>' + (x.show && !x.cloud ? '<button class="ib" id="pvai">✨ ' + (x.cap ? 'Describe again' : 'Describe') + '</button><button class="ib" id="pvz0" title="Scroll wheel zooms, drag pans">🔍 Reset zoom</button>' : '') + '<button class="ib" id="pvrev2">📂 Show in folder</button><button class="ib" id="pvslide">' + (slide ? '⏸ Stop slideshow' : '▶ Slideshow') + '</button><button class="ib" id="pvhide" title="Take it out of this library. The file itself is not touched.">🙈 Hide from Photos</button></div>' +
+      '<div id="pvexif" class="small mute" style="margin-top:8px"></div>' +
       (x.show && !x.cloud ? '<div class="ph-chat"><div style="font-weight:600;margin:14px 0 6px">💬 Ask about this photo</div><div id="pvmsgs" class="ph-msgs"></div><div style="display:flex;gap:6px;margin-top:6px"><textarea id="pvq" rows="2" style="flex:1;min-width:0" placeholder="What breed is the dog? Where could this be?  (Enter to send)"></textarea><button class="pri" id="pvsend">Ask</button></div><div class="small mute" style="margin-top:4px">Answered by an AI on this PC. The photo never leaves it.</div></div>' : '') +
       '<div class="small mute" style="margin-top:10px">' + (viewerAt + 1) + ' of ' + shown.length + ' · ← → to move · Esc to close</div></aside>';
     const on = (id, f) => { const b = o.querySelector(id); if (b) b.onclick = f; };
@@ -137,6 +138,28 @@
     on('#pvhide', async () => { if (!(await A.confirm('Hide “' + x.n + '” from Photos? The file stays exactly where it is.'))) return; await A.api('/api/photos/hide', { id: x.id }); ALL = ALL.filter(y => y !== x); shown = shown.filter(y => y !== x); if (viewerAt >= shown.length) viewerAt = shown.length - 1; drawViewer(); paintSoon(); });
     on('#pvai', async () => { const b = o.querySelector('#pvai'); b.disabled = true; b.textContent = '✨ Looking…'; const m = await visionModel(); if (!m) { b.textContent = 'No AI model that can see is installed'; return; } const ok = await describeOne(x, m); if (!ok) b.textContent = 'The AI could not describe it'; else drawViewer(); });
     o.querySelectorAll('[data-tag]').forEach(t => t.onclick = () => { closeViewer(); st.q = t.dataset.tag; root.querySelector('#phq').value = st.q; st.view = 'all'; paint(); });
+    /* pan & zoom (Panzoom) + camera EXIF/GPS inspector (exifr) */
+    const imgEl = o.querySelector('.ph-stage img');
+    if (imgEl && typeof window.Panzoom === 'function') {
+      try {
+        const pz = window.Panzoom(imgEl, { maxScale: 6, minScale: 1, contain: 'outside' });
+        const stg = o.querySelector('.ph-stage');
+        stg.addEventListener('wheel', pz.zoomWithWheel, { passive: false });
+        on('#pvz0', () => pz.reset());
+      } catch (e) { }
+    }
+    if (x.show && !x.cloud && window.exifr && typeof window.exifr.parse === 'function') {
+      window.exifr.parse('/api/photos/file?id=' + x.id).then(ex => {
+        const box = o.querySelector('#pvexif'); if (!box || !box.isConnected || !ex) return;
+        const bits = [];
+        if (ex.Make || ex.Model) bits.push('📷 ' + [ex.Make, ex.Model].filter(Boolean).join(' '));
+        if (ex.LensModel) bits.push(ex.LensModel);
+        const exp = [ex.FocalLength && Math.round(ex.FocalLength) + 'mm', ex.FNumber && 'f/' + ex.FNumber, ex.ExposureTime && (ex.ExposureTime < 1 ? '1/' + Math.round(1 / ex.ExposureTime) + 's' : ex.ExposureTime + 's'), ex.ISO && 'ISO ' + ex.ISO].filter(Boolean);
+        if (exp.length) bits.push(exp.join(' · '));
+        if (ex.latitude != null && ex.longitude != null) bits.push('<span style="color:var(--warn)">📍 GPS embedded (' + ex.latitude.toFixed(4) + ', ' + ex.longitude.toFixed(4) + ')</span>');
+        if (bits.length) box.innerHTML = '<div class="card small" style="padding:8px 10px;line-height:1.5">' + bits.map(b => b.startsWith('<span') ? b : esc(b)).join('<br>') + '</div>';
+      }).catch(() => { });
+    }
     o.onclick = e => { if (e.target === o || e.target.classList.contains('ph-stage')) closeViewer(); };
     if (o.querySelector('#pvq')) chatWire(o, x);
   }

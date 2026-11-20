@@ -35,12 +35,13 @@
       '<div id="hconv" class="scroll agconv"><div id="hmsgs" class="agtx"></div></div>' +
       '<div class="agcomp" id="hcomp"><div class="agshot" id="agshot" style="display:none"><img id="agshotimg" alt=""><span id="agshotname"></span><button class="agshotx" id="agshotx" title="Remove the picture">✕</button></div><div class="agbox"><textarea id="hin" rows="2" placeholder="Tell the agent what to build or fix…"></textarea>' +
       '<input type="file" id="agfile" accept="image/*" style="display:none">' +
-      '<div class="agchips"><button class="agchip" id="agphoto" title="Give it a picture to look at or work from — you can also paste one straight into the box">📎 Picture</button><button class="agchip" id="agcdir"></button><select class="agchip" id="agcmod" aria-label="Model" title="Current models — pick any downloaded model"></select><button class="agchip" id="agcreach"></button><span style="flex:1"></span><span class="small mute agkeys">Enter to send · Shift+Enter new line</span><button class="agsend" id="hsend" title="Send (Enter)">↑</button></div></div></div>' +
+      '<div class="agchips"><button class="agchip" id="agphoto" title="Give it a picture to look at or work from — you can also paste one straight into the box">📎 Picture</button><button class="agchip" id="agcdir"></button><select class="agchip" id="agcmod" aria-label="Model" title="Every AI model on this PC, grouped by what it does: chat and agent models drive the session; the others make pictures, video, speech or music, search by meaning, or turn speech into text"></select><button class="agchip" id="agmic" style="display:none" title="Talk: the chosen speech-to-text model writes it in the box">🎙 Talk</button><button class="agchip" id="agcreach"></button><button class="agchip" id="agceng" title="The engine running the agent. Click to switch."></button><span style="flex:1"></span><span class="small mute agkeys">Enter to send · Shift+Enter new line</span><button class="agsend" id="hsend" title="Send (Enter)">↑</button></div></div></div>' +
       '<div id="agrout" class="scroll pad" style="flex:1;min-height:0;display:none"></div>' +
       '<div id="agset" class="scroll pad" style="flex:1;min-height:0;display:none"><div style="max-width:760px">' +
       '<h2>⚙ Agent settings</h2>' +
       '<div class="mute small" style="margin:2px 0 14px">A free coding helper that runs on this PC. Tell it what to build or fix; it reads, writes and edits files and runs commands. It uses a model in Ollama, so nothing leaves this PC. These choices are used by the next session you start, and are also under the message box.</div>' +
-      '<div class="card" id="agst"><div class="mute small">Checking...</div></div>' +
+      '<div class="card" id="ageng"><div style="font-weight:600;margin-bottom:6px">Agent engine</div><div class="small mute" style="margin-bottom:8px">The program that runs the agent. Every session in this tab uses the one picked here. Switching stops a session that is running.</div><div class="ageng" id="agengs"></div></div>' +
+      '<div class="card" id="agst" style="margin-top:10px"><div class="mute small">Checking...</div></div>' +
       '<div class="card" style="margin-top:10px"><div style="font-weight:600;margin-bottom:6px">Model</div>' +
       '<select id="agmodel" style="max-width:100%"></select><div class="small mute" id="agmnote" style="margin-top:6px"></div>' +
       '<div style="font-weight:600;margin:12px 0 6px">Memory</div><select id="agctx"></select>' +
@@ -100,7 +101,7 @@
       }
       sel.disabled = false;
       const optLabel = m => A.modelOrder ? A.modelOrder.label(m, { toolsNote: true }) : ((m.free ? (m.label || '✦ Free frontier (free, no key)') : bare(m.name)) + (!m.free && m.size ? '  ·  ' + gb(m.size) : '') + (m.tools ? '' : '  ·  cannot use tools'));
-      const optHtml = list.map(m => '<option value="' + esc(m.name) + '"' + (m.tools || nat ? '' : ' disabled') + '>' + esc(optLabel(m)) + '</option>').join('');
+      const optHtml = list.filter(m => !m.embedding).map(m => '<option value="' + esc(m.name) + '"' + (m.tools || nat ? '' : ' disabled') + '>' + esc(optLabel(m)) + '</option>').join('');
       sel.innerHTML = optHtml;
       const canUse = m => m && (m.tools || nat);
       const saved = lsGet(MKEY, ''), ok = n => list.some(m => m.name === n && canUse(m));
@@ -110,12 +111,62 @@
       sel.value = picked;
       if (barSel) {
         barSel.disabled = false;
-        barSel.innerHTML = list.map(m => '<option value="' + esc(m.name) + '"' + (m.tools || nat ? '' : ' disabled') + '>🧠 ' + esc(optLabel(m)) + '</option>').join('');
+        barSel.innerHTML = list.filter(m => !m.embedding).map(m => '<option value="' + esc(m.name) + '"' + (m.tools || nat ? '' : ' disabled') + '>🧠 ' + esc(optLabel(m)) + '</option>').join('');
         barSel.value = picked;
+        addAnyModels();
       }
       modelNote();
     }
+    /* every other AI model on this PC joins the chip under the box, grouped by what it does (web/js/anymodel.js) */
+    const AKEY = 'agentany';
+    async function addAnyModels() {
+      const barSel = $('agcmod'); if (!A.anyModel || !barSel) return;
+      const cat = await A.anyModel.list(); if (!alive || !cat.models || !cat.models.length) return;
+      barSel.querySelectorAll('optgroup[data-any]').forEach(g => g.remove());
+      if (!barSel.querySelector('optgroup')) barSel.innerHTML = '<optgroup label="💬 Chat and agent">' + barSel.innerHTML + '</optgroup>';
+      barSel.insertAdjacentHTML('beforeend', A.anyModel.extraOptionsHTML(cat.models).replace(/<optgroup /g, '<optgroup data-any="1" '));
+      const want = lsGet(AKEY, '');
+      if (want && [...barSel.options].some(o => o.value === want)) barSel.value = want;
+      anyHint();
+    }
+    const anyChosen = () => { const v = $('agcmod') ? $('agcmod').value : ''; return A.anyModel && A.anyModel.isAny(v) ? v : ''; };
+    /* the box and the mic say what the chosen model does when it is not the one driving the agent */
+    function anyHint() {
+      const v = anyChosen(), m = v && A.anyModel.entry(v), mic = $('agmic');
+      if (mic) mic.style.display = m && m.use === 'listen' ? '' : 'none';
+      const box = $('hin'); if (!box) return;
+      if (!box.dataset.ph0) box.dataset.ph0 = box.placeholder;
+      if (v) { box.placeholder = A.anyModel.hint(v) || box.dataset.ph0; return; }
+      box.placeholder = box.dataset.ph0;
+    }
+    /* sending while such a model is chosen runs it at its job; the result lands in this conversation, and a made file
+       is also saved in the session folder */
+    async function anyRun(v, text) {
+      const m = A.anyModel.entry(v);
+      if (!m) { A.toast('That model is not in the list any more.'); return; }
+      $('hin').value = '';
+      say('<b>' + esc(A.anyModel.ICON[m.use] || '') + ' ' + esc(m.name) + '</b> · ' + esc(text || '(no words)'));
+      /* the session's folder, else the folder chosen for new sessions, else the agent's own workspace */
+      let dir = (H && H.dir) || get() || (st && st.dir ? st.dir + '\\workspace' : '');
+      if (m.use === 'find' && !dir) { const r = await post('/api/pick-folder', {}); dir = (r && (r.path || r.dir)) || ''; if (!dir) { say('No folder was chosen, so nothing was searched.'); return; } }
+      const live = document.createElement('div'); live.className = 'agnote'; live.textContent = '⏳ Working…'; $('hmsgs').appendChild(live); toEnd();
+      const t0 = Date.now(), tick2 = setInterval(() => { live.textContent = live.textContent.replace(/ \d+s$/, '') + ' ' + Math.round((Date.now() - t0) / 1000) + 's'; }, 1000);
+      let r;
+      try { r = await A.anyModel.act(v, text, { dir, onNote: t => { live.textContent = t; } }); } catch (e) { r = { ok: false, html: esc(e.message || 'It did not finish.') }; }
+      clearInterval(tick2); live.remove();
+      say(r.html || (r.ok ? 'Done.' : 'It did not finish.'));
+      /* an imported model is chosen straight away: a language model drives the agent, an embedding model searches */
+      if (r.imported) {
+        const isIt = n => n === r.imported || n === r.imported + ':latest';
+        lsPut(AKEY, ''); await check(); await addAnyModels();
+        const opts = [...$('agcmod').options];
+        if (r.use === 'talk') { const o = opts.find(x => isIt(x.value)); if (o) pickModel(o.value); }
+        else { const o = opts.find(x => { const e = A.anyModel.entry(x.value); return e && e.use === 'find' && isIt(e.ollama); }); if (o) pickModel(o.value); }
+      }
+    }
     async function pickModel(name) {
+      if (A.anyModel && A.anyModel.isAny(name)) { lsPut(AKEY, name); if ($('agcmod')) $('agcmod').value = name; anyHint(); const m = A.anyModel.entry(name); if (m) A.toast(A.anyModel.ICON[m.use] + ' ' + m.name + ' · ' + m.useLabel + (m.use === 'info' ? '' : '. Type in the box and send.'), 4000); return; }
+      lsPut(AKEY, ''); anyHint();
       $('agmodel').value = name;
       if ($('agcmod')) $('agcmod').value = name;
       lsPut(MKEY, name);
@@ -130,11 +181,20 @@
     }
     $('agmodel').onchange = () => pickModel($('agmodel').value);
     $('agcmod').onchange = () => pickModel($('agcmod').value);
+    /* 🎙 Talk: the chosen speech-to-text model writes what you say into the box */
+    $('agmic').onclick = () => {
+      if (!A.voice || !A.voice.available()) { A.toast('Microphone input is not available in this window.'); return; }
+      if (A.voice.rec) { A.voice.stop(); return; }
+      const m = A.anyModel && A.anyModel.entry(anyChosen());
+      A.voice.start(t => { const box = $('hin'); box.value = (box.value ? box.value + ' ' : '') + t; box.focus(); }, (st, s) => {
+        $('agmic').textContent = st === 'rec' ? '■ Stop · ' + Math.floor(s || 0) + 's' : st === 'busy' ? '✍ Writing…' : '🎙 Talk';
+      }, { model: m && m.use === 'listen' ? m.id : '' });
+    };
     $('agctx').onchange = () => { lsPut(CKEY, $('agctx').value); modelNote(); };
     const modelNow = () => bare($('agmodel').value || (sortedModels().find(m => m.tools) || sortedModels()[0] || {}).name || (st && st.base) || 'free-agent');
     function chips() {
       $('agcdir').textContent = '📁 ' + (get() ? base(get()) : 'workspace'); $('agcdir').title = 'Folder for the next new session: ' + (get() || 'its own workspace folder') + '. Click to change.';
-      if ($('agcmod') && $('agcmod').value !== $('agmodel').value && $('agmodel').value) $('agcmod').value = $('agmodel').value;
+      if ($('agcmod') && !anyChosen() && $('agcmod').value !== $('agmodel').value && $('agmodel').value) $('agcmod').value = $('agmodel').value;
       $('agcreach').textContent = $('agguard').checked ? '🔓 Whole PC, guarded' : '🔒 This folder only'; $('agcreach').title = 'Click to switch. Used by the next new session.';
     }
 
@@ -152,8 +212,32 @@
         + row(s.ollama, s.ollama ? 'Ollama is running' : 'Ollama is not running', s.ollama ? '' : 'The agent starts it for you when it opens.')
         + (s.ollama ? row(can > 0, can + ' of ' + (s.models || []).length + ' models can drive the agent', can ? '' : 'Pick any model from the dropdown, or pull one in Models.') : '');
       $('aggo').disabled = nat ? false : (!s.installed || !(s.claude || s.jcode));
-      fillModels(); if (view === 'routines') drawRoutines();
+      fillModels(); drawEngines(); if (view === 'routines') drawRoutines();
     }
+    /* ---------- the three engines: Moundshroud Code (built in), Claude Code and jcode ---------- */
+    const ENGINES = [
+      { k: 'native', icon: '🏔', name: 'Moundshroud Code', what: 'Built into this app. Drives the agent with any model on this PC, and every other model has a job here too: pictures, voices, music, search by meaning and more, from the model chip under the box.', need: s => ({ ok: true, why: 'Ready: it is part of Moundshroud.' }) },
+      { k: 'claude', icon: '✳', name: 'Claude Code', what: 'Claude Code\'s file and command tools, driven by a model in Ollama on this PC through the gemma-agent launcher.', need: s => (s.claude && s.installed) ? { ok: true, why: 'Ready: Claude Code and its launcher are installed.' } : { ok: false, why: !s.claude ? 'Claude Code is not installed on this PC.' : 'The launcher is missing from ' + (s.dir || 'the agent folder') + '.' } },
+      { k: 'jcode', icon: '◆', name: 'jcode', what: 'The jcode agent (runtime\\jcode), driven by a model in Ollama on this PC.', need: s => s.jcode ? { ok: true, why: 'Ready: jcode is installed.' } : { ok: false, why: 'jcode is not installed in runtime\\jcode.' } }
+    ];
+    const engName = k => (ENGINES.find(e => e.k === k) || ENGINES[0]).name;
+    function drawEngines() {
+      const box = $('agengs'), kind = (st && st.harness) || 'claude'; if (!box) return;
+      box.innerHTML = ENGINES.map(e => { const n = e.need(st || {}); return '<label class="agengo' + (e.k === kind ? ' on' : '') + (n.ok ? '' : ' off') + '"><input type="radio" name="ageng" value="' + e.k + '"' + (e.k === kind ? ' checked' : '') + (n.ok ? '' : ' disabled') + '><span><b>' + e.icon + ' ' + esc(e.name) + '</b>' + (e.k === kind ? ' <span class="agengnow">in use</span>' : '') + '<div class="small mute">' + esc(e.what) + '</div><div class="small ' + (n.ok ? 'ok' : 'bad') + '">' + esc(n.why) + '</div></span></label>'; }).join('');
+      box.querySelectorAll('input[name="ageng"]').forEach(r => { r.onchange = () => switchEngine(r.value); });
+      const chip = $('agceng'); if (chip) chip.textContent = (ENGINES.find(e => e.k === kind) || ENGINES[0]).icon + ' ' + engName(kind);
+    }
+    async function switchEngine(k) {
+      const kind = (st && st.harness) || 'claude';
+      if (k === kind) return;
+      if (H && H.running && !(await A.confirm('Switch the agent to ' + engName(k) + '?\n\nThe session that is running stops. You can pick it up again later from the list.'))) { drawEngines(); return; }
+      const r = await post('/api/harness/kind', { kind: k });
+      if (!r || !r.ok) { A.toast((r && r.error) || 'Could not switch.'); drawEngines(); return; }
+      A.toast('Agent engine: ' + engName(k));
+      await check(); try { await tick(); } catch (e) { }
+      say('Agent engine · <b>' + esc(engName(k)) + '</b>' + (k === 'native' ? ' — every model on this PC is in the chip under the box.' : '.'));
+    }
+    $('agceng').onclick = () => show('set');
     dirLine(); check();
     async function pickFolder() {
       $('agmsg').textContent = 'Choose a folder in the window that opened...'; A.toast('Choose a folder in the window that opened');
@@ -367,6 +451,7 @@
       $('hcont').style.display = view === 'live' && !s.running && s.sessionId && !starting ? '' : 'none';
       $('hsend').disabled = view === 'live' && (starting || !!s.busy || !!s.preparing);
       $('hin').placeholder = view === 'rec' ? 'Type to pick this session up again…' : s.running ? 'Reply to the agent…' : 'Tell the agent what to build or fix…';
+      $('hin').dataset.ph0 = $('hin').placeholder; anyHint();
     }
 
     /* ---------- the session list ---------- */
@@ -479,6 +564,7 @@
     async function sendNow() {
       const t = $('hin').value.trim(); if ((!t && !shot) || starting) return;
       if (t.startsWith('/')) { $('hin').value = ''; await cmd(t); return; }      // a command acts here, and is never sent to the model
+      if (anyChosen()) return anyRun(anyChosen(), t);                             // a picture, voice, music, search or import model does its own job
       if (view === 'rec') {
         if (busyElsewhere() && !(await A.confirm('The agent is working on “' + (H.title || 'another session') + '”. Stop it and pick this one up instead?'))) return;
         const x = await post('/api/harness/show', { id: recId }); if (!x.ok) { A.toast(x.error || 'Could not open that conversation.'); return; }
@@ -509,6 +595,10 @@
       ['/new', 'a fresh conversation'],
       ['/stop', 'stop the turn that is running'],
       ['/dir', 'the folder it works in · /dir C:\\work changes it'],
+      ['/harness', 'the engine · /harness moundshroud · claude · jcode'],
+      ['/scan', 'look on every drive for AI models, and list them by what they do'],
+      ['/import', 'bring a model file into Ollama · /import qwen'],
+      ['/find', 'search the folder by meaning with an embedding model · /find login check'],
       ['/help', 'this list'],
     ];
     async function cmd(line) {
@@ -582,6 +672,34 @@
         if ($('hstop').style.display === 'none') { say('Nothing is running.'); return; }
         await $('hstop').onclick();
         return;
+      }
+      if (c === '/harness' || c === '/engine') {
+        const want = arg.toLowerCase(), k = /moun|native|mcode|built/.test(want) ? 'native' : /claude/.test(want) ? 'claude' : /jcode/.test(want) ? 'jcode' : '';
+        if (!k) { say('Engine · <b>' + esc(engName((st && st.harness) || 'claude')) + '</b>   —   /harness moundshroud · /harness claude · /harness jcode'); return; }
+        await switchEngine(k); return;
+      }
+      if (c === '/scan') {
+        if (!A.anyModel) { say('The model list is not loaded.'); return; }
+        say('Looking on every drive for AI models · it takes up to half a minute…');
+        const cat = await A.anyModel.list(true); await addAnyModels();
+        const by = {}; (cat.models || []).forEach(m => { by[m.useLabel] = (by[m.useLabel] || 0) + 1; });
+        say('<b>' + (cat.models || []).length + ' AI models on this PC</b><div class="small" style="margin-top:4px">' + Object.keys(by).map(k => '<div>' + esc(k) + ' · ' + by[k] + '</div>').join('') + '</div><div class="small mute" style="margin-top:6px">Every one is in the model chip under the box.</div>');
+        return;
+      }
+      if (c === '/import' || c === '/find') {
+        if (!A.anyModel) { say('The model list is not loaded.'); return; }
+        const cat = await A.anyModel.list();
+        if (c === '/import') {
+          const files = (cat.models || []).filter(m => m.use === 'import');
+          if (!arg) { say(files.length ? '<b>Model files Ollama can take</b><div class="small" style="margin-top:4px">' + files.map(m => '<div>· ' + esc(m.name) + ' <span class="mute">' + esc(m.source || '') + '</span></div>').join('') + '</div><div class="small mute" style="margin-top:6px">/import qwen brings one in.</div>' : 'There are no model files left for Ollama to take. /scan looks again.'); return; }
+          const hit = files.find(m => m.name.toLowerCase().includes(arg.toLowerCase()));
+          if (!hit) { say('There is no model file like “' + esc(arg) + '”. /import lists them.'); return; }
+          return anyRun(A.anyModel.valueOf(hit), arg);
+        }
+        if (!arg) { say('Search the folder by meaning · /find where the settings are saved'); return; }
+        const cur = anyChosen() && A.anyModel.entry(anyChosen()), em = cur && cur.use === 'find' ? cur : (cat.models || []).find(m => m.use === 'find');
+        if (!em) { say('There is no embedding model in Ollama. /import lists the files Ollama can take, or /pull nomic-ai/nomic-embed-text-v1.5-GGUF gets one.'); return; }
+        return anyRun(A.anyModel.valueOf(em), arg);
       }
       if (c === '/pull' || c === '/hf') {
         if (!arg) { say('Pull a GGUF model from Hugging Face · /pull user/repo  ·  /pull user/repo:Q4_K_M  ·  add :smallest for the littlest file'); return; }

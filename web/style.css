@@ -874,3 +874,21 @@ button.actp-r{cursor:pointer}button.actp-r:hover{background:var(--panel2)}
 /* ---------- App-wide zero-lag GPU & layout containment ---------- */
 .panel.on{contain:layout style}
 .msg,.acmsg,.ch-item,.card,.gcard,.bk,.nw-card,.sxrow{contain:layout style}
+
+/* any model: what a picture, clip, voice, music or search model made, inside Chat and Agent messages (web/js/anymodel.js) */
+.am-made{margin:8px auto;max-width:640px;text-align:left}
+.am-made img,.am-made video{display:block;max-height:520px;margin:0 auto;box-shadow:0 8px 24px -14px rgba(0,0,0,.6)}
+.am-hits{max-width:720px;margin:8px auto;text-align:left;font-size:13px;color:var(--text)}
+.am-hit{padding:7px 10px;margin-top:6px;border:1px solid var(--line);border-radius:9px;background:var(--panel2)}
+.am-hit .mono{font-family:Consolas,"Cascadia Mono",monospace;white-space:pre-wrap;word-break:break-word;color:var(--mute);margin-top:2px}
+.agnote .am-made,.agnote .am-hits{font-size:13px}
+#agcmod{max-width:min(420px,46vw)}
+
+/* Agent settings: the three engines (Moundshroud Code, Claude Code, jcode) */
+.ageng{display:flex;flex-direction:column;gap:8px}
+.agengo{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel2);cursor:pointer}
+.agengo.on{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
+.agengo.off{opacity:.6;cursor:default}
+.agengo input{margin-top:3px}
+.agengo .ok{color:var(--ok,#30a46c)}.agengo .bad{color:var(--warn,#d97706)}
+.agengnow{font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;background:color-mix(in srgb,var(--acc,#7c5cff) 18%,transparent);color:var(--acc)}

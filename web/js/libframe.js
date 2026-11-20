@@ -7,7 +7,7 @@
 //   A.libframe.src('/wiki/...')  ->  the full address to load;  A.libframe.isLib(url)  ->  is it a library page?
 (() => {
   const port = (+location.port || 80) + 9;
-  const origin = () => location.protocol + '//' + location.hostname + ':' + port;
+  const origin = () => location.protocol === 'app:' ? 'app://moundshroud-lib' : (location.protocol + '//' + location.hostname + ':' + port);
   const isLib = u => /^\/wiki\//.test(String(u || '')) || String(u || '').startsWith(origin() + '/wiki/');
   const src = u => isLib(u) && String(u).startsWith('/') ? origin() + u : u;
   let seq = 0; const waiting = {};

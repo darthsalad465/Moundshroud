@@ -557,7 +557,11 @@ try {
     try { await require('./brain-test.js')(ok); } catch (e) { ok('the 3D Brain performance test loads', false, e.message); }
     try { await require('./chat-ux-test.js')(ok); } catch (e) { ok('the Chat UX & zero-OS-popup test loads', false, e.message); }
     try { await require('./globe-test.js')(ok); } catch (e) { ok('the 3D World Globe test loads', false, e.message); }
+    try { await require('./globe-packs-test.js')(ok); } catch (e) { ok('the Globe offline region packs test loads', false, e.message); }
     try { await require('./modelmon-test.js')(ok); } catch (e) { ok('the Model Monsters test loads', false, e.message); }
+    try { await require('./model-finder-test.js')(ok); } catch (e) { ok('the model finder test loads', false, e.message); }
+    try { await require('./micro-test.js')(ok); } catch (e) { ok('the micro repos test loads', false, e.message); }
+    try { await require('./standalone-test.js')(ok); } catch (e) { ok('the standalone zero-localhost test loads', false, e.message); }
     try { const MT = require(path.join(__dirname, '..', 'lib', 'mail.js'))._t, pw = 'tést "pw" ✓', blob = await MT.protectPw(pw); ok('mail: Windows keeps the password protected and gives it back', !blob.includes('pw') && await MT.unprotectPw(blob) === pw); } catch (e) { ok('mail: Windows keeps the password protected', false, e.message); }
     console.log('\n' + pass + ' passed, ' + fail + ' failed');
     process.exit(fail ? 1 : 0);

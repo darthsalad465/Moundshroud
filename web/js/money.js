@@ -24,13 +24,38 @@
   function over() {
     const s = sums(st.month), prev = sums(shiftM(st.month, -1)), cats = Object.entries(s.by).sort((a, b) => b[1] - a[1]), tot = s.out || 1;
     shell(mbar() + '<div class="mo-g"><div class="mo-card"><div class="small mute">Income</div><div class="mo-big" style="color:var(--ok)">' + amt(s.inc) + '</div></div><div class="mo-card"><div class="small mute">Spent</div><div class="mo-big" style="color:var(--bad)">' + amt(s.out) + '</div><div class="small mute">' + (prev.out ? (s.out >= prev.out ? '▲ ' : '▼ ') + Math.round(Math.abs(s.out - prev.out) / prev.out * 100) + '% vs last month' : '') + '</div></div><div class="mo-card"><div class="small mute">Left over</div><div class="mo-big" style="color:' + (s.net >= 0 ? 'var(--ok)' : 'var(--bad)') + '">' + amt(s.net, 1) + '</div><div class="small mute">' + (s.inc ? 'You kept ' + Math.round(s.net / s.inc * 100) + '% of your income' : '') + '</div></div></div>' +
-      '<div class="mo-g"><div class="mo-card"><b>Where it went</b>' + (cats.length ? '<canvas class="mocv" id="mdn" height="200"></canvas>' + cats.map(([c, v], i) => '<div class="mo-row"><i style="width:10px;height:10px;border-radius:50%;background:' + COL[EXP.indexOf(c) % 12] + '"></i><span style="flex:1">' + esc2(c) + '</span><span class="small mute">' + Math.round(v / tot * 100) + '%</span>' + amt(v) + '</div>').join('') : '<div class="mute small" style="padding:10px 0">Nothing spent this month yet.</div>') + '</div><div class="mo-card"><b>Last six months</b><canvas class="mocv" id="mbr" height="230"></canvas></div></div>' + (!M.tx.length ? '<div class="mo-card"><b>Getting started</b><div class="small" style="margin-top:4px;line-height:1.6">Open <b>Transactions</b> and add what you earn and spend. Then set monthly limits in <b>Budgets</b> and savings targets in <b>Savings goals</b>.</div></div>' : ''));
+      '<div class="mo-g"><div class="mo-card"><b>Where it went</b>' + (cats.length ? '<canvas class="mocv" id="mdn" height="200"></canvas>' + cats.map(([c, v], i) => '<div class="mo-row"><i style="width:10px;height:10px;border-radius:50%;background:' + COL[EXP.indexOf(c) % 12] + '"></i><span style="flex:1">' + esc2(c) + '</span><span class="small mute">' + Math.round(v / tot * 100) + '%</span>' + amt(v) + '</div>').join('') : '<div class="mute small" style="padding:10px 0">Nothing spent this month yet.</div>') + '</div><div class="mo-card"><b>Last six months</b><div id="mup" style="width:100%"></div><canvas class="mocv" id="mbr" height="230"></canvas></div></div>' + (!M.tx.length ? '<div class="mo-card"><b>Getting started</b><div class="small" style="margin-top:4px;line-height:1.6">Open <b>Transactions</b> and add what you earn and spend. Then set monthly limits in <b>Budgets</b> and savings targets in <b>Savings goals</b>.</div></div>' : ''));
     donut(cats); bars();
   }
   function donut(cats) { const cv = root.querySelector('#mdn'); if (!cv) return; const dpr = Math.min(2, devicePixelRatio || 1), w = Math.max(200, cv.clientWidth), h = 200; cv.width = w * dpr; cv.height = h * dpr; const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); const tot = cats.reduce((a, b) => a + b[1], 0) || 1, cx = w / 2, cy = h / 2, R = 80; let a0 = -Math.PI / 2; cats.forEach(([k, v]) => { const a1 = a0 + v / tot * Math.PI * 2; c.fillStyle = COL[EXP.indexOf(k) % 12]; c.beginPath(); c.moveTo(cx, cy); c.arc(cx, cy, R, a0, a1); c.closePath(); c.fill(); a0 = a1; }); c.fillStyle = getComputedStyle(document.body).backgroundColor || '#161923'; c.beginPath(); c.arc(cx, cy, 48, 0, 7); c.fill(); c.fillStyle = '#9aa3ba'; c.font = '12px system-ui'; c.textAlign = 'center'; c.fillText('spent', cx, cy + 4); }
   function bars() {
-    const cv = root.querySelector('#mbr'); if (!cv) return; const dpr = Math.min(2, devicePixelRatio || 1), w = Math.max(240, cv.clientWidth), h = 230; cv.width = w * dpr; cv.height = h * dpr; const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const ms = Array.from({ length: 6 }, (_, i) => shiftM(st.month, i - 5)), data = ms.map(k => sums(k)), mx = Math.max(1, ...data.map(d => Math.max(d.inc, d.out))), bw = (w - 30) / 6;
+    const ms = Array.from({ length: 6 }, (_, i) => shiftM(st.month, i - 5)), data = ms.map(k => sums(k));
+    const upHost = root.querySelector('#mup'), cv = root.querySelector('#mbr');
+    if (upHost && typeof window.uPlot === 'function') {
+      try {
+        if (cv) cv.style.display = 'none';
+        const xs = ms.map(k => Math.floor(new Date(+k.slice(0, 4), +k.slice(5) - 1, 15).getTime() / 1000));
+        const incs = data.map(d => +d.inc.toFixed(2)), outs = data.map(d => +d.out.toFixed(2)), nets = data.map(d => +d.net.toFixed(2));
+        const w = Math.max(260, upHost.clientWidth || 360);
+        new window.uPlot({
+          width: w, height: 220,
+          scales: { x: { time: true } },
+          axes: [
+            { stroke: '#9aa3ba', grid: { stroke: 'rgba(154,163,186,.12)' } },
+            { stroke: '#9aa3ba', grid: { stroke: 'rgba(154,163,186,.12)' }, values: (u, vals) => vals.map(v => M.cur + Math.round(v)) }
+          ],
+          series: [
+            {},
+            { label: 'Income', stroke: '#5ee6a8', fill: 'rgba(94,230,168,.12)', width: 2.2 },
+            { label: 'Spent', stroke: '#ff6b81', fill: 'rgba(255,107,129,.12)', width: 2.2 },
+            { label: 'Net', stroke: '#8b7cff', width: 2, dash: [5, 4] }
+          ]
+        }, [xs, incs, outs, nets], upHost);
+        return;
+      } catch (e) { if (cv) cv.style.display = ''; }
+    }
+    if (!cv) return; const dpr = Math.min(2, devicePixelRatio || 1), w = Math.max(240, cv.clientWidth), h = 230; cv.width = w * dpr; cv.height = h * dpr; const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const mx = Math.max(1, ...data.map(d => Math.max(d.inc, d.out))), bw = (w - 30) / 6;
     c.fillStyle = '#9aa3ba'; c.font = '11px system-ui'; c.textAlign = 'center'; data.forEach((d, i) => { const x = 15 + i * bw, hi = (h - 50) * d.inc / mx, ho = (h - 50) * d.out / mx; c.fillStyle = '#5ee6a8'; c.fillRect(x + bw * 0.12, h - 30 - hi, bw * 0.34, hi); c.fillStyle = '#ff6b81'; c.fillRect(x + bw * 0.52, h - 30 - ho, bw * 0.34, ho); c.fillStyle = '#9aa3ba'; c.fillText(new Date(+ms[i].slice(0, 4), +ms[i].slice(5) - 1, 1).toLocaleDateString([], { month: 'short' }), x + bw / 2, h - 12); });
     c.textAlign = 'left'; c.fillStyle = '#5ee6a8'; c.fillRect(15, 6, 10, 10); c.fillStyle = '#9aa3ba'; c.fillText('income', 29, 15); c.fillStyle = '#ff6b81'; c.fillRect(90, 6, 10, 10); c.fillStyle = '#9aa3ba'; c.fillText('spent', 104, 15);
   }
@@ -60,7 +85,13 @@ function txs() {
   }
   const draw = () => ({ over, tx: txs, bud: buds, goal: goals, tools })[st.tab]();
   const csvEsc = s => /[",\n]/.test(s) ? '"' + String(s).replace(/"/g, '""') + '"' : s;
-  const parseCsv = text => { const rows = []; let row = [], cur = '', q = false; for (let i = 0; i < text.length; i++) { const ch = text[i]; if (q) { if (ch === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += ch; } else if (ch === '"') q = true; else if (ch === ',') { row.push(cur); cur = ''; } else if (ch === '\n' || ch === '\r') { if (ch === '\r' && text[i + 1] === '\n') i++; row.push(cur); rows.push(row); row = []; cur = ''; } else cur += ch; } if (cur || row.length) { row.push(cur); rows.push(row); } return rows; };
+  const parseCsv = text => {
+    if (window.Papa && typeof window.Papa.parse === 'function') {
+      const p = window.Papa.parse(String(text || ''), { skipEmptyLines: true });
+      if (p && Array.isArray(p.data)) return p.data;
+    }
+    const rows = []; let row = [], cur = '', q = false; for (let i = 0; i < text.length; i++) { const ch = text[i]; if (q) { if (ch === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += ch; } else if (ch === '"') q = true; else if (ch === ',') { row.push(cur); cur = ''; } else if (ch === '\n' || ch === '\r') { if (ch === '\r' && text[i + 1] === '\n') i++; row.push(cur); rows.push(row); row = []; cur = ''; } else cur += ch; } if (cur || row.length) { row.push(cur); rows.push(row); } return rows;
+  };
   root.addEventListener('click', async e => {
     const T = e.target, c = s => T.closest(s); let el;
     if ((el = c('[data-tab]'))) { st.tab = el.dataset.tab; st.q = ''; st.cat = ''; draw(); return; }
@@ -68,7 +99,7 @@ function txs() {
     if ((el = c('[data-del]'))) { if ((await A.confirm('Delete this transaction?'))) { M.tx = M.tx.filter(t => t.id !== el.dataset.del); save(); draw(); } return; }
     if (T.id === 'madd') { const a = parseFloat(root.querySelector('#ma').value); if (!(a > 0)) { A.toast('Type an amount first.'); return; } const sg = +root.querySelector('#mt').value, d = root.querySelector('#md').value || dkey(new Date()); M.tx.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), d, a: sg * a, c: root.querySelector('#mc').value, n: root.querySelector('#mn').value.trim() }); save(); st.month = d.slice(0, 7); draw(); A.toast('Added.'); return; }
     if (T.id === 'gadd') { const n = root.querySelector('#gn').value.trim(), t = parseFloat(root.querySelector('#gt').value); if (!n || !(t > 0)) { A.toast('Name the goal and set a target.'); return; } M.goals.push({ id: Date.now().toString(36), n, target: t, saved: 0, by: root.querySelector('#gb').value }); save(); draw(); return; }
-    if ((el = c('[data-gplus]'))) { const g = M.goals.find(x => x.id === el.dataset.gplus), v = parseFloat(root.querySelector('[data-gadd="' + g.id + '"]').value); if (g && v) { g.saved = Math.max(0, g.saved + v); save(); draw(); } return; }
+    if ((el = c('[data-gplus]'))) { const g = M.goals.find(x => x.id === el.dataset.gplus), v = parseFloat(root.querySelector('[data-gadd="' + g.id + '"]').value); if (g && v) { const was = g.saved; g.saved = Math.max(0, g.saved + v); save(); draw(); if (was < g.target && g.saved >= g.target && typeof window.confetti === 'function') { try { window.confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } }); } catch (e) { } } } return; }
     if ((el = c('[data-gdel]'))) { if ((await A.confirm('Delete this goal?'))) { M.goals = M.goals.filter(x => x.id !== el.dataset.gdel); save(); draw(); } return; }
     if ((el = c('[data-a]'))) {
       const a = el.dataset.a;

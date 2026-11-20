@@ -1,6 +1,6 @@
 // Voice input: record from the microphone, send a small 16 kHz wav to the local speech engine, get text back. Nothing leaves this PC.
 (() => {
-  let ctx = null, stream = null, proc = null, src = null, chunks = [], rate = 48000, timer = null, t0 = 0, onText = null, onState = null;
+  let ctx = null, stream = null, proc = null, src = null, chunks = [], rate = 48000, timer = null, t0 = 0, onText = null, onState = null, model = '';
   function encodeWav(f32, inRate) {
     const outRate = 16000, ratio = inRate / outRate, n = Math.floor(f32.length / ratio), out = new Int16Array(n);
     for (let i = 0; i < n; i++) { const a = Math.floor(i * ratio), b = Math.min(f32.length - 1, Math.floor((i + 1) * ratio)); let s = 0, c = 0; for (let k = a; k <= b; k++) { s += f32[k]; c++; } const v = Math.max(-1, Math.min(1, s / c)); out[i] = v < 0 ? v * 0x8000 : v * 0x7fff; }
@@ -12,7 +12,7 @@
     rec: false,
     available: () => !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
     async start(textCb, stateCb, opts) {
-      if (A.voice.rec) return; onText = textCb; onState = stateCb; opts = opts || {}; let heard = false, lastLoud = Date.now(), level = 0;
+      if (A.voice.rec) return; onText = textCb; onState = stateCb; opts = opts || {}; model = opts.model || '';   // opts.model: a speech-to-text model id from the model catalog let heard = false, lastLoud = Date.now(), level = 0;
       try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
       catch (e) { A.toast('Microphone blocked. Allow it in the window\'s address/permissions icon, then try again.', 5000); return; }
       ctx = new (window.AudioContext || window.webkitAudioContext)(); rate = ctx.sampleRate; src = ctx.createMediaStreamSource(stream);
@@ -39,7 +39,7 @@
       if (len < rate * 0.4) { if (onState) onState('idle'); A.toast('That was too short - hold on a bit longer.'); return; }
       if (onState) onState('busy');
       try {
-        const r = await fetch('/api/transcribe', { method: 'POST', body: encodeWav(all, rate), headers: { 'Content-Type': 'audio/wav' } }); const j = await r.json();
+        const r = await fetch('/api/transcribe' + (model ? '?model=' + encodeURIComponent(model) : ''), { method: 'POST', body: encodeWav(all, rate), headers: { 'Content-Type': 'audio/wav' } }); const j = await r.json();
         if (j.error) A.toast('Voice: ' + j.error, 4000); else if (j.text && j.text.trim()) { if (onText) onText(j.text.replace(/^\s*\[BLANK_AUDIO\]\s*$/, '').trim()); } else A.toast('I did not catch that.');
       } catch (e) { A.toast('Voice input failed.'); }
       if (onState) onState('idle');

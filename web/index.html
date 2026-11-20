@@ -17,6 +17,9 @@
 <link rel="stylesheet" href="/web/storybook.css">
 <link rel="stylesheet" href="/web/guide-book.css">
 <link rel="stylesheet" href="/web/bible-book.css">
+<link rel="stylesheet" href="/web/vendor/micro/uplot.min.css">
+<link rel="stylesheet" href="/web/vendor/micro/temml.min.css">
+<link rel="stylesheet" href="/web/vendor/micro/prism-tomorrow.min.css">
 <script>/* The new look (web/shroud.css, web/js/shroud.js) is decided here, before anything is drawn, so the window never flashes the old layout.
    The first time it runs it moves the app to the Moundshroud colour theme and remembers the old choice (oa_shroud_prev), so one click brings it back. */
 (function(){try{var d=document.documentElement,s=localStorage;
@@ -125,6 +128,7 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
   <button class="ib" id="cog" title="Settings">&#9881;</button>
 </header>
 <nav id="nav"></nav>
+<div id="section-actions" role="group" aria-label="Section tools" hidden></div>
 <main>
   <!-- CHAT -->
   <section class="panel" id="p-chat">
@@ -251,6 +255,38 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
 <script defer src="/web/js/motion.js"></script>
 <script defer src="/web/js/sfx.js"></script>
 <script defer src="/web/js/music.js"></script>
+<script defer src="/web/vendor/micro/suncalc.min.js"></script>
+<script defer src="/web/vendor/micro/codejar.min.js"></script>
+<script defer src="/web/vendor/micro/qrcodegen.min.js"></script>
+<script defer src="/web/vendor/micro/ts-fsrs.umd.js"></script>
+<script defer src="/web/vendor/micro/minisearch.min.js"></script>
+<script defer src="/web/vendor/micro/papaparse.min.js"></script>
+<script defer src="/web/vendor/micro/purify.min.js"></script>
+<script defer src="/web/vendor/micro/diff.min.js"></script>
+<script defer src="/web/vendor/micro/fflate.min.js"></script>
+<script defer src="/web/vendor/micro/rough.min.js"></script>
+<script defer src="/web/vendor/micro/sortable.min.js"></script>
+<script defer src="/web/vendor/micro/uplot.min.js"></script>
+<script defer src="/web/vendor/micro/jsqr.min.js"></script>
+<script defer src="/web/vendor/micro/graphre.min.js"></script>
+<script defer src="/web/vendor/micro/nomnoml.min.js"></script>
+<script defer src="/web/vendor/micro/chrono.min.js"></script>
+<script defer src="/web/vendor/micro/otpauth.min.js"></script>
+<script defer src="/web/vendor/micro/exifr.min.js"></script>
+<script defer src="/web/vendor/micro/readability.min.js"></script>
+<script defer src="/web/vendor/micro/fraction.min.js"></script>
+<script defer src="/web/vendor/micro/colord.min.js"></script>
+<script defer src="/web/vendor/micro/midi.min.js"></script>
+<script defer src="/web/vendor/micro/panzoom.min.js"></script>
+<script defer src="/web/vendor/micro/split.min.js"></script>
+<script defer src="/web/vendor/micro/confetti.min.js"></script>
+<script defer src="/web/vendor/micro/prism.min.js" data-manual></script>
+<script defer src="/web/vendor/micro/jsbarcode.min.js"></script>
+<script defer src="/web/vendor/micro/js-yaml.min.js"></script>
+<script defer src="/web/vendor/micro/ical.min.js"></script>
+<script defer src="/web/vendor/micro/temml.min.js"></script>
+<script defer src="/web/vendor/micro/franc.min.js"></script>
+<script defer src="/web/js/micro.js"></script>
 <script defer src="/web/js/md.js"></script>
 <script defer src="/web/js/calc.js"></script>
 <script defer src="/web/js/calc-engine.js"></script>
@@ -263,6 +299,7 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
 <script defer src="/web/js/speech.js"></script>
 <script defer src="/web/js/voice.js"></script>
 <script defer src="/web/js/memory.js"></script>
+<script defer src="/web/js/anymodel.js"></script>
 <script defer src="/web/js/chat.js"></script>
 <script defer src="/web/js/voicemode.js"></script>
 <script defer src="/web/js/favorites.js"></script>
@@ -330,6 +367,7 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
 <script defer src="/web/js/play-g4.js"></script>
 <script defer src="/web/js/world-renderer.js"></script>
 <script defer src="/web/js/world-landscapes.js"></script>
+<script defer src="/web/js/emberwild-expedition.js"></script>
 <script defer src="/web/js/play-worlds.js"></script>
 <script defer src="/web/js/play-valley.js"></script>
 <script defer src="/web/js/play-harvest-orbit.js"></script>
@@ -397,6 +435,7 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
 <script defer src="/web/js/privweb.js"></script>
 <script defer src="/web/js/websearch.js"></script>
 <script defer src="/web/js/music-mine.js"></script>
+<script defer src="/web/vendor/tonal/tonal.min.js"></script>
 <script defer src="/web/js/music-lib.js"></script>
 <script defer src="/web/js/sky-core.js"></script>
 <script defer src="/web/js/sky.js"></script>
@@ -488,6 +527,8 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
 <script defer src="/web/js/problems.js"></script>
 <script defer src="/web/js/focus.js"></script>
 <script defer src="/web/js/regroup.js"></script>
+<link rel="stylesheet" href="/web/section-tools.css">
+<script type="module" src="/web/js/section-tools.mjs"></script>
 <script defer src="/web/js/shroud.js"></script>
 <script defer src="/web/js/main.js"></script>
 <script defer src="/web/js/guard.js"></script>

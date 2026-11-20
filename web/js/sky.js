@@ -115,6 +115,12 @@
     c.fill(); c.restore(); c.strokeStyle = 'rgba(255,255,255,.25)'; c.beginPath(); c.arc(cx, cy, r, 0, 7); c.stroke();
   }
   Sky.moonCanvas = moonCanvas;
+  Sky.sunTimes = (date, lat, lon) => {
+    if (!window.SunCalc) return null;
+    const d = date ? new Date(date) : new Date(), la = lat != null ? lat : (LOC && LOC.lat), lo = lon != null ? lon : (LOC && LOC.lon);
+    if (la == null || lo == null) return null;
+    return { sun: window.SunCalc.getTimes(d, la, lo), moon: window.SunCalc.getMoonTimes(d, la, lo), illum: window.SunCalc.getMoonIllumination(d) };
+  };
   function tonight(body) {
     body.innerHTML = '<div class="scroll pad" style="flex:1"><div id="sknow"></div></div>';
     const host = body.querySelector('#sknow');
@@ -129,8 +135,11 @@
       let html = '<div class="skg">';
       html += '<div class="card"><div class="mute small">' + fmtD(now) + '</div><div class="skbig">' + fmtT(now) + '</div><div style="margin:2px 0 8px"><b>' + state + '</b> &middot; the Sun is ' + (sh.alt > 0 ? sh.alt.toFixed(0) + '° above' : Math.abs(sh.alt).toFixed(0) + '° below') + ' the horizon, toward the ' + S.cardWord(sh.az) + ' (' + sh.az.toFixed(0) + '°)</div>' +
         '<div class="mute small">' + (dark ? 'Dark enough for stars. Open <b>Sky chart</b> to see what is overhead right now.' : sh.alt > 0 ? 'The stars are out of sight in daylight, but the chart still shows where they are.' : 'Stars will appear as the sky darkens.') + '</div><div style="margin-top:8px"><button class="skbtn on" data-go="chart">Open sky chart</button> <button class="skbtn" data-go="compass">Compass</button> <button class="skbtn" data-go="solar">Solar system</button></div></div>';
+      const sc = window.SunCalc ? window.SunCalc.getTimes(new Date(now), LOC.lat, LOC.lon) : null;
+      const fmtSc = d => d && !isNaN(d.getTime()) ? fmtT(d.getTime()) : '--';
       html += '<div class="card"><b>☀️ Sun</b><div class="skrow"><span>Sunrise</span><b>' + (rs.rise ? fmtT(rs.rise) : rs.always === 'up' ? 'Sun stays up' : 'Sun stays down') + '</b></div><div class="skrow"><span>Solar noon</span><b>' + fmtT(rs.transit) + ' &middot; ' + rs.maxAlt.toFixed(0) + '° high</b></div><div class="skrow"><span>Sunset</span><b>' + (rs.set ? fmtT(rs.set) : '--') + '</b></div>' +
         (len != null ? '<div class="skrow"><span>Day length</span><b>' + hm(len) + (lenY != null ? ' <span class="mute small">(' + ((len - lenY) * 60 >= 0 ? '+' : '') + ((len - lenY) * 60).toFixed(1) + ' min vs yesterday)</span>' : '') + '</b></div>' : '') +
+        (sc ? '<div class="skrow"><span>Morning golden hour ends</span><b>' + fmtSc(sc.goldenHourEnd) + '</b></div><div class="skrow"><span>Evening golden hour starts</span><b>' + fmtSc(sc.goldenHour) + '</b></div>' : '') +
         '<div class="skrow"><span>Morning twilight starts</span><b>' + fmtT(cv.rise) + '</b></div><div class="skrow"><span>Evening twilight ends</span><b>' + fmtT(cv.set) + '</b></div><div class="skrow"><span>Fully dark from</span><b>' + (as.set ? fmtT(as.set) : nt.set ? fmtT(nt.set) + ' (no true dark)' : 'not tonight') + '</b></div></div>';
       html += '<div class="card"><div class="row" style="gap:12px;align-items:flex-start"><canvas id="skmoon" width="96" height="96"></canvas><div style="flex:1"><b>🌙 ' + S.phaseName(mo.elong) + '</b><div class="small">' + (mo.ill * 100).toFixed(0) + '% lit &middot; ' + (mh.alt > 0 ? 'up now, ' + mh.alt.toFixed(0) + '° high toward the ' + S.cardWord(mh.az) : 'below the horizon now') + '</div></div></div>' +
         '<div class="skrow"><span>Moonrise</span><b>' + fmtT(mrs.rise) + '</b></div><div class="skrow"><span>Moonset</span><b>' + fmtT(mrs.set) + '</b></div><div class="skrow"><span>Next full moon</span><b>' + fmtDT(nf) + '</b></div><div class="skrow"><span>Next new moon</span><b>' + fmtDT(nn) + '</b></div></div>';

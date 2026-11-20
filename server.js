@@ -42,6 +42,7 @@ const practice = require('./lib/practice');
 const forge = require('./lib/forge');
 const heretic = require('./lib/heretic');
 const toolkit = require('./lib/toolkit');
+const microtools = require('./lib/microtools');
 const ROOT = __dirname, DATA = process.env.MOUNDSHROUD_DATA ? path.resolve(process.env.MOUNDSHROUD_DATA) : path.join(ROOT, 'data'), WEB = path.join(ROOT, 'web'), CHEF = path.join(ROOT, 'nomad', 'cyberchef');
 const ROOT_DIR_GE = path.join(ROOT, 'engines', 'godot', 'web-editor');          // Godot's official web editor build
 fs.mkdirSync(DATA, { recursive: true });
@@ -81,8 +82,9 @@ function cleanup() {
   try { lmstudioSync.stopWatcher(); } catch (e) {} // and the Ollama -> LM Studio model sync watcher
 }
 try { require('./lib/chess-sf').setActive(() => Date.now() - lastPing < 90000); } catch (e) { }
-function shutdown() { if (down) return; down = true; cleanup(); setTimeout(() => process.exit(0), 200); }
-process.on('exit', cleanup); process.on('SIGINT', shutdown); process.on('SIGTERM', shutdown);
+const EMBEDDED = process.env.MOUNDSHROUD_EMBEDDED === '1' || require.main !== module;
+function shutdown() { if (down) return; down = true; cleanup(); if (!EMBEDDED) setTimeout(() => process.exit(0), 200); }
+if (!EMBEDDED) { process.on('exit', cleanup); process.on('SIGINT', shutdown); process.on('SIGTERM', shutdown); }
 /* Nothing should be able to take the app down without a trace. A stray throw in a callback used to end the server (the window
    then showed "page not found", with no clue why and no way to see it). Now it is written to data\problems.log and the app keeps
    serving; if it keeps happening in a burst, the log says so and the page can offer a restart. */
@@ -181,6 +183,7 @@ const media = require('./lib/media'), swarm = require('./lib/swarm'), swarmModel
 const safeDir = require('./lib/safe-dir'), harnessLib = require('./lib/harness');
 const harnessStore = harnessLib.store(DATA), jcodeLib = require('./lib/harness-jcode'), nativeLib = require('./lib/harness-native');
 const hfLib = require('./lib/hf-gguf');
+const modelUses = require('./lib/model-uses'), codeFind = require('./lib/code-find');
 const globeLib = require('./lib/globe').create(DATA, cams);
 /* the lines a command leaves behind after it has answered (a model finishing its pull, a craft run): the Agent tab
    asks for the new ones as it polls, so a long job can report while the page is still open */
@@ -339,7 +342,7 @@ const allowedPath = p => { p = path.normalize(String(p || '')); if (p.includes('
    Only the Moundshroud window. A web page open in your browser can send requests to localhost too, so every request must name this server in
    its Host header (blocks DNS rebinding), and any Origin / Sec-Fetch-Site the browser adds must say "this same site" (blocks cross-site
    requests). The tray helper and scripts send neither header and are unaffected. */
-const SELF = new Set(['127.0.0.1:' + PORT, 'localhost:' + PORT]), SELF_ORIGIN = new Set(['http://127.0.0.1:' + PORT, 'http://localhost:' + PORT]);
+const SELF = new Set(['127.0.0.1:' + PORT, 'localhost:' + PORT, 'moundshroud']), SELF_ORIGIN = new Set(['http://127.0.0.1:' + PORT, 'http://localhost:' + PORT, 'app://moundshroud']);
 /* Model Monsters reads each local model's /api/show metadata; one cached copy is shared by every request. */
 let mmStatsCache = { at: 0, models: null };
 const monsterRules = require('./web/js/modelmon-core');
@@ -466,13 +469,13 @@ const mmParamCount = v => {
   if (!m) return 0;
   return (parseFloat(m[1]) || 0) * unit(m[2]);
 };
-const CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: data:; worker-src 'self' blob:; frame-src 'self' blob: data: http://127.0.0.1:" + LIBPORT + " http://localhost:" + LIBPORT + " http://127.0.0.1:" + artexmod.PORT + " http://localhost:" + artexmod.PORT + " http://127.0.0.1:" + juiceshop.FRAME + " http://localhost:" + juiceshop.FRAME + " https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
+const CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: data:; worker-src 'self' blob:; frame-src 'self' blob: data: app://moundshroud-lib http://127.0.0.1:" + LIBPORT + " http://localhost:" + LIBPORT + " http://127.0.0.1:" + artexmod.PORT + " http://localhost:" + artexmod.PORT + " http://127.0.0.1:" + juiceshop.FRAME + " http://localhost:" + juiceshop.FRAME + " https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
 const CSP_OFFLINE = CSP.replace(' https://www.youtube-nocookie.com', '');
 function allowedCaller(req) {
   const h = req.headers, host = String(h.host || '').toLowerCase(), org = h.origin, sfs = h['sec-fetch-site'];
   return SELF.has(host) && (!org || SELF_ORIGIN.has(String(org).toLowerCase())) && (!sfs || sfs === 'same-origin' || sfs === 'none');
 }
-const mainServer = http.createServer(async (req, res) => {
+async function handleAppRequest(req, res) {
   const u = new URL(req.url, 'http://127.0.0.1'); const url = u.pathname, q = u.searchParams;
   if (!allowedCaller(req)) { res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' }); return res.end('Blocked: this request did not come from the Moundshroud window.'); }
   res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Referrer-Policy', 'no-referrer'); res.setHeader('X-Frame-Options', 'SAMEORIGIN'); res.setHeader('Cross-Origin-Resource-Policy', 'same-origin'); res.setHeader('Permissions-Policy', 'geolocation=(), camera=(), usb=(), payment=()'); res.setHeader('Content-Security-Policy', offline.isAppOffline() ? CSP_OFFLINE : CSP);
@@ -629,6 +632,29 @@ if (url === '/api/models') {
     http.get({ ...OLLAMA, path: '/api/tags' }, r => { let b = ''; r.on('data', c => b += c); r.on('end', () => { try { const j = JSON.parse(b); const all = (j.models || []).map(m => ({ name: m.name, size: m.size || 0 })).concat(cloudList); json(res, 200, { ollama: true, cloud: cs.on, defaultModel: def, models: modelOrder.sortModels(all, def), provider: cs.provider, hardware: hw }); } catch (e) { json(res, 200, { ollama: true, cloud: cs.on, defaultModel: def, models: modelOrder.sortModels(cloudList, def), provider: cs.provider, hardware: hw }); } }); })
       .on('error', () => json(res, 200, { ollama: false, cloud: cs.on, defaultModel: def, models: modelOrder.sortModels(cloudList, def), provider: cs.provider, hardware: hw }));
   });
+}
+/* ---- every AI model on this PC, each with a use (lib/model-uses.js) ---- */
+if (url === '/api/models/all' && req.method === 'GET') {
+  try { return json(res, 200, Object.assign({ ok: true }, await modelUses.catalog({ fresh: q.get('fresh') === '1' }))); }
+  catch (e) { return json(res, 200, { ok: false, error: e.message, models: [] }); }
+}
+if (url === '/api/models/import' && req.method === 'POST') { const b = await jbody(req, 4e3).catch(() => ({})); return json(res, 200, await modelUses.importModel(hfLib, b || {})); }
+if (url === '/api/models/run' && req.method === 'POST') {
+  const b = await jbody(req, 2e4).catch(() => ({})) || {};
+  let copyTo = '';
+  if (b.dir) { const sd = safeDir.check(String(b.dir)); if (sd.ok) copyTo = sd.dir; }
+  return json(res, 200, await modelUses.run(media, { id: String(b.id || ''), prompt: String(b.prompt || '').slice(0, 1500), steps: b.steps, seconds: b.seconds, copyTo }));
+}
+if (url === '/api/models/find' && req.method === 'POST') {
+  const b = await jbody(req, 4e3).catch(() => ({})) || {};
+  const m = await modelUses.byId(String(b.id || ''));
+  if (!m || m.use !== 'find') return json(res, 200, { ok: false, error: 'Pick an embedding model that is in Ollama.' });
+  const sd = safeDir.check(String(b.dir || '')); if (!sd.ok) return json(res, 200, { ok: false, error: sd.error || 'That folder cannot be searched.' });
+  return json(res, 200, await codeFind.search(sd.dir, String(b.q || '').slice(0, 500), m.ollama));
+}
+if (url === '/api/models/made' && req.method === 'GET') {
+  const f = modelUses.madeFile(q.get('id')); if (!f) return json(res, 404, { error: 'That file is no longer kept.' });
+  res.writeHead(200, { 'Content-Type': modelUses.MIME[f.ext] || 'application/octet-stream', 'Cache-Control': 'private, max-age=86400' }); return fs.createReadStream(f.file).pipe(res);
 }
 if (url === '/api/models/stats' && req.method === 'GET') {
   try {
@@ -1012,6 +1038,14 @@ if (url === '/api/chat' && req.method === 'POST') {
     if (url === '/api/privweb/img') return require('./lib/privweb').img(q.get('u'), res);
     if (url === '/api/apis/list') return json(res, 200, require('./lib/apis').list());
     if (url === '/api/apis/call' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, await require('./lib/apis').call(String((b || {}).url || ''))); }
+    if (url === '/api/section-tools' && req.method === 'POST') {
+      try {
+        const b = await jbody(req, 8e5);
+        if (b.id === 'reader-html') return json(res, 200, await require('./lib/net').page(b.url, { html: true }));
+        if (b.id === 'reader-save') return json(res, 200, webpages.saveReaderArticle(b));
+        return json(res, 200, await require('./lib/section-collections').queryAsync(b));
+      } catch (e) { return json(res, 400, { collection:e.collection, error: e.code === 'ENOENT' ? 'The collection file is unavailable. Check its repository download.' : e.message }); }
+    }
     if (url === '/api/refs') return json(res, 200, { refs: refs.status(), dir: refs.DIR, appRoot: ROOT });
     if (url === '/api/refs/install' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, refs.install(String(b.slug || b.url || ''))); }
     if (url === '/api/refs/integrate' && req.method === 'POST') {
@@ -1170,7 +1204,8 @@ if (url === '/api/chat' && req.method === 'POST') {
     if (url === '/api/briefing') return json(res, 200, store.briefing());
     /* ---- voice input ---- */
     if (url === '/api/ocr' && req.method === 'POST') return json(res, 200, await ocrImage(await bodyBuf(req, 25e6)));
-    if (url === '/api/transcribe' && req.method === 'POST') return json(res, 200, await voice.transcribe(await bodyBuf(req, 40e6)));
+    /* ?model=<catalog id> picks any whisper.cpp model found on this PC; the ordinary voice model otherwise */
+    if (url === '/api/transcribe' && req.method === 'POST') { const mp = q.get('model') ? await modelUses.listenPath(q.get('model')) : ''; return json(res, 200, await voice.transcribe(await bodyBuf(req, 40e6), mp)); }
     /* ---- extras: quick capture, system stats, dropped files, backup ---- */
     if (url === '/api/quick' && req.method === 'POST') return json(res, 200, extra.quick((await jbody(req, 1e5)).text));
     if (url === '/api/sys') return ollamaUp(up => extra.sysinfo({ ollama: up, uptimeApp: Math.round((Date.now() - started) / 60000) }).then(v => json(res, 200, v)));
@@ -1496,6 +1531,9 @@ if (url === '/api/chat' && req.method === 'POST') {
     if (url === '/api/tor/open' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, inventory.openTor(b.url)); }
     if (url === '/api/inv/pull' && req.method === 'POST') { const m = (await jbody(req, 1e4)).model; return ensureOllama(up => json(res, 200, up ? inventory.pullModel(OLLAMA, m) : { error: 'The AI engine could not be started' })); }
     if (url === '/api/prep/models') return json(res, 200, { models: prep.MODELS, pull: prep.pullStatus() });
+    if (url === '/api/prep/hf-search') return json(res, 200, await hfLib.search(q.get('q') || ''));
+    /* ---- the newest models on Hugging Face (Stock up › New models): kept on disk, refreshed when old ---- */
+    if (url === '/api/prep/hf-new') return json(res, 200, prep.newInfo(q.get('refresh') === '1'));
     if (url === '/api/prep/pull' && req.method === 'POST') { const m = (await jbody(req, 1e4)).model; return ensureOllama(up => json(res, 200, up ? prep.startPull(OLLAMA, m) : { error: 'The AI engine could not be started' })); }
     if (url === '/api/prep/fix' && req.method === 'POST') {      // clears leftover model processes that hold graphics memory; the AI engine restarts the next time it is needed
       if (spawnedOllama && spawnedOllama.pid) { killTree(spawnedOllama.pid); spawnedOllama = null; }
@@ -1558,6 +1596,12 @@ if (url === '/api/chat' && req.method === 'POST') {
     if (url === '/api/heretic/import' && req.method === 'POST') { const b = await jbody(req, 1e4).catch(() => ({})); return json(res, 200, heretic.convertAndImport((b || {}).id, b || {})); }
     if (url === '/api/heretic/open' && req.method === 'POST') { const b = await jbody(req, 1e3).catch(() => ({})); return json(res, 200, heretic.openFolder((b || {}).id)); }
     if (url === '/api/heretic/remove' && req.method === 'POST') { const b = await jbody(req, 1e3).catch(() => ({})); return json(res, 200, heretic.remove((b || {}).id)); }
+    /* Ultra-small single-file native tools: sqlite-vec, ripgrep, fd, jq (lib/microtools.js) */
+    if (url === '/api/micro/status') return json(res, 200, { ok: true, tools: microtools.status() });
+    if (url === '/api/micro/rg' && req.method === 'POST') { const b = await jbody(req, 1e4).catch(() => ({})); return json(res, 200, microtools.rgSearch(b.dir ? String(b.dir) : ROOT, b.q || '', { regex: !!b.regex, glob: b.glob || '', max: b.max || 150, ignoreCase: b.ignoreCase !== false })); }
+    if (url === '/api/micro/fd' && req.method === 'POST') { const b = await jbody(req, 1e4).catch(() => ({})); return json(res, 200, microtools.fdFind(b.dir ? String(b.dir) : ROOT, b.pattern || '.', { type: b.type || '', ext: b.ext || '', max: b.max || 200, maxDepth: b.maxDepth || 0 })); }
+    if (url === '/api/micro/jq' && req.method === 'POST') { const b = await jbody(req, 6e6).catch(() => ({})); return json(res, 200, microtools.jqRun(b.input || '', b.filter || '.', { raw: !!b.raw, compact: !!b.compact, sortKeys: !!b.sortKeys })); }
+    if (url === '/api/micro/sd' && req.method === 'POST') { const b = await jbody(req, 6e6).catch(() => ({})); return json(res, 200, microtools.sdRun(b.input || '', b.find || '', b.replace || '', { fixed: !!b.fixed, flags: b.flags || '' })); }
     /* Local AI & Media Toolkit: MarkItDown, Mergekit, lm-eval, Autoresearch, rembg, Real-ESRGAN, Demucs (lib/toolkit.js) */
     if (url === '/api/toolkit/status') return json(res, 200, toolkit.status(q.get('tool') || ''));
     if (url === '/api/toolkit/job') { const j = toolkit.getJob(q.get('id') || ''); return j ? json(res, 200, j) : json(res, 404, { ok: false, error: 'Job not found.' }); }
@@ -1707,8 +1751,9 @@ if (url === '/api/chat' && req.method === 'POST') {
     if (url === '/api/web/suggest') { const q2 = new URL(req.url, 'http://x').searchParams.get('q') || ''; return json(res, 200, { suggestions: await websearch.suggest(q2) }); }
     json(res, 404, { error: 'not found' });
   } catch (e) { if (!res.headersSent) json(res, 500, { error: String(e.message) }); else res.end(); }
-}).listen(PORT, '127.0.0.1', () => {
-  console.log('assistant on http://127.0.0.1:' + PORT);
+}
+
+function startBackground() {
   update.start();                                 // the once-a-day update question (only with internet access on)
   /* a minute after start, wake the offline libraries with one quiet search so their indexes are read from disk before you search */
   setTimeout(() => { try { if (kiwix.available()) websearch.search('history', { scope: 'all', n: 5 }).catch(() => { }); } catch (e) { } }, 60000);
@@ -1717,24 +1762,23 @@ if (url === '/api/chat' && req.method === 'POST') {
   /* a copy of the user's progress in Documents, once a day, a little after start-up so nothing is delayed.
      Never allowed to take the app down with it: any failure is swallowed and reported on the Ready page. */
   setTimeout(() => { safe.run().then(r => { if (r && r.ok && !r.skipped) { try { prep.noteBackup(); } catch (e) { } console.log('progress backed up to ' + r.folder); } }).catch(() => { }); }, 20000);
-});
-/* a second copy of Moundshroud (the tray helper thought the first was down while it was only busy) must not linger:
-   it cannot have the app's address, so it stops before it opens anything else (the phone address, routines) */
-mainServer.on('error', e => { if (e && e.code === 'EADDRINUSE') { console.log('Moundshroud is already running on ' + PORT + '; this copy stops.'); try { remote.stop(); } catch (x) { } try { routines.shutdown(); } catch (x) { } process.exit(0); } });
-mainServer.on('listening', () => { try { remote.start(); } catch (e) { } });      // the phone address opens only once this copy owns the app's address
-mainServer.keepAliveTimeout = 75000; mainServer.headersTimeout = 80000;        // idle connections stay open longer than the browser reuses them (avoids sporadic 'Failed to fetch')
+  lmstudioSync.setData(DATA);
+  modelUses.setData(DATA);
+  setTimeout(() => { try { lmstudioSync.startWatcher(); } catch (e) { } }, 1500);
+  try { remote.start(); } catch (e) { }           // only opens a port if Phone Access is explicitly enabled in Settings
+}
 
 /* ---- the offline library on its own address ----
    Library pages (Wikipedia, Stack Exchange, books...) come from downloaded files and carry their own scripts. Served
-   from a separate address, those scripts cannot reach Moundshroud's data or controls: the app's server refuses requests
-   from here, the window cannot be read from here, and pages may only talk to this address. A small helper
-   (web/lib-bridge.js) is added to each page so the Browser tab can still do find, zoom, print, bookmarks and the rest. */
-const LIBSELF = new Set(['127.0.0.1:' + LIBPORT, 'localhost:' + LIBPORT]);
+   from a separate origin (app://moundshroud-lib in Desktop mode, or port + 9 in browser mode), those scripts cannot
+   reach Moundshroud's data or controls. A small helper (web/lib-bridge.js) is added to each page so the Browser tab
+   can still do find, zoom, print, bookmarks and the rest. */
+const LIBSELF = new Set(['127.0.0.1:' + LIBPORT, 'localhost:' + LIBPORT, 'moundshroud-lib']);
 const libCsp = app => "default-src 'self' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' data: blob:; connect-src 'self'; frame-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors " + app;
-const libServer = http.createServer((req, res) => {
+function handleLibRequest(req, res) {
   const host = String(req.headers.host || '').toLowerCase();
   if (!LIBSELF.has(host) || !/^(GET|HEAD)$/.test(req.method)) { res.writeHead(403, { 'Content-Type': 'text/plain' }); return res.end('not allowed'); }
-  const app = 'http://' + host.split(':')[0] + ':' + PORT, url = req.url.split('#')[0];
+  const app = host === 'moundshroud-lib' ? 'app://moundshroud' : ('http://' + host.split(':')[0] + ':' + PORT), url = req.url.split('#')[0];
   const sec = { 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Cross-Origin-Resource-Policy': 'same-origin', 'Content-Security-Policy': libCsp(app), 'Cache-Control': 'no-cache' };
   if (url === '/__bridge.js') { return fs.readFile(path.join(WEB, 'lib-bridge.js'), (e, b) => { if (e) { res.writeHead(404); return res.end(); } res.writeHead(200, Object.assign({ 'Content-Type': 'application/javascript; charset=utf-8' }, sec)); res.end(b); }); }
   if (!url.startsWith('/wiki/')) { res.writeHead(404, sec); return res.end(); }
@@ -1756,19 +1800,34 @@ const libServer = http.createServer((req, res) => {
     pr.on('error', () => { if (!res.headersSent) res.writeHead(502, sec); res.end(); });
     pr.end();
   });
-});
-libServer.on('error', e => console.log('library address ' + LIBPORT + ' unavailable: ' + e.message));
-libServer.listen(LIBPORT, '127.0.0.1');
+}
 
-lmstudioSync.setData(DATA);
-setTimeout(() => { try { lmstudioSync.startWatcher(); } catch (e) { } }, 1500);
+if (!EMBEDDED) {
+  const mainServer = http.createServer(handleAppRequest).listen(PORT, '127.0.0.1', () => {
+    console.log('assistant on http://127.0.0.1:' + PORT);
+    startBackground();
+  });
+  /* a second copy of Moundshroud (the tray helper thought the first was down while it was only busy) must not linger:
+     it cannot have the app's address, so it stops before it opens anything else (the phone address, routines) */
+  mainServer.on('error', e => { if (e && e.code === 'EADDRINUSE') { console.log('Moundshroud is already running on ' + PORT + '; this copy stops.'); try { remote.stop(); } catch (x) { } try { routines.shutdown(); } catch (x) { } process.exit(0); } });
+  mainServer.keepAliveTimeout = 75000; mainServer.headersTimeout = 80000;        // idle connections stay open longer than the browser reuses them (avoids sporadic 'Failed to fetch')
 
-setInterval(() => {
-  const now = Date.now();
-  if (routines.busy()) return;                 // a routine is running: stay up until it ends, then idle out as usual
-  if (longvideo.busy()) return;                // a long video is being made: stay up until it is done
-  if (remote.on() && !outdated()) return;      // phone access is on: stay up for the phone (Quit in the tray still stops everything), unless this copy is out of date and no window is using it
-  if (closingAt && now > closingAt) shutdown();
-  else if (seen && now - lastPing > 180000) shutdown();
-  else if (!seen && now - started > 120000) shutdown();
-}, 2000);
+  const libServer = http.createServer(handleLibRequest);
+  libServer.on('error', e => console.log('library address ' + LIBPORT + ' unavailable: ' + e.message));
+  libServer.listen(LIBPORT, '127.0.0.1');
+
+  setInterval(() => {
+    const now = Date.now();
+    if (routines.busy()) return;                 // a routine is running: stay up until it ends, then idle out as usual
+    if (longvideo.busy()) return;                // a long video is being made: stay up until it is done
+    if (remote.on() && !outdated()) return;      // phone access is on: stay up for the phone (Quit in the tray still stops everything), unless this copy is out of date and no window is using it
+    if (closingAt && now > closingAt) shutdown();
+    else if (seen && now - lastPing > 180000) shutdown();
+    else if (!seen && now - started > 120000) shutdown();
+  }, 2000);
+} else {
+  lmstudioSync.setData(DATA);
+  modelUses.setData(DATA);
+}
+
+module.exports = { handleAppRequest, handleLibRequest, startBackground, shutdown };

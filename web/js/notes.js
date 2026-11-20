@@ -7,14 +7,53 @@
     '<div class="small mute" style="padding:8px 10px;border-top:1px solid var(--line)" id="nfold"></div></div>' +
     '<div class="main"><div class="row" style="padding:8px 12px;gap:6px;flex-wrap:wrap" id="nbar"></div><textarea id="ne" placeholder="Pick a note on the left or press + to start a new one.&#10;&#10;Tip: write in plain text or Markdown (# headings, - lists, **bold**)."></textarea><div id="npv" class="m a" style="max-width:none;margin:0;border-radius:0"></div></div></div>';
   const ne = $('ne');
+  /* Resizable sidebar/editor divider powered by Split.js */
+  try {
+    if (typeof window.Split === 'function') {
+      const side = root.querySelector('.side'), main = root.querySelector('.main');
+      if (side && main) {
+        if (!document.getElementById('nsplitcss')) {
+          const st = document.createElement('style'); st.id = 'nsplitcss';
+          st.textContent = '#p-notes .gutter{background:var(--line);cursor:col-resize;transition:background .15s}#p-notes .gutter:hover{background:var(--acc)}';
+          document.head.appendChild(st);
+        }
+        window.Split([side, main], { sizes: [26, 74], minSize: [180, 260], gutterSize: 5 });
+      }
+    }
+  } catch (e) { }
 
   function bar() {
     $('nbar').innerHTML = '<span id="ntitle" class="small mute" style="flex:1;min-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>' +
       '<button class="ib" data-a="pv">' + (preview ? 'Edit' : 'Preview') + '</button><button class="ib" data-a="ai">Ask AI</button><button class="ib" data-a="listen">Listen</button><button class="ib" data-a="cards">Flashcards</button><button class="ib" data-a="open">Open folder</button><button class="ib dang" data-a="del">Delete</button>';
   }
+  const renderPreview = text => {
+    const raw = String(text || '');
+    const diags = [];
+    const mermaids = [];
+    const pre = raw.replace(/^```mermaid[^\S\n]*\n([\s\S]*?)^```\s*$/gim, (_, code) => {
+      return '\n\n@@MERMAID_' + (mermaids.push(code) - 1) + '@@\n\n';
+    }).replace(/```nomnoml\s*\n([\s\S]*?)```/gi, (_, code) => {
+      const idx = diags.push(code) - 1;
+      return '\n\n@@NOMNOML_' + idx + '@@\n\n';
+    });
+    let html = md(pre);
+    html = html.replace(/@@MERMAID_(\d+)@@/g, (token, i) => mermaids[i] === undefined ? token : '<span data-note-mermaid style="display:block">' + A.esc(mermaids[i]) + '</span>');
+    queueMicrotask(() => {
+      for (const box of $('npv').querySelectorAll('[data-note-mermaid]')) {
+        A.renderNoteDiagram?.(box, box.textContent).catch(e => { box.textContent = e.message; });
+      }
+    });
+    if (diags.length && A.micro && A.micro.renderNomnoml) {
+      html = html.replace(/@@NOMNOML_(\d+)@@/g, (_, i) => {
+        try { return '<div style="margin:10px 0;padding:10px;border-radius:10px;background:#0a0e17;border:1px solid var(--line);overflow:auto">' + A.micro.renderNomnoml(diags[+i]) + '</div>'; }
+        catch (e) { return '<pre class="small">' + A.esc(diags[+i]) + '</pre>'; }
+      });
+    }
+    return A.micro && A.micro.sanitize ? A.micro.sanitize(html) : html;
+  };
   $('nbar').onclick = e => {
     const b = e.target.closest('[data-a]'); if (!b) return; const a = b.dataset.a;
-    if (a === 'pv') { preview = !preview; if (preview) $('npv').innerHTML = md(ne.value); $('npv').style.display = preview ? 'block' : 'none'; ne.style.display = preview ? 'none' : 'block'; bar(); }
+    if (a === 'pv') { preview = !preview; if (preview) $('npv').innerHTML = renderPreview(ne.value); $('npv').style.display = preview ? 'block' : 'none'; ne.style.display = preview ? 'none' : 'block'; bar(); }
     else if (a === 'listen') A.speech.speak(ne.value, b);
     else if (a === 'cards') A.study.fromText(ne.value, cur ? cur.title : 'Note');
     else if (a === 'open') A.api('/api/docs/open', { path: folder });
@@ -38,8 +77,25 @@
   }
   function draw() {
     const f = $('nq').value.trim().toLowerCase();
-    const items = list.filter(n => !f || (n.title + ' ' + n.snippet).toLowerCase().includes(f));
-    $('nlist').innerHTML = '<div id="nlist-virtual" style="height:100%;overflow:auto"></div>';
+    let order = []; try { order = JSON.parse(ls.get('notes_order', '[]')); } catch (e) { order = []; }
+    const rank = new Map(order.map((id, i) => [id, i]));
+    const ordered = list.slice().sort((a, b) => (rank.has(a.id) ? rank.get(a.id) : 1e9) - (rank.has(b.id) ? rank.get(b.id) : 1e9));
+    const items = ordered.filter(n => !f || (n.title + ' ' + n.snippet).toLowerCase().includes(f));
+    const host = $('nlist');
+    if (!f && items.length <= 200 && typeof window.Sortable === 'function') {
+      host.innerHTML = '<div id="nlist-sort" style="height:100%;overflow:auto">' + items.map(n => '<div class="item' + (cur && cur.id === n.id ? ' cur' : '') + '" data-id="' + A.esc(n.id) + '" title="Drag to reorder"><b>' + A.esc(n.title) + '</b><span>' + A.esc(n.snippet || '(empty)') + '</span></div>').join('') + '</div>';
+      const box = $('nlist-sort');
+      box.onclick = e => { const i = e.target.closest('.item'); if (i) open(i.dataset.id); };
+      window.Sortable.create(box, {
+        animation: 150,
+        onEnd: () => {
+          const ids = [...box.querySelectorAll('.item')].map(el => el.dataset.id);
+          ls.set('notes_order', JSON.stringify(ids));
+        }
+      });
+      return;
+    }
+    host.innerHTML = '<div id="nlist-virtual" style="height:100%;overflow:auto"></div>';
     A.virtualList($('nlist-virtual'), items, n => '<div class="item' + (cur && cur.id === n.id ? ' cur' : '') + '" data-id="' + A.esc(n.id) + '"><b>' + A.esc(n.title) + '</b><span>' + A.esc(n.snippet || '(empty)') + '</span></div>', { itemHeight: 50 });
     // Re-bind click events
     $('nlist-virtual').onclick = e => { const i = e.target.closest('.item'); if (i) open(i.dataset.id); };

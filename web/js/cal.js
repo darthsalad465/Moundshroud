@@ -65,13 +65,13 @@
     let grid = '';
     if (st.mode === 'day') grid = '';
     else { grid = '<div class="cl-grid">' + WD.map(w => '<div class="cl-h">' + w + '</div>').join('') + (st.mode === 'month' ? Array.from({ length: 42 }, (_, i) => cell(addD(from, i), a.getMonth())).join('') : Array.from({ length: 7 }, (_, i) => cell(addD(from, i), a.getMonth())).join('')) + '</div>'; }
-    root.innerHTML = '<div class="scroll pad" style="flex:1"><div class="cl-wrap"><div class="cl-bar"><h2 style="margin:0;flex:1;min-width:200px">📅 ' + esc2(title) + '</h2><button class="ib" data-a="prev">◀</button><button class="ib" data-a="today">Today</button><button class="ib" data-a="next">▶</button>' + ['month', 'week', 'day'].map(m => '<button class="ib' + (st.mode === m ? ' on' : '') + '" data-m="' + m + '">' + m[0].toUpperCase() + m.slice(1) + '</button>').join('') + '<button class="pri" data-a="add">+ Event</button><button class="ib" data-a="ask" title="Ask Moundshroud about your calendar">🧠 Ask</button></div>' +
+    root.innerHTML = '<div class="scroll pad" style="flex:1"><div class="cl-wrap"><div class="cl-bar"><h2 style="margin:0;flex:1;min-width:200px">📅 ' + esc2(title) + '</h2><button class="ib" data-a="prev">◀</button><button class="ib" data-a="today">Today</button><button class="ib" data-a="next">▶</button>' + ['month', 'week', 'day'].map(m => '<button class="ib' + (st.mode === m ? ' on' : '') + '" data-m="' + m + '">' + m[0].toUpperCase() + m.slice(1) + '</button>').join('') + '<button class="pri" data-a="add">+ Event</button><button class="ib" data-a="ics-in" title="Import an .ics calendar file">⬆ .ics</button><button class="ib" data-a="ics-out" title="Export your events as an .ics file">⬇ .ics</button><button class="ib" data-a="ask" title="Ask Moundshroud about your calendar">🧠 Ask</button></div>' +
       '<div class="cl-bar small">' + [['rem', '⏰ Reminders'], ['hol', '🎉 Holidays'], ['feast', '✝️ Feasts'], ['moon', '🌙 Moon'], ['sky', '🌍 Seasons'], ['cards', '🃏 Study cards']].map(([k, l]) => '<label style="display:flex;gap:4px;align-items:center;cursor:pointer"><input type="checkbox" data-l="' + k + '"' + (lay[k] ? ' checked' : '') + '>' + l + '</label>').join('') + '</div>' + grid + dayPanel() + '</div></div>';
     const vb = root.querySelector('#cl-verse'); if (vb && lay.feast && A.faith && A.faith.verseOfDay) A.faith.verseOfDay(parseKey(st.sel)).then(v => { if (vb.isConnected && v.text) vb.innerHTML = '<div class="small mute">Verse of the day</div><div style="font-family:Georgia,serif;line-height:1.5">&ldquo;' + esc2(v.text) + '&rdquo; <b style="font-family:system-ui;font-size:13px">' + esc2(v.ref) + '</b></div>'; }).catch(() => { });
   }
   /* ---------- adding and editing ---------- */
-  function editor(e) {
-    const isNew = !e; e = e || { id: Date.now().toString(36), t: '', d: st.sel, time: '', note: '', color: COLORS[0], rep: 'none', notify: 0 };
+  function editor(e, draft) {
+    const isNew = !e; e = e || { id: Date.now().toString(36), t: '', d: st.sel, time: '', note: '', color: COLORS[0], rep: 'none', notify: 0, ...draft };
     A.dlg('<div style="display:flex;flex-direction:column;gap:10px;min-width:min(420px,86vw)"><b style="font-size:17px">' + (isNew ? 'New event' : 'Edit event') + '</b><input id="ce-t" type="text" placeholder="What is it?" value="' + esc2(e.t) + '" style="padding:8px 12px"><div class="row" style="gap:8px;flex-wrap:wrap"><input id="ce-d" type="date" value="' + e.d + '"><input id="ce-h" type="time" value="' + (e.time || '') + '"><span class="small mute">(leave the time empty for all day)</span></div>' +
       '<div class="row" style="gap:8px;flex-wrap:wrap"><label class="small">Repeats <select id="ce-r">' + [['none', 'Never'], ['daily', 'Every day'], ['weekly', 'Every week'], ['monthly', 'Every month'], ['yearly', 'Every year']].map(([v, l]) => '<option value="' + v + '"' + ((e.rep || 'none') === v ? ' selected' : '') + '>' + l + '</option>').join('') + '</select></label><label class="small">Colour ' + COLORS.map(c => '<input type="radio" name="ce-c" value="' + c + '"' + (e.color === c ? ' checked' : '') + ' style="accent-color:' + c + '">').join('') + '</label></div>' +
       '<textarea id="ce-n" rows="3" placeholder="Notes (optional)" style="padding:8px 12px">' + esc2(e.note) + '</textarea><label class="small" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="ce-nf"' + (e.rid ? ' checked' : '') + '> 🔔 Notify me (a Windows notification, even when Moundshroud is closed) <select id="ce-b"><option value="0">at the time</option><option value="10">10 min before</option><option value="60">1 hour before</option><option value="1440">1 day before</option></select></label><div class="small mute" id="ce-m"></div>' +
@@ -102,12 +102,54 @@
       if (k === 'prev' || k === 'next') { const n = k === 'next' ? 1 : -1; st.at = dkey(st.mode === 'month' ? new Date(d.getFullYear(), d.getMonth() + n, 1) : addD(d, n * (st.mode === 'week' ? 7 : 1))); if (st.mode === 'day') st.sel = st.at; draw(); }
       else if (k === 'today') { st.at = st.sel = dkey(new Date()); draw(); }
       else if (k === 'add') editor(null); else if (k === 'edit') editor(ev.find(x => x.id === a.dataset.id));
+      else if (k === 'ics-out') {
+        const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Moundshroud//Offline Calendar//EN'];
+        ev.forEach(x => {
+          const dt = x.d.replace(/-/g, '') + (x.time ? 'T' + x.time.replace(':', '') + '00' : '');
+          lines.push('BEGIN:VEVENT', 'UID:' + x.id + '@moundshroud', 'SUMMARY:' + String(x.t || '').replace(/\r?\n/g, ' '), x.time ? 'DTSTART:' + dt : 'DTSTART;VALUE=DATE:' + dt);
+          if (x.note) lines.push('DESCRIPTION:' + String(x.note).replace(/\r?\n/g, '\\n'));
+          if (x.rep && x.rep !== 'none') lines.push('RRULE:FREQ=' + x.rep.toUpperCase());
+          lines.push('END:VEVENT');
+        });
+        lines.push('END:VCALENDAR');
+        const b = new Blob([lines.join('\r\n')], { type: 'text/calendar' }), l = document.createElement('a');
+        l.href = URL.createObjectURL(b); l.download = 'moundshroud-calendar.ics'; l.click();
+        setTimeout(() => URL.revokeObjectURL(l.href), 4000);
+      } else if (k === 'ics-in') {
+        const f = document.createElement('input'); f.type = 'file'; f.accept = '.ics,text/calendar';
+        f.onchange = async () => {
+          if (!f.files[0]) return;
+          if (!window.ICAL) return A.toast('ICAL parser unavailable.');
+          try {
+            const jcal = window.ICAL.parse(await f.files[0].text());
+            const comp = new window.ICAL.Component(jcal);
+            let n = 0;
+            for (const ve of comp.getAllSubcomponents('vevent')) {
+              const e0 = new window.ICAL.Event(ve);
+              const sd = e0.startDate; if (!sd) continue;
+              const dStr = sd.year + '-' + pad(sd.month) + '-' + pad(sd.day);
+              const tStr = sd.isDate ? '' : pad(sd.hour) + ':' + pad(sd.minute);
+              const rr = ve.getFirstPropertyValue('rrule');
+              const freq = rr && rr.freq ? String(rr.freq).toLowerCase() : 'none';
+              const rep = ['daily', 'weekly', 'monthly', 'yearly'].includes(freq) ? freq : 'none';
+              ev.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), t: e0.summary || 'Imported event', d: dStr, time: tStr, note: e0.description || '', color: COLORS[n % COLORS.length], rep });
+              n++;
+            }
+            save(); draw(); A.toast(n ? 'Imported ' + n + ' event(s) from .ics ✓' : 'No events found in that .ics file.');
+          } catch (err) { A.toast('Could not read .ics file: ' + (err.message || err), 5000); }
+        };
+        f.click();
+      }
       else if (k === 'ask') { if (A.askAll) A.askAll.open('What is on my calendar this week?'); }
       return;
     }
     const c = e.target.closest('[data-d]'); if (c) { st.sel = c.dataset.d; if (st.mode === 'day') st.at = st.sel; else if (st.mode === 'month' && parseKey(st.sel).getMonth() !== parseKey(st.at).getMonth()) st.at = st.sel; draw(); }
   });
   root.addEventListener('change', e => { const l = e.target.dataset.l; if (l) { lay[l] = e.target.checked ? 1 : 0; wr('cal_lay', lay); draw(); } });
-  A.cal = { events: () => ev.slice(), itemsOn, openAdd: () => { A.showTab('cal'); setTimeout(() => editor(null), 200); }, goto: k => { st.sel = st.at = k; A.showTab('cal'); } };
+  A.cal = { events: () => ev.slice(), itemsOn, openAdd: () => { A.showTab('cal'); setTimeout(() => editor(null), 200); },
+    draftReminder(title, date) {
+      editor(null, { t: title, d: dkey(date), time: pad(date.getHours()) + ':' + pad(date.getMinutes()) });
+      document.getElementById('ce-nf').checked = true;
+    }, goto: k => { st.sel = st.at = k; A.showTab('cal'); } };
   A.registerTab('cal', 'Calendar', () => { if (!mounted) { mounted = true; } st.sel = st.sel || dkey(new Date()); draw(); });
 })();
