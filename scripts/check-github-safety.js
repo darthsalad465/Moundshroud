@@ -17,7 +17,8 @@ const ROOT_FILES = new Set([
 ]);
 const SCRIPT_FILES = new Set([
   'scripts/auto-commit.ps1', 'scripts/finetune.py', 'scripts/forge_convert.py', 'scripts/forge_train.py', 'scripts/ft-setup.ps1',
-  'scripts/update-readme.js', 'scripts/check-github-safety.js', 'scripts/install-git-safety.ps1'
+  'scripts/update-readme.js', 'scripts/check-github-safety.js', 'scripts/install-git-safety.ps1', 'scripts/install-micro-repos.ps1',
+  'scripts/install-micro-repos.ps1'
 ]);
 const SAFE_DATA = new Set(['data/cmudict.dict', 'data/cmudict-LICENSE.txt']);
 const SOURCE_DIRS = ['lib/', 'agent/', 'bin/', 'py/', 'web/', 'tests/', 'desktop/'];
