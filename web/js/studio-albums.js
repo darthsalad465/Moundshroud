@@ -35,9 +35,51 @@
   A.studio.reg('albums', '📚 Albums', body => {
     const root = document.createElement('div'); root.className = 'scroll pad'; root.style.flex = '1'; body.appendChild(root);
     let urls = [], view = null, alive = true; const url = b => { const u = URL.createObjectURL(b); urls.push(u); return u; }, free = () => { urls.forEach(u => URL.revokeObjectURL(u)); urls = []; };
+    const collections = A.collectionSelect;
+    const selection = collections.bind(root, { delete: deletePictures, move: movePictures, download: downloadPictures });
+    async function selectedPictures(id, ids) {
+      const wanted = new Set(ids);
+      return (await all('pics')).filter(p => p.album === id && wanted.has(p.id));
+    }
+    async function changePictures(id, ids, change) {
+      const found = await selectedPictures(id, ids), byId = new Map(found.map(p => [p.id, p]));
+      const done = await collections.each(ids, async key => {
+        const p = byId.get(key);
+        if (!p) return null;
+        await change(p);
+        return { ok: true };
+      });
+      const a = await req('albums', 'readonly', o => o.get(id));
+      if (a && done.includes(a.cover)) await put('albums', { ...a, cover: '' });
+      if (view === id) await album(id);
+      return done;
+    }
+    async function deletePictures(ids) {
+      const id = view;
+      if (!(await A.confirm('Delete ' + ids.length + ' selected pictures from this album?', { title: 'Delete pictures', okLabel: 'Delete', danger: true }))) return;
+      return changePictures(id, ids, p => del('pics', p.id));
+    }
+    async function movePictures(ids) {
+      const id = view, to = await pick(id, 'Move to which album?');
+      if (!to || id !== view) return;
+      return changePictures(id, ids, p => put('pics', { ...p, album: to.id }));
+    }
+    async function downloadPictures(ids) {
+      const pics = await selectedPictures(view, ids);
+      if (pics.length > 8 && !(await A.confirm('Download ' + pics.length + ' pictures one after another?'))) return;
+      pics.forEach((p, i) => setTimeout(() => dl(p.blob, fname(p)), i * 350));
+      return pics.map(p => p.id);
+    }
+    async function renamePicture(p) {
+      const name = (await A.prompt('Picture name', p.name, { title: 'Rename picture' }))?.trim();
+      if (!name || name === p.name) return false;
+      await put('pics', { ...p, name: name.slice(0, 80) });
+      return true;
+    }
     const cover = (a, ps) => { const mine = ps.filter(p => p.album === a.id).sort((x, y) => y.at - x.at); return mine.find(p => p.id === a.cover) || mine[0] || null; };
 
     async function home() {
+      selection.reset();
       view = null; free(); const albums = (await all('albums')).sort((a, b) => b.at - a.at), ps = await all('pics'); if (!alive) return;
       root.innerHTML = '<div class="row" style="gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px"><h2 style="margin:0">📚 Art albums</h2><span class="sp"></span><button class="pri" id="alnew">＋ New album</button></div><div class="small mute" style="margin-bottom:12px">Keep your pictures together, like playlists. Use <b>📁 Add to album</b> in Pixel art, Sketchpad, Generative art and AI art, or add pictures from your computer. Everything stays on this PC.</div>' +
         (albums.length ? '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(176px,1fr));gap:12px">' + albums.map(a => { const c = cover(a, ps), n = ps.filter(p => p.album === a.id), sz = n.reduce((s, p) => s + (p.blob ? p.blob.size : 0), 0); return '<div class="card" data-o="' + a.id + '" style="margin:0;padding:8px;cursor:pointer"><div style="height:130px;border-radius:8px;overflow:hidden;background:var(--panel2);display:flex;align-items:center;justify-content:center;font-size:44px">' + (c ? '<img src="' + url(c.blob) + '" style="width:100%;height:100%;object-fit:cover;' + (c.source === 'Pixel art' ? 'image-rendering:pixelated' : '') + '">' : '📚') + '</div><b style="display:block;margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(a.name) + '</b><span class="small mute">' + n.length + ' picture' + (n.length === 1 ? '' : 's') + (n.length ? ' · ' + mb(sz) : '') + '</span></div>'; }).join('') + '</div>' : '<div class="card" style="margin:0"><b>No albums yet.</b><div class="small mute" style="margin-top:4px">Press <b>＋ New album</b> to make one, or save a picture from any art tool and make an album on the spot.</div></div>');
@@ -46,10 +88,11 @@
     }
 
     async function album(id) {
+      if (view !== id) selection.reset();
       view = id; free(); const a = (await all('albums')).find(x => x.id === id); if (!a) return home(); const list = (await all('pics')).filter(p => p.album === id).sort((x, y) => y.at - x.at); if (!alive) return;
       root.onclick = null;
       root.innerHTML = '<div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><button class="ib" id="alback">← All albums</button><h2 style="margin:0">📚 ' + esc(a.name) + '</h2><button class="ib" id="alren" title="Rename album">✎</button><span class="small mute">' + list.length + ' picture' + (list.length === 1 ? '' : 's') + ' · ' + mb(list.reduce((s, p) => s + (p.blob ? p.blob.size : 0), 0)) + '</span><span class="sp"></span><button class="ib" id="aladd">＋ Add from my computer</button><button class="ib" id="alshow"' + (list.length ? '' : ' disabled') + '>▶ Slideshow</button><button class="ib" id="aldla"' + (list.length ? '' : ' disabled') + '>⬇ Download all</button><button class="ib dang" id="aldel">🗑 Delete album</button><input id="alfile" type="file" accept="image/*" multiple style="display:none"></div>' +
-        (list.length ? '<div id="algrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px">' + list.map(p => '<div data-p="' + p.id + '" style="cursor:pointer"><div style="aspect-ratio:1;border-radius:8px;overflow:hidden;background:var(--panel2);border:2px solid ' + (a.cover === p.id ? 'var(--acc)' : 'var(--line)') + '"><img src="' + url(p.blob) + '" style="width:100%;height:100%;object-fit:cover;' + (p.source === 'Pixel art' ? 'image-rendering:pixelated' : '') + '"></div><div class="small" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(p.name) + '">' + esc(p.name) + '</div><div class="small mute" style="font-size:11px">' + esc(p.source || 'Picture') + ' · ' + when(p.at) + '</div></div>').join('') + '</div>' : '<div class="card" style="margin:0"><b>This album is empty.</b><div class="small mute" style="margin-top:4px">Add pictures from the art tools with <b>📁 Add to album</b>, or press <b>＋ Add from my computer</b>.</div></div>');
+        (list.length ? collections.toolbar('<button class="ib" data-selection="download">Download selected</button><button class="ib" data-selection="move">Move to album</button><button class="ib dang" data-selection="delete">Delete selected</button>') + '<div id="algrid" class="album-grid" data-selection-area style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px">' + list.map(p => '<div class="album-pic" data-p="' + p.id + '" data-select-id="' + p.id + '" style="cursor:pointer">' + collections.check('Select ' + p.name) + '<div style="aspect-ratio:1;border-radius:8px;overflow:hidden;background:var(--panel2);border:2px solid ' + (a.cover === p.id ? 'var(--acc)' : 'var(--line)') + '"><img src="' + url(p.blob) + '" style="width:100%;height:100%;object-fit:cover;' + (p.source === 'Pixel art' ? 'image-rendering:pixelated' : '') + '"></div><div class="small" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(p.name) + '">' + esc(p.name) + '<button class="collection-icon" data-pic-rename title="Rename picture" aria-label="Rename picture">✎</button></div><div class="small mute" style="font-size:11px">' + esc(p.source || 'Picture') + ' · ' + when(p.at) + '</div></div>').join('') + '</div>' : '<div class="card" style="margin:0"><b>This album is empty.</b><div class="small mute" style="margin-top:4px">Add pictures from the art tools with <b>📁 Add to album</b>, or press <b>＋ Add from my computer</b>.</div></div>');
       const q = s => root.querySelector(s);
       q('#alback').onclick = home;
       q('#alren').onclick = async () => { const n = (await A.prompt('Rename this album', a.name)); if (n === null || !n.trim()) return; a.name = n.trim().slice(0, 40); await put('albums', a); album(id); };
@@ -58,7 +101,16 @@
       q('#alfile').onchange = async e => { const fs = [...e.target.files]; for (const f of fs) await put('pics', { id: uid(), album: id, name: f.name.replace(/\.[^.]+$/, '').slice(0, 80), source: 'Uploaded', prompt: '', at: Date.now(), blob: f }); if (fs.length) { a.at = Date.now(); await put('albums', a); A.toast('Added ' + fs.length + ' picture' + (fs.length === 1 ? '' : 's')); } album(id); };
       q('#aldla').onclick = async () => { if (list.length > 8 && !(await A.confirm('Download ' + list.length + ' pictures one after another?'))) return; list.forEach((p, i) => setTimeout(() => dl(p.blob, fname(p)), i * 350)); };
       q('#alshow').onclick = () => slideshow(list, 0);
-      const g = q('#algrid'); if (g) g.onclick = e => { const c = e.target.closest('[data-p]'); if (c) viewer(a, list, list.findIndex(p => p.id === c.dataset.p)); };
+      const g = q('#algrid'); if (g) g.onclick = async e => {
+        const c = e.target.closest('[data-p]');
+        if (!c) return;
+        const i = list.findIndex(p => p.id === c.dataset.p);
+        if (i < 0) return;
+        if (e.target.closest('[data-pic-rename]')) {
+          if (await renamePicture(list[i])) album(id);
+        } else viewer(a, list, i);
+      };
+      selection.sync();
     }
 
     function viewer(a, list, i) {
@@ -85,6 +137,6 @@
     }
 
     document.addEventListener('albumchange', () => { if (alive && root.isConnected) { view ? album(view) : home(); } });
-    body._cleanup = () => { alive = false; free(); }; home();
+    body._cleanup = () => { alive = false; selection.destroy(); free(); }; home();
   }, 2);
 })();

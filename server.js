@@ -183,7 +183,7 @@ const media = require('./lib/media'), swarm = require('./lib/swarm'), swarmModel
 const safeDir = require('./lib/safe-dir'), harnessLib = require('./lib/harness');
 const harnessStore = harnessLib.store(DATA), jcodeLib = require('./lib/harness-jcode'), nativeLib = require('./lib/harness-native');
 const hfLib = require('./lib/hf-gguf');
-const modelUses = require('./lib/model-uses'), codeFind = require('./lib/code-find');
+const modelUses = require('./lib/model-uses'), codeFind = require('./lib/code-find'), openaiBridge = require('./lib/openai-bridge');
 const globeLib = require('./lib/globe').create(DATA, cams);
 /* the lines a command leaves behind after it has answered (a model finishing its pull, a craft run): the Agent tab
    asks for the new ones as it polls, so a long job can report while the page is still open */
@@ -492,6 +492,22 @@ async function handleAppRequest(req, res) {
   if (!allowedCaller(req)) { res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' }); return res.end('Blocked: this request did not come from the Moundshroud window.'); }
   res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Referrer-Policy', 'no-referrer'); res.setHeader('X-Frame-Options', 'SAMEORIGIN'); res.setHeader('Cross-Origin-Resource-Policy', 'same-origin'); res.setHeader('Permissions-Policy', 'geolocation=(), camera=(), usb=(), payment=()'); res.setHeader('Content-Security-Policy', offline.isAppOffline() ? CSP_OFFLINE : CSP);
   try {
+    if (url === '/api/code-playground/run' && req.method === 'POST') {
+      if (!/^application\/json(?:\s*;|$)/i.test(req.headers['content-type'] || '')) {
+        return json(res, 415, { ok: false, error: 'Expected a JSON request.' });
+      }
+      const playground = require('./lib/code-playground');
+      const ctl = new AbortController();
+      res.once('close', () => ctl.abort());
+      const input = await jbody(req, 1_250_000).catch(() => null);
+      if (!playground.validate(input)) {
+        return json(res, 400, { ok: false, error: 'Choose a supported language and enter up to 200 KB of code.' });
+      }
+      const result = await playground.run(input, ctl.signal);
+      if (!ctl.signal.aborted) return json(res, 200, result);
+      return;
+    }
+    if (url === '/api/code-playground/status' && req.method === 'GET') return json(res, 200, require('./lib/code-playground').status());
     /* ---- pages & static files ---- */
     if (req.method === 'GET' && (url === '/' || url === '/index.html')) return serveFile(res, WEB, 'index.html', req);
     if (req.method === 'GET' && url.startsWith('/web/')) return serveFile(res, WEB, url.slice(5), req);
@@ -600,7 +616,10 @@ if (url === '/api/lmstudio/sync' && req.method === 'POST') {
 }
 if (url === '/api/models/rename' && req.method === 'POST') {
   const b = await jbody(req, 1e4).catch(() => ({}));
-  const source = String(b.source || '').trim(), destination = String(b.destination || '').trim();
+  /* Ollama files a name typed without a tag as name:latest, so the new name is given that tag here: the check below
+     then finds it, instead of missing it and leaving both names behind */
+  const source = String(b.source || '').trim(), typed = String(b.destination || '').trim();
+  const destination = typed && !/:[^/]*$/.test(typed) ? typed + ':latest' : typed;
   const validName = n => n.length <= 160 && /^[a-z0-9][a-z0-9._/-]*(?::[a-z0-9][a-z0-9._-]*)?$/i.test(n)
     && !n.includes('..') && !n.includes('//') && !n.endsWith('/') && !n.startsWith('/');
   const nameKey = n => n.toLowerCase().replace(/:latest$/, '');
@@ -616,10 +635,11 @@ if (url === '/api/models/rename' && req.method === 'POST') {
   const copied = await ollamaJson('POST', '/api/copy', { source, destination });
   if (copied.error) return json(res, 502, { error: 'Ollama could not create the new name: ' + copied.error });
   const verify = await ollamaJson('GET', '/api/tags');
-  if (verify.error || !(verify.data.models || []).some(m => m.name === destination)) {
+  if (verify.error || !(verify.data.models || []).some(m => nameKey(String(m.name || '')) === nameKey(destination))) {
     return json(res, 502, { error: 'Ollama accepted the copy, but the new name did not appear in its model list. The original is still safe.', copied: true, destination });
   }
-  const removed = await ollamaJson('POST', '/api/delete', { model: source });
+  /* Ollama takes deletes as DELETE only: a POST here was refused, which left both names behind every time */
+  const removed = await ollamaJson('DELETE', '/api/delete', { model: source, name: source });
   if (removed.error) return json(res, 200, { error: 'The new name is ready, but Ollama could not remove the old name. Both names are still available.', copied: true, destination });
   const currentDefault = modelOrder.getDefault(DATA);
   if (modelOrder.matches(source, currentDefault)) modelOrder.setDefault(DATA, destination);
@@ -693,8 +713,39 @@ if (url === '/api/models/stats' && req.method === 'GET') {
 /* AI: a local model, or a cloud provider (Anthropic or Free LLM) when the user has saved a key.
    Both answer in the same shape, so every feature in the app (chat, the buddy, quizzes, documents, the chess coach) works with either. */
 if (url === '/api/chat' && req.method === 'POST') {
-  const payload = await body(req);
+  let payload = await body(req);
   let b = null; try { b = JSON.parse(payload); } catch (e) { b = null; }
+  const surface = q.get('surface');
+  const playgroundChat = surface === 'playground';
+  if (surface === 'main' || playgroundChat) {
+    const name = playgroundChat ? 'Playground chat' : 'Main Chat';
+    if (!b || typeof b.model !== 'string' || !b.model.trim() || /^any:/i.test(b.model) || !Array.isArray(b.messages)) {
+      return json(res, 400, { error: name + ' requires a chat model and messages.' });
+    }
+    if (playgroundChat && /(?:^free-|^claude-|(?:^|[-:])cloud$|embed)/i.test(b.model)) {
+      return json(res, 400, { error: 'Playground chat requires an installed local chat model.' });
+    }
+    // Keep these surfaces text-only, with optional images in Main Chat.
+    const messages = b.messages
+      .filter(m => m && ['system', 'user', 'assistant'].includes(m.role) && typeof m.content === 'string')
+      .map(({ role, content, images }) => ({
+        role,
+        content,
+        ...(!playgroundChat && role === 'user' && Array.isArray(images) ? { images: images.filter(img => typeof img === 'string') } : {})
+      }));
+    if (!messages.some(m => m.role === 'user')) return json(res, 400, { error: name + ' requires a user message.' });
+    b = { model: b.model, stream: b.stream === true, messages,
+      think: typeof b.think === 'boolean' ? b.think : undefined,
+      keep_alive: typeof b.keep_alive === 'string' ? b.keep_alive : undefined,
+      options: b.options ? {
+        temperature: Number.isFinite(b.options.temperature) ? b.options.temperature : undefined,
+        num_predict: Number.isInteger(b.options.num_predict) ? b.options.num_predict : undefined
+      } : undefined
+    };
+    payload = JSON.stringify(b);
+  }
+  /* LM Studio models (lms:…) and GGUF files run directly (gguf:…) go through lib/openai-bridge.js */
+  if (!playgroundChat && b && openaiBridge.handles(b.model)) return openaiBridge.chat(b, res, { modelUses, llama: require('./lib/llama-runner') });
   const cc = cloud.cfg();
   /* the free pool: try every free route in turn; if not one of them answers, the model on this PC does */
   if (b && b.model === 'free-auto') {
@@ -716,11 +767,24 @@ if (url === '/api/chat' && req.method === 'POST') {
      This prevents "Unknown provider" when a local model name coincides with a free provider's model ID. */
   const isLocalModel = b && b.model && await (async () => {
     try {
-      const r = await new Promise(resolve => http.get({ ...OLLAMA, path: '/api/tags', timeout: 1500 }, res => { let d = ''; res.on('data', c => d += c); res.on('end', () => resolve(d)); }).on('error', () => resolve('')));
+      const r = await new Promise(resolve => {
+        const request = http.get({ ...OLLAMA, path: '/api/tags', timeout: 1500 }, res => {
+          let data = '';
+          res.on('data', chunk => { data += chunk; });
+          res.on('end', () => resolve(data));
+          res.on('error', () => resolve(''));
+        });
+        request.on('timeout', () => request.destroy());
+        request.on('error', () => resolve(''));
+      });
       const j = JSON.parse(r || '{}');
       return (j.models || []).some(m => m.name === b.model);
     } catch (e) { return false; }
   })();
+  if (playgroundChat) {
+    if (!isLocalModel) return json(res, 404, { error: 'The selected local model is unavailable.' });
+    return ollamaChat(payload, res);
+  }
   const isAnthropic = !!(b && cloud.isCloud(b.model) && ANTHROPIC_KEY && !isLocalModel);
   const isFree = !!(b && cloud.isFreeProvider(b.model) && cc.provider !== 'anthropic' && !isLocalModel);
   const isNoKey = !!(b && cloud.isNoKeyProvider(b.model) && !isLocalModel);
@@ -1121,6 +1185,16 @@ if (url === '/api/chat' && req.method === 'POST') {
     if (url === '/api/harness/record') { const rec = harnessStore.get(String(q.get('id') || '')); return json(res, 200, rec ? { ok: true, record: rec } : { ok: false, error: 'That conversation is no longer kept.' }); }
     /* a message may carry a reference picture, sent as base64, so this one route takes a large body */
     if (url === '/api/harness/send' && req.method === 'POST') { const b = await jbody(req, 20e6); return json(res, 200, harness.send(b.text, b.photo)); }
+    if (url === '/api/harness/whip' && req.method === 'POST') {
+      const b = await jbody(req, 4e3).catch(() => ({}));
+      const ow = require('./lib/openwhip');
+      const phrase = ow.pickPhrase(b && b.phrase);
+      if (harness.whip) return json(res, 200, harness.whip(phrase));
+      const st0 = harness.state(1e12);
+      if (st0 && st0.busy) { try { (harness.halt || harness.stop).call(harness); } catch (e) { } }
+      const r = st0 && st0.running ? harness.send(phrase) : { ok: true, sent: false };
+      return json(res, 200, Object.assign({ ok: true, cracked: true, phrase, turbo: true }, r || {}));
+    }
     if (url === '/api/harness/answer' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, harness.answer(b.id, b.allow === true)); }
     if (url === '/api/harness/stop' && req.method === 'POST') return json(res, 200, harness.stop());
     if (url === '/api/harness/show' && req.method === 'POST') {
@@ -1130,6 +1204,7 @@ if (url === '/api/chat' && req.method === 'POST') {
       return json(res, 200, Object.assign({}, harness.show(rec), switched ? { switched } : {}));
     }
     if (url === '/api/harness/forget' && req.method === 'POST') { const b = await jbody(req, 1e4); harnessStore.forget(String(b.id || '')); return json(res, 200, { ok: true }); }
+    if (url === '/api/harness/rename' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, harnessStore.rename(String(b.id || ''), b.title)); }
     if (url === '/api/harness/start' && req.method === 'POST') {
       const b = await jbody(req, 1e4);
       /* picking an old conversation up: it goes on in its own folder, with an engine that can carry it */
@@ -1154,6 +1229,7 @@ if (url === '/api/chat' && req.method === 'POST') {
       if (cmd === 'web') { if (!h.setWeb) return json(res, 200, only); return json(res, 200, h.setWeb(!!v)); }
       if (cmd === 'reach') { if (!h.setReach) return json(res, 200, only); return json(res, 200, h.setReach(!!v)); }
       if (cmd === 'think') { if (!h.setThink) return json(res, 200, only); return json(res, 200, h.setThink(!!v)); }
+      if (cmd === 'turbo') { if (!h.setTurbo) return json(res, 200, only); return json(res, 200, h.setTurbo(!!v)); }
       if (cmd === 'model') {
         if (harnessKind !== 'native') return json(res, 200, only);
         const cur = h.state(1e12);
@@ -1224,10 +1300,13 @@ if (url === '/api/chat' && req.method === 'POST') {
       const ps = "Add-Type -AssemblyName System.Windows.Forms; $f=New-Object System.Windows.Forms.FolderBrowserDialog; $f.Description='Choose a folder for your assistant to read'; $f.ShowNewFolderButton=$false; if($f.ShowDialog() -eq 'OK'){ [Console]::Out.Write($f.SelectedPath) }";
       return cp.execFile('powershell.exe', ['-NoProfile', '-STA', '-Command', ps], { windowsHide: false, timeout: 300000 }, (e, out) => json(res, 200, { path: String(out || '').trim() }));
     }
+    /* ---- one text file from this PC, read-only: the Browser opens a local .html page, the sandbox runs a script ---- */
+    if (url === '/api/file/read') return json(res, 200, require('./lib/file-read').read(q.get('path') || ''));
     /* ---- notes ---- */
     if (url === '/api/notes') return json(res, 200, { folder: store.NOTES, notes: store.notesList() });
     if (url === '/api/notes/get') { const n = store.noteGet(q.get('id') || ''); return n ? json(res, 200, n) : json(res, 404, { error: 'not found' }); }
     if (url === '/api/notes/save' && req.method === 'POST') return json(res, 200, store.noteSave(await jbody(req, 4e6)));
+    if (url === '/api/notes/rename' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, store.noteRename(b.id, b.title)); }
     if (url === '/api/notes/delete' && req.method === 'POST') return json(res, 200, { ok: store.noteDelete((await jbody(req, 1e5)).id) });
     /* ---- prompts, flashcards, reminders, briefing ---- */
     if (url === '/api/prompts') { if (req.method === 'POST') store.promptsSet(await jbody(req, 2e6)); return json(res, 200, store.promptsGet()); }
@@ -1555,7 +1634,7 @@ if (url === '/api/chat' && req.method === 'POST') {
       const u = String(q.get('u') || ''), s = await net.safeUrl(u); if (s.error) { res.writeHead(404); return res.end(); }
       return news.image(u, res, true);
     }
-    /* ---- photos: an index over folders you chose; files are only ever read, never moved or changed ---- */
+    /* ---- photos: an index over folders you chose, with explicit Recycle Bin actions ---- */
     if (url === '/api/photos') return json(res, 200, photos.list());
     if (url === '/api/photos/stats') return json(res, 200, photos.stats());
     if (url === '/api/photos/file') return photos.file(q.get('id'), res);
@@ -1565,6 +1644,14 @@ if (url === '/api/chat' && req.method === 'POST') {
     if (url === '/api/photos/folders' && req.method === 'POST') return json(res, 200, photos.setFolders((await jbody(req, 1e5)).folders));
     if (url === '/api/photos/fav' && req.method === 'POST') { const b = await jbody(req, 1e3); return json(res, 200, photos.fav(String(b.id), !!b.on)); }
     if (url === '/api/photos/hide' && req.method === 'POST') return json(res, 200, photos.hide(String((await jbody(req, 1e3)).id)));
+    if (url === '/api/photos/rename' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, photos.rename(String(b.id), b.title)); }
+    if (url === '/api/photos/group' && req.method === 'POST') {
+      const b = await jbody(req, 2e6);
+      if (!Array.isArray(b.ids) || !['recycle', 'hide', 'favourite', 'unfavourite'].includes(b.action)) return json(res, 400, { error: 'Invalid photo action.' });
+      const ids = [...new Set(b.ids.filter(id => typeof id === 'string' && /^[a-f0-9]{16}$/.test(id)))];
+      const done = b.action === 'recycle' ? await photos.recycle(ids) : photos.changeGroup(ids, b.action);
+      return json(res, 200, { ok: true, done });
+    }
     if (url === '/api/photos/caption' && req.method === 'POST') { const b = await jbody(req, 1e5); return json(res, 200, photos.caption(String(b.id), b.text, b.tags, b.model)); }
     if (url === '/api/photos/forget' && req.method === 'POST') { const b = await jbody(req, 1e3); return json(res, 200, b.what === 'thumbs' ? photos.clearThumbs() : photos.forgetCaptions()); }
     if (url === '/api/photos/reveal' && req.method === 'POST') { const p = photos.where(String((await jbody(req, 1e3)).id)); if (!p) return json(res, 404, { error: 'not found' }); cp.spawn('explorer.exe', ['/select,', p], { detached: true, stdio: 'ignore' }).unref(); return json(res, 200, { ok: true }); }

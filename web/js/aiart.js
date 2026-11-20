@@ -98,7 +98,7 @@
         /* optional: ask the web about the subject first, and let the local AI turn what it read into a visual description.
            The picture itself is still drawn on this PC; the internet only makes the description accurate. */
         if (q('#aiweb') && q('#aiweb').checked) {
-          if (!window.A.net || !A.net.on()) setStatus('Internet access is switched off, so this is drawn from your words alone.', true);
+          if (!A.net || !A.net.on()) setStatus('Internet access is switched off, so this is drawn from your words alone.', true);
           else {
             setStatus('Looking "' + asked.slice(0, 40) + '" up online…');
             const r = await A.net.research(asked).catch(() => null);

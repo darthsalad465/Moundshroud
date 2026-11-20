@@ -129,7 +129,7 @@
 
   // INSPIRATION STUDIO TOOL
   function registerInspirationTool() {
-    if (!window.A || !A.studio) return;
+    if (typeof A === 'undefined' || !A.studio) return;
     A.studio.reg('inspiration', '✨ Daily inspiration', body => {
       const card = getDailyCard();
       body.className = 'scroll pad';

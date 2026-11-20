@@ -25,7 +25,9 @@
   const TILES = [['chat', '💬', 'Chat', 'Ask anything'], ['web', '🌐', 'Browser', 'Search the offline internet'], ['lib', '📚', 'Library', 'Classics and chess books'], ['notes', '📝', 'Notes', 'Write it down'], ['study', '🎓', 'Study', 'Cards and quizzes'], ['health', '🛟', 'Prepare', 'Plans, first aid, recipes'], ['play', '🎭', 'Entertainment', 'Games and chess'], ['music', '🎼', 'Music', 'Your library'], ['radio', '📻', 'Radio', 'Live stations'], ['tv', '📺', 'TV', 'Channels and YouTube'], ['faith', '✝️', 'Spiritual', 'Bible and prayer'], ['journal', '📓', 'Journal', 'Mood and thoughts']];
   /* the Moundshroud logo, large and bold at the top of Today: a copy of the header's own drawing (same gradients), with a heavier gold edge on the M and a glow */
   const logo = () => { const m = document.querySelector('header svg.mark'); if (!m) return ''; const c = m.cloneNode(true); c.removeAttribute('width'); c.removeAttribute('height'); c.removeAttribute('style'); c.setAttribute('class', 'mark td-logo'); c.setAttribute('aria-label', 'Moundshroud'); return '<div class="td-logobox">' + c.outerHTML + '<div class="td-logoname">Moundshroud</div></div>'; };
-  const css = '.td-logobox{display:flex;flex-direction:column;align-items:center;gap:4px;flex:none}.td-logo{width:112px;height:112px;filter:drop-shadow(0 6px 18px rgba(139,124,255,.55)) drop-shadow(0 0 2px rgba(242,199,92,.6))}.td-logo .mk-mf{stroke:#ffe9a3;stroke-width:2.6;stroke-opacity:1;paint-order:stroke}.td-logo .mk-m>path:first-child{opacity:.75}.td-logoname{font-weight:900;font-size:15px;letter-spacing:.6px;background:linear-gradient(180deg,#fff6cf,#f2c75c 55%,#b17a12);-webkit-background-clip:text;background-clip:text;color:transparent}.td-wrap{max-width:1100px;margin:0 auto}.td-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}.td-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px}.td-card h4{margin:0 0 6px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--acc)}.td-tile{display:flex;gap:10px;align-items:center;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--panel);cursor:pointer}.td-tile:hover{background:var(--panel2);border-color:var(--acc)}.td-tile span{font-size:24px}.td-big{font-size:28px;font-weight:700;line-height:1.1}.td-row{display:flex;gap:8px;align-items:center;padding:4px 0}';
+  const css = '.td-logobox{display:flex;flex-direction:column;align-items:center;gap:4px;flex:none}.td-logo{width:112px;height:112px;filter:drop-shadow(0 6px 18px rgba(139,124,255,.55)) drop-shadow(0 0 2px rgba(242,199,92,.6))}.td-logo .mk-mf{stroke:#ffe9a3;stroke-width:2.6;stroke-opacity:1;paint-order:stroke}.td-logo .mk-m>path:first-child{opacity:.75}.td-logoname{font-weight:900;font-size:15px;letter-spacing:.6px;background:linear-gradient(180deg,#fff6cf,#f2c75c 55%,#b17a12);-webkit-background-clip:text;background-clip:text;color:transparent}.td-wrap{max-width:1100px;margin:0 auto}.td-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}.td-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px}.td-card h4{margin:0 0 6px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--acc)}.td-tile{display:flex;gap:10px;align-items:center;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--panel);cursor:pointer}.td-tile:hover{background:var(--panel2);border-color:var(--acc)}.td-tile span{font-size:24px}.td-big{font-size:28px;font-weight:700;line-height:1.1}.td-row{display:flex;gap:8px;align-items:center;padding:4px 0}' +
+    '.td-mu-now{display:flex;gap:6px;align-items:center;min-width:0}.td-mu-np{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px}.td-mu-res{margin-top:10px}.td-mu-cols{display:flex;gap:16px;flex-wrap:wrap}.td-mu-col{flex:1;min-width:220px;max-height:300px;overflow:auto}.td-mu-col:first-child{flex:2}.td-mu-h{margin-bottom:4px}.td-mu-h span{opacity:.7}' +
+    '.td-mu-row{display:flex;gap:10px;align-items:center;padding:6px 8px;border-radius:8px;cursor:pointer}.td-mu-row:hover{background:var(--panel2)}.td-mu-row.on b{color:var(--acc)}.td-mu-ic{width:20px;text-align:center;flex:none}.td-mu-tx{display:flex;flex-direction:column;min-width:0}.td-mu-tx b,.td-mu-tx span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}';
   if (!document.getElementById('tdcss')) { const s = document.createElement('style'); s.id = 'tdcss'; s.textContent = css; document.head.appendChild(s); }
   /* the Spiritual widget: verse of the day, the liturgical day, today's Rosary, the reading plan, what is coming up, and the daily 8:00 notification */
   async function spirit(el) {
@@ -69,6 +71,54 @@
       };
     }
   }
+  /* the Music widget: one search box over the whole music library (songs, artists, albums, your own imported songs).
+     A click plays through the Music tab's own player (A.musicLib), so playback stays inside Moundshroud and carries on across tabs. */
+  let muHooked = false;
+  async function musicCard(el) {
+    if (!el) return; const M = A.musicLib;
+    if (!M || !M.ensure) { el.innerHTML = '<h4>🎼 Music</h4><div class="small mute">The music player is not available.</div>'; return; }
+    el.innerHTML = '<h4>🎼 Music</h4><div class="row" style="gap:8px;flex-wrap:wrap;align-items:center"><input id="tdmq" type="text" autocomplete="off" placeholder="Search any song, artist or album..." style="flex:1;min-width:220px;max-width:560px;padding:9px 14px;border-radius:999px"><span class="td-mu-now" id="tdmnow"></span></div><div id="tdmres" class="td-mu-res"><div class="small mute">Loading your library...</div></div>';
+    let cat = []; try { cat = await M.ensure(); } catch (e) { } if (!el.isConnected) return;
+    const art = {}, alb = {}; cat.forEach(t => { (art[t.a] = art[t.a] || []).push(t); if (t.al) (alb[t.al] = alb[t.al] || []).push(t); });
+    const q = id => el.querySelector('#' + id), res = q('tdmres'), inp = q('tdmq');
+    const ns = n => n + (n === 1 ? ' song' : ' songs');
+    const now = () => {
+      const o = q('tdmnow'); if (!o) return; const c = M.current ? M.current() : null, au = M.audio;
+      o.innerHTML = c ? '<button class="ib" data-mu="toggle" title="Play or pause">' + (au && !au.paused ? '⏸' : '▶') + '</button><button class="ib" data-mu="next" title="Next song">⏭</button><span class="small td-mu-np">' + (au && !au.paused ? 'Playing ' : 'Paused ') + '<b>' + esc2(c.t) + '</b> · ' + esc2(c.a) + '</span>' : '';
+    };
+    if (!muHooked && M.audio) { muHooked = true; ['play', 'pause', 'emptied'].forEach(ev => M.audio.addEventListener(ev, () => { const c = document.getElementById('tdmu'); if (c && c._muNow) c._muNow(); })); }
+    el._muNow = now; now();
+    let hits = { s: [], a: [], b: [] };
+    const draw = () => {
+      const s = inp.value.trim().toLowerCase();
+      if (!cat.length) { res.innerHTML = '<div class="small mute">No music on this PC yet. <a style="cursor:pointer;color:var(--acc)" data-mu="open">Open Music</a> to bring in your own songs.</div>'; return; }
+      if (!s) { res.innerHTML = '<div class="small mute">' + ns(cat.length) + ', ' + Object.keys(art).length + ' artists and ' + Object.keys(alb).length + ' albums in your library. Type to search, then click a result to play it. <a style="cursor:pointer;color:var(--acc)" data-mu="open">Open Music</a></div>'; return; }
+      const toks = s.split(/\s+/).filter(Boolean);
+      const score = t => { const hay = (t.t + ' ' + t.a + ' ' + (t.al || '') + ' ' + (t.g || '')).toLowerCase(); let n = 0; for (const w of toks) { if (!hay.includes(w)) return 0; n += t.t.toLowerCase().includes(w) ? 3 : 1; } return n; };
+      hits.s = cat.map(t => [score(t), t]).filter(x => x[0]).sort((a, b) => b[0] - a[0]).map(x => x[1]);
+      const has = k => toks.every(w => k.toLowerCase().includes(w));
+      hits.a = Object.keys(art).filter(has).sort((a, b) => art[b].length - art[a].length);
+      hits.b = Object.keys(alb).filter(k => has(k + ' ' + alb[k][0].a)).sort((a, b) => alb[b].length - alb[a].length);
+      if (!hits.s.length && !hits.a.length && !hits.b.length) { res.innerHTML = '<div class="small mute">Nothing matches "' + esc2(inp.value.trim()) + '". Try part of a title, an artist or an album.</div>'; return; }
+      const cur = M.current ? M.current() : null;
+      const col = (title, n, body) => '<div class="td-mu-col"><div class="small mute td-mu-h">' + title + ' <span>' + n + '</span></div>' + body + '</div>';
+      res.innerHTML = '<div class="td-mu-cols">' +
+        (hits.s.length ? col('Songs', hits.s.length, hits.s.slice(0, 30).map((t, i) => '<div class="td-mu-row' + (cur && cur.i === t.i ? ' on' : '') + '" data-mus="' + i + '" title="Play ' + esc2(t.t) + '"><span class="td-mu-ic">▶</span><div class="td-mu-tx"><b>' + esc2(t.t) + '</b><span class="small mute">' + esc2(t.a) + (t.al ? ' · ' + esc2(t.al) : '') + '</span></div></div>').join('')) : '') +
+        (hits.a.length ? col('Artists', hits.a.length, hits.a.slice(0, 20).map((a, i) => '<div class="td-mu-row" data-mua="' + i + '" title="Play all songs by ' + esc2(a) + '"><span class="td-mu-ic">🎤</span><div class="td-mu-tx"><b>' + esc2(a) + '</b><span class="small mute">' + ns(art[a].length) + '</span></div></div>').join('')) : '') +
+        (hits.b.length ? col('Albums', hits.b.length, hits.b.slice(0, 20).map((b, i) => '<div class="td-mu-row" data-mub="' + i + '" title="Play the album ' + esc2(b) + '"><span class="td-mu-ic">💿</span><div class="td-mu-tx"><b>' + esc2(b) + '</b><span class="small mute">' + esc2(alb[b][0].a) + ' · ' + ns(alb[b].length) + '</span></div></div>').join('')) : '') + '</div>';
+    };
+    draw();
+    inp.oninput = () => { clearTimeout(el._mt); el._mt = setTimeout(draw, 120); };
+    inp.onkeydown = e => { e.stopPropagation(); if (e.key === 'Enter' && hits.s.length && inp.value.trim()) { M.playList(hits.s.map(t => t.i), 0, 'Search: ' + inp.value.trim()); setTimeout(draw, 50); } };
+    el.onclick = e => {
+      const b = e.target.closest('[data-mu]'); if (b) { const k = b.dataset.mu; if (k === 'toggle') M.toggle(); else if (k === 'next') M.next(); else if (k === 'open') A.showTab('music'); return; }
+      const r = e.target.closest('.td-mu-row'); if (!r) return; const d = r.dataset, lbl = inp.value.trim();
+      if (d.mus != null) M.playList(hits.s.map(t => t.i), +d.mus, 'Search: ' + lbl);
+      else if (d.mua != null) { const a = hits.a[+d.mua]; M.playList(art[a].map(t => t.i), 0, a); }
+      else if (d.mub != null) { const k = hits.b[+d.mub]; M.playList(alb[k].map(t => t.i), 0, k); }
+      setTimeout(draw, 50);
+    };
+  }
   /* "Your day": today's events and reminders, tonight's dinner from the Kitchen planner, and what the Garden says to plant */
   async function dayCard(el) {
     if (!el || !A.cal) return; const d = new Date(), k = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -111,6 +161,7 @@
       '<div id="tdalert"></div>' +
       '<div class="td-grid" style="margin-top:14px">' +
       '<div class="td-card" id="tdsp" style="grid-column:1/-1">' + (s ? '<h4>✝️ Spiritual</h4><div class="td-big" style="color:' + s.col + '">' + esc2(s.n) + '</div><div class="small mute">Vestment colour ' + esc2(s.c) + (fe.length ? ' · ' + esc2(fe.map(x => x.n).join(', ')) : '') + '</div><div class="small mute" style="margin-top:8px">Loading the verse of the day...</div>' : '<h4>✝️ Spiritual</h4>') + '</div>' +
+      '<div class="td-card" id="tdmu" style="grid-column:1/-1"><h4>🎼 Music</h4></div>' +
       '<div class="td-card" id="tdday"><h4>📅 Your day</h4><div class="mute small">Loading...</div></div>' +
       '<div class="td-card" id="tdhist"><h4>🕰️ This day in history</h4></div>' +
       '<div class="td-card" id="tdrem"><h4>Reminders</h4><div class="mute small">Loading...</div></div>' +
@@ -123,7 +174,7 @@
       '</div><h4 style="margin:18px 0 8px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)">Go to</h4><div class="td-grid" style="grid-template-columns:repeat(auto-fill,minmax(190px,1fr))">' + TILES.map(t => '<div class="td-tile" data-go="' + t[0] + '"><span>' + ((A.icon && A.icon(t[0])) || t[1]) + '</span><div><b>' + t[2] + '</b><div class="small mute">' + t[3] + '</div></div></div>').join('') + '</div></div></div>';
     const $ = id => root.querySelector('#' + id);
     const ask = () => { const v = $('tdq').value.trim(); A.showTab('chat'); if (v) A.chat.ask(v); };
-    spirit($('tdsp')); dayCard($('tdday')); histCard($('tdhist')); routineCard($('tdrt'));
+    spirit($('tdsp')); musicCard($('tdmu')); dayCard($('tdday')); histCard($('tdhist')); routineCard($('tdrt'));
     $('tdall').onclick = () => { if (A.askAll) A.askAll.open($('tdq').value.trim()); };
     $('tdgo').onclick = ask; $('tdq').onkeydown = e => { e.stopPropagation(); if (e.key === 'Enter') ask(); };
     root.onclick = e => {

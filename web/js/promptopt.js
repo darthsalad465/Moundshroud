@@ -83,14 +83,12 @@
       '<div class="row" style="gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap"><button class="pri" id="pogo">✨ Optimize</button><span class="small mute" id="post"></span></div></div>' +
       '<div id="poout"></div>' +
       '<div class="card" style="margin-top:14px"><b>Automatic</b><div class="small mute" style="margin:4px 0 8px">Let Moundshroud optimize by itself, without opening this page.</div>' +
-      '<label class="chk"><input type="checkbox" id="poautoimg"' + (ls.get('po_auto_image', '1') !== '0' ? ' checked' : '') + '> Pictures made from the chat (“make me an image of…”) get an optimized prompt</label><br>' +
       '<label class="chk"><input type="checkbox" id="poautoart"' + (ls.get('po_auto_art', '0') === '1' ? ' checked' : '') + '> Studio › AI art optimizes every prompt before drawing</label></div>' +
       '<div class="card small" style="margin-top:14px;line-height:1.6"><b>Tips for any prompt</b><ul style="margin:4px 0 0;padding-left:18px"><li>Say the goal first, then the details, then the format you want back.</li><li>Concrete beats clever: “a red 1960s Vespa” beats “a cool scooter”.</li><li>For pictures, the first words matter most: put the subject first.</li><li>For the coding agent: one file, one feature, and say how to check it works.</li><li>Long chats get slow and forgetful on small models: start a new chat for a new topic.</li></ul></div></div></div>';
     const $ = id => b.querySelector('#' + id);
     const pick = k => { target = k; ls.set('po_target', k); b.querySelectorAll('.poC').forEach(x => x.classList.toggle('on', x.dataset.k === k)); $('poin').placeholder = 'e.g. ' + T[k].ph; $('pophoto').style.display = T[k].photo ? '' : 'none'; };
     pick(target);
     $('pot').onclick = e => { const c = e.target.closest('[data-k]'); if (c) pick(c.dataset.k); };
-    $('poautoimg').onchange = e => ls.set('po_auto_image', e.target.checked ? '1' : '0');
     $('poautoart').onchange = e => ls.set('po_auto_art', e.target.checked ? '1' : '0');
     $('popick').onclick = () => $('pofile').click();
     $('pofile').onchange = async () => { const f = $('pofile').files[0]; if (!f) return; photo = await small(f, 768); $('pothumb').src = 'data:image/jpeg;base64,' + photo; $('pothumb').style.display = ''; };

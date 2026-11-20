@@ -1,0 +1,28 @@
+/* Separate, collapsible command feedback in the Terminal Playground. */
+.tpg-coach {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel2);
+  min-width: 0;
+}
+.tpg-coach > summary {
+  cursor: pointer;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+.tpg-coach > summary strong { margin-right: 8px; }
+.tpg-coach > summary [data-tone="ok"] { color: #6ee7a0; }
+.tpg-coach > summary [data-tone="error"] { color: #ffad91; }
+.tpg-coach > summary [data-tone="neutral"] { color: var(--mute); }
+.tpg-coach > div {
+  padding: 0 10px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.tpg-coach code { overflow-wrap: anywhere; }
+.tpg-coach header { display: flex; gap: 6px 12px; flex-wrap: wrap; align-items: baseline; }
+.tpg-coach header span { white-space: nowrap; color: var(--mute); }
+.tpg-coach h4 { margin: 7px 0 0; font-size: 12px; }
+.tpg-coach ul { padding-left: 19px; margin: 2px 0 6px; }
+.tpg-coach li + li { margin-top: 3px; }
+.tpg-coach-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }

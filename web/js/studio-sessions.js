@@ -53,12 +53,15 @@
   function mount(host, cfg) {
     let sid = '', sess = null, attach = null, alive = true;
     host.innerHTML = '<div class="agx">' +
-      '<aside class="agside"><div class="agsidetop"><button class="agnew" data-k="new">✎ New ' + esc(cfg.noun || 'session') + '</button><input type="search" data-k="q" placeholder="Search"></div><div class="agslist" data-k="list"></div></aside>' +
-      '<section class="agmain"><div class="aghead"><button class="ib agtog" data-k="tog" title="Show or hide the list">☰</button><div class="aghtitle"><b data-k="title">' + esc(cfg.title) + '</b><span class="small mute" data-k="sub">' + esc(cfg.sub || '') + '</span></div><span class="agstat" data-k="stat"></span></div>' +
+      '<aside class="agside"><div class="agsidetop"><button class="agnew" data-k="new">✎ New ' + esc(cfg.noun || 'session') + '</button><input type="search" data-k="q" placeholder="Search"></div><div class="session-select" data-k="select"></div><div class="agslist" data-k="list" data-selection-area></div></aside>' +
+      '<section class="agmain"><div class="aghead"><button class="ib agtog" data-k="tog" title="Show or hide the list">☰</button><div class="aghtitle"><button class="collection-title" data-k="title" title="Rename session" disabled>' + esc(cfg.title) + '</button><span class="small mute" data-k="sub">' + esc(cfg.sub || '') + '</span></div><span class="agstat" data-k="stat"></span></div>' +
       '<div class="scroll agconv" data-k="conv"><div class="agtx" data-k="msgs"></div></div>' +
       '<div class="agcomp"><div class="agbox"><div data-k="att" class="ssatt" hidden></div><textarea rows="2" data-k="in" placeholder="' + esc(cfg.placeholder) + '"></textarea>' +
       '<div class="agchips">' + (cfg.attach ? '<button class="agchip" data-k="clip" title="' + esc(cfg.attach.title) + '">📎 ' + esc(cfg.attach.label) + '</button><input type="file" data-k="file" accept="' + esc(cfg.attach.accept) + '" hidden>' : '') + '<span data-k="chips" class="sschips"></span><span style="flex:1"></span><button class="agsend" data-k="send" title="Make it (Enter)">↑</button></div></div></div></section></div>';
     const $ = k => host.querySelector('[data-k="' + k + '"]');
+    const collections = A.collectionSelect;
+    $('select').innerHTML = collections.toolbar('<button class="ib dang" data-selection="delete">Delete selected</button>');
+    const selection = collections.bind($('list').closest('aside'), { delete: deleteSessions });
     const x = host.querySelector('.agx'), stat = $('stat');      /* kept: its data-k is changed below (the dot's colour), so $('stat') only finds it once */
     $('chips').innerHTML = cfg.chips();
     if (cfg.wire) cfg.wire($('chips'), host);
@@ -70,14 +73,42 @@
       const all = got.filter(s => !q || (s.title + ' ' + s.turns.map(t => t.prompt || '').join(' ')).toLowerCase().includes(q));
       const day0 = new Date(); day0.setHours(0, 0, 0, 0); const gOf = t => t >= +day0 ? 'Today' : t >= +day0 - 864e5 ? 'Yesterday' : t >= +day0 - 7 * 864e5 ? 'Previous 7 days' : 'Older';
       let h = '', last = '';
-      for (const s of all) { const g = gOf(s.at); if (g !== last) { h += '<div class="aggrp">' + g + '</div>'; last = g; } h += '<div class="agrow' + (s.id === sid ? ' on' : '') + '" data-sid="' + s.id + '"><div class="agrt">' + (busy(s.id) ? '<span class="agdotlive"></span>' : '') + esc(s.title || 'Untitled') + '</div><div class="agrm">' + s.turns.filter(t => t.role === 'user').length + ' ' + esc(cfg.unit || 'items') + ' · ' + ago(s.at) + '</div><button class="agfx" data-del="' + s.id + '" title="Delete this session">✕</button></div>'; }
+      for (const s of all) { const g = gOf(s.at); if (g !== last) { h += '<div class="aggrp">' + g + '</div>'; last = g; } h += '<div class="agrow' + (s.id === sid ? ' on' : '') + '" data-sid="' + esc(s.id) + '" data-select-id="' + esc(s.id) + '">' + collections.check('Select ' + s.title) + '<div class="agrt">' + (busy(s.id) ? '<span class="agdotlive"></span>' : '') + esc(s.title || 'Untitled') + '</div><div class="agrm">' + s.turns.filter(t => t.role === 'user').length + ' ' + esc(cfg.unit || 'items') + ' · ' + ago(s.at) + '</div><div class="session-actions"><button class="collection-icon" data-ren="' + esc(s.id) + '" title="Rename session" aria-label="Rename session">✎</button><button class="collection-icon" data-del="' + esc(s.id) + '" title="Delete this session">✕</button></div></div>'; }
       $('list').innerHTML = h || '<div class="small mute" style="padding:10px">Nothing yet. Type below to start.</div>';
+      $('select').hidden = !all.length;
+      selection.sync();
     }
     $('q').oninput = drawList;
     $('list').onclick = async e => {
-      const d = e.target.closest('[data-del]'); if (d) { e.stopPropagation(); if (busy(d.dataset.del)) return A.toast('That session is still making something.'); if (!(await A.confirm('Delete this session and everything made in it? Pictures saved elsewhere are kept.'))) return; await S.del(d.dataset.del); if (d.dataset.del === sid) { sid = ''; sess = null; drawConv(); } drawList(); return; }
+      const ren = e.target.closest('[data-ren]');
+      if (ren) return renameSession(ren.dataset.ren);
+      const d = e.target.closest('[data-del]');
+      if (d) return deleteSessions([d.dataset.del]);
       const r = e.target.closest('[data-sid]'); if (r) { await open(r.dataset.sid); if (x.classList.contains('narrow')) x.classList.remove('sideopen'); }
     };
+    async function renameSession(id) {
+      const current = await S.get(id);
+      if (!current) return;
+      const name = (await A.prompt('Session title', current.title, { title: 'Rename session' }))?.trim();
+      if (!name || name === current.title) return;
+      const changed = await update(id, s => { s.title = name.slice(0, 100); });
+      if (sid === id && changed) { sess = changed; drawConv(); }
+      drawList();
+    }
+    async function deleteSessions(ids) {
+      const allowed = ids.filter(id => !busy(id));
+      if (!allowed.length) { A.toast('Wait for the selected sessions to finish first.'); return; }
+      if (!(await A.confirm('Delete ' + allowed.length + (allowed.length === 1 ? ' session and its results?' : ' sessions and their results?'), { title: 'Delete sessions', okLabel: 'Delete', danger: true }))) return;
+      const done = await collections.each(allowed, async id => {
+        if (busy(id)) return null;
+        await S.del(id);
+        return { ok: true };
+      });
+      if (done.includes(sid)) { sid = ''; sess = null; drawConv(); }
+      drawList();
+      return done;
+    }
+    $('title').onclick = () => { if (sid) renameSession(sid); };
     $('new').onclick = () => { sid = ''; sess = null; drawConv(); drawList(); $('in').focus(); };
     $('tog').onclick = () => { if (x.classList.contains('narrow')) x.classList.toggle('sideopen'); else x.classList.toggle('sidehide'); };
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => x.classList.toggle('narrow', host.clientWidth < 760)) : null; if (ro) ro.observe(host);
@@ -97,6 +128,7 @@
     function drawConv() {
       const box = $('msgs'), c = $('conv'), stick = c.scrollHeight - c.scrollTop - c.clientHeight < 160;
       box.innerHTML = sess && sess.turns.length ? sess.turns.map(turnHtml).join('') : welcome();
+      $('title').disabled = !sess;
       $('title').textContent = sess ? sess.title : cfg.title; $('sub').textContent = sess ? new Date(sess.created).toLocaleString() : (cfg.sub || '');
       const b = sess && busy(sess.id); stat.textContent = b ? 'Working' : ''; stat.dataset.k = b ? 'busy' : '';
       if (stick || !sess) c.scrollTop = c.scrollHeight;
@@ -133,9 +165,9 @@
     const onJob = async (s, what) => { if (!alive) return; if (s === sid) { const my = ++dc, got = await S.get(sid); if (my === dc && s === sid) { sess = got; drawConv(); } } if (what !== 'progress') drawList(); };
     listeners.add(onJob);
     const tick = setInterval(() => { if (sid && Object.keys(LIVE).length && host.isConnected && !host.closest('[hidden]')) { const sp = host.querySelector('.agspin'); if (sp && sess) { const t = sess.turns.find(z => LIVE[z.id]); if (t) { const L = LIVE[t.id]; sp.firstChild.textContent = '✻ ' + L.note + (L.t0 ? ' ' + Math.round((Date.now() - L.t0) / 1000) + 's ' : ' '); } } } }, 1000);
-    host._cleanup = () => { alive = false; listeners.delete(onJob); clearInterval(tick); if (ro) ro.disconnect(); };
-    /* something sent here from elsewhere (the Prompt optimizer, a chat picture) */
-    host._onShow = () => { if (cfg.takePending) cfg.takePending({ newSession: () => { sid = ''; sess = null; drawConv(); drawList(); }, input: $('in'), attach: setAttach, chips: $('chips') }); };
+    host._cleanup = () => { alive = false; selection.destroy(); listeners.delete(onJob); clearInterval(tick); if (ro) ro.disconnect(); };
+    /* Handle requests sent from elsewhere in the app, such as the Prompt optimizer. */
+    host._onShow = () => { if (cfg.takePending) cfg.takePending({ newSession: () => { sid = ''; sess = null; drawConv(); drawList(); }, input: $('in'), attach: setAttach, chips: $('chips'), send }); };
     (async () => { const all = await S.all(cfg.tool); if (all[0] && !cfg.startFresh) { sid = all[0].id; sess = all[0]; } drawConv(); drawList(); host._onShow(); })();
   }
   async function small(blob, max) { try { const bm = await createImageBitmap(blob), k = Math.min(1, max / Math.max(bm.width, bm.height)), c = document.createElement('canvas'); c.width = Math.round(bm.width * k); c.height = Math.round(bm.height * k); c.getContext('2d').drawImage(bm, 0, 0, c.width, c.height); return c.toDataURL('image/jpeg', .8); } catch (e) { return ''; } }
@@ -220,6 +252,11 @@
     takePending: ui => {
       const P = window.AIArt && AIArt.pending; if (!P || !P.mode) return; AIArt.pending = null; ui.newSession(); ui.input.value = P.prompt || '';
       if (P.mode === 'edit' && P.photo) fetch('data:image/jpeg;base64,' + P.photo).then(r => r.blob()).then(b => ui.attach(b, 'photo'));
+      if (P.mode === 'make' && P.go) {
+        ui.attach(null);
+        if (P.shape) ui.chips.querySelector('[data-c=shape]').value = P.shape;
+        ui.send();
+      }
     },
   };
 

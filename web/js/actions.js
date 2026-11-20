@@ -8,7 +8,7 @@
   const SRC = { type: 'string', enum: ['topic', 'last_answer', 'attached_file'], description: 'Where the material comes from: the topic named (default), your previous answer in this chat, or the file the user attached.' };
 
   const schema = [
-    fn('make_image', 'Draw a picture right here in the chat (the picture model on this PC). Use this whenever the user asks for an image, picture, photo, drawing, painting, wallpaper or logo. Never open Studio for this.', { description: { type: 'string', description: 'What the picture should show, in the user\'s words' }, shape: { type: 'string', enum: ['square', 'wide', 'tall'] } }, ['description']),
+    fn('make_image', 'Draw a picture in Studio › AI Art using the picture model on this PC.', { description: { type: 'string', description: 'What the picture should show, in the user\'s words' }, shape: { type: 'string', enum: ['square', 'wide', 'tall'] } }, ['description']),
     fn('make_quiz', 'Create and start a quiz for the user.', { topic: { type: 'string', description: 'What the quiz is about' }, count: { type: 'integer', description: 'Number of questions, 5 to 20 (default 10)' }, difficulty: { type: 'string', enum: ['easy', 'medium', 'hard'] }, types: { type: 'array', items: { type: 'string', enum: ['mc', 'tf', 'fill', 'short'] }, description: 'mc=multiple choice, tf=true/false, fill=fill in the blank, short=short answer' }, source: SRC }, ['topic']),
     fn('make_study_guide', 'Write a study guide, summary, cheat sheet or practice problems for the user.', { topic: { type: 'string' }, style: { type: 'string', enum: ['Study guide', 'Summary', 'Cheat sheet', 'Explain it simply', 'Practice problems with answers'] }, source: SRC }, ['topic']),
     fn('make_flashcards', 'Create a flashcard deck for the user to study.', { topic: { type: 'string' }, count: { type: 'integer', description: 'Number of cards, 6 to 20 (default 10)' }, source: SRC }, ['topic']),
@@ -56,8 +56,13 @@
   }
 
   const RUN = {
-    /* the chat draws the picture itself (chat.js picks this call out); this is only reached from elsewhere */
-    async make_image(a) { setTimeout(() => A.chat && A.chat.ask('make me an image of ' + String(a.description || '')), 50); return 'Drawing it now, here in the chat.'; },
+    make_image(a) {
+      if (!window.AIArt || !A.studio) throw new Error('AI Art is unavailable');
+      const shape = a.shape === 'wide' ? '768x512' : a.shape === 'tall' ? '512x768' : '512x512';
+      AIArt.pending = { mode: 'make', prompt: a.description, shape, go: true };
+      A.studio.go('art');
+      return 'Drawing it in Studio › AI Art.';
+    },
     make_quiz(a) { const s = material(a); A.quiz.auto(s, { count: num(a.count, 10, 3, 20), level: a.difficulty, types: a.types }).catch(e => A.toast(e.message, 4000)); return 'Making ' + (a.difficulty === 'easy' ? 'an easy' : a.difficulty === 'hard' ? 'a hard' : 'a medium') + ' quiz on **' + s.title + '** - it opens in Study in a few seconds.'; },
     make_study_guide(a) { const s = material(a); A.quiz.guide(s, a.style).catch(e => A.toast(e.message, 4000)); return 'Writing a ' + (a.style || 'study guide').toLowerCase() + ' on **' + s.title + '** in the Study tab.'; },
     async make_flashcards(a) { const n = await flashcards(a); return 'Made **' + n + ' flashcards** in a deck called "' + String(a.topic).slice(0, 60) + '". They are in the Study tab.'; },

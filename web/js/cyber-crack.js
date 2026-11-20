@@ -329,6 +329,7 @@
   }
 
   const API = { md5, md4, ntlm, sha1, sha256, detect, rulesOf, WORDS, ALGOS };
+  if (typeof window !== 'undefined') window.TerminalDigests = { md5, sha1, sha256 };
   if (typeof A !== 'undefined') { A.cyberLabs = Object.assign(A.cyberLabs || {}, { crack }); }
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
 })();

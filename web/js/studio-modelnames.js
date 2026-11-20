@@ -1,6 +1,7 @@
 // Studio > Rename models: give local Ollama models an easier name without changing their model data.
 (() => {
-  if (!window.A || !A.studio || !A.studio.reg) return;
+  /* A is a global const, which window.A never sees: the old check here kept this section from ever loading */
+  if (typeof A === 'undefined' || !A.studio || !A.studio.reg) return;
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   function render(root) {
@@ -52,8 +53,9 @@
         status.textContent = 'Renamed to ' + r.destination + '.';
         A.toast('Model renamed to ' + r.destination);
       } else {
-        status.textContent = (r && r.error) || 'The rename could not be completed.';
+        /* the list is reloaded first, so its "Ready" does not cover up what went wrong */
         if (r && r.copied) await load(r.destination);
+        status.textContent = (r && r.error) || 'The rename could not be completed.';
       }
       updateButton();
     };

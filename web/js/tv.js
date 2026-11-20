@@ -7,6 +7,12 @@
 (() => {
   const root = document.getElementById('p-tv'); if (!root) return;
   const q$ = s => root.querySelector(s);
+  const collections = A.collectionSelect;
+  const selection = collections.bind(root, {
+    download: ids => askDownload(ids.map(id => yt.res?.find(v => v.id === id)).filter(Boolean)),
+    remove: removeGroup,
+    move: moveGroup
+  });
   const TOPICS = [['🔴 Live news', 'live news'], ['🌍 World news', 'world news today'], ['🛰 NASA live', 'nasa live'], ['🎵 Music', 'music playlist'], ['🏅 Sports highlights', 'sports highlights'], ['🎬 Movie trailers', 'official trailer'], ['📚 Documentaries', 'full documentary'], ['😂 Comedy', 'stand up comedy'], ['🍳 Cooking', 'cooking recipes'], ['✝ Mass and prayer', 'catholic mass today'], ['🧒 Kids', 'kids cartoons'], ['🌲 Nature', 'nature 4k relaxing'], ['🔧 How to', 'how to fix']];
   let S = null, view = ls.get('tv_view', 'mine'), more = false, found = null, findT = 0, list = null, cat = '', filter = '', yt = { q: '', res: null, busy: false, err: '', seq: 0 }, busy = '', addOpen = false;
   /* 🌍 Cameras: a hand-checked list of public 24/7 webcams (lib/cams.js), with YouTube search for fresh ones */
@@ -103,7 +109,7 @@
   const logo = c => c.logo ? '<img loading="lazy" src="/api/tv/logo?id=' + encodeURIComponent(c.id) + '" alt="" onerror="this.replaceWith(Object.assign(document.createElement(\'span\'),{className:\'tv-ini\',textContent:this.dataset.i}))" data-i="' + initials(c.name) + '">' : '<span class="tv-ini">' + initials(c.name) + '</span>';
   function tile(c, opts) {
     const on = P.kind === 'video' && P.item && P.item.id === c.id;
-    return '<div class="tv-tile' + (on ? ' on' : '') + '" data-id="' + esc(c.id) + '" data-a="play" title="Play ' + esc(c.name) + '"><div class="tv-logo">' + logo(c) + '</div><div class="tv-tm"><b>' + esc(c.name) + '</b><span class="small mute">' + esc(sub(c) || c.host || 'Channel') + (c.guess ? ' · name read from its address' : '') + '</span></div>' +
+    return '<div class="tv-tile' + (on ? ' on' : '') + '" data-id="' + esc(c.id) + '" data-a="play"' + (opts.edit ? ' data-select-id="' + esc(c.id) + '"' : '') + ' title="Play ' + esc(c.name) + '">' + (opts.edit ? collections.check('Select ' + c.name) : '') + '<div class="tv-logo">' + logo(c) + '</div><div class="tv-tm"><b>' + esc(c.name) + '</b><span class="small mute">' + esc(sub(c) || c.host || 'Channel') + (c.guess ? ' · name read from its address' : '') + '</span></div>' +
       '<div class="tv-acts">' + (opts.save ? '<button class="ib" data-a="save" title="Save to My channels">☆</button>' : '') + (opts.edit ? '<button class="ib" data-a="ren" title="Rename">✎</button><button class="ib" data-a="rm" title="Remove">✕</button>' : '') + '</div></div>';
   }
   const mark = () => {
@@ -114,7 +120,7 @@
   /* ---------- drawing ---------- */
   function shell() {
     root.innerHTML = '<div class="rd-top"><h2>📺 TV</h2><div class="tv-seg"><button class="ib" data-v="mine">📡 My channels</button><button class="ib" data-v="cams">🌍 Cameras</button><button class="ib" data-v="yt">▶ YouTube</button><button class="ib" data-v="dl">📥 Downloads</button></div>' +
-      '<input id="tvq" type="search" autocomplete="off"></div><div id="tvban"></div><div class="tv-player" id="tvp" style="display:none"></div><div class="scroll pad" id="tvbody" style="flex:1;min-height:0"></div>';
+      '<input id="tvq" type="search" autocomplete="off"></div><div id="tvban"></div><div class="tv-player" id="tvp" style="display:none"></div><div class="scroll pad" id="tvbody" data-selection-area style="flex:1;min-height:0"></div>';
     root.onclick = onClick;
     q$('#tvq').addEventListener('input', e => { if (view === 'dl') { dlq = e.target.value.trim(); return drawBody(); } if (view !== 'yt') { filter = e.target.value.trim(); found = null; camShown = 90; drawBody(); clearTimeout(findT); if (!list && !more && filter.length > 1) findT = setTimeout(findAll, 350); } });
     root.addEventListener('change', async e => { const m = e.target.closest('[data-dmv]'); if (!m) return; const r = await post('/api/tv/dl/move', { id: m.dataset.dmv, folder: m.value }); if (r) { S.dl = r; drawBody(); } });
@@ -130,6 +136,11 @@
     const el = q$('#tvbody'); if (!el) return;
     if (busy) { el.innerHTML = '<div class="rd-empty">⏳ ' + esc(busy) + '</div>'; return; }
     el.innerHTML = view === 'dl' ? drawDl() : view === 'cams' ? drawCams() : view === 'yt' ? drawYt() : list ? drawList() : more ? drawMore() : drawMine();
+    const actions = view === 'yt' ? '<button class="ib" data-selection="download">Download selected</button>' :
+      view === 'dl' ? '<button class="ib" data-selection="move">Move to folder</button><button class="ib dang" data-selection="remove">Delete selected</button>' :
+      '<button class="ib dang" data-selection="remove">Remove selected</button>';
+    if (el.querySelector('[data-select-id]')) el.insertAdjacentHTML('afterbegin', collections.toolbar(actions));
+    selection.sync();
     mark();
   }
   function drawMine() {
@@ -140,7 +151,7 @@
     if (!S.video) h += '<div class="card small rd-bad">Live TV needs ffmpeg, which is not installed. Run install-song-tools.ps1 once. YouTube works without it.</div>';
     if (filter.length > 1) h += '<h3 class="tv-h">🔎 Every free channel matching “' + esc(filter) + '” <span class="small mute">' + (found ? found.total.toLocaleString() + ' of ' + (found.index || 0).toLocaleString() : 'searching…') + '</span></h3>' + (found && found.channels.length ? '<div class="tv-grid">' + found.channels.map(c => tile(c, { save: 1 })).join('') + '</div>' + (found.total > found.channels.length ? '<div class="small mute" style="margin:6px 2px">Showing the best ' + found.channels.length + '. Add a word to narrow it.</div>' : '') : found ? '<div class="small mute" style="margin:4px 2px">No channel in the free index has that name.</div>' : '') + '<h3 class="tv-h">📡 In My channels</h3>';
     if (!S.links.length) return h + '<div class="rd-empty">No channels yet.' + (n ? ' Press <b>Import from VLC</b> to bring in your VLC links.' : ' Add a link above, or try ▶ YouTube.') + '</div>';
-    if (lists.length) h += '<h3 class="tv-h">☰ Channel lists</h3><div class="tv-lists">' + lists.map(x => '<div class="tv-list" data-id="' + esc(x.id) + '" data-a="openlist"><span class="tv-big">☰</span><div class="tv-tm"><b>' + esc(x.name) + '</b><span class="small mute">' + (x.count ? x.count.toLocaleString() + ' channels' : 'Open to see its channels') + ' · ' + esc(x.host) + '</span></div><div class="tv-acts"><button class="ib" data-a="ren" title="Rename">✎</button><button class="ib" data-a="rm" title="Remove">✕</button></div></div>').join('') + '</div>';
+    if (lists.length) h += '<h3 class="tv-h">☰ Channel lists</h3><div class="tv-lists">' + lists.map(x => '<div class="tv-list" data-id="' + esc(x.id) + '" data-select-id="' + esc(x.id) + '" data-a="openlist">' + collections.check('Select ' + x.name) + '<span class="tv-big">☰</span><div class="tv-tm"><b>' + esc(x.name) + '</b><span class="small mute">' + (x.count ? x.count.toLocaleString() + ' channels' : 'Open to see its channels') + ' · ' + esc(x.host) + '</span></div><div class="tv-acts"><button class="ib" data-a="ren" title="Rename">✎</button><button class="ib" data-a="rm" title="Remove">✕</button></div></div>').join('') + '</div>';
     const groups = {}; chans.forEach(c => { const g = c.group || 'Other'; (groups[g] = groups[g] || []).push(c); });
     Object.keys(groups).sort((a, b) => (a === 'Other') - (b === 'Other') || a.localeCompare(b)).forEach(g => { h += '<h3 class="tv-h">' + esc(g) + ' <span class="small mute">' + groups[g].length + '</span></h3><div class="tv-grid">' + groups[g].map(c => tile(c, { edit: 1 })).join('') + '</div>'; });
     if (!lists.length && !chans.length) h += '<div class="rd-empty">Nothing matches “' + esc(filter) + '”.</div>';
@@ -247,11 +258,12 @@
     if (yt.err) return h + '<div class="rd-empty">' + esc(yt.err) + '</div>';
     if (!yt.res) return h + '<div class="rd-empty">Search above, or pick a topic. Videos play right here, with ⛶ Full screen.</div>';
     if (!yt.res.length) return h + '<div class="rd-empty">Nothing found for “' + esc(yt.q) + '”.</div>';
-    return h + '<div class="yt-grid">' + yt.res.map(v => '<div class="yt-card" data-id="' + esc(v.id) + '" data-a="yt" title="' + esc(v.title) + '"><div class="yt-th">' + (S.dl && S.dl.tool.found ? '<button class="yt-dl" data-a="ytdl" title="Download this video">⬇</button>' : '') + '<img loading="lazy" src="/api/tv/yt/thumb?id=' + encodeURIComponent(v.id) + '" alt="">' + (v.live ? '<span class="yt-live">LIVE</span>' : v.len ? '<span class="yt-len">' + esc(v.len) + '</span>' : '') + '</div><b>' + esc(v.title) + '</b><span class="small mute">' + esc([v.channel, v.views, v.when].filter(Boolean).join(' · ')) + '</span></div>').join('') + '</div>' +
+    return h + '<div class="yt-grid">' + yt.res.map(v => '<div class="yt-card" data-id="' + esc(v.id) + '" data-select-id="' + esc(v.id) + '" data-a="yt" title="' + esc(v.title) + '"><div class="yt-th">' + collections.check('Select ' + v.title) + (S.dl && S.dl.tool.found ? '<button class="yt-dl" data-a="ytdl" title="Download this video">⬇</button>' : '') + '<img loading="lazy" src="/api/tv/yt/thumb?id=' + encodeURIComponent(v.id) + '" alt="">' + (v.live ? '<span class="yt-live">LIVE</span>' : v.len ? '<span class="yt-len">' + esc(v.len) + '</span>' : '') + '</div><b>' + esc(v.title) + '</b><span class="small mute">' + esc([v.channel, v.views, v.when].filter(Boolean).join(' · ')) + '</span></div>').join('') + '</div>' +
       '<div class="small mute" style="margin:10px 2px">Videos play in YouTube’s privacy-enhanced player, with no account or sign-in. Some videos are not allowed to play outside youtube.com; they say so in the player.</div>';
   }
   async function ytSearch(q) {
     q = String(q || '').trim(); if (!q) return;
+    selection.reset();
     yt.q = q; if (q$('#tvq')) q$('#tvq').value = q;
     const id = idFromLink(q); if (id) return playYt({ id, title: 'YouTube video', channel: 'YouTube' });
     if (!S.internet) return A.notify('warn', 'Internet access is off. Turn it on at the top of the TV tab.');
@@ -270,12 +282,15 @@
   const KINDS = [['both', '🎬 Whole video', 'One file with picture and sound (MP4).'], ['split', '🎞 Picture and sound separately', 'Two files: the picture (MP4, no sound) and the sound (M4A).'], ['audio', '🎵 Sound only', 'An MP3, for music, talks and podcasts.'], ['video', '🖼 Picture only', 'The picture with no sound (MP4).']];
   const fsz = n => n > 1e9 ? (n / 1e9).toFixed(1) + ' GB' : n > 1e6 ? Math.round(n / 1e6) + ' MB' : Math.max(1, Math.round(n / 1e3)) + ' KB';
   async function loadDl() { try { S.dl = await A.api('/api/tv/dl'); } catch (e) { } }
-  function pollDl() { clearTimeout(dlTimer); if (!S.dl || !S.dl.jobs.some(j => j.state === 'running')) return; dlTimer = setTimeout(async () => { const before = S.dl.items.length; await loadDl(); if (view === 'dl') drawBody(); if (S.dl.items.length > before) A.notify('ok', '📥 Download finished: ' + S.dl.items[0].title); pollDl(); }, 1200); }
-  function askDownload(v) {
+  function pollDl() { clearTimeout(dlTimer); if (!S.dl || !S.dl.jobs.some(j => ['queued', 'running'].includes(j.state))) return; dlTimer = setTimeout(async () => { const before = S.dl.items.length; await loadDl(); if (view === 'dl') drawBody(); if (S.dl.items.length > before) A.notify('ok', '📥 Download finished: ' + S.dl.items[0].title); pollDl(); }, 1200); }
+  function askDownload(input) {
+    const videos = Array.isArray(input) ? input : [input];
+    if (!videos.length) return;
+    const v = videos[0];
     if (!S.dl || !S.dl.tool.found) return A.notify('warn', 'yt-dlp was not found on this PC.');
     if (!S.internet) return A.notify('warn', 'Internet access is off. Turn it on at the top of the TV tab.');
     const pick = ls.get('tv_dlk', 'both');
-    A.dlg('<div class="hd"><b>⬇ Download</b></div><div class="bd"><div style="margin-bottom:10px"><b>' + esc(v.title) + '</b>' + (v.channel ? '<div class="small mute">' + esc(v.channel) + '</div>' : '') + '</div>' +
+    A.dlg('<div class="hd"><b>⬇ Download</b></div><div class="bd"><div style="margin-bottom:10px"><b>' + esc(videos.length > 1 ? 'Download ' + videos.length + ' videos' : v.title) + '</b>' + (videos.length === 1 && v.channel ? '<div class="small mute">' + esc(v.channel) + '</div>' : '') + '</div>' +
       KINDS.map(k => '<label class="tv-dlopt"><input type="radio" name="tvdlk" value="' + k[0] + '"' + (k[0] === pick ? ' checked' : '') + '><span><b>' + k[1] + '</b><span class="small mute" style="display:block">' + k[2] + '</span></span></label>').join('') +
       '<div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap"><span class="small">Put it in</span><select id="tvdlfold"><option value="">Downloads (no folder)</option>' + S.dl.folders.map(f => '<option value="' + esc(f.id) + '"' + (f.id === dlF ? ' selected' : '') + '>📁 ' + esc(f.name) + '</option>').join('') + '</select></div>' +
       '<div class="small mute" style="margin-top:8px">Saved in ' + esc(S.dl.home) + '. Only download videos you have the right to keep.</div>' +
@@ -283,23 +298,30 @@
     document.getElementById('tvdlno').onclick = () => A.closeDlg();
     document.getElementById('tvdlgo').onclick = async () => {
       const kind = (document.querySelector('input[name="tvdlk"]:checked') || {}).value || 'both', folder = document.getElementById('tvdlfold').value; ls.set('tv_dlk', kind); A.closeDlg();
-      const r = await post('/api/tv/dl/start', { vid: v.id, title: v.title, channel: v.channel || '', kind, folder }); if (!r) return;
-      await loadDl(); pollDl(); A.notify('ok', '⬇ Downloading “' + v.title + '”. Watch it in 📥 Downloads.'); if (view === 'dl') drawBody();
+      const byId = new Map(videos.map(video => [video.id, video]));
+      const done = await collections.each([...byId.keys()], id => {
+        const video = byId.get(id);
+        return post('/api/tv/dl/start', { vid: id, title: video.title, channel: video.channel || '', kind, folder });
+      });
+      await loadDl();
+      pollDl();
+      if (done.length) A.notify('ok', 'Queued ' + done.length + ' download' + (done.length === 1 ? '' : 's') + '.');
+      if (view === 'dl') drawBody();
     };
   }
   function drawDl() {
     const D = S.dl; if (!D) return '<div class="rd-empty">⏳ Loading…</div>';
-    if (!D.tool.found) return '<div class="rd-empty">yt-dlp was not found. Put yt-dlp.exe in one of these places, then come back:<br>' + D.tool.places.map(p => '<code>' + esc(p) + '</code>').join('<br>') + '</div>';
-    if (dlF && !D.folders.some(f => f.id === dlF)) dlF = '';
+    if (!D.tool.found && !D.items.length) return '<div class="rd-empty">yt-dlp was not found. Put yt-dlp.exe in one of these places, then come back:<br>' + D.tool.places.map(p => '<code>' + esc(p) + '</code>').join('<br>') + '</div>';
+    if (dlF && dlF !== '-' && !D.folders.some(f => f.id === dlF)) dlF = '';
     const ql = dlq.toLowerCase(), inF = it => !dlF || (dlF === '-' ? !it.folder : it.folder === dlF), shown = D.items.filter(it => inF(it) && (!ql || (it.title + ' ' + it.channel).toLowerCase().includes(ql)));
     const cnt = f => D.items.filter(it => f === '-' ? !it.folder : it.folder === f).length, cur = D.folders.find(f => f.id === dlF);
     const jobs = D.jobs.filter(j => j.state !== 'done');
     const fsel = it => '<select data-dmv="' + esc(it.id) + '" title="Move to a folder" style="max-width:150px"><option value="">No folder</option>' + D.folders.map(f => '<option value="' + esc(f.id) + '"' + (it.folder === f.id ? ' selected' : '') + '>📁 ' + esc(f.name) + '</option>').join('') + '</select>';
     const ICONS = { video: '🎬', picture: '🖼', audio: '🎵' }, NAMES = { video: 'Video', picture: 'Picture', audio: 'Sound' };
     return '<div class="small mute" style="margin-bottom:8px">Videos you download from ▶ YouTube (press ⬇ on any video). They are saved in <b>' + esc(D.home) + '</b>, one folder on disk per folder here. yt-dlp ' + esc(D.tool.version || '') + '.</div>' +
-      (jobs.length ? '<div class="card" style="margin-bottom:10px"><b>⬇ Downloading</b>' + jobs.map(j => '<div class="row" style="gap:8px;padding:6px 0;flex-wrap:wrap" data-job="' + esc(j.id) + '"><span style="flex:1;min-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(j.title) + '</span>' + (j.state === 'running' ? '<span class="tv-bar"><i style="width:' + j.pct + '%"></i></span><span class="small mute" style="min-width:150px">' + Math.round(j.pct) + '% ' + esc(j.speed || '') + (j.eta && j.eta !== 'NA' ? ' · ' + esc(j.eta) + ' left' : '') + '</span><button class="ib" data-a="dlstop">■ Stop</button>' : j.state === 'failed' ? '<span class="small rd-bad">' + esc(j.error) + '</span>' : '<span class="small mute">Stopped</span>') + '</div>').join('') + '</div>' : '') +
+      (jobs.length ? '<div class="card" style="margin-bottom:10px"><b>⬇ Downloading</b>' + jobs.map(j => '<div class="row" style="gap:8px;padding:6px 0;flex-wrap:wrap" data-job="' + esc(j.id) + '"><span style="flex:1;min-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(j.title) + '</span>' + (j.state === 'running' ? '<span class="tv-bar"><i style="width:' + j.pct + '%"></i></span><span class="small mute" style="min-width:150px">' + Math.round(j.pct) + '% ' + esc(j.speed || '') + (j.eta && j.eta !== 'NA' ? ' · ' + esc(j.eta) + ' left' : '') + '</span><button class="ib" data-a="dlstop">■ Stop</button>' : j.state === 'queued' ? '<span class="small mute">Queued</span><button class="ib" data-a="dlstop">Cancel</button>' : j.state === 'failed' ? '<span class="small rd-bad">' + esc(j.error) + '</span>' : '<span class="small mute">Stopped</span>') + '</div>').join('') + '</div>' : '') +
       '<div class="rd-cats" style="padding:0 0 8px"><button class="ib' + (!dlF ? ' on' : '') + '" data-dlf="">All <span class="mute">' + D.items.length + '</span></button><button class="ib' + (dlF === '-' ? ' on' : '') + '" data-dlf="-">Not in a folder <span class="mute">' + cnt('-') + '</span></button>' + D.folders.map(f => '<button class="ib' + (dlF === f.id ? ' on' : '') + '" data-dlf="' + esc(f.id) + '">📁 ' + esc(f.name) + ' <span class="mute">' + cnt(f.id) + '</span></button>').join('') + '<button class="ib" data-a="dlnewf">➕ New folder</button>' + (cur ? '<button class="ib" data-a="dlrenf">✎ Rename folder</button><button class="ib" data-a="dldelf">🗑 Remove folder</button>' : '') + '</div>' +
-      (shown.length ? shown.map(it => '<div class="card tv-dlitem" data-did="' + esc(it.id) + '" style="margin-bottom:8px"><div class="row" style="gap:10px;align-items:flex-start;flex-wrap:wrap"><img class="tv-dlth" loading="lazy" src="/api/tv/yt/thumb?id=' + encodeURIComponent(it.vid) + '" alt=""><div style="flex:1;min-width:200px"><b>' + esc(it.title) + '</b><div class="small mute">' + esc([it.channel, it.label, new Date(it.at).toLocaleDateString()].filter(Boolean).join(' · ')) + '</div>' +
+      (shown.length ? shown.map(it => '<div class="card tv-dlitem" data-did="' + esc(it.id) + '" data-select-id="' + esc(it.id) + '" style="margin-bottom:8px">' + collections.check('Select ' + it.title) + '<div class="row" style="gap:10px;align-items:flex-start;flex-wrap:wrap"><img class="tv-dlth" loading="lazy" src="/api/tv/yt/thumb?id=' + encodeURIComponent(it.vid) + '" alt=""><div style="flex:1;min-width:200px"><button class="collection-title" data-a="dlren" title="Rename download">' + esc(it.title) + ' <span aria-hidden="true">✎</span></button><div class="small mute">' + esc([it.channel, it.label, new Date(it.at).toLocaleDateString()].filter(Boolean).join(' · ')) + '</div>' +
         it.files.map(f => '<div class="row small" style="gap:6px;margin-top:6px;flex-wrap:wrap" data-n="' + f.n + '"><span style="min-width:90px">' + ICONS[f.kind] + ' ' + NAMES[f.kind] + '</span>' + (f.there ? '<button class="ib" data-a="dlplay">▶ Play</button><a class="ib" style="text-decoration:none" href="/api/tv/dl/file?id=' + encodeURIComponent(it.id) + '&n=' + f.n + '&dl=1" download>⬇ Save a copy</a><span class="mute">' + fsz(f.size) + '</span>' : '<span class="rd-bad">missing from the folder</span>') + '</div>').join('') +
         '</div><div class="row" style="gap:6px;flex-wrap:wrap"><button class="ib" data-a="dlren" title="Rename">✎</button>' + fsel(it) + '<button class="ib" data-a="dldel" title="Delete the files">🗑</button></div></div></div>').join('') :
         '<div class="rd-empty">' + (D.items.length ? 'Nothing here.' : 'No downloads yet. Open ▶ YouTube and press ⬇ on a video.') + '</div>');
@@ -315,15 +337,43 @@
     if (a === 'dlren') { const n = (await A.prompt('New name:', it.title)); if (!n || n === it.title) return; const r = await post('/api/tv/dl/rename', { id: it.id, title: n }); if (r) { S.dl = r; drawBody(); } return; }
     if (a === 'dldel') { if (!(await A.confirm('Delete “' + it.title + '”? Its file' + (it.files.length > 1 ? 's are' : ' is') + ' removed from ' + S.dl.home + '. This cannot be undone.'))) return; if (P.item && String(P.item.id).startsWith(it.id + ':')) stop(); const r = await post('/api/tv/dl/remove', { id: it.id }); if (r) { S.dl = r; drawBody(); } return; }
   }
+  async function removeGroup(ids) {
+    const downloads = view === 'dl';
+    const name = downloads ? 'downloads and their files' : 'saved channels';
+    if (!(await A.confirm('Remove ' + ids.length + ' selected ' + name + '?', { title: 'Remove selected', okLabel: 'Remove', danger: true }))) return;
+    const group = new Set(ids);
+    if (P.item && (downloads ? group.has(String(P.item.id).split(':')[0]) : group.has(P.item.id))) stop();
+    const done = await collections.each(ids, id => A.api(downloads ? '/api/tv/dl/remove' : '/api/tv/remove', { id }));
+    if (downloads) await loadDl();
+    else await load();
+    drawBody();
+    return done;
+  }
+  function moveGroup(ids) {
+    const folders = S.dl?.folders || [];
+    A.dlg('<div class="hd"><b>Move ' + ids.length + ' downloads</b></div><div class="bd">' +
+      '<label>Destination <select id="tv-group-folder"><option value="">No folder</option>' +
+      folders.map(f => '<option value="' + esc(f.id) + '">' + esc(f.name) + '</option>').join('') +
+      '</select></label><div class="row" style="margin-top:12px;justify-content:flex-end">' +
+      '<button class="ib" id="tv-group-cancel">Cancel</button><button class="pri" id="tv-group-move">Move</button></div></div>');
+    document.getElementById('tv-group-cancel').onclick = () => A.closeDlg();
+    document.getElementById('tv-group-move').onclick = async () => {
+      const folder = document.getElementById('tv-group-folder').value;
+      A.closeDlg();
+      await collections.each(ids, id => A.api('/api/tv/dl/move', { id, folder }));
+      await loadDl();
+      drawBody();
+    };
+  }
   function draw() { drawTop(); drawPlayer(); drawBody(); }
 
   /* ---------- clicks ---------- */
   async function post(path, body) { try { const r = await A.api(path, body); if (r && r.error) { A.notify('err', r.error); return null; } return r; } catch (e) { A.notify('err', 'That did not work: ' + e.message); return null; } }
   async function onClick(e) {
-    const v = e.target.closest('[data-v]'); if (v) { view = v.dataset.v; ls.set('tv_view', view); filter = ''; found = null; if (view === 'dl') { await loadDl(); pollDl(); } if (view === 'cams') await loadCams(); return draw(); }
+    const v = e.target.closest('[data-v]'); if (v) { selection.reset(); view = v.dataset.v; ls.set('tv_view', view); filter = ''; found = null; if (view === 'dl') { await loadDl(); pollDl(); } if (view === 'cams') await loadCams(); return draw(); }
     const cc = e.target.closest('[data-camcat]'); if (cc) { camCat = cc.dataset.camcat; ls.set('tv_camcat', camCat); filter = ''; camShown = 90; return draw(); }
     const tp = e.target.closest('[data-yt]'); if (tp) return ytSearch(tp.dataset.yt);
-    const df = e.target.closest('[data-dlf]'); if (df) { dlF = df.dataset.dlf; ls.set('tv_dlf', dlF); return drawBody(); }
+    const df = e.target.closest('[data-dlf]'); if (df) { selection.reset(); dlF = df.dataset.dlf; ls.set('tv_dlf', dlF); return drawBody(); }
     const db0 = e.target.closest('[data-a]'); if (db0 && /^dl(?!cur)/.test(db0.dataset.a)) return dlClick(db0.dataset.a, db0);
     if (db0 && db0.dataset.a === 'dlcur') return P.kind === 'yt' && askDownload(P.item);
     if (db0 && db0.dataset.a === 'ytdl') { e.stopPropagation(); const v0 = (yt.res || []).find(x => x.id === db0.closest('[data-id]').dataset.id); return v0 && askDownload(v0); }

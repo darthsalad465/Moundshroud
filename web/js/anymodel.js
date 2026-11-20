@@ -1,5 +1,5 @@
 // Any model, anywhere: the list of every AI model on this PC (GET /api/models/all) and what each can do, shared by the
-// Chat tab and the Agent tab. Ollama language models keep their plain names as option values, so everything that
+// Agent and model tools. Ollama language models keep their plain names as option values, so everything that
 // already talks to them keeps working; every other model is "any:<catalog id>" and is run through A.anyModel.act().
 //   talk     chat / agent (Ollama)            find     search a folder by meaning (Ollama embedding model)
 //   import   copy a language or embedding file into Ollama, then use it

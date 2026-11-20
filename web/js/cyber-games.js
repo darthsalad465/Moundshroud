@@ -220,7 +220,7 @@
   });
 
   /* ================= 2. TERMINAL HACKER (24 CAMPAIGN MISSIONS + 12-LESSON ACADEMY + ∞ ENDLESS CTF) ================= */
-  const F = (c, locked) => ({ c, locked: !!locked });
+  const F = (c, locked) => ({ _f: 1, c, locked: !!locked });
   const logLines = () => { const out = []; const lv = ['INFO', 'INFO', 'INFO', 'WARN', 'DEBUG']; const msg = ['user login ok', 'cache refreshed', 'disk 71% used', 'request /index 200', 'request /about 200', 'retrying connection', 'backup finished', 'session closed']; for (let i = 0; i < 38; i++) out.push('2026-10-21 09:' + String(10 + i).padStart(2, '0') + ' ' + lv[(i * 7) % 5] + ' ' + msg[(i * 5) % msg.length]); out.splice(23, 0, '2026-10-21 09:47 DEBUG leaked token=FLAG{grep_finds_needles}'); return out.join('\n'); };
   const makeDeployScript = () => {
     const out = ['#!/usr/bin/env bash', '# Moundshroud release pipeline v2.4', 'set -euo pipefail'];
@@ -387,7 +387,7 @@
       fs: () => ({ home: { you: { 'safe.txt': F('UNLOCKED_644', true) } } }),
       steps: [
         { prompt: 'Inspect safe.txt permissions using ls -l.', example: 'ls -l safe.txt', hint: 'Type: ls -l safe.txt', check: (cmd, out) => /^(ls\s+-[a-z]*l|ll)/.test(cmd) && out.includes('----------') },
-        { prompt: 'Unlock safe.txt using octal mode 644 (or +r).', example: 'chmod 644 safe.txt', hint: 'Type: chmod 644 safe.txt (or chmod +r safe.txt)', check: (cmd, out) => /^chmod\b/.test(cmd) && out.includes('readable') },
+        { prompt: 'Unlock safe.txt using octal mode 644 or add owner read access.', example: 'chmod 644 safe.txt', hint: 'Type: chmod 644 safe.txt (or chmod u+r safe.txt)', check: (cmd, out, st) => /^chmod\b/.test(cmd) && st.canRead('safe.txt') },
         { prompt: 'Now read the unlocked safe.txt.', example: 'cat safe.txt', hint: 'Type: cat safe.txt', check: (cmd, out) => out.includes('UNLOCKED_644') }
       ]
     },
@@ -462,7 +462,7 @@
       fs: () => ({ home: { you: { 'brief.txt': 'Find .grad_key under /opt, unlock it, and decode Hex -> Base64!' } }, opt: { academy: { '.grad_key': F(toHex(btoa('ACADEMY_GRADUATE')), true) } } }),
       steps: [
         { prompt: 'Find the hidden file starting with ".grad" anywhere under /.', example: 'find / -name ".grad*"', hint: 'Type: find / -name ".grad*"', check: (cmd, out) => /^find\b/.test(cmd) && out.includes('/opt/academy/.grad_key') },
-        { prompt: 'Unlock /opt/academy/.grad_key with chmod.', example: 'chmod +r /opt/academy/.grad_key', hint: 'Type: chmod +r /opt/academy/.grad_key', check: (cmd, out) => /^chmod\b/.test(cmd) && out.includes('readable') },
+        { prompt: 'Unlock /opt/academy/.grad_key with chmod.', example: 'chmod u+r /opt/academy/.grad_key', hint: 'Type: chmod u+r /opt/academy/.grad_key', check: (cmd, out, st) => /^chmod\b/.test(cmd) && st.canRead('/opt/academy/.grad_key') },
         { prompt: 'Unwrap Hex then Base64 in one pipeline to graduate!', example: 'cat /opt/academy/.grad_key | xxd -r | base64 -d', hint: 'Type: cat /opt/academy/.grad_key | xxd -r | base64 -d', check: (cmd, out) => out.includes('ACADEMY_GRADUATE') }
       ]
     }
@@ -489,7 +489,7 @@
   function setPath(root, parts, val) {
     let cur = root;
     for (let i = 0; i < parts.length - 1; i++) {
-      if (!cur[parts[i]] || typeof cur[parts[i]] !== 'object' || 'c' in cur[parts[i]]) cur[parts[i]] = {};
+      if (!cur[parts[i]] || typeof cur[parts[i]] !== 'object' || cur[parts[i]]._f) cur[parts[i]] = {};
       cur = cur[parts[i]];
     }
     cur[parts[parts.length - 1]] = val;
@@ -596,9 +596,9 @@
   }
   L.terminal = { makeMission: makeProceduralMission, MIS, ACADEMY };
 
-  const isDir = n => n && typeof n === 'object' && !('c' in n);
-  const rd = n => typeof n === 'string' ? n : n.c;
-  const isLocked = n => !!(n && typeof n === 'object' && n.locked);
+  const isDir = n => n && typeof n === 'object' && !n._f && !Object.hasOwn(n, 'text');
+  const rd = n => typeof n === 'string' ? n : (n.c ?? n.text);
+  const isLocked = n => !isDir(n) && !(TerminalUnix.mode(n) & 0o400);
   const HELP_SECTIONS = [
     {
       title: 'NAVIGATION',
@@ -611,26 +611,29 @@
       ]
     },
     {
-      title: 'FILES, SEARCH & WRANGLING',
+      title: 'FILES & SEARCH',
       items: [
         ['cat [-n] <file...>', 'Print file contents (-n line numbers)'],
         ['head / tail [-n N] <f>', 'First or last N lines (default 10)'],
         ['grep [-inrvcl] <pat> [f]', 'Search text (-i case, -n lines, -v invert, -r tree)'],
         ['find [dir] [-name <pat>]', 'Find files (-iname ignore case, -type f|d)'],
-        ['sort [-rnu] [file]', 'Sort lines (-r reverse, -n numeric, -u unique)'],
-        ['uniq [-udc] [file]', 'Filter adjacent lines (-u only unique, -c count)'],
-        ['cut -d<c> -f<N> [file]', 'Extract delimiter-separated column N'],
-        ['tr [-d] <set1> [set2]', 'Translate or delete characters (e.g. tr a-z A-Z)'],
         ['wc / strings / stat / file', 'Count, binary strings, metadata, file type'],
       ]
     },
     {
-      title: 'DECODING, PERMISSIONS & RECON',
+      title: 'DECODING & PERMISSIONS',
       items: [
         ['base64 [-d] [file|text]', 'Encode or decode (-d/--decode) Base64'],
         ['xxd [-r] [file|text]', 'Hex encode or decode (-r) text/files'],
         ['rot13 / rev [file|text]', 'ROT13 decode or reverse text/files'],
         ['chmod <mode> <file...>', 'Change permissions (+r, u+r, 644, -r)'],
+      ]
+    },
+    {
+      title: 'WRANGLING & SYSTEM RECON',
+      items: [
+        ['sort [-rnu] / uniq [-udc]', 'Sort lines & find unique outliers (-u)'],
+        ['cut -d<c> -f<N> / tr', 'Extract CSV columns & translate characters'],
         ['env / ps [aux] / netstat', 'Environment vars, running processes, open ports'],
       ]
     },
@@ -706,7 +709,7 @@
     try { JSON.parse(ls.get('cyacad_done', '[]')).forEach(id => acadDone.add(id)); } catch (e) { }
     let tree, cwd, prevCwd = null, hist = [], hp = 0, hinted = false;
     el.style.alignItems = 'stretch';
-    el.innerHTML = '<div style="width:min(860px,100%);margin:0 auto;display:flex;flex-direction:column;height:100%;min-height:420px">' +
+    el.innerHTML = '<div id="tbox" class="term-fs-box" style="width:min(860px,100%);margin:0 auto;display:flex;flex-direction:column;height:100%;min-height:420px">' +
       '<div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:6px;align-items:center">' +
         btn('tcamp', 'Campaign (1–24)') +
         btn('tacad', '🎓 Academy (12)') +
@@ -718,16 +721,17 @@
         '<span class="sp"></span>' +
         btn('ttry', '⚡ Try Example') +
         btn('thint', 'Hint') +
+        btn('tfs', '⛶ Fullscreen') +
       '</div>' +
       '<div id="tg" class="small" style="' + box + ';margin-bottom:8px"></div>' +
-      '<div id="to" style="flex:1;overflow:auto;background:#05070b;color:#c9f5d4;' + mono + ';font-size:13px;line-height:1.5;border:1px solid var(--line);border-radius:10px;padding:12px 14px;white-space:pre-wrap;min-height:220px"></div>' +
-      '<div class="row" style="gap:6px;margin-top:6px;background:#05070b;border:1px solid var(--line);border-radius:10px;padding:6px 10px"><span id="tp" style="color:#6cf;' + mono + ';font-size:13px;white-space:nowrap"></span><input id="ti" autocomplete="off" spellcheck="false" style="flex:1;background:transparent;border:0;color:#fff;' + mono + ';font-size:13px;outline:none"></div>' +
+      '<div id="to" class="term-fs-out" style="flex:1;overflow:auto;background:#05070b;color:#c9f5d4;' + mono + ';font-size:13px;line-height:1.5;border:1px solid var(--line);border-radius:10px;padding:12px 14px;white-space:pre-wrap;min-height:220px;user-select:text;-webkit-user-select:text;cursor:text"></div>' +
+      '<div id="tprow" class="row term-fs-prompt-row" style="gap:6px;margin-top:6px;background:#05070b;border:1px solid var(--line);border-radius:10px;padding:6px 10px"><span id="tp" style="color:#6cf;' + mono + ';font-size:13px;white-space:nowrap"></span><input id="ti" autocomplete="off" spellcheck="false" style="flex:1;background:transparent;border:0;color:#fff;' + mono + ';font-size:13px;outline:none"></div>' +
     '</div>';
 
     const out = (t, c) => { const o = $('to'); const d = document.createElement('div'); d.textContent = t; if (c) d.style.color = c; o.appendChild(d); o.scrollTop = o.scrollHeight; };
     const outPre = (html, plain) => { const o = $('to'); const d = document.createElement('div'); d.style.whiteSpace = 'pre'; if (html != null) d.innerHTML = html; else d.textContent = plain || ''; o.appendChild(d); o.scrollTop = o.scrollHeight; };
     const path = (parts) => '/' + (parts || cwd).join('/');
-    const walk = parts => { let n = tree; for (const p of parts) { if (!isDir(n) || !(p in n)) return undefined; n = n[p]; } return n; };
+    const walk = parts => { let n = tree; for (const p of parts) { if (!isDir(n) || !Object.hasOwn(n, p)) return undefined; n = n[p]; } return n; };
     const activeObj = () => view === 'academy' ? ACADEMY[acadIdx] : activeMis;
     const homeParts = () => walk(['home', 'you']) ? ['home', 'you'] : activeObj().cwd.split('/').filter(Boolean);
     const resolve = (p, base) => {
@@ -737,7 +741,7 @@
       for (const s of p.split('/')) { if (!s || s === '.') continue; if (s === '..') parts.pop(); else parts.push(s); }
       return parts;
     };
-    const mode = (n) => (isDir(n) ? 'drwxr-xr-x' : isLocked(n) ? '----------' : '-rw-r--r--');
+    const mode = n => TerminalUnix.permissions(n, isDir(n));
     const globRe = (g, ic) => new RegExp('^' + g.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.') + '$', ic ? 'i' : '');
     const expandArg = arg => {
       if (!/[*?]/.test(arg)) return [arg];
@@ -946,20 +950,19 @@
       }
       return { n, files: expandFiles(files) };
     };
-    const setFileLock = (parts, locked) => {
-      const parent = walk(parts.slice(0, -1)), name = parts[parts.length - 1];
-      if (!isDir(parent) || !(name in parent)) return false;
-      const cur = parent[name];
-      if (isDir(cur)) return false;
-      if (typeof cur === 'string') parent[name] = F(cur, locked);
-      else cur.locked = locked;
-      return true;
-    };
-    const parseChmod = m => {
-      if (/^[0-7]{3,4}$/.test(m)) { const owner = parseInt(m[m.length - 3], 8); return { unlock: !!(owner & 4) }; }
-      if (/^[ugoa]*\+([rwxXst]*r[rwxXst]*)$/.test(m) || /^[ugoa]*=([rwxXst]*r[rwxXst]*)$/.test(m)) return { unlock: true };
-      if (/^[ugoa]*-([rwxXst]*r[rwxXst]*)$/.test(m) || /^[ugoa]*=[wx]*$/.test(m)) return { unlock: false };
-      return null;
+    const checksum = algorithm => {
+      const run = TerminalUnix.checksum(algorithm, file => {
+        const node = walk(resolve(file));
+        if (node === undefined) return { err: file + ': No such file or directory' };
+        if (isDir(node)) return { err: file + ': Is a directory' };
+        if (isLocked(node)) return { err: file + ': Permission denied' };
+        return { text: rd(node) };
+      });
+      return (args, stdin, emit) => {
+        const result = run(args, stdin);
+        if (result.out) emit(result.out, result.err ? '#f77' : undefined, result.err);
+        return { ok: !result.err };
+      };
     };
     const cmds = {
       help: (a, _, emit) => showHelp(a[0], emit),
@@ -1201,18 +1204,9 @@
         emit(r.src.split('\n').map(revStr).join('\n')); return { ok: true };
       },
       chmod: (a, _, emit) => {
-        if (a.length < 2) { emit('usage: chmod <mode> <file...>  (e.g. chmod +r vault.txt or chmod 644 vault.txt)', '#f77', true); return { ok: false }; }
-        const parsed = parseChmod(a[0]);
-        if (!parsed) { emit('chmod: invalid mode \'' + a[0] + '\'. Try +r, u+r, 644, or -r.', '#f77', true); return { ok: false }; }
-        let ok = true;
-        for (const f of expandFiles(a.slice(1))) {
-          const p = resolve(f), n = walk(p);
-          if (n === undefined) { emit('chmod: cannot access \'' + f + '\': No such file or directory', '#f77', true); ok = false; continue; }
-          if (isDir(n)) { emit('chmod: ' + f + ': skipping directory', '#fc6'); continue; }
-          setFileLock(p, !parsed.unlock);
-          emit('mode of \'' + f + '\' changed to ' + (parsed.unlock ? 'rw-r--r-- (readable)' : '--------- (locked)'));
-        }
-        return { ok };
+        const result = TerminalUnix.chmod(a.flatMap(expandArg), resolve, walk, isDir);
+        if (result.out) emit(result.out, result.err ? '#f77' : undefined, result.err);
+        return { ok: !result.err };
       },
       wc: (a, stdin, emit) => {
         let flags = '', rawFiles = [];
@@ -1250,6 +1244,8 @@
         return { ok };
       },
       stat: (a, _, emit) => {
+        const formatted = TerminalUnix.permissionStat(a, p => walk(resolve(p)), isDir);
+        if (formatted) { emit(formatted.out, formatted.err ? '#f77' : undefined, formatted.err); return { ok: !formatted.err }; }
         if (!a.length) { emit('usage: stat <path>', '#f77', true); return { ok: false }; }
         let ok = true;
         for (const f of expandFiles(a)) {
@@ -1284,6 +1280,62 @@
       history: (_, __, emit) => { emit(hist.map((h, i) => String(i + 1).padStart(4) + '  ' + h).join('\n') || '(empty)'); return { ok: true }; },
       clear: () => { $('to').innerHTML = ''; return { ok: true }; },
       cls: () => { $('to').innerHTML = ''; return { ok: true }; },
+      ll: (a, s, emit) => cmds.ls(['-la'].concat(a), s, emit),
+      la: (a, s, emit) => cmds.ls(['-a'].concat(a), s, emit),
+      dir: (a, s, emit) => cmds.ls(a, s, emit),
+      more: (a, s, emit) => cmds.cat(a, s, emit),
+      less: (a, s, emit) => cmds.cat(a, s, emit),
+      nl: (a, s, emit) => { const r = readFileOrStdin(a.filter(x => !x.startsWith('-')), s, emit, 'nl [file]'); if (!r.ok) return { ok: false }; emit(r.src.split('\n').map((l, i) => String(i + 1).padStart(6) + '\t' + l).join('\n')); return { ok: true }; },
+      tac: (a, s, emit) => { const r = readFileOrStdin(a.filter(x => !x.startsWith('-')), s, emit, 'tac [file]'); if (!r.ok) return { ok: false }; emit(r.src.split('\n').reverse().join('\n')); return { ok: true }; },
+      sed: (a, s, emit) => {
+        const sc = a.find(x => !x.startsWith('-')) || '', mm = sc.match(/^s(.)(.*?)\1(.*?)\1([gi]*)$/);
+        if (!mm) { emit('sed: try s/old/new/g', '#f77', true); return { ok: false }; }
+        const r = readFileOrStdin(a.filter(x => x !== sc && !x.startsWith('-')), s, emit, 'sed s/a/b/g [file]'); if (!r.ok) return { ok: false };
+        emit(r.src.split('\n').map(l => l.replace(new RegExp(mm[2], (mm[4].includes('g') ? 'g' : '') + (mm[4].includes('i') ? 'i' : '')), mm[3])).join('\n')); return { ok: true };
+      },
+      awk: (a, s, emit) => {
+        let sep = ' ', prog = '', files = [];
+        for (let i = 0; i < a.length; i++) {
+          if (a[i] === '-F') sep = a[++i] || ' ';
+          else if (/^-F./.test(a[i])) sep = a[i].slice(2);
+          else if (!prog && a[i].includes('{')) prog = a[i];
+          else if (!a[i].startsWith('-')) files.push(a[i]);
+        }
+        const mm = prog.match(/\{[\s]*print\s+([^}]+)\}/);
+        if (!mm) { emit('awk: try {print $1, $2}', '#f77', true); return { ok: false }; }
+        const flds = mm[1].split(',').map(x => x.trim()), r = readFileOrStdin(files, s, emit, 'awk \'{print $1}\' [file]'); if (!r.ok) return { ok: false };
+        emit(r.src.split('\n').map(l => { const p = sep === ' ' ? l.trim().split(/\s+/) : l.split(sep); return flds.map(f => f === '$0' ? l : /^\$\d+$/.test(f) ? (p[+f.slice(1) - 1] || '') : f.replace(/^"|"$/g, '')).join(' '); }).join('\n')); return { ok: true };
+      },
+      hexdump: (a, s, emit) => cmds.xxd(a.filter(x => x !== '-C'), s, emit),
+      od: (a, s, emit) => cmds.xxd(a, s, emit),
+      md5sum: checksum('md5'),
+      sha256sum: checksum('sha256'),
+      groups: (_, __, emit) => { emit('you lab'); return { ok: true }; },
+      date: (_, __, emit) => { emit(new Date().toUTCString()); return { ok: true }; },
+      uptime: (_, __, emit) => { emit('up 7 days, load average: 0.08, 0.05, 0.04'); return { ok: true }; },
+      df: (_, __, emit) => { emit('Filesystem      Size  Used Avail Use% Mounted on\n/dev/vda1        20G  4.1G   15G  22% /'); return { ok: true }; },
+      du: (_, __, emit) => { emit('32K\t' + path()); return { ok: true }; },
+      free: (_, __, emit) => { emit('               total        used        free\nMem:           4.0Gi       1.1Gi       2.9Gi'); return { ok: true }; },
+      ip: (_, __, emit) => { emit('2: eth0: <UP> inet 10.0.0.10/24 brd 10.0.0.255 scope global eth0'); return { ok: true }; },
+      ifconfig: (a, s, emit) => cmds.ip(a, s, emit),
+      arp: (_, __, emit) => { emit('10.0.0.1 ether 52:54:00:12:34:56 eth0'); return { ok: true }; },
+      ping: (a, _, emit) => { const h = a.find(x => !x.startsWith('-')) || '127.0.0.1'; emit('64 bytes from ' + h + ': icmp_seq=1 ttl=64 time=0.35 ms'); return { ok: true }; },
+      dig: (a, _, emit) => { emit(';; ANSWER SECTION:\n' + (a[0] || 'moundshroud.local') + '. 300 IN A 10.0.0.10'); return { ok: true }; },
+      nslookup: (a, s, emit) => cmds.dig(a, s, emit),
+      which: (a, _, emit) => { emit(a.map(x => cmds[x] ? '/usr/bin/' + x : '').filter(Boolean).join('\n') || 'not found'); return { ok: true }; },
+      type: (a, _, emit) => { emit(a.map(x => cmds[x] ? x + ' is /usr/bin/' + x : x + ': not found').join('\n')); return { ok: true }; },
+      basename: (a, _, emit) => { emit(String(a[0] || '').split('/').pop() || '/'); return { ok: true }; },
+      dirname: (a, _, emit) => { emit(String(a[0] || '').split('/').slice(0, -1).join('/') || '.'); return { ok: true }; },
+      seq: (a, _, emit) => { const ns = a.map(Number), [s0, e0] = ns.length === 1 ? [1, ns[0]] : [ns[0], ns[1]], o = []; for (let i = s0; i <= e0 && o.length < 100; i++) o.push(String(i)); emit(o.join('\n')); return { ok: true }; },
+      printf: (a, _, emit) => { emit(String(a[0] || '').replace(/\\n/g, '\n').replace(/\\t/g, '\t')); return { ok: true }; },
+      true: () => ({ ok: true }),
+      false: () => ({ ok: false }),
+      sleep: () => ({ ok: true }),
+      touch: (a, _, emit) => { const f = a.find(x => !x.startsWith('-')); if (!f) { emit('usage: touch <file>', '#f77', true); return { ok: false }; } const p = resolve(f), par = walk(p.slice(0, -1)); if (isDir(par)) par[p[p.length - 1]] = { _f: 1, c: '' }; return { ok: true }; },
+      mkdir: (a, _, emit) => { const f = a.find(x => !x.startsWith('-')); if (!f) { emit('usage: mkdir <dir>', '#f77', true); return { ok: false }; } const p = resolve(f), par = walk(p.slice(0, -1)); if (isDir(par) && !(p[p.length - 1] in par)) par[p[p.length - 1]] = {}; return { ok: true }; },
+      rm: (a, _, emit) => { const f = a.find(x => !x.startsWith('-')); if (!f) { emit('usage: rm <file>', '#f77', true); return { ok: false }; } const p = resolve(f), par = walk(p.slice(0, -1)); if (isDir(par) && p[p.length - 1] in par) delete par[p[p.length - 1]]; return { ok: true }; },
+      cp: (a, _, emit) => { const fs2 = a.filter(x => !x.startsWith('-')); if (fs2.length < 2) { emit('usage: cp <src> <dst>', '#f77', true); return { ok: false }; } const n = walk(resolve(fs2[0])); if (!n || isDir(n)) { emit('cp: cannot stat ' + fs2[0], '#f77', true); return { ok: false }; } const dp = resolve(fs2[1]), par = walk(dp.slice(0, -1)); if (isDir(par)) par[dp[dp.length - 1]] = { _f: 1, c: rd(n) }; return { ok: true }; },
+      mv: (a, _, emit) => { const r = cmds.cp(a, _, emit); if (r.ok) { const fs2 = a.filter(x => !x.startsWith('-')), sp = resolve(fs2[0]), par = walk(sp.slice(0, -1)); if (isDir(par)) delete par[sp[sp.length - 1]]; } return r; },
       hint: (_, __, emit) => {
         hinted = true;
         if (view === 'academy') {
@@ -1377,7 +1429,9 @@
       if (!stages.length) return true;
       let piped = null, lastOk = true;
       for (let idx = 0; idx < stages.length; idx++) {
-        const parts = tokenize(stages[idx]);
+        const listDir = dir => { const n = walk(resolve(dir)); return isDir(n) ? Object.keys(n) : []; };
+        const TP = typeof window !== 'undefined' && window.TerminalPlayground;
+        const parts = TP && TP.expandShellWords ? TP.expandShellWords(stages[idx], listDir) : tokenize(stages[idx]);
         if (!parts.length) continue;
         const c = parts.shift(), isLast = idx === stages.length - 1;
         const buf = [];
@@ -1405,10 +1459,14 @@
       }
       if (view === 'academy') {
         const L0 = ACADEMY[acadIdx], st = L0.steps[acadStep];
-        if (st) {
+        if (st && prevOk) {
           const outText = lastCaptured.join('\n');
+          const canRead = file => {
+            const node = walk(resolve(file));
+            return node !== undefined && !isDir(node) && !isLocked(node);
+          };
           let passed = false;
-          try { passed = !!st.check(line.trim(), outText, { path: path(), cwd: cwd.slice() }); } catch (e) { passed = false; }
+          try { passed = !!st.check(line.trim(), outText, { path: path(), cwd: cwd.slice(), canRead }); } catch (e) { passed = false; }
           if (passed) {
             acadStep++;
             out('✓ Step ' + acadStep + '/' + L0.steps.length + ' complete!', '#6f6');
@@ -1477,7 +1535,12 @@
     $('ti').onkeydown = e => {
       if (e.key === 'Tab') { e.preventDefault(); autocomplete(); return; }
       if (e.ctrlKey && (e.key === 'l' || e.key === 'L')) { e.preventDefault(); $('to').innerHTML = ''; return; }
-      if (e.ctrlKey && (e.key === 'c' || e.key === 'C')) { e.preventDefault(); out($('tp').textContent + $('ti').value + '^C', '#6cf'); $('ti').value = ''; return; }
+      if (e.ctrlKey && (e.key === 'c' || e.key === 'C')) {
+        const sel = window.getSelection ? String(window.getSelection()) : '';
+        const inpSel = $('ti').selectionStart !== $('ti').selectionEnd;
+        if (sel || inpSel) return; /* let Ctrl+C copy highlighted text */
+        e.preventDefault(); out($('tp').textContent + $('ti').value + '^C', '#6cf'); $('ti').value = ''; return;
+      }
       if (e.key === 'ArrowUp') { if (hist.length) { hp = Math.max(0, hp - 1); $('ti').value = hist[hp] || ''; } e.preventDefault(); return; }
       if (e.key === 'ArrowDown') { hp = Math.min(hist.length, hp + 1); $('ti').value = hist[hp] || ''; e.preventDefault(); return; }
       if (e.key !== 'Enter') return;
@@ -1487,12 +1550,21 @@
       out($('tp').textContent + line, '#6cf');
       runLine(line);
     };
-    el.onclick = () => { if (!window.getSelection().toString()) $('ti').focus(); };
+    el.onclick = e => {
+      /* never steal focus or wipe highlights when clicking/dragging inside terminal output or mission text */
+      if (e.target.closest('#to')) return;
+      const sel = window.getSelection ? String(window.getSelection()) : '';
+      if (!sel && e.target.closest('#tprow')) { try { $('ti').focus({ preventScroll: true }); } catch (e2) { $('ti').focus(); } }
+    };
+    $('tfs').onclick = () => {
+      if (A.termFS) A.termFS.toggle($('tbox'), $('tfs'));
+      try { $('ti').focus({ preventScroll: true }); } catch (e2) { $('ti').focus(); }
+    };
     load();
     if (view === 'academy') out('🎓 Terminal Academy — Interactive hands-on Linux & hacking trainer.\nComplete each step in the real sandbox shell below, or click "⚡ Try Example" anytime.\n', '#8fa89a');
     else out('Moundshroud lab terminal. 24 Campaign Missions · 12 Interactive Academy Lessons · ∞ Endless CTF.\nType "help" for commands, or switch modes using the buttons above.\n', '#8fa89a');
     setTimeout(() => $('ti').focus(), 50);
-    return () => { };
+    return () => { if (A.termFS) A.termFS.exit(); };
   }
 
   reg('terminal', 'Terminal Hacker', '💻', '24 hand-crafted campaign missions across 4 chapters + 12-lesson Interactive Academy + ∞ Endless CTF Linux shell.', (el, api) => mountTerminalApp(el, api, 'campaign'));

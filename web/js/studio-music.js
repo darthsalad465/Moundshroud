@@ -130,7 +130,7 @@
     const lookUp = async idea => {
       webBrief = ''; const src = q('#mcwscr'); if (src) src.innerHTML = '';
       if (!q('#mcweb') || !q('#mcweb').checked) return;
-      if (!window.A.net || !A.net.on()) { if (src) src.textContent = 'Internet access is switched off, so the song comes from your words alone.'; return; }
+      if (!A.net || !A.net.on()) { if (src) src.textContent = 'Internet access is switched off, so the song comes from your words alone.'; return; }
       q('#mcs').textContent = 'Looking "' + idea.slice(0, 36) + '" up online…';
       const r = await A.net.research(idea).catch(() => null);
       if (!r || !r.notes) { if (src) src.textContent = 'Nothing useful came back from the web.'; return; }

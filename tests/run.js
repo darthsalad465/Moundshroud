@@ -229,7 +229,8 @@ console.log('chess rules');
     ok('library: pages are served from their own address, with only that address reachable', /const LIBPORT = PORT \+ 9/.test(srv) && /connect-src 'self'; frame-src 'self'/.test(srv) && /frame-ancestors " \+ app/.test(srv));
     /* the only outside page allowed in a frame is YouTube's privacy-enhanced player (the TV tab) */
     const frameSrc = ((srv.match(/frame-src ([^;]*)/) || [])[1] || '').replace(/"\s*\+\s*[\w.]+\s*\+\s*"/g, '<expr>');
-    const outside = frameSrc.split(/\s+/).map(t => t.replace(/^"|"$/g, '')).filter(t => t && !['\'self\'', 'blob:', 'data:', '<expr>', ';'].includes(t) && !/^http:\/\/(127\.0\.0\.1|localhost):(<expr>|\d+)$/.test(t));
+    /* app://moundshroud-lib is the desktop app's own library address (the standalone app serves library pages there) */
+    const outside = frameSrc.split(/\s+/).map(t => t.replace(/^"|"$/g, '')).filter(t => t && !['\'self\'', 'blob:', 'data:', '<expr>', ';', 'app://moundshroud-lib'].includes(t) && !/^http:\/\/(127\.0\.0\.1|localhost):(<expr>|\d+)$/.test(t));
     ok('library: the app lets that address be shown in a frame (and nothing else new)', outside.length === 1 && outside[0] === 'https://www.youtube-nocookie.com', outside.join(' '));
     ok('library: a library page opened on the app’s own address is walled off without scripts', /hd\['content-security-policy'\] = "sandbox; default-src 'none'/.test(srv));
     const lib = rd('web/js/lib.js'), br = rd('web/lib-bridge.js');
@@ -301,7 +302,8 @@ console.log('chess rules');
     const clip = srv.slice(srv.indexOf("url.startsWith('/api/clip')"), srv.indexOf("url.startsWith('/api/clip')") + 1400);
     ok('clipboard history: only POST can clear, delete or switch it', /req\.method !== 'POST'/.test(clip) && clip.indexOf("req.method !== 'POST'") < clip.indexOf('/api/clip/clear'));
     const risky = /url === '\/api\/[\w/-]*(clear|delete|remove|forget|clean|restore|reindex|save|toggle|open|pull|get|fix|new|create)'(?! && req\.method === 'POST')/g;
-    const bad = (srv.match(risky) || []).filter(m => !/clip\//.test(m) && !/notes\/get/.test(m));
+    /* prep/hf-new only reads the list of new Hugging Face models (a stale list is refreshed in the background) */
+    const bad = (srv.match(risky) || []).filter(m => !/clip\//.test(m) && !/notes\/get/.test(m) && !/prep\/hf-new/.test(m));
     ok('no other changing address answers a plain GET', bad.length === 0, bad.join(', '));
   }
   /* the password vault: strength, the generator, CSV import, the server's checks */
@@ -533,6 +535,8 @@ try {
     try { await require('./patch-test.js')(ok); } catch (e) { ok('the patch engine test loads', false, e.message); }
     try { await require('./learn-test.js')(ok); } catch (e) { ok('the Learn test loads', false, e.message); }
     try { await require('./lessons-test.js')(ok); } catch (e) { ok('the coding lessons test loads', false, e.message); }
+    try { await require('./office-lan-test.js')(ok); } catch (e) { ok('the sandbox office network test loads', false, e.message); }
+    try { await require('./playground-langs-test.js')(ok); } catch (e) { ok('the playground languages test loads', false, e.message); }
     try { await require('./swarm-test.js')(ok); } catch (e) { ok('the swarm modules load', false, e.message); }
     try { await require('./agent-modes-test.js')(ok); } catch (e) { ok('the agent modes module loads', false, e.message); }
     try { await require('./bible-test.js')(ok); } catch (e) { ok('the bible expert test loads', false, e.message); }
@@ -564,6 +568,10 @@ try {
     try { await require('./micro-test.js')(ok); } catch (e) { ok('the micro repos test loads', false, e.message); }
     try { await require('./standalone-test.js')(ok); } catch (e) { ok('the standalone zero-localhost test loads', false, e.message); }
     try { await require('./cyber-infinite-test.js')(ok); } catch (e) { ok('the infinite cyber games test loads', false, e.message); }
+    try { await require('./openwhip-test.js')(ok); } catch (e) { ok('the OpenWhip integration test loads', false, e.message); }
+    try { await require('./terminal-commands-test.js')(ok); } catch (e) { ok('the terminal simulation commands test loads', false, e.message); }
+    try { await require('./mcode-terminal-test.js')(ok); } catch (e) { ok('the mcode simulated terminal test loads', false, e.message); }
+    try { await require('./pt-test.js')(ok); } catch (e) { ok('the Packet Tracer simulator test loads', false, e.message); }
     try { const MT = require(path.join(__dirname, '..', 'lib', 'mail.js'))._t, pw = 'tést "pw" ✓', blob = await MT.protectPw(pw); ok('mail: Windows keeps the password protected and gives it back', !blob.includes('pw') && await MT.unprotectPw(blob) === pw); } catch (e) { ok('mail: Windows keeps the password protected', false, e.message); }
     console.log('\n' + pass + ' passed, ' + fail + ' failed');
     process.exit(fail ? 1 : 0);
