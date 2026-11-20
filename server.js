@@ -209,6 +209,18 @@ function setHarnessKind(k) {
   if (k !== harnessKind) { try { harnesses[harnessKind].stop(); } catch (e) { } harnessKind = k; try { fs.writeFileSync(HKIND_FILE, JSON.stringify({ kind: k })); } catch (e) { } }
   return { ok: true, kind: k };
 }
+/* An old conversation must always be able to go on. Moundshroud Code rebuilds any conversation from its record, so with
+   it chosen every chat continues there. Claude Code and jcode can only load their own sessions, so with one of them
+   chosen, a chat made by another engine switches back to the engine that made it (Moundshroud Code when that one is
+   not installed). Returns the engine switched to, or '' when the chosen one already fits. */
+function engineForRecord(rec) {
+  if (!rec || harnessKind === 'native') return '';
+  const own = harnesses[rec.harness] ? rec.harness : (/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(String(rec.id || '')) ? 'claude' : 'native');
+  if (own === harnessKind) return '';
+  const k = own === 'jcode' && !jcodeLib.installed() ? 'native' : own;
+  if (k === harnessKind) return '';
+  return setHarnessKind(k).ok ? k : '';
+}
 /* starts (or picks up) an agent session; Moundshroud Code always resolves to an available model instead of failing */
 function startHarness(b, internal) {
   return new Promise(done => agent.list(async (up, models) => {
@@ -1111,11 +1123,25 @@ if (url === '/api/chat' && req.method === 'POST') {
     if (url === '/api/harness/send' && req.method === 'POST') { const b = await jbody(req, 20e6); return json(res, 200, harness.send(b.text, b.photo)); }
     if (url === '/api/harness/answer' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, harness.answer(b.id, b.allow === true)); }
     if (url === '/api/harness/stop' && req.method === 'POST') return json(res, 200, harness.stop());
-    if (url === '/api/harness/show' && req.method === 'POST') { const b = await jbody(req, 1e4), rec = harnessStore.get(String(b.id || '')); return json(res, 200, rec ? harness.show(rec) : { ok: false, error: 'That conversation is no longer kept.' }); }
+    if (url === '/api/harness/show' && req.method === 'POST') {
+      const b = await jbody(req, 1e4), rec = harnessStore.get(String(b.id || ''));
+      if (!rec) return json(res, 200, { ok: false, error: 'That conversation is no longer kept.' });
+      const switched = engineForRecord(rec);
+      return json(res, 200, Object.assign({}, harness.show(rec), switched ? { switched } : {}));
+    }
     if (url === '/api/harness/forget' && req.method === 'POST') { const b = await jbody(req, 1e4); harnessStore.forget(String(b.id || '')); return json(res, 200, { ok: true }); }
     if (url === '/api/harness/start' && req.method === 'POST') {
       const b = await jbody(req, 1e4);
-      return json(res, 200, await startHarness(b));
+      /* picking an old conversation up: it goes on in its own folder, with an engine that can carry it */
+      let switched = '';
+      const rec = b.resume ? harnessStore.get(String(b.resume)) : null;
+      if (rec) {
+        switched = engineForRecord(rec);
+        if (switched || harness.state(1e12).sessionId !== rec.id) harness.show(rec);
+        if (rec.dir && fs.existsSync(rec.dir)) b.dir = rec.dir;
+      }
+      const r = await startHarness(b);
+      return json(res, 200, switched && r ? Object.assign({}, r, { switched }) : r);
     }
     /* ---- the same commands the terminal window has, run against whichever harness is chosen ----
        /chat /code /autonomy /net /reach /think are the harness's own switches; only Moundshroud Code has them, so a
