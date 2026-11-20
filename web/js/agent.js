@@ -400,6 +400,8 @@
         return;
       }
       else if (e.kind === 'started') el.innerHTML = note((e.resumed ? 'Picked up again' : 'Session started') + ' · ' + bare(e.model) + ' · ' + Math.round((e.ctx || 0) / 1024) + 'k memory · ' + (e.guard ? 'whole PC, guarded' : 'this folder only') + ' · ' + (e.dir || ''));
+      /* Moundshroud Code's own notes: a fresh start before the memory fills, a long job still going, a slower fallback */
+      else if (e.kind === 'note') el.innerHTML = note('ℹ ' + String(e.text || ''));
       else if (e.kind === 'stopped') el.innerHTML = note('Stopped. Type a message, or press Continue, to pick it up again.');
       else if (e.kind === 'error') el.innerHTML = '<div class="agerr">' + esc(e.text) + '</div>';
       else if (e.kind === 'done') { if (e.ok || !e.text) return; el.innerHTML = '<div class="agerr">' + esc(e.text) + '</div>'; }
