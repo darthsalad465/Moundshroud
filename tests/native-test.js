@@ -946,4 +946,23 @@ module.exports = async ok => {
     ok('mcode: a path shortened with ... is read from the working folder', res.length === 1 && !res[0].isError && /found me/.test(res[0].text), res.map(e => e.text).join(' | '));
     try { fs.rmSync(dirD, { recursive: true, force: true }); } catch (e) { }
   }
+
+  /* ---- any old conversation can be picked up, even one another engine made with no saved model history ---- */
+  {
+    const dirU = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-resume-'));
+    let seen = null;
+    const HU = N.create({ dataDir: dirU, prepare: async () => ({ ok: true }), ask: async msgs => { seen = msgs; return { ok: true, text: 'PINEAPPLE' }; } });
+    const uuid = '0f8fad5b-d9cb-469f-a165-70867728950e';
+    HU.show({ id: uuid, title: 'old', dir: dirU, harness: 'claude', events: [
+      { kind: 'started' }, { kind: 'user', text: 'Remember the word PINEAPPLE.' }, { kind: 'text', text: 'OK, I will.' }, { kind: 'done', ok: true }] });
+    const r = await HU.start({ check: { model: 'm', agentModel: 'm', ctx: 32768 }, dir: dirU, resume: uuid });
+    HU.send('What was the word?');
+    for (let i = 0; i < 400 && HU.state(0).busy; i++) await new Promise(res => setTimeout(res, 5));
+    const st = HU.state(0), said = (seen || []).map(m => m.role + ':' + m.content).join(' | ');
+    ok('mcode: a conversation another engine made is picked up under its own id, not a new one',
+      r.ok && st.sessionId === uuid && st.events.some(e => e.kind === 'started' && e.resumed), st.sessionId);
+    ok('mcode: the picked-up conversation is rebuilt for the model from what the page showed',
+      /user:Remember the word PINEAPPLE/.test(said) && /assistant:OK, I will/.test(said) && /user:What was the word/.test(said), said.slice(0, 300));
+    try { fs.rmSync(dirU, { recursive: true, force: true }); } catch (e) { }
+  }
 };

@@ -553,8 +553,14 @@
       const r = await post('/api/harness/start', { model: $('agmodel').value || '', ctx: +$('agctx').value || undefined, guard: $('agguard').checked, dir: get(), resume: resume || undefined });
       starting = false; if (!alive) return false;
       if (!r.ok) { A.toast('Could not start the agent: ' + (r.error || 'unknown problem')); head(); return false; }
+      if (r.switched) await engineMoved(r.switched);
       if (!resume) seq = 0; await tick(); return true;
     };
+    /* an old conversation made by another engine goes on in that engine, since only it can load the conversation */
+    async function engineMoved(k) {
+      A.toast('This conversation was made with ' + engName(k) + ', so it carries on there');
+      await check();
+    }
     const busyElsewhere = () => H && H.running && (H.busy || (H.pending && H.pending.length));
     $('hnew').onclick = async () => {
       if (busyElsewhere() && !(await A.confirm('The agent is still working on “' + (H.title || 'a session') + '”. Stop it and start a new session?'))) return;
@@ -570,6 +576,7 @@
       if (view === 'rec') {
         if (busyElsewhere() && !(await A.confirm('The agent is working on “' + (H.title || 'another session') + '”. Stop it and pick this one up instead?'))) return;
         const x = await post('/api/harness/show', { id: recId }); if (!x.ok) { A.toast(x.error || 'Could not open that conversation.'); return; }
+        if (x.switched) await engineMoved(x.switched);
         seq = 0; show('live'); await tick();
         if (!(await begin(recId))) return;
       } else if (!H || !H.running) { if (!(await begin(H && H.sessionId ? H.sessionId : ''))) return; }
