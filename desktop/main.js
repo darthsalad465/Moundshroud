@@ -5,7 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const fsp = fs.promises;
 const os = require('os');
-const { app, BrowserWindow, Tray, Menu, shell, nativeImage, protocol, session, globalShortcut, utilityProcess } = require('electron');
+const { app, BrowserWindow, Tray, Menu, shell, nativeImage, nativeTheme, protocol, session, globalShortcut, utilityProcess } = require('electron');
 
 const APP_ORIGIN = 'app://moundshroud';
 const LIB_ORIGIN = 'app://moundshroud-lib';
@@ -402,12 +402,6 @@ function createMainWindow() {
     backgroundColor: '#090d16',
     title: 'Moundshroud',
     icon: fs.existsSync(ICON_PATH) ? ICON_PATH : undefined,
-    titleBarStyle: 'hidden',
-    titleBarOverlay: {
-      color: '#0b1020',
-      symbolColor: '#cbd5e1',
-      height: 40
-    },
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -518,6 +512,8 @@ function buildTray() {
 }
 
 app.whenReady().then(async () => {
+  nativeTheme.themeSource = 'dark';
+  Menu.setApplicationMenu(null);
   createSplash();
   buildTray();
   registerAppProtocol();
