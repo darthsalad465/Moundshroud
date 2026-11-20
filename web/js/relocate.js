@@ -10,9 +10,9 @@
     A.registerTab('journal', 'Journal', () => { A.keep(document.getElementById('jrbody'), 'journal', el => A.journal.render(el)); });      // kept: a half-written entry stays
   }
   /* ---------- Cyber (Code Breaker, Cyber Course, Cyber Lab, CyberChef) ---------- */
-  const cp = document.getElementById('p-cyber'); let cysub = ls.get('cysub', 'course');
+  const cp = document.getElementById('p-cyber'); let cysub = ls.get('cysub', 'arena');
   /* everything about security in one place, in three groups: learn it, use the tools, play the games */
-  const CY = [['course', '🎓 Course', 'Learn'], ['code', '💻 Coding', 'Learn'],['cyber', '🛡️ Cyber Lab', 'Learn'], ['vault', '🔐 Passwords', 'Tools'], ['crack', '🔓 Cracker', 'Tools'], ['kit', '🧰 Toolkit', 'Tools'], ['artex', '🤖 ARTEX', 'Tools'], ['codes', '🔓 Code Breaker', 'Tools'], ['chef', '🧰 CyberChef', 'Tools'], ['ptracer', '🧪 Packet Tracer', 'Labs'], ['sqllab', '🗃 SQL', 'Labs'], ['subnet', '🌐 Subnet', 'Labs'], ['regex', '🔍 Regex', 'Labs'], ['juice', '🧃 Juice Shop', 'Labs'], ['jwt', '🔑 JWT', 'Labs'], ['cipher', '🔐 Ciphers', 'Labs'], ['re', '🔬 Reverse', 'Labs'], ['hashlab', '#️⃣ Hash', 'Labs'], ['jsonlab', '{ } JSON', 'Labs'], ['games', '🕶️ Cyber games', 'Play']];
+  const CY = [['arena', '◈ Red / Blue', 'Arena'], ['switchyard', 'Switchyard', 'Arena'], ['course', '🎓 Course', 'Learn'], ['code', '💻 Coding', 'Learn'], ['workshop', 'Debug workshop', 'Learn'],['cyber', '🛡️ Cyber Lab', 'Learn'], ['vault', '🔐 Passwords', 'Tools'], ['crack', '🔓 Cracker', 'Tools'], ['kit', '🧰 Toolkit', 'Tools'], ['artex', '🤖 ARTEX', 'Tools'], ['codes', '🔓 Code Breaker', 'Tools'], ['chef', '🧰 CyberChef', 'Tools'], ['ptracer', '🧪 Packet Tracer', 'Labs'], ['sqllab', '🗃 SQL', 'Labs'], ['subnet', '🌐 Subnet', 'Labs'], ['regex', '🔍 Regex', 'Labs'], ['juice', '🧃 Juice Shop', 'Labs'], ['jwt', '🔑 JWT', 'Labs'], ['cipher', '🔐 Ciphers', 'Labs'], ['re', '🔬 Reverse', 'Labs'], ['hashlab', '#️⃣ Hash', 'Labs'], ['jsonlab', '{ } JSON', 'Labs'], ['games', '🕶️ Cyber games', 'Play']];
   let cyGame = '';
   /* the cyber games (registered with the Games tab, cat: 'cyber') run right here */
   const games = b => {
@@ -26,9 +26,9 @@
       b._cleanup = () => { try { stop && stop(); } catch (e) { } };
       b.querySelector('#cygx').onclick = () => { if (b._cleanup) { b._cleanup(); b._cleanup = null; } games(b); };
     };
-    b.innerHTML = '<div class="scroll pad" style="flex:1"><h2 style="margin:0 0 4px">🕶️ Cyber games</h2><div class="small mute" style="margin-bottom:12px">Practise spotting phishing, reading logs, networking, SQL injection and the command line, as games. Nothing here touches real systems.</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px">' +
+    b.innerHTML = '<div class="scroll pad" style="flex:1"><h2 style="margin:0 0 4px">🕶️ Cyber games</h2><div class="dw-gateway"><div><b>Red / Blue · Access review</b><small>Investigate an access incident or repair the records service. Every case has its own seed.</small></div><button class="ib" data-arena>Choose a side →</button></div><div class="small mute" style="margin-bottom:12px">Practise spotting phishing, reading logs, networking, SQL injection and the command line, as games. Nothing here touches real systems.</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px">' +
       list.map(([id, g]) => '<div class="card" data-g="' + id + '" style="cursor:pointer;margin:0"><div style="font-size:28px">' + g.icon + '</div><b>' + esc(g.name) + '</b><div class="small mute" style="margin-top:4px;line-height:1.45">' + esc(g.desc || '') + '</div></div>').join('') + '</div></div>';
-    b.onclick = e => { const c = e.target.closest('[data-g]'); if (c) { b.onclick = null; run(c.dataset.g); } };
+    b.onclick = e => { if (e.target.closest('[data-arena]')) return A.cybertab.go('arena'); const c = e.target.closest('[data-g]'); if (c) { b.onclick = null; run(c.dataset.g); } };
     if (cyGame) run(cyGame);
   };
   const esc = t => String(t == null ? '' : t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -37,15 +37,15 @@
     cysub = s; ls.set('cysub', s); const bar = document.getElementById('cysub'), body = document.getElementById('cybody'); if (!bar || !body) return;
     let grp = ''; bar.innerHTML = CY.filter(x => x[0] !== 'chef' || A.caps.chef).map(x => { const h = x[2] !== grp ? (grp ? '<span style="width:1px;align-self:stretch;background:var(--line);margin:0 4px"></span>' : '') + '<span class="small mute" style="align-self:center">' + x[2] + '</span>' : ''; grp = x[2]; return h + '<button class="ib' + (x[0] === s ? ' on' : '') + '" data-s="' + x[0] + '">' + x[1] + '</button>'; }).join('');
     /* kept alive (A.keep), except the games, which stop when you leave them */
-    const R2 = { course: b => A.cybercourse.render(b), code: b => A.codeLessons.render(b),codes: b => A.cbLab.render(b), cyber: b => A.cyber.render(b), vault: b => A.vault.render(b), kit: b => A.cyberTools.render(b), artex: b => A.artex.render(b), ptracer: b => A.cyberLabs.ptracer(b), sqllab: b => A.cyberLabs.sqllab(b), subnet: b => A.cyberLabs.subnet(b), regex: b => A.cyberLabs.regex(b), juice: b => A.cyberLabs.juice(b), jwt: b => A.cyberLabs.jwt(b), cipher: b => A.cyberLabs.cipher(b), hashlab: b => A.cyberLabs.hashlab(b), jsonlab: b => A.cyberLabs.jsonlab(b), re: b => A.cyberLabs.re(b), crack: b => A.cyberLabs.crack(b), games, chef };
+    const R2 = { arena: A.accessExercise.render, switchyard: A.switchyard.render, workshop: A.debugWorkshop.render, course: b => A.cybercourse.render(b), code: b => A.codeLessons.render(b),codes: b => A.cbLab.render(b), cyber: b => A.cyber.render(b), vault: b => A.vault.render(b), kit: b => A.cyberTools.render(b), artex: b => A.artex.render(b), ptracer: b => A.cyberLabs.ptracer(b), sqllab: b => A.cyberLabs.sqllab(b), subnet: b => A.cyberLabs.subnet(b), regex: b => A.cyberLabs.regex(b), juice: b => A.cyberLabs.juice(b), jwt: b => A.cyberLabs.jwt(b), cipher: b => A.cyberLabs.cipher(b), hashlab: b => A.cyberLabs.hashlab(b), jsonlab: b => A.cyberLabs.jsonlab(b), re: b => A.cyberLabs.re(b), crack: b => A.cyberLabs.crack(b), games, chef };
     A.keep(body, s, el => R2[s](el), { fresh: s === 'games' });
   };
   if (cp) {
     cp.innerHTML = '<div class="row" id="cysub" style="padding:8px 12px;gap:6px;border-bottom:1px solid var(--line);flex-wrap:wrap"></div><div id="cybody" style="flex:1;min-height:0;display:flex;flex-direction:column"></div>';
     cp.querySelector('#cysub').onclick = e => { const b = e.target.closest('[data-s]'); if (b) cyShow(b.dataset.s); };
-    A.registerTab('cyber', 'Cyber', () => cyShow(CY.some(x => x[0] === cysub) ? cysub : 'course'));
+    A.registerTab('cyber', 'Cyber', () => cyShow(CY.some(x => x[0] === cysub) ? cysub : 'arena'));
   }
-  A.cybertab = { go: (s, game) => { cysub = CY.some(x => x[0] === s) ? s : 'course'; cyGame = game || ''; if (A.cur === 'cyber') cyShow(cysub); else A.showTab('cyber'); } };
+  A.cybertab = { go: (s, game) => { cysub = CY.some(x => x[0] === s) ? s : 'arena'; cyGame = game || ''; if (A.cur === 'cyber') cyShow(cysub); else A.showTab('cyber'); } };
   /* ---------- Studio: Writing coach and Practice, with the word tools ---------- */
   if (A.studio && A.prep && A.prep.sections) {
     A.studio.reg('writing', '✍️ Writing', body => {

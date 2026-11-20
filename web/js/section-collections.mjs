@@ -219,30 +219,23 @@ export async function openings(s) {
 
 export async function elements(s) {
   const { items } = await api('elements'),
-    grid = node('div', null, 'sf-elements'),
-    scroll = node('div', null, 'sf-scroll'),
     details = node('div');
   const a = node('select'),
     b = node('select');
   for (const el of items) {
     for (const sel of [a, b]) sel.add(new Option(el.name, el.number));
   }
-  a.value = '1';
-  b.value = '2';
+  a.value = String(A.lab?.selectedElement() || 1);
+  b.value = a.value === '8' ? '1' : '8';
   a.setAttribute('aria-label', 'First element');
   b.setAttribute('aria-label', 'Second element');
-  for (const el of items) {
-    const key = button(el.symbol, () => {
-      a.value = el.number;
-      draw();
-    });
-    key.title = el.number + ' · ' + el.name;
-    key.style.gridColumn = el.xpos;
-    key.style.gridRow = el.ypos;
-    grid.append(key);
-  }
-  scroll.append(grid);
-  s.body.append(scroll, node('h3', 'Compare elements'), a, b, details);
+  const leftLabel = node('label', 'First element '),
+    rightLabel = node('label', 'Second element '),
+    row = node('div', null, 'sf-row');
+  leftLabel.append(a);
+  rightLabel.append(b);
+  row.append(leftLabel, rightLabel);
+  s.body.append(row, details);
   function draw() {
     const left = items.find((x) => x.number === +a.value),
       right = items.find((x) => x.number === +b.value);
@@ -291,11 +284,16 @@ export async function words(s) {
   const save = button('Add these cards to Study', () =>
     s.run(async () => {
       const deck = names.of(lang.value) + ' · words ' + (offset + 1) + '–' + (offset + r.items.length);
-      await A.study.addCards(
-        deck,
-        r.items.map((w) => ({ q: prompt(w), a: w.word }))
-      );
       save.disabled = true;
+      try {
+        await A.study.addCards(
+          deck,
+          r.items.map((w) => ({ q: prompt(w), a: w.word }))
+        );
+      } catch (e) {
+        save.disabled = false;
+        throw e;
+      }
       s.status.textContent = 'Saved to Study as ' + deck + '.';
     })
   );
@@ -318,12 +316,14 @@ export async function words(s) {
   }
   async function load(at) {
     const serial = ++seq;
+    for (const b of controls.querySelectorAll('button')) b.disabled = true;
+    answer.hidden = true;
     const data = await api('words', { lang: lang.value, start: at });
     if (serial !== seq) return;
     r = data;
     offset = at;
     index = 0;
-    save.disabled = false;
+    save.disabled = reveal.disabled = advance.disabled = false;
     draw();
   }
   lang.onchange = () => s.run(() => load(0));

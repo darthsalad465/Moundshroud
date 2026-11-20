@@ -117,16 +117,6 @@
 .sf-board .dark {
   background: #a48c7a;
 }
-.sf-elements {
-  display: grid;
-  grid-template-columns: repeat(18, minmax(1.7rem, 1fr));
-  gap: 2px;
-  min-width: 550px;
-}
-.sf-elements button {
-  padding: 2px;
-  font-size: 12px;
-}
 .sf-scroll {
   overflow: auto;
 }
@@ -151,4 +141,7 @@
 .section-tool [hidden],
 #section-actions[hidden] {
   display: none !important;
+}
+main > #section-actions:not([hidden]) ~ .panel.on {
+  top: var(--section-actions-height, 42px);
 }

@@ -514,6 +514,20 @@ async function handleAppRequest(req, res) {
     if (url === '/api/status') return ollamaUp(up => json(res, 200, { ok: true, ollama: up, lib: kiwix.available(), voice: voice.available(), chef: fs.existsSync(CHEF) }));
     if (url === '/api/ping') { lastPing = Date.now(); seen = true; closingAt = 0; if (!kiwixWarm && kiwix.available()) { kiwixWarm = true; setTimeout(() => kiwix.ensureP().catch(() => {}), 2500); } return json(res, 200, { ok: true, stale: code.changed() }); }     // start the library in the background so the first lookup is instant; stale: this copy is older than the code on the disk
     if (url === '/api/closing') { closingAt = Date.now() + 6000; return json(res, 200, { ok: true }); }
+    /* restart from inside the app (Settings › Backup & data › Restart Moundshroud): a small helper outlives this copy, waits
+       for it to let go of the port, then starts this same folder again. Nothing on the disk is touched, so data\ is kept. */
+    if (url === '/api/restart' && req.method === 'POST') {
+      if (EMBEDDED) return json(res, 200, { ok: false, error: 'This copy of Moundshroud is running inside another program, so it cannot restart itself.' });
+      const helper = 'const cp=require("child_process"),net=require("net"),fs=require("fs"),path=require("path");' +
+        'const port=+process.argv[1],root=process.argv[2],node=process.argv[3],log=process.argv[4];' +
+        'const go=()=>{try{const o=fs.openSync(log,"a");cp.spawn(node,[path.join(root,"server.js")],{cwd:root,detached:true,stdio:["ignore",o,o],windowsHide:true}).unref();}catch(e){}};' +
+        'let n=0;const wait=()=>{if(++n>80)return go();const s=net.connect(port,"127.0.0.1");s.on("connect",()=>{s.destroy();setTimeout(wait,300);});s.on("error",()=>{s.destroy();setTimeout(go,400);});};' +
+        'setTimeout(wait,400);';
+      try { cp.spawn(process.execPath, ['-e', helper, String(PORT), ROOT, process.execPath, path.join(DATA, 'server-out.log')], { detached: true, stdio: 'ignore', windowsHide: true }).unref(); }
+      catch (e) { return json(res, 200, { ok: false, error: 'Moundshroud could not start the restart helper: ' + e.message }); }
+      json(res, 200, { ok: true, restarting: true });
+      return setTimeout(shutdown, 400);
+    }
     /* the tray helper says {why:'closed'} when the window was closed: a routine that is running finishes first (Quit stops everything) */
     if (url === '/api/shutdown') { let b = {}; try { b = req.method === 'POST' ? await jbody(req, 1e3) : {}; } catch (e) { } json(res, 200, { ok: true }); if (b && b.why === 'closed' && (routines.busy() || longvideo.busy() || (remote.on() && !outdated(0)))) { seen = false; return; } return setTimeout(shutdown, 50); }
     if (url === '/api/warm' && req.method === 'POST') {
