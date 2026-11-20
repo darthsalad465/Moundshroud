@@ -823,4 +823,127 @@ module.exports = async ok => {
       asks <= 6 && evs.some(e => e.kind === 'error' && /kept asking for the same thing/.test(e.text)), 'asked ' + asks + ' times');
     try { fs.rmSync(dirS, { recursive: true, force: true }); } catch (e) { }
   }
+
+  /* ---- a long job: the memory fills, the model writes a handoff plan and carries on fresh ---- */
+  {
+    const dirH = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-handoff-'));
+    const big = 'x'.repeat(6000);
+    let k = 0, planAsks = 0, afterFresh = null;
+    const HH = N.create({ dataDir: dirH, prepare: async () => ({ ok: true }), ask: async msgs => {
+      if (/^You are handing your unfinished work/.test(String(msgs[0].content))) { planAsks++; return { ok: true, text: 'GOAL: write f1 to f12.\nDONE: some files.\nFILES: f1.txt and on.\nNEXT:\n1. Write the next file.\nPROBLEMS: none.' }; }
+      if (msgs.length === 2 && /HANDOFF PLAN/.test(String(msgs[1].content)) && !afterFresh) afterFresh = String(msgs[1].content);
+      k++;
+      if (k > 12) return { ok: true, text: 'All twelve files are written.', calls: [] };
+      return { ok: true, text: '', calls: [{ function: { name: 'write_file', arguments: { path: 'f' + k + '.txt', content: big } } }] };
+    } });
+    await HH.start({ check: { model: 'm', agentModel: 'm', ctx: 16384 }, dir: dirH });
+    HH.setAutonomy('auto');
+    HH.send('write twelve files named f1.txt to f12.txt');
+    for (let i = 0; i < 2000 && HH.state(0).busy; i++) await new Promise(r => setTimeout(r, 5));
+    const evs = HH.state(0).events;
+    ok('mcode: when the memory nearly fills, the model writes a handoff plan and starts fresh',
+      planAsks >= 1 && evs.some(e => e.kind === 'note' && /fresh start 1/.test(e.text)), 'plans ' + planAsks + ' notes ' + evs.filter(e => e.kind === 'note').map(e => e.text).join(' | '));
+    ok('mcode: the fresh start carries the person\'s request and the plan, and nothing else',
+      !!afterFresh && /write twelve files/.test(afterFresh) && /NEXT:/.test(afterFresh), String(afterFresh).slice(0, 200));
+    ok('mcode: the handoff plan is saved in the working folder', fs.existsSync(path.join(dirH, '.moundshroud', 'handoff-1.md')));
+    ok('mcode: the job finishes after a fresh start, with every file written',
+      evs.some(e => e.kind === 'done') && !evs.some(e => e.kind === 'error') && [...Array(12)].every((_, i) => fs.existsSync(path.join(dirH, 'f' + (i + 1) + '.txt'))));
+    try { fs.rmSync(dirH, { recursive: true, force: true }); } catch (e) { }
+  }
+
+  /* ---- the model refuses a request as too long: hand off, then ask again ---- */
+  {
+    const dirR = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-overflow-'));
+    let k = 0, refused = 0, planMsgs = null;
+    const HR = N.create({ dataDir: dirR, prepare: async () => ({ ok: true }), ask: async msgs => {
+      if (/^You are handing your unfinished work/.test(String(msgs[0].content))) { planMsgs = msgs; return { ok: false, error: 'model went away' }; }
+      k++;
+      if (k === 3 && !refused) { refused++; return { ok: false, error: 'the request exceeds the available context size, try increasing it' }; }
+      if (k > 5) return { ok: true, text: 'Done.', calls: [] };
+      return { ok: true, text: '', calls: [{ function: { name: 'write_file', arguments: { path: 'g' + k + '.txt', content: 'hi' } } }] };
+    } });
+    await HR.start({ check: { model: 'm', agentModel: 'm', ctx: 32768 }, dir: dirR });
+    HR.setAutonomy('auto');
+    HR.send('write some g files');
+    for (let i = 0; i < 1000 && HR.state(0).busy; i++) await new Promise(r => setTimeout(r, 5));
+    const evs = HR.state(0).events;
+    const hf = path.join(dirR, '.moundshroud', 'handoff-1.md');
+    const plan = fs.existsSync(hf) ? fs.readFileSync(hf, 'utf8') : '';
+    ok('mcode: a "too long" refusal no longer ends the job: it hands off and asks again',
+      refused === 1 && evs.some(e => e.kind === 'note' && /memory was full/.test(e.text)) && evs.some(e => e.kind === 'done') && !evs.some(e => e.kind === 'error'),
+      evs.filter(e => /note|error/.test(e.kind)).map(e => e.text).join(' | '));
+    ok('mcode: when the model cannot write the plan, one is made from the files it changed', /FILES: .*g1\.txt/.test(plan) && /NEXT:/.test(plan), plan.slice(0, 200));
+    ok('mcode: the plan is written from the work so far', !!planMsgs && /CALLED write_file/.test(String(planMsgs[1].content)));
+    try { fs.rmSync(dirR, { recursive: true, force: true }); } catch (e) { }
+  }
+
+  /* ---- a long job is not cut off at 24 steps ---- */
+  {
+    const dirL = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-long-'));
+    let k = 0;
+    const HL = N.create({ dataDir: dirL, prepare: async () => ({ ok: true }), ask: async () => {
+      k++;
+      if (k > 30) return { ok: true, text: 'Thirty files written.', calls: [] };
+      return { ok: true, text: '', calls: [{ function: { name: 'write_file', arguments: { path: 'h' + k + '.txt', content: String(k) } } }] };
+    } });
+    await HL.start({ check: { model: 'm', agentModel: 'm', ctx: 32768 }, dir: dirL });
+    HL.setAutonomy('auto');
+    HL.send('write thirty files');
+    for (let i = 0; i < 2000 && HL.state(0).busy; i++) await new Promise(r => setTimeout(r, 5));
+    const evs = HL.state(0).events;
+    ok('mcode: a job longer than 24 steps keeps going until the model is done',
+      fs.existsSync(path.join(dirL, 'h30.txt')) && evs.some(e => e.kind === 'note' && /24 steps so far/.test(e.text)) && evs.some(e => e.kind === 'done'));
+    try { fs.rmSync(dirL, { recursive: true, force: true }); } catch (e) { }
+  }
+
+  /* ---- chat mode: a full memory keeps the latest messages and asks again ---- */
+  {
+    const dirC = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-chatfull-'));
+    let k = 0;
+    const HC = N.create({ dataDir: dirC, prepare: async () => ({ ok: true }), ask: async () => (++k === 1 ? { ok: false, error: 'input is too long for the context window' } : { ok: true, text: 'Hello again.' }) });
+    await HC.start({ check: { model: 'm', agentModel: 'm', ctx: 32768 }, dir: dirC, mode: 'chat' });
+    HC.send('hi');
+    for (let i = 0; i < 400 && HC.state(0).busy; i++) await new Promise(r => setTimeout(r, 5));
+    const evs = HC.state(0).events;
+    ok('mcode: chat with a full memory keeps the latest messages and answers', evs.some(e => e.kind === 'text' && /Hello again/.test(e.text)) && evs.some(e => e.kind === 'note' && /latest messages/.test(e.text)));
+    try { fs.rmSync(dirC, { recursive: true, force: true }); } catch (e) { }
+  }
+
+  /* ---- old tool results are cut first, so a fresh start is only made when that is not enough ---- */
+  {
+    const dirK = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-shrink-'));
+    for (let i = 1; i <= 10; i++) fs.writeFileSync(path.join(dirK, 'r' + i + '.txt'), ('line ' + i + ' ').repeat(500));
+    let k = 0, planAsks = 0;
+    const HK = N.create({ dataDir: dirK, prepare: async () => ({ ok: true }), ask: async msgs => {
+      if (/^You are handing your unfinished work/.test(String(msgs[0].content))) { planAsks++; return { ok: true, text: 'GOAL: x\nDONE: x\nFILES: x\nNEXT:\n1. x\nPROBLEMS: none' }; }
+      k++;
+      if (k > 10) return { ok: true, text: 'Read all ten.', calls: [] };
+      return { ok: true, text: '', calls: [{ function: { name: 'read_file', arguments: { path: 'r' + k + '.txt' } } }] };
+    } });
+    await HK.start({ check: { model: 'm', agentModel: 'm', ctx: 16384 }, dir: dirK });
+    HK.send('read r1.txt to r10.txt');
+    for (let i = 0; i < 2000 && HK.state(0).busy; i++) await new Promise(r => setTimeout(r, 5));
+    const evs = HK.state(0).events;
+    ok('mcode: old tool results are cut first, and the job goes on without a fresh start',
+      evs.some(e => e.kind === 'note' && /old tool results were cut/.test(e.text)) && planAsks === 0 && evs.some(e => e.kind === 'done'),
+      'plans ' + planAsks + ' notes ' + evs.filter(e => e.kind === 'note').map(e => e.text).join(' | '));
+    try { fs.rmSync(dirK, { recursive: true, force: true }); } catch (e) { }
+  }
+
+  /* ---- a path shortened with "..." in a model's notes still finds the file in the working folder ---- */
+  {
+    const dirD = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-dots-'));
+    fs.mkdirSync(path.join(dirD, 'src'));
+    fs.writeFileSync(path.join(dirD, 'src', 'a.txt'), 'found me');
+    let k = 0;
+    const HD = N.create({ dataDir: dirD, prepare: async () => ({ ok: true }), ask: async () => (++k === 1
+      ? { ok: true, text: '', calls: [{ function: { name: 'read_file', arguments: { path: 'C:\\...\\' + path.basename(dirD) + '\\src\\a.txt' } } }] }
+      : { ok: true, text: 'Read it.', calls: [] }) });
+    await HD.start({ check: { model: 'm', agentModel: 'm', ctx: 32768 }, dir: dirD });
+    HD.send('read the file');
+    for (let i = 0; i < 400 && HD.state(0).busy; i++) await new Promise(r => setTimeout(r, 5));
+    const res = HD.state(0).events.filter(e => e.kind === 'result');
+    ok('mcode: a path shortened with ... is read from the working folder', res.length === 1 && !res[0].isError && /found me/.test(res[0].text), res.map(e => e.text).join(' | '));
+    try { fs.rmSync(dirD, { recursive: true, force: true }); } catch (e) { }
+  }
 };
