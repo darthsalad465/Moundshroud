@@ -101,7 +101,7 @@ jobs:
             ### Quick Install (No Setup Scripts Needed)
             1. Download **`Moundshroud-Setup-${{ env.APP_VERSION }}.exe`** below.
             2. Double-click to install (adds Start Menu & Desktop shortcuts + clean Windows Uninstaller).
-            3. Launch **Moundshroud** — runs as a real standalone desktop app with zero browser chrome.
+            3. Launch **Moundshroud** — runs as a true standalone desktop app (`app://moundshroud/`) with zero localhost server, zero open ports, and built-in `Ctrl+Alt+A` toggle.
 
             *(Prefer zero-install? Download **`Moundshroud-Portable-${{ env.APP_VERSION }}.exe`** instead.)*
           files: |
