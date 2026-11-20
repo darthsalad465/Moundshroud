@@ -686,6 +686,141 @@ module.exports = async ok => {
     /* "*.js" given to search_files lists the files it names */
     r = await runScript([call('search_files', { pattern: '*.js' })]);
     ok('search: a file-name pattern lists the files it names', !r[0].bad && /boom\.js/.test(r[0].text) && /file-name pattern/.test(r[0].text), r[0] && r[0].text);
+    /* a plain word given to find_files is looked for inside the files, not only in their names */
+    fs.writeFileSync(path.join(dirE, 'todo.md'), 'TODO: fix the door\n');
+    r = await runScript([call('find_files', { pattern: 'TODO' })]);
+    ok('find: a plain word finds the files that contain it', !r[0].bad && /todo\.md/.test(r[0].text) && /contain it/.test(r[0].text), r[0] && r[0].text.slice(0, 120));
+    r = await runScript([call('find_files', { pattern: 'wallpaper' })]);
+    ok('find: a word nothing contains says so plainly', !r[0].bad && /no file there contains it/i.test(r[0].text), r[0] && r[0].text.slice(0, 120));
+    /* quotes inside a command must reach the program: cmd.exe used to eat them and node ran nothing */
+    r = await runScript([call('run_command', { command: 'node -e "console.log(6*7)"' })]);
+    ok('command: a quoted command reaches the program whole', !r[0].bad && /\b42\b/.test(r[0].text), r[0] && r[0].text.slice(0, 160));
     try { fs.rmSync(dirE, { recursive: true, force: true }); } catch (e) { }
+  }
+
+  /* ---- the words a small model uses, and the answer it writes instead of a tool call ---- */
+  {
+    ok('mcode: the tools are known by the names other agents use (read, bash, grep, str_replace)',
+      N.toolName('read') === 'read_file' && N.toolName('bash') === 'run_command' && N.toolName('grep') === 'search_files'
+      && N.toolName('str_replace') === 'edit_file' && N.toolName('ls') === 'list_files' && N.toolName('Read') === 'read_file'
+      && N.toolName('read_fil') === 'read_file' && N.toolName('multi_edit') === 'multi_edit' && N.toolName('nonsense_tool') === 'nonsense_tool',
+      ['read', 'bash', 'grep', 'str_replace', 'ls', 'Read', 'read_fil', 'nonsense_tool'].map(n => n + '=' + N.toolName(n)).join(' '));
+    const fixed = N.toolArgs({ file_path: 'a.js', old_string: 'x', new_string: 'y' });
+    ok('mcode: an edit written as old_string/new_string, or a path as file_path, is understood',
+      fixed.path === 'a.js' && fixed.find === 'x' && fixed.replace === 'y' && N.toolArgs({ contents: 'hi' }).content === 'hi'
+      && N.toolArgs({ path: 'b.js', old_string: 'x', new_string: 'y' }).path === 'b.js'
+      && (w => w.path === 'a.js' && w.find === 'x')(N.toolArgs({ parameters: JSON.stringify({ path: 'a.js', find: 'x' }) }))
+      && (w => w.path === 'c.js')(N.toolArgs({ parameters: { parameters: { path: 'c.js' } } })),
+      JSON.stringify(fixed));
+    const tc = N.textCalls('I will write it.\nTOOL {"name": "write_file", "path": "a.txt", "content": "hi"}\nThat is all.');
+    ok('mcode: a tool call written in the answer is read out, and the rest is kept as words',
+      tc.calls.length === 1 && tc.calls[0].function.name === 'write_file' && tc.calls[0].function.arguments.path === 'a.txt'
+      && /I will write it/.test(tc.rest) && /That is all/.test(tc.rest) && !/TOOL/.test(tc.rest), JSON.stringify(tc));
+    const multi = N.textCalls('TOOL {\n "name": "write_file",\n "path": "a.js",\n "content": "line one"\n}');
+    ok('mcode: a written call whose arguments run over several lines is still read whole',
+      multi.calls.length === 1 && multi.calls[0].function.arguments.content === 'line one', JSON.stringify(multi.calls[0] && multi.calls[0].function.arguments));
+    ok('mcode: text that only looks like a call is left alone', N.textCalls('TOOL: not json at all').calls.length === 0);
+  }
+
+  /* ---- a model that only describes the job is asked once to do it ---- */
+  {
+    const dirN = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-nudge-'));
+    let n = 0; const asked = [];
+    const HN = N.create({ dataDir: dirN, prepare: async () => ({ ok: true }), ask: async msgs => {
+      asked.push(String(msgs[msgs.length - 1].content || ''));
+      return n++ === 0 ? { ok: true, text: 'I would write notes.txt with hello in it.', calls: [] }
+        : { ok: true, text: '', calls: [{ function: { name: 'write_file', arguments: { path: 'notes.txt', content: 'hello' } } }] };
+    } });
+    await HN.start({ check: { model: 'm', agentModel: 'm', ctx: 32768 }, dir: dirN });
+    HN.setAutonomy('auto');
+    HN.send('write notes.txt with hello in it');
+    for (let k = 0; k < 400 && HN.state(0).busy; k++) await new Promise(r => setTimeout(r, 5));
+    ok('mcode: a model that only says what it would do is asked once to do it, and then it does',
+      fs.existsSync(path.join(dirN, 'notes.txt')) && /Use a tool now|Do the job with a tool/.test(asked[1] || ''), (asked[1] || '').slice(0, 90));
+    /* a plain question is not nudged: only a job that asks for something done */
+    const dirQ = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-ask-'));
+    let q = 0;
+    const HQ = N.create({ dataDir: dirQ, prepare: async () => ({ ok: true }), ask: async () => { q++; return { ok: true, text: 'A module is a file that exports things.', calls: [] }; } });
+    await HQ.start({ check: { model: 'm', agentModel: 'm', ctx: 32768 }, dir: dirQ });
+    HQ.send('what is a module?');
+    for (let k = 0; k < 400 && HQ.state(0).busy; k++) await new Promise(r => setTimeout(r, 5));
+    ok('mcode: a question is answered once, with no nudge', q === 1, 'asked ' + q + ' times');
+    try { fs.rmSync(dirN, { recursive: true, force: true }); fs.rmSync(dirQ, { recursive: true, force: true }); } catch (e) { }
+  }
+
+  /* ---- a call written into the answer really runs, and does not show as the model's own words ---- */
+  {
+    const dirX = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-text-'));
+    let t = 0;
+    const HX = N.create({ dataDir: dirX, prepare: async () => ({ ok: true }), ask: async () => (t++ === 0
+      ? { ok: true, text: 'Writing it now.\nTOOL {"name": "write_file", "path": "made.txt", "content": "from text"}', calls: [] }
+      : { ok: true, text: 'It is written.', calls: [] }) });
+    await HX.start({ check: { model: 'm', agentModel: 'm', ctx: 32768 }, dir: dirX });
+    HX.setAutonomy('auto');
+    HX.send('write made.txt');
+    for (let k = 0; k < 400 && HX.state(0).busy; k++) await new Promise(r => setTimeout(r, 5));
+    const ev = HX.state(0).events;
+    ok('mcode: a tool call written in the model\'s answer runs, and the TOOL line is not shown as a reply',
+      fs.existsSync(path.join(dirX, 'made.txt')) && ev.some(e => e.kind === 'text' && /Writing it now/.test(e.text))
+      && !ev.some(e => e.kind === 'text' && /TOOL \{/.test(e.text)), JSON.stringify(ev.map(e => e.kind)));
+    try { fs.rmSync(dirX, { recursive: true, force: true }); } catch (e) { }
+  }
+
+  /* ---- a long conversation is trimmed to fit, and is still a request Ollama will take ---- */
+  {
+    const dirT = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-trim-'));
+    fs.writeFileSync(path.join(dirT, 'a.txt'), 'x');
+    let seen = null;
+    const HT = N.create({ dataDir: dirT, prepare: async () => ({ ok: true }), ask: async msgs => {
+      seen = JSON.parse(JSON.stringify(msgs));
+      return { ok: true, text: '', calls: [{ function: { name: 'list_files', arguments: { path: '.' } } }] };
+    } });
+    await HT.start({ check: { model: 'm', agentModel: 'm', ctx: 32768 }, dir: dirT });
+    HT.setAutonomy('auto');
+    for (let i = 0; i < 24; i++) { HT.send('look ' + i); for (let k = 0; k < 300 && HT.state(0).busy; k++) await new Promise(r => setTimeout(r, 5)); }
+    const called = new Set(), results = [];
+    for (const m of seen || []) {
+      if (m.role === 'assistant' && Array.isArray(m.tool_calls)) for (const c of m.tool_calls) called.add(c.id);
+      if (m.role === 'tool') results.push(m.tool_call_id);
+    }
+    const orphans = results.filter(id => !called.has(id)).length;
+    ok('mcode: a long conversation is trimmed to fit, and never leaves a tool result without its call',
+      !!seen && seen[0].role === 'system' && seen.length <= 64 && results.length > 0 && orphans === 0,
+      'messages=' + (seen ? seen.length : 0) + ' results=' + results.length + ' orphaned=' + orphans);
+    ok('mcode: what was dropped from the conversation is said in the instructions',
+      !!seen && /dropped to keep it inside the model's memory/i.test(String(seen[0].content || '')));
+    try { fs.rmSync(dirT, { recursive: true, force: true }); } catch (e) { }
+  }
+
+  /* ---- a very small model is not handed all sixteen tools ---- */
+  {
+    const dirM = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-tools-'));
+    const seen = {};
+    for (const [name, label] of [['llama-3.2-1b-instruct-q4-k-m', 'small'], ['qwen4b-agent-64k', 'big']]) {
+      const HM = N.create({ dataDir: dirM, prepare: async () => ({ ok: true }), ask: async (m, tools) => { seen[label] = (tools || []).map(t => t.function.name); return { ok: true, text: 'ok', calls: [] }; } });
+      await HM.start({ check: { model: name, agentModel: name, ctx: 32768 }, dir: dirM });
+      HM.send('hello');
+      for (let k = 0; k < 300 && HM.state(0).busy; k++) await new Promise(r => setTimeout(r, 5));
+    }
+    ok('mcode: a very small model is offered the core tools only, a larger one all of them',
+      seen.small && seen.small.length === 7 && seen.small.includes('edit_file') && !seen.small.includes('craft_anything') && seen.big.length > 10,
+      'small=' + (seen.small || []).length + ' big=' + (seen.big || []).length);
+    try { fs.rmSync(dirM, { recursive: true, force: true }); } catch (e) { }
+  }
+
+  /* ---- a model stuck on the same call is not given the whole step budget ---- */
+  {
+    const dirS = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-stuck-'));
+    const same = { function: { name: 'read_file', arguments: { path: 'nope.txt' } } };
+    let asks = 0;
+    const HS = N.create({ dataDir: dirS, prepare: async () => ({ ok: true }), ask: async () => { asks++; return { ok: true, text: '', calls: [same] }; } });
+    await HS.start({ check: { model: 'm', agentModel: 'm', ctx: 32768 }, dir: dirS });
+    HS.setAutonomy('auto');
+    HS.send('read nope.txt');
+    for (let k = 0; k < 400 && HS.state(0).busy; k++) await new Promise(r => setTimeout(r, 5));
+    const evs = HS.state(0).events;
+    ok('mcode: a model that keeps asking for the same call is stopped with a reason, not the whole step budget',
+      asks <= 6 && evs.some(e => e.kind === 'error' && /kept asking for the same thing/.test(e.text)), 'asked ' + asks + ' times');
+    try { fs.rmSync(dirS, { recursive: true, force: true }); } catch (e) { }
   }
 };

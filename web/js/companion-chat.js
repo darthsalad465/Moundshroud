@@ -784,9 +784,11 @@
     const i = A.companion.info();
     return 'You are ' + i.n + ' (' + (i.role || 'Companion') + '), a friendly ' + i.e + ' companion who walks around Moundshroud, a private offline assistant running on the user\'s PC. Your personality is ' + (i.trait || 'warm, playful, and concise') + ' (usually 1 to 4 sentences, plain text, no markdown headers). You can see the page the user is on, read Moundshroud\'s own source files, and physically walk around the screen to click buttons, open tabs, highlight controls, type into inputs, switch themes, play music, analyze pages, review chess games, and run tools. RULE: you never discuss rated games or ratings of rated games; if the user brings them up, tease them playfully and change the subject.' + (A.net && A.net.on() ? ' Internet access is switched on, so you can look things up on the web: when you use something you just read, say which site it came from.' : '') + buddyCtx();
   };
+  /* the model the buddy thinks with: the one chosen in the companion menu, else whatever Chat is using */
+  const brain = () => { try { return (A.companion.model && A.companion.model()) || ''; } catch (e) { return ''; } };
   async function ask(messages, o) {
     o = o || {}; if (ctl) ctl.abort(); ctl = new AbortController(); const d = add('b', '...'); mood('think', 0); let out = '';
-    try { const fn = o.coach ? ChessCoach.stream : A.ai.stream; out = await fn(messages, t => { d.textContent = t.replace(/\*\*/g, ''); logEl.scrollTop = logEl.scrollHeight; if (t.length < 12) mood('talk', 0); }, ctl.signal, { temp: o.temp || .5, private: 'screen' }); }
+    try { const fn = o.coach ? ChessCoach.stream : A.ai.stream; out = await fn(messages, t => { d.textContent = t.replace(/\*\*/g, ''); logEl.scrollTop = logEl.scrollHeight; if (t.length < 12) mood('talk', 0); }, ctl.signal, { temp: o.temp || .5, private: 'screen', model: brain() || undefined }); }
     catch (e) { if (e.name === 'AbortError') { d.remove(); return null; } d.textContent = 'My brain (the local AI) did not answer. If graphics memory is full, close other programs or turn on Low-power mode in Settings.'; mood('sad', 3000); return null; }
     out = String(out || '').replace(/\*\*/g, '').trim(); if (RATED.test(out)) out = roast();
     d.remove(); return out || 'Hmm, I drew a blank. Try asking another way?';
@@ -801,7 +803,7 @@
 
   /* run the same tools the main chat has (quiz, reminder, note, document...) */
   async function toolCall(text) {
-    const sel = document.getElementById('model'), model = (sel && sel.value) || ''; const msgs = [{ role: 'system', content: persona() + A.actions.hint }].concat(S.log.slice(-6, -1), [{ role: 'user', content: text }]);
+    const sel = document.getElementById('model'), model = brain() || (sel && sel.value) || ''; const msgs = [{ role: 'system', content: persona() + A.actions.hint }].concat(S.log.slice(-6, -1), [{ role: 'user', content: text }]);
     const r = await fetch('/api/chat', { method: 'POST', body: JSON.stringify({ model, stream: false, think: false, keep_alive: '5m', tools: A.actions.schema, messages: msgs }) }); if (!r.ok) return null;
     const j = await r.json(), calls = (j.message && j.message.tool_calls) || []; if (!calls.length) return null;
     const out = [];

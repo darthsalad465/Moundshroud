@@ -13,7 +13,7 @@
   ];
   const S = Object.assign({ on: 1, b: 0, roam: 0 }, (() => { try { return JSON.parse(ls.get('companion', '{}')); } catch (e) { return {}; } })());
   S.roam = 0; // Only move when explicitly told to
-  const save = () => ls.set('companion', JSON.stringify({ on: S.on, b: S.b, roam: S.roam }));
+  const save = () => ls.set('companion', JSON.stringify({ on: S.on, b: S.b, roam: S.roam, model: S.model || '' }));
   const LINES = {
     cheer: ['Nice work!', 'Look at you go!', 'That was great!', 'You did it!', 'Another one done!', 'Keep it up!'],
     win: ['What a game!', 'Checkmate energy!', 'Well played, grandmaster!'],
@@ -25,6 +25,17 @@
     roam: ['Just stretching my legs!', 'Checking out this spot!', 'Everything looks tidy over here.', 'Tell me to click or point at anything!', 'Ooh, what is this over here?', 'Nice view from up here!']
   };
   const pick = a => a[Math.floor(Math.random() * a.length)];
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  /* The model your buddy thinks with. Empty means "the one Chat uses"; the list is the same one the model picker in the top bar is
+     filled from, so a model added or removed there shows up here too (agent copies keep their larger memory in the name). */
+  const modelLabel = () => { const s = document.getElementById('model'); if (!s) return ''; const o = s.options[s.selectedIndex]; return o ? String(o.textContent || o.value).replace(/\s+/g, ' ').trim() : s.value; };
+  const modelOpts = () => {
+    const cur = S.model || '', s = document.getElementById('model');
+    let h = '<option value="">Same as Chat' + (modelLabel() ? ' · ' + esc(modelLabel()) : '') + '</option>';
+    if (s) { const seen = {}; for (const o of s.options) { if (!o.value || seen[o.value]) continue; seen[o.value] = 1; h += '<option value="' + esc(o.value) + '"' + (o.value === cur ? ' selected' : '') + '>' + esc(String(o.textContent || o.value).replace(/\s+/g, ' ').trim()) + '</option>'; } }
+    else if (cur) h += '<option value="' + esc(cur) + '" selected>' + esc(cur) + '</option>';
+    return h;
+  };
 
   const css =
     '#cmp{position:fixed;left:14px;bottom:14px;z-index:9995;display:flex;align-items:flex-end;gap:10px;pointer-events:none;will-change:left,bottom;transition:filter .25s}' +
@@ -427,6 +438,7 @@
     const b = BUDDIES[S.b % BUDDIES.length];
     menu.innerHTML =
       '<div class="cm-hd"><span>' + b[0] + ' ' + b[1] + ' · ' + b[2] + '</span></div>' +
+      '<div style="padding:2px 6px 7px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mute);margin:0 4px 3px">🧠 My brain</div><select id="cmpmodel" title="The AI model your companion thinks with" style="width:100%;font-size:12px;padding:5px 7px;border-radius:9px;background:var(--panel2);color:var(--text);border:1px solid color-mix(in srgb,var(--line) 80%,transparent)">' + modelOpts() + '</select></div>' +
       '<div data-a="chat">💬 Talk &amp; give commands</div>' +
       '<div data-a="point">🎯 Click anywhere to send me there</div>' +
       '<div data-a="roamnow">🧭 Walk to a card on this page</div>' +
@@ -462,6 +474,13 @@
     else if (act === 'next') { S.b = (S.b + 1) % BUDDIES.length; save(); face(); say('Hi, I am ' + BUDDIES[S.b][1] + ' the ' + BUDDIES[S.b][2] + '!'); hop(); }
     else if (act === 'hide') { S.on = 0; save(); face(); A.toast('Companion hidden. Bring it back from Settings or Ctrl+K.', 3500); }
   };
+  menu.onchange = e => {
+    if (!e.target || e.target.id !== 'cmpmodel') return;
+    S.model = e.target.value || ''; save();
+    const s = document.getElementById('model');
+    if (!S.model) say('Right, I will think with whatever Chat is using.', 3200);
+    else { const o = s && [...s.options].find(x => x.value === S.model); say('My brain is now ' + (o ? String(o.textContent || S.model).replace(/\s+/g, ' ').trim() : S.model) + '.', 3600); }
+  };
   addEventListener('click', e => { if (!e.target.closest('#cmpm,#cmp')) menu.style.display = 'none'; });
   addEventListener('resize', () => { if (isAtHome()) applyPos(homeCoords().x, homeCoords().y); else applyPos(pos.x, pos.y); });
 
@@ -479,6 +498,8 @@
 
   A.companion = {
     react, say, mood, hop, menu: showMenu,
+    model: () => S.model || '',
+    setModel(m) { S.model = String(m || ''); save(); },
     walkTo, walkToXY, walkToEl, goHome, doTrick, roamOnce, highlightEl,
     setFollow,
     get following() { return followCursor; },

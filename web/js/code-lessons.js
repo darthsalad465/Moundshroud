@@ -83,7 +83,7 @@
   }
   function home() {
     const s = load();
-    return rankCard(s) +
+    return '<div class="dw-gateway"><div><b>Debug workshop</b><small>Trace a broken program, edit its JavaScript and run the repair against five cases.</small></div><button class="ib" data-cl="workshop">Open a repair ticket →</button></div>' + rankCard(s) +
       '<div class="cl-card cl-lang" data-cl="play" style="margin-bottom:12px"><div class="row" style="gap:12px;align-items:center"><div style="font-size:28px">🧪</div><div style="flex:1"><b>Code playground</b><div class="small mute" style="line-height:1.45">Write and test any code in any of these ' + C.LANGS.length + ' languages, safely. Python and JavaScript run in a locked sandbox, HTML shows a preview, and the AI explains what any code does or what is wrong with it.</div></div><span class="small" style="color:var(--acc)">Open →</span></div></div>' +
       '<div class="cl-grid">' + C.LANGS.map(x => { const ls2 = C.byLang(x.id), d = ls2.filter(l => s.done[l.id]).length, us = C.unitsOf(x.id), bb = us.filter(u => s.boss[u.id]).length; return '<div class="cl-card cl-lang" data-cl="lang" data-id="' + x.id + '"><div style="font-size:26px">' + x.ic + '</div><b>' + esc(x.n) + '</b>' + (x.run ? ' <span class="small" style="color:var(--acc)">runs here</span>' : '') + '<div class="small mute" style="margin-top:4px;line-height:1.45">' + esc(x.about) + '</div>' + bar(d, ls2.length) + '<div class="small mute">' + us.length + ' units · ' + d + ' of ' + ls2.length + ' lessons' + (bb ? ' · 👑 ' + bb : '') + '</div></div>'; }).join('') + '</div>';
   }
@@ -354,6 +354,7 @@
     const el = e.target.closest('[data-cl]'); if (!el || !H.contains(el)) return; const k = el.dataset.cl;
     if (el.tagName === 'A') e.preventDefault();
     if (k === 'home') return go('home');
+    if (k === 'workshop') return A.cybertab.go('workshop');
     if (k === 'play') return go('play');
     if (k === 'badges') return go('badges');
     if (k === 'prun') return playRun();

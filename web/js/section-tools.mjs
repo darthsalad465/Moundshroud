@@ -29,7 +29,7 @@ const sections = {
   study: [['Missing Semester lessons', (s) => reader(s, 'semester')]],
   lab: [
     ['SQL workbook', (s) => reader(s, 'sql')],
-    ['Periodic table', elements]
+    ['Compare elements', elements]
   ],
   lib: [
     ['Programming Historian', (s) => reader(s, 'history')],
@@ -54,10 +54,15 @@ const sections = {
   globe: [['Map measurements', measure]]
 };
 const bar = document.getElementById('section-actions');
+new ResizeObserver(() => {
+  bar.parentElement.style.setProperty('--section-actions-height', bar.offsetHeight + 'px');
+}).observe(bar);
 function update(tab) {
   const actions = sections[tab] || [];
-  bar.hidden = !actions.length;
+  const hasWorkshop = tab === 'coding' || tab === 'teach';
+  bar.hidden = !actions.length && !hasWorkshop;
   bar.replaceChildren(
+    ...(hasWorkshop ? [button('Debug workshop', () => A.cybertab.go('workshop'))] : []),
     ...actions.map(([label, open]) =>
       button(label, () => {
         const screen = modal(label);
@@ -68,3 +73,8 @@ function update(tab) {
 }
 A.on('tab:show', update);
 update(A.cur);
+
+A.on('lab:compare', () => {
+  const screen = modal('Compare elements');
+  screen.run(() => elements(screen));
+});

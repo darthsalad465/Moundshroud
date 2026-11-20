@@ -32,7 +32,7 @@
   const MAX_LV = C.MAX_LV || 100, MAX_FR = 400;
   const xpNeed = lv => 20 + lv * 12;
   const FRIEND = [
-    { at: 0, name: 'Stranger', icon: '·', bonus: 0 },
+    { at: 0, name: 'Stranger', icon: '🤍', bonus: 0 },
     { at: 40, name: 'Curious', icon: '🌱', bonus: .03 },
     { at: 100, name: 'Friendly', icon: '💛', bonus: .06 },
     { at: 200, name: 'Trusted', icon: '💞', bonus: .09 },
@@ -611,7 +611,7 @@
         const pct = Math.max(0, Math.min(100, Math.round(m.hp / m.maxHp * 100)));
         const active = i === battle.active.a, dead = m.hp <= 0;
         return '<div class="mm-trow battle' + (active ? ' active' : '') + (dead ? ' dead' : '') + '" style="--mmc:' + monColor(m) + '">' +
-          '<span class="mm-ticon">' + esc(m.icon) + '</span><span class="mm-tinfo"><b>' + esc(m.name) + '</b><span>' + typeChips(m) + ' <span class="mute">· Lv ' + m.level + '</span></span>' +
+          '<span class="mm-ticon">' + esc(m.icon) + '</span><span class="mm-tinfo"><b>' + esc(m.name) + '</b><span>' + typeChips(m) + ' <span class="mute">· Lv ' + m.lv + '</span></span>' +
           '<span class="mm-tbar"><i style="width:' + pct + '%"></i></span><span class="mm-tnums">' + m.hp + ' / ' + m.maxHp + ' · ' + (m.status.scorch ? '🔥' : '') + (m.status.throttle ? '🐢' : '') + (m.status.glitch ? '👾' : '') + '</span></span>' +
           (active ? '<span class="mm-tactive">OUT</span>' : dead ? '<span class="mm-tdead">FAINTED</span>' : '<button class="ib" data-swap="' + i + '"' + (busy || auto || battle.over ? ' disabled' : '') + '>Swap in</button>') +
           '</div>';
@@ -645,7 +645,7 @@
         b.disabled = lock || !n || (k === 'patch' && battle.a.hp >= battle.a.maxHp);
       });
       const ab = el.querySelector('#mmauto'); if (ab) ab.textContent = auto ? '⏸ Auto' : '▶ Auto';
-      ['#mmcmd', '#mmmic', '#mmsend'].forEach(s => { const n = el.querySelector(s); if (n) n.disabled = !!lock; });
+      ['#mmcmd', '#mmmic', '#mmsend'].forEach(s => { const n = el.querySelector(s); if (n) n.disabled = !!battle.over; });
     }
     function updateBattle(disp) {
       if (!battle) return;
@@ -1035,7 +1035,7 @@
       };
       const ti = C.typeInfo(mon.type), t2 = mon.type2 ? C.typeInfo(mon.type2) : null;
       await step(18, '📦 Reading the file: <b>' + C.formatGigabytes(mon.meta.size) + ' GB</b> · ' + esc(mon.meta.quantization_level || 'unknown quant') + ' · ' + C.formatParams(mon.meta.parameters) + ' parameters');
-      await step(38, '🧬 Family: <b>' + esc(mon.meta.family || 'unknown') + '</b> · ' + C.formatContext(mon.meta.context) + ' context · ' + esc((mon.meta.capabilities || ['completion']).join(', ')));
+      await step(38, '🧬 Family: <b>' + esc(mon.meta.family || 'unknown') + '</b> · ' + C.formatContext(mon.meta.context) + ' context · ' + esc((mon.meta.capabilities && mon.meta.capabilities.length ? mon.meta.capabilities : ['completion']).join(', ')));
       await step(60, '🔥 Type: <b style="color:' + ti.color + '">' + ti.icon + ' ' + esc(ti.name) + '</b>' + (t2 ? ' · second type <b style="color:' + t2.color + '">' + t2.icon + ' ' + esc(t2.name) + '</b>' : ''));
       await step(80, '📊 Stats: HP ' + mon.stats.hp + ' · ATK ' + mon.stats.atk + ' · DEF ' + mon.stats.def + ' · SPA ' + mon.stats.spa + ' · SPD ' + mon.stats.spd + ' · SPE ' + mon.stats.spe);
       await step(92, '🧠 Ability: <b>' + esc(mon.ability.name) + '</b> — ' + esc(mon.ability.desc));
@@ -1356,13 +1356,14 @@
     }
 
     /* ---------- typed and spoken battle commands ---------- */
-    const HELP_TEXT = 'Try: “use <move>” · “1”–“4” · “attack” (it picks) · “switch to <name>” · “heal” · “cure” · “auto” · “run”. Anything else, and your monster works out what you meant.';
+    const HELP_TEXT = 'Try: “use <move>” · “1”–“4” · “attack” (it picks) · “switch to <name>” · “heal” · “cure” · “auto” · “stop” · “run”. Anything else, and your monster works out what you meant.';
     function parseCommand(raw) {
       if (!battle) return { kind: 'none' };
       const t = String(raw || '').toLowerCase().replace(/[“”\"']/g, '').trim();
       if (!t) return { kind: 'none' };
       if (/^(help|\?|commands)$/.test(t)) return { kind: 'help' };
-      if (/(forfeit|give up|run away|flee|surrender|quit|leave)/.test(t)) return { kind: 'forfeit' };
+      if (/(forfeit|give up|run away|flee|retreat|surrender|quit|leave|\brun\b)/.test(t)) return { kind: 'forfeit' };
+      if (/^(stop|manual|hands off|take over|auto off)\b/.test(t)) return { kind: 'manual' };
       if (/(\bauto\b|watch|let (it|him|her|them) decide|you decide)/.test(t)) return { kind: 'auto' };
       if (/(catch|capture|throw)/.test(t)) return battle.wild ? { kind: 'item', item: 'capture' } : { kind: 'help' };
       if (/(heal|patch|bandage|repair|restore)/.test(t)) return { kind: 'item', item: 'patch' };
@@ -1406,20 +1407,30 @@
       } catch (e) { return null; } finally { aiBusy = false; }
     }
     async function runCommand(raw) {
-      if (!battle || battle.over || busy || auto) return;
+      if (!battle || battle.over) return;
       const text = String(raw || '').trim(); if (!text) return;
       const inp = el.querySelector('#mmcmd'); if (inp) inp.value = '';
       say('“' + text + '”', 'prompt');
       const act = parseCommand(text);
       if (act.kind === 'help') { say(HELP_TEXT, 'prompt'); return; }
-      if (act.kind === 'forfeit') { leaveBattle(); return; }
       if (act.kind === 'auto') { toggleAuto(); return; }
+      if (act.kind === 'manual') {
+        if (auto) { toggleAuto(); say('Auto is off — you have the controls.', 'prompt'); }
+        else say('You already have the controls. ' + HELP_TEXT, 'prompt');
+        return;
+      }
+      /* any other command takes manual control, even in the middle of an auto turn */
+      if (auto) toggleAuto();
+      if (busy) { say('Wait for this turn to finish.', 'prompt'); return; }
+      if (act.kind === 'forfeit') { leaveBattle(); return; }
+      if (battle.pendingSwitch && act.kind !== 'switch' && act.kind !== 'menu') {
+        say('Send someone out first: “switch to <name>”.', 'prompt'); return;
+      }
       if (act.kind === 'menu') { setMenu(act.menu); return; }
       if (act.kind === 'switch') { swapTo(act.index); return; }
       if (act.kind === 'item') { useKit(act.item); return; }
       if (act.kind === 'move') { playerMove(act.index); return; }
       if (act.kind === 'best') { playerMove(C.aiChooseMove(battle, 'a', 2)); return; }
-      if (battle.pendingSwitch) { say('Send someone out first: “switch to <name>”.', 'prompt'); return; }
       say(nm(battle.a) + ' is thinking about that…', 'prompt');
       const guess = await aiInterpret(text);
       if (stopped || !battle || battle.over || busy) return;
