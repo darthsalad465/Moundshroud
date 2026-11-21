@@ -9,7 +9,7 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const ZERO = /^0+$/;
 const ROOT_FILES = new Set([
-  '.gitignore', 'README.md', 'START-HERE.txt', 'SNAPSHOTS.txt', 'VERSION', 'LICENSE', 'server.js', 'Listener.cs',
+  '.gitignore', 'README.md', 'LEGAL.md', 'START-HERE.txt', 'SNAPSHOTS.txt', 'VERSION', 'LICENSE', 'server.js', 'Listener.cs',
   'setup.ps1', 'Setup-Moundshroud.bat', 'make-release.ps1', 'open-moundshroud.ps1', 'ocr.ps1', 'pc-volume.ps1',
   'snapshot.ps1', 'restore-snapshot.ps1', 'apply-update.ps1', 'update.json', 'publish-update.ps1', 'RELEASE-NOTES.txt',
   'restore-progress.ps1', 'install-art-model.ps1', 'install-music-model.ps1', 'install-video-model.ps1', 'install-gateway.ps1',
