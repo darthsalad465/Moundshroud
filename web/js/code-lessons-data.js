@@ -31,6 +31,70 @@ const CodeLessons = (() => {
     { id: 'lua', n: 'Lua', ic: '🌙', about: 'A tiny language built into games and apps: Roblox, World of Warcraft add-ons, Neovim.' },
     { id: 'binary', n: 'Binary & Hex', ic: '🔢', about: 'How computers store every number, letter and colour as 0s and 1s, and how to read it.' },
     { id: 'asm', n: 'Assembly (x86)', ic: '🔩', about: 'The processor\'s own instructions, as people read them when they reverse-engineer malware.' },
+    /* ---------- the rest of the Playground's languages: one course each, first steps to a real idea ---------- */
+    { id: 'scheme', n: 'Scheme', ic: 'λ', about: 'A tiny Lisp: everything is a list, and recursion does the work loops do elsewhere.' },
+    { id: 'prolog', n: 'Prolog', ic: '🧩', about: 'Facts and rules instead of steps: you ask a question and the engine finds the answers.' },
+    { id: 'forth', n: 'Forth', ic: '🗂️', about: 'A stack language: push numbers, then words that consume them. It runs on tiny machines.' },
+    { id: 'basic', n: 'BASIC', ic: '🕹️', about: 'The beginner\'s language of the home computers, with line numbers and PRINT.' },
+    { id: 'masm', n: 'MASM (x86)', ic: '🧱', about: 'Microsoft\'s assembler: x86 instructions with named data and sections.' },
+    { id: 'fsharp', n: 'F#', ic: '🟦', about: 'Functional .NET: immutable values, pipes, and types that catch mistakes.' },
+    { id: 'vbnet', n: 'VB.NET', ic: '🟪', about: 'Visual Basic on .NET: friendly words for Windows programs and office tools.' },
+    { id: 'nodejs', n: 'Node.js', ic: '🟩', about: 'JavaScript outside the browser: files, servers and command-line tools.' },
+    { id: 'batch', n: 'Batch', ic: '🪟', about: 'Windows .bat scripts: the oldest way to automate a PC.' },
+    { id: 'vbscript', n: 'VBScript', ic: '🧾', about: 'The little scripting language Windows used for login scripts and automation.' },
+    { id: 'jscript', n: 'JScript', ic: '🧷', about: 'Microsoft\'s own JavaScript, used by Windows scripting before Node existed.' },
+    { id: 'perl', n: 'Perl', ic: '🐪', about: 'The text-processing workhorse: regular expressions and one-liners for logs.' },
+    { id: 'awk', n: 'awk', ic: '🧰', about: 'Reads a file line by line and acts on fields: the classic log tool.' },
+    { id: 'sed', n: 'sed', ic: '✂️', about: 'A stream editor: find and replace text in a pipe or a file.' },
+    { id: 'fish', n: 'fish', ic: '🐟', about: 'A friendly Unix shell with sensible defaults and colour as you type.' },
+    { id: 'haskell', n: 'Haskell', ic: '🎓', about: 'A pure functional language: no side effects unless the type says so.' },
+    { id: 'zig', n: 'Zig', ic: '⚡', about: 'A modern C replacement: no hidden allocations, and compile-time code.' },
+    { id: 'nim', n: 'Nim', ic: '🪶', about: 'Python-like syntax that compiles to fast native code.' },
+    { id: 'commonlisp', n: 'Common Lisp', ic: '🌀', about: 'The programmable programming language: macros change the language itself.' },
+    { id: 'clojure', n: 'Clojure', ic: '♻️', about: 'A Lisp on the JVM with immutable data by default.' },
+    { id: 'erlang', n: 'Erlang', ic: '☎️', about: 'Built for telephone switches: millions of tiny processes that never stop.' },
+    { id: 'elixir', n: 'Elixir', ic: '💧', about: 'Erlang\'s power with a friendly syntax and the Phoenix web framework.' },
+    { id: 'ocaml', n: 'OCaml', ic: '🐫', about: 'Fast functional code with a type checker that finds the bugs before you run it.' },
+    { id: 'r', n: 'R', ic: '📊', about: 'Statistics and graphs: the language of data science papers.' },
+    { id: 'julia', n: 'Julia', ic: '🔬', about: 'Fast maths and science, with Python-like syntax and real speed.' },
+    { id: 'fortran', n: 'Fortran', ic: '📐', about: 'The first high-level language, still running weather models and physics.' },
+    { id: 'cobol', n: 'COBOL', ic: '🏦', about: 'The language of banks and payroll: still moving money every day.' },
+    { id: 'pascal', n: 'Pascal', ic: '🅿️', about: 'A teaching language of clear structure: begin, end, and strong typing.' },
+    { id: 'ada', n: 'Ada', ic: '🚀', about: 'Safety-critical software: aircraft, trains and satellites.' },
+    { id: 'd', n: 'D', ic: '🟥', about: 'C++ done differently: garbage collection, slices and compile-time functions.' },
+    { id: 'crystal', n: 'Crystal', ic: '🔮', about: 'Ruby-like code that compiles to fast native programs.' },
+    { id: 'scala', n: 'Scala', ic: '🧬', about: 'Functional and object-oriented at once, on the Java virtual machine.' },
+    { id: 'dart', n: 'Dart', ic: '🎪', about: 'The language behind Flutter apps, with null safety built in.' },
+    { id: 'wat', n: 'WebAssembly (wat)', ic: '🧱', about: 'The text form of WebAssembly: a stack machine every browser can run.' },
+    { id: 'bf', n: 'Brainfuck', ic: '🧠', about: 'Eight symbols and a tape of cells: the smallest useful programming language.' },
+    { id: 'ook', n: 'Ook!', ic: '🐒', about: 'Brainfuck written in Orangutan: pairs of Ook words replace the symbols.' },
+    { id: 'cow', n: 'Cow', ic: '🐄', about: 'Brainfuck made of mooing, with a few extra words.' },
+    { id: 'befunge93', n: 'Befunge-93', ic: '🗺️', about: 'A two-dimensional program: the pointer walks the grid up, down, left or right.' },
+    { id: 'funge98', n: 'Funge-98', ic: '🧿', about: 'Befunge grown up: any number of dimensions and fingerprints.' },
+    { id: 'malbolge', n: 'Malbolge', ic: '😈', about: 'Designed to be almost impossible to program, on purpose.' },
+    { id: 'piet', n: 'Piet', ic: '🎨', about: 'Programs are abstract paintings, and colours are the instructions.' },
+    { id: 'chicken', n: 'Chicken', ic: '🐔', about: 'Every instruction is the word chicken, one per line.' },
+    { id: 'intercal', n: 'INTERCAL', ic: '🙃', about: 'The joke language that invented COME FROM and requires polite politeness.' },
+    { id: 'spl', n: 'SPL (Shakespeare)', ic: '🎭', about: 'Programs are plays: characters are variables and speeches do the work.' },
+    { id: 'chef', n: 'Chef', ic: '👨‍🍳', about: 'Programs are recipes: ingredients, mixing bowls and baking.' },
+    { id: 'whitespace', n: 'Whitespace', ic: '⬜', about: 'Only spaces, tabs and newlines count; visible characters are comments.' },
+    { id: 'unlambda', n: 'Unlambda', ic: '🖤', about: 'A functional language with no lambda: s, k and i do everything.' },
+    { id: 'lolcode', n: 'LOLCODE', ic: '😂', about: 'Programs in lolspeak: HAI starts and KTHXBYE ends.' },
+    { id: 'arnoldc', n: 'ArnoldC', ic: '💪', about: 'Arnold Schwarzenegger film quotes are the keywords.' },
+    { id: 'rockstar', n: 'Rockstar', ic: '🎸', about: 'Programs that read like 1980s rock lyrics, but really run.' },
+    { id: 'emojicode', n: 'Emojicode', ic: '😀', about: 'Emoji are the keywords of this small object-oriented language.' },
+    { id: 'false', n: 'FALSE', ic: '🧮', about: 'A stack language of single characters, named for its only value.' },
+    { id: 'thue', n: 'Thue', ic: '🔁', about: 'No steps at all: the program is a set of rewrite rules and runs by chance.' },
+    { id: 'underload', n: 'Underload', ic: '🪜', about: 'A stack language that runs on six symbols.' },
+    { id: 'deadfish', n: 'Deadfish', ic: '🐠', about: 'Four commands: increment, decrement, square, output.' },
+    { id: 'slashes', n: 'Slashes (///)', ic: '➗', about: 'A language of string substitution, where backslashes escape the slashes.' },
+    { id: 'brainflak', n: 'Brain-Flak', ic: '🏀', about: 'A stack language in which every instruction is a bracket.' },
+    { id: 'hq9', n: 'HQ9+', ic: '🍺', about: 'Four commands: Hello, Quine, 99 bottles and a counter.' },
+    { id: 'fractran', n: 'FRACTRAN', ic: '⅗', about: 'A program is a list of fractions; multiplying by them is the whole language.' },
+    { id: 'bct', n: 'BCT', ic: '🧩', about: 'Binary combinatory logic: s and k written in nothing but 0s and 1s.' },
+    { id: 'whenever', n: 'Whenever', ic: '🎲', about: 'Statements run in any order at all, which is the whole joke.' },
+    { id: 'hexagony', n: 'Hexagony', ic: '⬡', about: 'The program is a hexagon and the pointer has six ways to go.' },
+    { id: 'velato', n: 'Velato', ic: '🎹', about: 'Programs are MIDI tunes: the notes are the instructions.' },
   ];
   const LEVELS = ['', 'Beginner', 'Intermediate', 'Advanced'];
   const L = (id, lang, lv, t, teach, ex) => ({ id, lang, lv, t, teach, ex });
@@ -437,6 +501,321 @@ const CodeLessons = (() => {
     L('bn10', 'binary', 3, 'Shifts', 'x << 1 moves every bit one place left, which doubles x. x >> 1 moves them right, which halves it and drops any remainder.', { k: 'predict', q: 'What number is in x?', code: 'x = 3 << 2', ans: ['12'], hint: '3 doubled twice.' }),
     L('bn11', 'binary', 3, 'Negative numbers', 'Computers store negative whole numbers in "two\'s complement": flip every bit, then add 1. In 8 bits, 1 is 00000001, so -1 is 11111110 + 1 = 11111111.', { k: 'choice', q: 'In 8-bit two\'s complement, what is 11111111?', opts: ['255', '-1', '-127', '0'], a: 1 }),
     L('bn12', 'binary', 3, 'Text is numbers', 'Letters are stored as numbers. In ASCII, A is 65 (01000001), B is 66, C is 67 and so on.', { k: 'predict', q: 'Which letter is 01000010 in ASCII?', code: '01000010', ans: ['B'], hint: '64 + 2 = 66' }),
+
+    /* ---------- Scheme ---------- */
+    L('scheme1', 'scheme', 1, 'The function comes first', 'Scheme is a Lisp: you call a function by putting its name first, then the arguments in brackets. (display (+ 2 3)) works out 2 + 3 and prints it.', { k: 'predict', q: 'What does this print?', code: '(display (+ 2 3))', ans: ['5'], hint: 'It is just 2 + 3.' }),
+    L('scheme2', 'scheme', 2, 'Lists are code', 'A quoted list is data. car gives the first item, cdr gives the rest, cons puts one back on the front.', { k: 'predict', q: 'What does this print?', code: "(display (car '(a b c)))", ans: ['a'], hint: 'car means first.' }),
+    L('scheme3', 'scheme', 3, 'Recursion instead of loops', 'Scheme has no for loop in its core. A function calls itself on a smaller piece of the problem until nothing is left.', { k: 'choice', q: 'How does Scheme usually repeat work?', opts: ['With a for loop', 'A function calls itself on a smaller problem', 'With goto', 'With while'], a: 1 }),
+
+    /* ---------- Prolog ---------- */
+    L('prolog1', 'prolog', 1, 'Facts', 'Prolog starts with facts. parent(tom, bob). means tom is the parent of bob. The line itself is true, so the program says so.', { k: 'choice', q: 'In parent(tom, bob). who is the parent?', opts: ['bob', 'tom', 'both', 'neither'], a: 1 }),
+    L('prolog2', 'prolog', 2, 'Asking questions', 'You ask the engine to fill in a variable. A name starting with a capital letter is a variable; lowercase names are fixed atoms.', { k: 'choice', q: 'What does ?- parent(tom, X). ask for?', opts: ['Every X that tom is a parent of', 'Whether tom exists', 'The parent of X', 'Nothing, it is a comment'], a: 0 }),
+    L('prolog3', 'prolog', 3, 'Rules', 'A rule is a head, then :- (which means if), then the conditions. grandparent(X, Z) :- parent(X, Y), parent(Y, Z). says: X is a grandparent of Z if X is a parent of Y and Y is a parent of Z.', { k: 'choice', q: 'What does :- mean in a rule?', opts: ['if', 'equals', 'the result is', 'a comment'], a: 0 }),
+
+    /* ---------- Forth ---------- */
+    L('forth1', 'forth', 1, 'The stack', 'Forth words act on a stack. 2 3 + pushes 2, pushes 3, then + takes both and pushes 5. The dot prints and removes the top value.', { k: 'predict', q: 'What does this print?', code: '2 3 + .', ans: ['5'], hint: 'Add the two numbers on top.' }),
+    L('forth2', 'forth', 2, 'Order matters', 'In Forth the order you push decides the sum: 10 3 - is 10 minus 3, while 3 10 - is 3 minus 10.', { k: 'predict', q: 'What does this print?', code: '10 3 - .', ans: ['7'], hint: 'The second value is taken from the first.' }),
+    L('forth3', 'forth', 3, 'Defining your own words', 'A colon starts a new word and a semicolon ends it. : double 2 * ; makes double, and then 5 double . prints 10.', { k: 'predict', q: 'What does this print?', code: ': double 2 * ;\n5 double .', ans: ['10'], hint: 'double multiplies by 2.' }),
+
+    /* ---------- BASIC ---------- */
+    L('basic1', 'basic', 1, 'PRINT', 'BASIC prints with PRINT. Text goes in speech marks; numbers are worked out first.', { k: 'predict', q: 'What does this print?', code: 'PRINT 2 + 3', ans: ['5'], hint: 'PRINT works out the sum.' }),
+    L('basic2', 'basic', 2, 'Variables', 'LET stores a value under a name. A name is a letter, sometimes with a number after it, and is not case sensitive.', { k: 'predict', q: 'What does this print?', code: 'LET A = 4\nPRINT A * 2', ans: ['8'], hint: 'A is 4, so 4 × 2.' }),
+    L('basic3', 'basic', 3, 'Line numbers', 'Classic BASIC programs were written with a number at the start of every line. The numbers kept the lines in order and gave GOTO somewhere to jump to.', { k: 'choice', q: 'What did the line numbers do?', opts: ['They ordered the lines and gave GOTO a target', 'They were comments', 'They printed a number', 'They counted loops'], a: 0 }),
+
+    /* ---------- MASM ---------- */
+    L('masm1', 'masm', 1, 'mov', 'MASM is Microsoft\'s x86 assembler. mov puts a value into a register or a memory slot; the target comes first.', { k: 'choice', q: 'What does mov eax, 5 do?', opts: ['Puts 5 into eax', 'Adds 5 to eax', 'Copies eax to address 5', 'Moves the program on 5 bytes'], a: 0 }),
+    L('masm2', 'masm', 2, 'Working on a register', 'Each instruction changes the register it names. add ecx, ecx doubles ecx.', { k: 'predict', q: 'What number is in ecx at the end?', code: 'mov ecx, 4\nadd ecx, ecx', ans: ['8'], hint: '4 + 4.' }),
+    L('masm3', 'masm', 3, 'Segments', 'A MASM file is split into segments: .code holds the instructions, .data holds the values used, and .stack reserves stack space.', { k: 'choice', q: 'Which segment holds the instructions?', opts: ['.data', '.code', '.stack', '.model'], a: 1 }),
+
+    /* ---------- F# ---------- */
+    L('fs1', 'fsharp', 1, 'printfn', 'F# prints with printfn. The %d in the text is a place for a whole number, and the value comes after the string.', { k: 'predict', q: 'What does this print?', code: 'printfn "%d" (2 + 3)', ans: ['5'], hint: '2 + 3 goes where %d is.' }),
+    L('fs2', 'fsharp', 2, 'The pipe operator', 'x |> f means "give x to f". It reads left to right, which makes long chains easy to follow.', { k: 'predict', q: 'What does this print?', code: 'let double x = x * 2\nprintfn "%d" (5 |> double)', ans: ['10'], hint: '5 is given to double.' }),
+    L('fs3', 'fsharp', 3, 'Values do not change', 'let binds a name to a value and that is that; there is no reassignment. To change something you make a new value from the old one.', { k: 'choice', q: 'What is a value bound with let like?', opts: ['It is immutable', 'It can be reassigned any time', 'It is a global variable', 'It only exists inside printfn'], a: 0 }),
+
+    /* ---------- VB.NET ---------- */
+    L('vb1', 'vbnet', 1, 'Console.WriteLine', 'VB.NET prints a line with Console.WriteLine. Its words are long and readable on purpose.', { k: 'predict', q: 'What does this print?', code: 'Console.WriteLine(2 + 3)', ans: ['5'], hint: 'It works out the sum first.' }),
+    L('vb2', 'vbnet', 2, 'Joining text', 'The & operator joins two pieces of text together.', { k: 'predict', q: 'What does this print?', code: 'Dim name = "Ada"\nConsole.WriteLine("Hi " & name)', ans: ['Hi Ada'], hint: 'The two strings are joined.' }),
+    L('vb3', 'vbnet', 3, 'Declaring a variable', 'Dim declares a variable. Option Strict can insist on a type for everything.', { k: 'choice', q: 'Which keyword declares a variable in VB.NET?', opts: ['Dim', 'var', 'let', 'declare'], a: 0 }),
+
+    /* ---------- Node.js ---------- */
+    L('nd1', 'nodejs', 1, 'JavaScript on the computer', 'Node.js runs the same JavaScript you know from web pages, but on the computer, so it can read files and run servers.', { k: 'predict', q: 'What does this print?', code: 'console.log([1, 2, 3].map(n => n * 2).join())', ans: ['2,4,6'], hint: 'Each number is doubled, then joined with commas.' }),
+    L('nd2', 'nodejs', 2, 'No page, no browser', 'In Node there is no window and no document: those belong to browsers. Instead you get process, fs and require.', { k: 'choice', q: 'Where does Node.js run JavaScript?', opts: ['On the computer, outside a browser', 'Only inside a web page', 'Inside the database', 'In the graphics card'], a: 0 }),
+    L('nd3', 'nodejs', 3, 'require', 'require loads another module and gives you back what it exports. The built-in fs module is for files.', { k: 'predict', q: 'What does this print?', code: 'const fs = require("fs");\nconsole.log(typeof fs.readFileSync)', ans: ['function'], hint: 'readFileSync is a function.' }),
+
+    /* ---------- Batch ---------- */
+    L('bat1', 'batch', 1, 'echo', 'Batch files are plain text with a .bat ending that cmd.exe runs line by line. @echo off stops it printing each command before running it.', { k: 'predict', q: 'What does this print?', code: '@echo off\necho Hello', ans: ['Hello'], hint: 'echo prints what follows it.' }),
+    L('bat2', 'batch', 2, 'Variables', 'set makes a variable. %NAME% puts its value into a line.', { k: 'predict', q: 'What does this print?', code: 'set X=5\necho %X%', ans: ['5'], hint: 'X holds 5.' }),
+    L('bat3', 'batch', 3, 'Running it', 'Double-clicking a .bat file opens a command window and runs it. Task Scheduler and login scripts use them too.', { k: 'choice', q: 'Which ending marks a Batch script?', opts: ['.bat', '.sh', '.ps1', '.cmdlet'], a: 0 }),
+
+    /* ---------- VBScript ---------- */
+    L('vbs1', 'vbscript', 1, 'Echo', 'VBScript is the little scripting language Windows used for automation and login scripts. WScript.Echo prints a line.', { k: 'predict', q: 'What does this print?', code: 'WScript.Echo "Hi"', ans: ['Hi'], hint: 'Echo prints the text as it is.' }),
+    L('vbs2', 'vbscript', 2, 'Dim', 'Variables are declared with Dim. Without Option Explicit they appear when first used, which hides typing mistakes.', { k: 'choice', q: 'Which keyword declares a variable?', opts: ['Dim', 'var', 'let', 'set'], a: 0 }),
+    L('vbs3', 'vbscript', 3, 'Numbers as text and numbers', 'A mathematical expression is worked out before it is printed; text in speech marks is printed as it is.', { k: 'predict', q: 'What does this print?', code: 'WScript.Echo 2 + 3', ans: ['5'], hint: 'It adds before echoing.' }),
+
+    /* ---------- JScript ---------- */
+    L('jsc1', 'jscript', 1, 'Microsoft\'s JavaScript', 'JScript is Microsoft\'s own implementation of JavaScript, used by Windows scripting and old versions of Internet Explorer.', { k: 'predict', q: 'What does this print?', code: 'WScript.Echo(2 + 3)', ans: ['5'], hint: 'The brackets work out the sum.' }),
+    L('jsc2', 'jscript', 2, 'What it is', 'The language is the same family as JavaScript: objects, functions and the same operators, with Windows objects added.', { k: 'choice', q: 'JScript is Microsoft\'s version of which language?', opts: ['JavaScript', 'Java', 'Python', 'C#'], a: 0 }),
+    L('jsc3', 'jscript', 3, 'Strings', 'Strings are objects with methods, exactly as in JavaScript.', { k: 'predict', q: 'What does this print?', code: 'WScript.Echo("a".toUpperCase())', ans: ['A'], hint: 'toUpperCase makes letters capitals.' }),
+
+    /* ---------- Perl ---------- */
+    L('pl1', 'perl', 1, 'print', 'Perl prints with print. Statements end with a semicolon.', { k: 'predict', q: 'What does this print?', code: 'print 2 + 3;', ans: ['5'], hint: 'The sum is printed.' }),
+    L('pl2', 'perl', 2, 'Arrays', 'An array is written with @ and holds a list. scalar @a gives how many things are in it.', { k: 'predict', q: 'What does this print?', code: 'my @a = (1, 2, 3);\nprint scalar @a;', ans: ['3'], hint: 'Count the items.' }),
+    L('pl3', 'perl', 3, 'Regular expressions', 'Perl made regular expressions famous. The =~ operator matches a string against a pattern, and s/a/b/ replaces.', { k: 'choice', q: 'What is =~ used for?', opts: ['Matching a string against a pattern', 'Adding two numbers', 'Comparing file names', 'Starting a loop'], a: 0 }),
+
+    /* ---------- awk ---------- */
+    L('awk1', 'awk', 1, 'Fields', 'awk reads a file one line at a time and splits each line into fields. $1 is the first field, $2 the second.', { k: 'predict', q: 'What does this print?', code: "one two three\n$ awk '{ print $2 }'", ans: ['two'], hint: '$2 is the second word.' }),
+    L('awk2', 'awk', 2, 'Records and fields', 'NR is the number of the line being read, and NF is how many fields it has. END runs once after the last line.', { k: 'choice', q: 'What is $1?', opts: ['The first field of the current line', 'The first line of the file', 'The first file name', 'The first variable'], a: 0 }),
+    L('awk3', 'awk', 3, 'Counting', 'NR grows with every line, so END { print NR } prints how many lines the file had.', { k: 'predict', q: 'The file has 3 lines. What does this print?', code: "$ awk 'END { print NR }' file.txt", ans: ['3'], hint: 'NR counts lines.' }),
+
+    /* ---------- sed ---------- */
+    L('sed1', 'sed', 1, 'Substitute', 'sed\'s s/a/b/ replaces the first a on each line with b. It never changes the file unless you ask it to write.', { k: 'predict', q: 'What does this print?', code: "echo 'cat' | sed 's/c/b/'", ans: ['bat'], hint: 'The c becomes a b.' }),
+    L('sed2', 'sed', 2, 'Every match', 'By default only the first match on a line is replaced. The g flag means all of them.', { k: 'choice', q: 'Which flag replaces every match on a line?', opts: ['g', 'a', 'i', 'e'], a: 0 }),
+    L('sed3', 'sed', 3, 'Quiet mode', '-n turns off printing every line, so only the lines you ask for come out. /b/p means print the lines that contain b.', { k: 'predict', q: 'What does this print?', code: "printf 'a\\nb\\n' | sed -n '/b/p'", ans: ['b'], hint: 'Only the matching line is printed.' }),
+
+    /* ---------- fish ---------- */
+    L('fi1', 'fish', 1, 'set', 'fish sets variables with set instead of name=value, and puts a $ in front to use them.', { k: 'predict', q: 'What does this print?', code: 'set x 5\necho $x', ans: ['5'], hint: '$x is the value.' }),
+    L('fi2', 'fish', 2, 'Sensible defaults', 'fish colours commands and suggests completions, and it does not split variables on spaces the way bash does.', { k: 'choice', q: 'How does fish set a variable?', opts: ['set name value', 'name=value', 'let name = value', 'export name'], a: 0 }),
+    L('fi3', 'fish', 3, 'Loops', 'fish loops read from left to right: for i in 1 2 3, then the body, then end.', { k: 'predict', q: 'What does this print?', code: 'for i in 1 2 3\n    echo $i\nend', ans: ['1\n2\n3'], hint: 'One line per number.' }),
+
+    /* ---------- Haskell ---------- */
+    L('hs1', 'haskell', 1, 'print', 'Haskell calls a function by writing its name and then the arguments, with nothing in between. print shows a value.', { k: 'predict', q: 'What does this print?', code: 'print (2 + 3)', ans: ['5'], hint: 'The brackets are worked out first.' }),
+    L('hs2', 'haskell', 2, 'map', 'map applies a function to every item of a list and gives back a new list. (* 2) is a function that doubles its argument.', { k: 'predict', q: 'What does this print?', code: 'print (map (* 2) [1, 2, 3])', ans: ['[2,4,6]'], hint: 'Every number is doubled.' }),
+    L('hs3', 'haskell', 3, 'Pure functions', 'A function may only use what it is given and may not change the world. That is why the same input always gives the same output.', { k: 'choice', q: 'Can a Haskell function change a variable that lives outside it?', opts: ['No: functions are pure and values never change', 'Yes, like in Python', 'Only inside a loop', 'Only with let'], a: 0 }),
+
+    /* ---------- Zig ---------- */
+    L('zg1', 'zig', 1, 'Types on purpose', 'Zig makes you say the type: const x: u8 = 5; is an unsigned 8-bit whole number, so 0 to 255.', { k: 'choice', q: 'What is u8?', opts: ['An unsigned 8-bit whole number', 'A text of 8 letters', 'An 8-dimension array', 'A floating point number'], a: 0 }),
+    L('zg2', 'zig', 2, 'Printing', 'std.debug.print takes a format string and a tuple of values: {d} means a decimal number.', { k: 'predict', q: 'What does this print?', code: 'std.debug.print("{d}\\n", .{2 + 3});', ans: ['5'], hint: '{d} is the sum.' }),
+    L('zg3', 'zig', 3, 'comptime', 'comptime runs code while the program is being compiled, so the work costs nothing at run time.', { k: 'choice', q: 'What does comptime mean?', opts: ['The code runs while compiling, not at run time', 'The code runs twice', 'The code is a comment', 'The code runs in a thread'], a: 0 }),
+
+    /* ---------- Nim ---------- */
+    L('nm1', 'nim', 1, 'echo', 'Nim looks like Python but compiles to fast native code. echo prints a line.', { k: 'predict', q: 'What does this print?', code: 'echo 2 + 3', ans: ['5'], hint: 'The sum is printed.' }),
+    L('nm2', 'nim', 2, 'var, let and const', 'var can change, let cannot, and const is fixed while the program is compiled.', { k: 'choice', q: 'Which of these can be changed after it is set?', opts: ['var', 'let', 'const', 'type'], a: 0 }),
+    L('nm3', 'nim', 3, 'Loops and ranges', '1..3 is a range that includes both ends, and += adds to the variable on the left.', { k: 'predict', q: 'What does this print?', code: 'var s = 0\nfor i in 1..3:\n  s += i\necho s', ans: ['6'], hint: '1 + 2 + 3.' }),
+
+    /* ---------- Common Lisp ---------- */
+    L('cl1', 'commonlisp', 1, 'The first item is the function', 'Lisp puts the function name first inside brackets: (+ 2 3) is the sum. print shows the value.', { k: 'predict', q: 'What does this print?', code: '(print (+ 2 3))', ans: ['5'], hint: 'It prints the sum.' }),
+    L('cl2', 'commonlisp', 2, 'Lists', 'list builds a list and car takes the first item of one.', { k: 'predict', q: 'What does this print?', code: '(print (car (list 1 2 3)))', ans: ['1'], hint: 'car means first.' }),
+    L('cl3', 'commonlisp', 3, 'Macros', 'A macro rewrites code before it is run, so a program can add syntax of its own. That is why Lisp is called the programmable programming language.', { k: 'choice', q: 'What makes Common Lisp programmable?', opts: ['Macros that build new syntax', 'It has a for loop', 'It can call C', 'It has types'], a: 0 }),
+
+    /* ---------- Clojure ---------- */
+    L('cj1', 'clojure', 1, 'println', 'Clojure is a Lisp that runs on the Java virtual machine. The function comes first: (println (+ 2 3)).', { k: 'predict', q: 'What does this print?', code: '(println (+ 2 3))', ans: ['5'], hint: 'It prints the sum.' }),
+    L('cj2', 'clojure', 2, 'Values do not change', 'Clojure data is immutable. A function that "adds to a list" really returns a new list, and the old one is untouched.', { k: 'choice', q: 'What does immutable mean?', opts: ['The value cannot be changed in place', 'The value is a constant number', 'The value is private', 'The value is only for reading files'], a: 0 }),
+    L('cj3', 'clojure', 3, 'map and inc', 'map runs a function over a collection. inc adds 1. Lists are printed inside round brackets.', { k: 'predict', q: 'What does this print?', code: '(println (map inc [1 2 3]))', ans: ['(2 3 4)'], hint: 'Each number goes up by 1.' }),
+
+    /* ---------- Erlang ---------- */
+    L('er1', 'erlang', 1, 'io:format', 'Erlang prints with io:format. ~p shows a value and ~n ends the line.', { k: 'predict', q: 'What does this print?', code: 'io:format("~p~n", [2 + 3]).', ans: ['5'], hint: '~p is the sum.' }),
+    L('er2', 'erlang', 2, 'Processes', 'An Erlang program is thousands of tiny processes that share nothing and talk by sending messages. One crashing does not hurt the rest.', { k: 'choice', q: 'Erlang is famous for…', opts: ['Millions of lightweight processes that send messages', 'Drawing graphics', 'Storing tables in memory', 'Compiling to WebAssembly'], a: 0 }),
+    L('er3', 'erlang', 3, 'Matching, not assigning', 'X = 5 does not put 5 into X; it says X must match 5. Called twice with a different number, the second line fails.', { k: 'choice', q: 'What does X = 5 mean?', opts: ['X must match 5', 'X is set to 5 and can change later', 'X is compared and nothing else', 'X is a constant named 5'], a: 0 }),
+
+    /* ---------- Elixir ---------- */
+    L('ex1', 'elixir', 1, 'IO.puts', 'Elixir is a friendly language on top of Erlang\'s runtime, which is why it also handles huge numbers of processes.', { k: 'predict', q: 'What does this print?', code: 'IO.puts(2 + 3)', ans: ['5'], hint: 'It prints the sum.' }),
+    L('ex2', 'elixir', 2, 'The pipe', 'The |> operator gives the value on its left to the function on its right, so code reads top to bottom.', { k: 'predict', q: 'What does this return?', code: '5 |> Kernel.+(3)', ans: ['8'], hint: 'It is 5 + 3.' }),
+    L('ex3', 'elixir', 3, 'The BEAM', 'Elixir runs on the Erlang virtual machine, the BEAM, so it gets Erlang\'s fault tolerance for free.', { k: 'choice', q: 'Which runtime does Elixir use?', opts: ['The Erlang virtual machine (BEAM)', 'The Java virtual machine', 'The .NET runtime', 'The browser'], a: 0 }),
+
+    /* ---------- OCaml ---------- */
+    L('oc1', 'ocaml', 1, 'print_int', 'OCaml is a functional language with a fast compiler. print_int shows a whole number.', { k: 'predict', q: 'What does this print?', code: 'print_int (2 + 3)', ans: ['5'], hint: 'The brackets are worked out first.' }),
+    L('oc2', 'ocaml', 2, 'let binds, it does not assign', 'let x = 5 ties x to 5 for good. A new let x = ... inside a function makes a different x.', { k: 'choice', q: 'What does let x = 5 do?', opts: ['Binds x to 5; x cannot be reassigned', 'Creates a mutable variable', 'Declares a global', 'Compares x with 5'], a: 0 }),
+    L('oc3', 'ocaml', 3, 'Lists', 'Lists are written with square brackets and semicolons, and List.length counts them.', { k: 'predict', q: 'What does this print?', code: 'print_int (List.length [1; 2; 3])', ans: ['3'], hint: 'Three items.' }),
+
+    /* ---------- R ---------- */
+    L('rr1', 'r', 1, 'print', 'R is made for statistics, so numbers and vectors come first and print shows them.', { k: 'predict', q: 'What does this print?', code: 'print(2 + 3)', ans: ['5'], hint: 'The sum is printed.' }),
+    L('rr2', 'r', 2, 'Vectors and mean', 'c() builds a vector. Almost every function in R works on a whole vector at once.', { k: 'predict', q: 'What does this print?', code: 'print(mean(c(1, 2, 3)))', ans: ['2'], hint: '(1 + 2 + 3) / 3.' }),
+    L('rr3', 'r', 3, 'Tabular data', 'A data frame is a table: each column is a vector and each row an observation. read.csv loads one from a file.', { k: 'choice', q: 'What does c(1, 2, 3) make?', opts: ['A vector of three numbers', 'A data frame', 'A list of three tables', 'A function'], a: 0 }),
+
+    /* ---------- Julia ---------- */
+    L('jl1', 'julia', 1, 'println', 'Julia looks like Python but runs like C: it compiles specialised code for the types you actually use.', { k: 'predict', q: 'What does this print?', code: 'println(2 + 3)', ans: ['5'], hint: 'The sum is printed.' }),
+    L('jl2', 'julia', 2, 'Ranges', '1:3 is the range 1, 2, 3, and sum adds it up.', { k: 'predict', q: 'What does this print?', code: 'println(sum(1:3))', ans: ['6'], hint: '1 + 2 + 3.' }),
+    L('jl3', 'julia', 3, 'Why it is fast', 'Julia compiles a version of each function for the types it is given, so loops stop being slow.', { k: 'choice', q: 'Why is Julia fast?', opts: ['It compiles specialised code for each type', 'It skips type checks at run time only', 'It runs on the graphics card', 'It stores everything as text'], a: 0 }),
+
+    /* ---------- Fortran ---------- */
+    L('fo1', 'fortran', 1, 'print', 'Fortran was the first high-level language and still runs weather models. print *, shows values.', { k: 'predict', q: 'What does this print?', code: 'print *, 2 + 3', ans: ['5'], hint: 'The sum is printed.' }),
+    L('fo2', 'fortran', 2, 'Arrays start at 1', 'That is how the maths is written, so a(1) is the first item and a(0) does not exist.', { k: 'choice', q: 'Where does an array start in Fortran?', opts: ['At 1', 'At 0', 'At -1', 'Wherever you like, it has no default'], a: 0 }),
+    L('fo3', 'fortran', 3, 'do loops', 'A do loop runs a counter from the first number to the last, and end do closes it.', { k: 'predict', q: 'What does this print?', code: 'do i = 1, 3\n  print *, i\nend do', ans: ['1\n2\n3'], hint: 'One line per number.' }),
+
+    /* ---------- COBOL ---------- */
+    L('cb1', 'cobol', 1, 'DISPLAY', 'COBOL is written in divisions of very plain English. DISPLAY shows a line.', { k: 'predict', q: 'What does this show?', code: "DISPLAY 'HELLO'.", ans: ['HELLO'], hint: 'It shows the text as it is.' }),
+    L('cb2', 'cobol', 2, 'Divisions', 'A COBOL program is split into divisions: IDENTIFICATION names it, DATA describes the fields and PROCEDURE holds the steps.', { k: 'choice', q: 'Which division names the program?', opts: ['IDENTIFICATION DIVISION', 'DATA DIVISION', 'PROCEDURE DIVISION', 'WORKING-STORAGE'], a: 0 }),
+    L('cb3', 'cobol', 3, 'PIC clauses', 'A field is described with a PIC clause: PIC 9(3) is three digits, PIC X(10) is ten characters, PIC 9(2)V99 is a decimal amount.', { k: 'choice', q: 'What is a PIC clause for?', opts: ['Describing the shape of a field', 'Picking a file', 'Printing a picture', 'Naming the program'], a: 0 }),
+
+    /* ---------- Pascal ---------- */
+    L('pa1', 'pascal', 1, 'writeln', 'Pascal was made to teach clear structure: begin and end wrap the steps, and each statement ends with a semicolon.', { k: 'predict', q: 'What does this print?', code: 'writeln(2 + 3);', ans: ['5'], hint: 'The sum is printed.' }),
+    L('pa2', 'pascal', 2, 'Assignment', 'A value is put into a variable with := which keeps assignment separate from the = comparison.', { k: 'choice', q: 'Which symbol assigns a value in Pascal?', opts: [':=', '=', '==', '->'], a: 0 }),
+    L('pa3', 'pascal', 3, 'for loops', 'for i := 1 to 3 do runs the next statement three times and closes with end.', { k: 'predict', q: 'What does this print?', code: 'var i: integer;\nbegin\n  for i := 1 to 3 do writeln(i)\nend.', ans: ['1\n2\n3'], hint: 'One line per number.' }),
+
+    /* ---------- Ada ---------- */
+    L('ad1', 'ada', 1, 'Put_Line', 'Ada was made for software that must not fail, so the compiler checks types and array bounds before anything runs.', { k: 'predict', q: 'What does this print?', code: 'Put_Line("Hi");', ans: ['Hi'], hint: 'It prints the text.' }),
+    L('ad2', 'ada', 2, 'Checked at compile time', 'Ada has strong types and real range checks: a value that could be out of an array\'s range is refused at compile time where possible.', { k: 'choice', q: 'What does Ada check that C does not?', opts: ['Array bounds and strong types', 'Spelling of comments', 'File permissions', 'Screen size'], a: 0 }),
+    L('ad3', 'ada', 3, 'Where it flies', 'Ada runs in aircraft flight systems, trains and satellites, where a crash is not an option.', { k: 'choice', q: 'Where is Ada most used?', opts: ['Safety-critical systems like aircraft and satellites', 'Web pages', 'Phone games', 'Spreadsheets'], a: 0 }),
+
+    /* ---------- D ---------- */
+    L('d1', 'd', 1, 'writeln', 'D is C++ done differently: writeln prints a line, and slices and garbage collection make it safer to write.', { k: 'predict', q: 'What does this print?', code: 'writeln(2 + 3);', ans: ['5'], hint: 'The sum is printed.' }),
+    L('d2', 'd', 2, 'import', 'Each module is loaded with import, and std.stdio holds writeln.', { k: 'choice', q: 'Which import brings writeln in?', opts: ['import std.stdio;', 'import std.print;', 'import sys;', 'import std.console;'], a: 0 }),
+    L('d3', 'd', 3, 'Slices', 'An array knows its length, so a.length needs no separate variable.', { k: 'predict', q: 'What does this print?', code: 'int[] a = [1, 2, 3];\nwriteln(a.length);', ans: ['3'], hint: 'Count the items.' }),
+
+    /* ---------- Crystal ---------- */
+    L('cr1', 'crystal', 1, 'puts', 'Crystal looks like Ruby but is compiled to fast native code, with the types worked out for you.', { k: 'predict', q: 'What does this print?', code: 'puts 2 + 3', ans: ['5'], hint: 'The sum is printed.' }),
+    L('cr2', 'crystal', 2, 'Ruby syntax, real speed', 'The same words as Ruby (puts, do ... end, symbols) but checked and compiled before it runs.', { k: 'choice', q: 'Crystal\'s syntax is closest to which language?', opts: ['Ruby', 'C', 'Java', 'Lisp'], a: 0 }),
+    L('cr3', 'crystal', 3, 'Type checking', 'The compiler works out every type and refuses to build the program if a method cannot be found.', { k: 'choice', q: 'What does Crystal add to Ruby-like code?', opts: ['Static type checking and native compilation', 'A browser', 'Automatic tests', 'A database'], a: 0 }),
+
+    /* ---------- Scala ---------- */
+    L('sc1', 'scala', 1, 'println', 'Scala runs on the Java virtual machine and mixes objects with functional code.', { k: 'predict', q: 'What does this print?', code: 'println(2 + 3)', ans: ['5'], hint: 'The sum is printed.' }),
+    L('sc2', 'scala', 2, 'val and var', 'val makes a value that cannot be changed; var makes one that can. Scala programmers reach for val first.', { k: 'choice', q: 'What does val x = 5 mean?', opts: ['An immutable value', 'A variable you can change', 'A function named x', 'A comment'], a: 0 }),
+    L('sc3', 'scala', 3, 'Ranges', '1 to 3 builds a range and sum adds it up, all without a loop in sight.', { k: 'predict', q: 'What does this print?', code: 'println((1 to 3).sum)', ans: ['6'], hint: '1 + 2 + 3.' }),
+
+    /* ---------- Dart ---------- */
+    L('da1', 'dart', 1, 'print', 'Dart is the language behind Flutter apps and also runs in the browser.', { k: 'predict', q: 'What does this print?', code: 'print(2 + 3);', ans: ['5'], hint: 'The sum is printed.' }),
+    L('da2', 'dart', 2, 'final', 'final values cannot be changed after they are set, and Dart\'s null safety stops you using something that might be empty.', { k: 'choice', q: 'Which keyword declares a value that cannot change?', opts: ['final', 'var', 'dynamic', 'late'], a: 0 }),
+    L('da3', 'dart', 3, 'Where Dart is used', 'Flutter builds one Dart app that runs on Android, iPhone, the web and desktop.', { k: 'choice', q: 'Dart\'s main use today is…', opts: ['Flutter apps on phones and the web', 'Operating systems', 'Databases', 'Graphics drivers'], a: 0 }),
+
+    /* ---------- WebAssembly (wat) ---------- */
+    L('wa1', 'wat', 1, 'A stack machine', 'WebAssembly code pushes and pops values on a stack. i32.add pops two 32-bit whole numbers and pushes their sum.', { k: 'choice', q: 'WebAssembly is a ___ machine.', opts: ['stack', 'register', 'tape', 'graph'], a: 0 }),
+    L('wa2', 'wat', 2, 'i32.add', 'Each instruction says its type: i32 means 32-bit integer, f64 a 64-bit decimal. The machine gets no type guessing.', { k: 'choice', q: 'What does i32.add do?', opts: ['Pops two 32-bit integers and pushes their sum', 'Adds 32 to the stack', 'Adds two decimals', 'Adds a memory address to itself'], a: 0 }),
+    L('wa3', 'wat', 3, '.wat and .wasm', 'The same module exists twice: .wat is the text people read, and .wasm is the compact binary a browser loads.', { k: 'choice', q: 'What is the .wat file?', opts: ['The readable text form of a binary module', 'A compiled binary', 'A stylesheet', 'A test file'], a: 0 }),
+
+    /* ---------- Brainfuck ---------- */
+    L('bf1', 'bf', 1, 'Eight symbols', 'Brainfuck has a tape of cells and eight symbols. + adds 1 to the cell under the pointer, - takes 1 away, and > and < move the pointer.', { k: 'choice', q: 'What does + do in Brainfuck?', opts: ['Adds 1 to the current cell', 'Moves the pointer right', 'Prints the cell', 'Starts a loop'], a: 0 }),
+    L('bf2', 'bf', 2, 'Loops that build numbers', '[...] repeats while the current cell is not zero. A common trick is to count down one cell while adding to the next: +++[>++++<-] adds 4 four times.', { k: 'predict', q: 'What is in the second cell at the end?', code: '+++[>++++<-]', ans: ['12'], hint: '3 rounds of adding 4.' }),
+    L('bf3', 'bf', 3, 'Printing and reading', '. prints the current cell as a character and , reads one character into it.', { k: 'choice', q: 'What does . (a dot) do?', opts: ['Prints the current cell as a character', 'Ends the program', 'Clears the cell', 'Multiplies the cell'], a: 0 }),
+
+    /* ---------- Ook! ---------- */
+    L('ok1', 'ook', 1, 'Brainfuck for orangutans', 'Ook! is Brainfuck written as pairs of the words Ook. and Ook? so the program looks like orangutan speech.', { k: 'choice', q: 'Ook! is Brainfuck written with…', opts: ['Pairs of Ook words', 'Numbers', 'Colours', 'Only spaces'], a: 0 }),
+    L('ok2', 'ook', 2, 'Every command is two words', 'Each Brainfuck symbol becomes one pair, so moving the pointer twice takes two pairs.', { k: 'predict', q: 'How many Ook. Ook? pairs move the pointer two cells right?', code: 'Ook. Ook? Ook. Ook?', ans: ['2'], hint: 'One pair per cell.' }),
+    L('ok3', 'ook', 3, 'The same tape', 'Underneath, Ook! has the same tape of cells and the same eight operations as Brainfuck.', { k: 'choice', q: 'How many Brainfuck operations does one Ook! instruction use?', opts: ['One', 'Two', 'Three', 'None'], a: 0 }),
+
+    /* ---------- Cow ---------- */
+    L('cw1', 'cow', 1, 'Moo', 'Cow is a Brainfuck variant whose instructions are words made of moo: Moo, MOO and mOo.', { k: 'choice', q: 'Cow programs are made of…', opts: ['Moo words', 'Numbers', 'Colours', 'Musical notes'], a: 0 }),
+    L('cw2', 'cow', 2, 'Same tape, new words', 'Cow keeps Brainfuck\'s tape and adds a few extra moos of its own, such as a way to clear a cell.', { k: 'choice', q: 'Cow is a version of which language?', opts: ['Brainfuck', 'Forth', 'Lisp', 'Befunge'], a: 0 }),
+    L('cw3', 'cow', 3, 'Counting the commands', 'There are twelve different moo instructions, which is a few more than Brainfuck\'s eight.', { k: 'choice', q: 'Roughly how many Cow instructions are there?', opts: ['12', '4', '40', '2'], a: 0 }),
+
+    /* ---------- Befunge-93 ---------- */
+    L('bg1', 'befunge93', 1, 'A grid, not a list', 'A Befunge program is a grid. The instruction pointer starts at the top left and moves right, but it can be sent up, down or back.', { k: 'predict', q: 'What does this print?', code: '23+.@', ans: ['5'], hint: '2 and 3 are pushed, + adds them, . prints.' }),
+    L('bg2', 'befunge93', 2, 'Ending', 'The @ instruction stops the program. Without it the pointer keeps walking the grid.', { k: 'choice', q: 'What does @ do?', opts: ['Ends the program', 'Prints a number', 'Moves the pointer', 'Starts a loop'], a: 0 }),
+    L('bg3', 'befunge93', 3, 'Two dimensions', 'Arrows (< > ^ v) set the direction. The grid is 80 by 25 cells and it wraps around at the edges.', { k: 'choice', q: 'What makes Befunge different from most languages?', opts: ['The pointer can move in four directions on a 2D grid', 'It has no numbers', 'It only has one instruction', 'It needs a browser'], a: 0 }),
+
+    /* ---------- Funge-98 ---------- */
+    L('fg1', 'funge98', 1, 'Funge-98 is Befunge grown up', 'It keeps the grid and the wandering pointer but allows any number of dimensions.', { k: 'choice', q: 'Funge-98 adds what to Befunge-93?', opts: ['Any number of dimensions', 'A database', 'Floating point maths', 'A compiler'], a: 0 }),
+    L('fg2', 'funge98', 2, 'Fingerprints', 'A fingerprint is an optional named set of extra instructions, so a program can say which library it wants.', { k: 'choice', q: 'What is a fingerprint?', opts: ['An optional library of extra instructions', 'A comment', 'A checksum of the program', 'A grid size'], a: 0 }),
+    L('fg3', 'funge98', 3, 'Direction', 'Like Befunge, arrows change the direction of travel; the rest of the program is just what the pointer meets.', { k: 'choice', q: 'Which instruction turns the pointer to the right?', opts: ['>', '<', '^', '@'], a: 0 }),
+
+    /* ---------- Malbolge ---------- */
+    L('mb1', 'malbolge', 1, 'Made to be impossible', 'Malbolge was designed in 1998 to be the hardest programming language ever, as a joke on language design.', { k: 'choice', q: 'Malbolge was designed to be…', opts: ['Almost impossible to write programs in', 'The fastest language', 'Easy for beginners', 'A web language'], a: 0 }),
+    L('mb2', 'malbolge', 2, 'Base three', 'Its values are ternary: base 3, not base 2, which is one of many reasons it feels alien.', { k: 'choice', q: 'Malbolge works on numbers in which base?', opts: ['Ternary (base 3)', 'Binary (base 2)', 'Decimal (base 10)', 'Hexadecimal (base 16)'], a: 0 }),
+    L('mb3', 'malbolge', 3, 'Self-modifying code', 'Each instruction is encrypted with the one before it and the code re-encrypts itself as it runs, so reading it is not enough.', { k: 'choice', q: 'What makes Malbolge programs so hard to follow?', opts: ['The code changes itself while it runs', 'They use very long words', 'They need a keyboard', 'They are written in hex'], a: 0 }),
+
+    /* ---------- Piet ---------- */
+    L('pi1', 'piet', 1, 'Programs as paintings', 'A Piet program is an image of coloured blocks. The shape and colour of the blocks carry the instructions.', { k: 'choice', q: 'In Piet, a program is…', opts: ['An image of coloured blocks', 'A text file', 'A sound file', 'A spreadsheet'], a: 0 }),
+    L('pi2', 'piet', 2, 'Hues', 'Piet uses 18 colours: 6 hues, each in 3 shades. Moving to the next hue does one operation.', { k: 'predict', q: 'How many hues make one full cycle?', code: 'Piet colour wheel', ans: ['6'], hint: 'One for each operation.' }),
+    L('pi3', 'piet', 3, 'Steps', 'The pointer walks from block to block. The change in colour and lightness between two blocks is the instruction.', { k: 'choice', q: 'What does moving to a neighbouring block mean?', opts: ['It is the next instruction', 'It is a comment', 'It ends the program', 'It prints the colour'], a: 0 }),
+
+    /* ---------- Chicken ---------- */
+    L('ck1', 'chicken', 1, 'Only chicken', 'A Chicken program is one word repeated: every line is the word chicken, and nothing else.', { k: 'choice', q: 'A Chicken program is made of…', opts: ['The word chicken, one per line', 'Numbers', 'Brackets', 'Musical notes'], a: 0 }),
+    L('ck2', 'chicken', 2, 'Counting the word', 'Each line holds one instruction. How many chickens are on the line decides which instruction it is.', { k: 'choice', q: 'How is an instruction chosen?', opts: ['By how many times chicken appears on the line', 'By the colour of the line', 'By the order of the file name', 'At random'], a: 0 }),
+    L('ck3', 'chicken', 3, 'Why it works', 'Any other word breaks the program, which makes Chicken a good joke about how much syntax really matters.', { k: 'choice', q: 'What happens if another word appears in the file?', opts: ['The program is not valid Chicken', 'It becomes a comment', 'It prints that word', 'Nothing changes'], a: 0 }),
+
+    /* ---------- INTERCAL ---------- */
+    L('ic1', 'intercal', 1, 'The joke language', 'INTERCAL was made in 1972 as a parody of programming languages, with the oddest rules its authors could invent.', { k: 'choice', q: 'INTERCAL was made to be…', opts: ['A parody of programming languages', 'A fast compiler', 'A teaching tool', 'A spreadsheet language'], a: 0 }),
+    L('ic2', 'intercal', 2, 'COME FROM', 'It invented COME FROM, the opposite of GOTO: the program jumps to a statement whenever another one runs.', { k: 'choice', q: 'Which statement did INTERCAL invent?', opts: ['COME FROM', 'GOTO', 'WHILE', 'SWITCH'], a: 0 }),
+    L('ic3', 'intercal', 3, 'Politeness', 'PLEASE must appear in the right proportion of statements; too polite or not polite enough and the compiler rejects the program.', { k: 'choice', q: 'Why does INTERCAL care about PLEASE?', opts: ['Polite programs must please at the right rate or they are rejected', 'It prints the word', 'It is a comment', 'It changes the number base'], a: 0 }),
+
+    /* ---------- Shakespeare (SPL) ---------- */
+    L('sp1', 'spl', 1, 'A play', 'In the Shakespeare Programming Language a program is written as a play, with acts, scenes and characters.', { k: 'choice', q: 'What is a SPL program shaped like?', opts: ['A stage play script', 'A shopping list', 'A recipe', 'A song'], a: 0 }),
+    L('sp2', 'spl', 2, 'Characters are variables', 'Each character in the play is a variable, and how much they say decides the value.', { k: 'choice', q: 'What is a character in SPL?', opts: ['A variable', 'A comment', 'A keyword', 'A number that cannot change'], a: 0 }),
+    L('sp3', 'spl', 3, 'Acts and scenes', 'The acts and scenes are the labels the program jumps to, exactly like labels in assembly.', { k: 'choice', q: 'What are acts and scenes used for?', opts: ['They are the labels the program jumps to', 'They set the window size', 'They are comments', 'They choose the compiler'], a: 0 }),
+
+    /* ---------- Chef ---------- */
+    L('ch1', 'chef', 1, 'Recipes', 'A Chef program is written as a recipe: a title, ingredients with amounts, and method steps.', { k: 'choice', q: 'A Chef program looks like…', opts: ['A recipe', 'A play', 'A song', 'A shopping list'], a: 0 }),
+    L('ch2', 'chef', 2, 'Ingredients are variables', 'Each ingredient is a variable, and its amount in grams is the number stored in it.', { k: 'choice', q: 'What are the ingredients for?', opts: ['They are the variables', 'They are comments', 'They are the output', 'They pick the compiler'], a: 0 }),
+    L('ch3', 'chef', 3, 'Method steps', 'The method is the code: mixing, stirring and baking do the arithmetic and the printing.', { k: 'choice', q: 'What do the method steps do?', opts: ['They are the instructions', 'They print the recipe', 'They set the title', 'They count the ingredients'], a: 0 }),
+
+    /* ---------- Whitespace ---------- */
+    L('ws1', 'whitespace', 1, 'Invisible code', 'In Whitespace only spaces, tabs and newlines are read. Every other character is ignored.', { k: 'choice', q: 'Which characters matter?', opts: ['Spaces, tabs and newlines', 'Only letters', 'Only numbers', 'Only brackets'], a: 0 }),
+    L('ws2', 'whitespace', 2, 'Invisible', 'A Whitespace program can be pasted into a normal source file and nobody will see it.', { k: 'predict', q: 'How many visible characters does a Whitespace program contain?', code: '   \t  \n \t \n', ans: ['0'], hint: 'Nothing you can see.' }),
+    L('ws3', 'whitespace', 3, 'Hiding in plain sight', 'Because visible text is ignored, it can carry an innocent-looking comment or even a whole different program.', { k: 'choice', q: 'What happens to ordinary visible text?', opts: ['It is ignored, so it can hide secret code', 'It is printed', 'It is an error', 'It becomes a number'], a: 0 }),
+
+    /* ---------- Unlambda ---------- */
+    L('ul1', 'unlambda', 1, 'Three letters', 'Unlambda is a functional language where the work is done by s, k and i, with no lambda at all.', { k: 'choice', q: 'Which letters do the work in Unlambda?', opts: ['s, k and i', 'a, b and c', 'f, g and h', 'x, y and z'], a: 0 }),
+    L('ul2', 'unlambda', 2, 'Printing', '.x prints the character x, so a program that prints letters is a row of dots.', { k: 'choice', q: 'What does .x do?', opts: ['Prints the character x', 'Multiplies by x', 'Starts a comment', 'Copies x'], a: 0 }),
+    L('ul3', 'unlambda', 3, 'No variables', 'Unlambda has no variables and no functions you can name: everything is built from the three combinators and application.', { k: 'choice', q: 'Which feature is deliberately missing?', opts: ['Named variables and lambda', 'Printing', 'Function application', 'Characters'], a: 0 }),
+
+    /* ---------- LOLCODE ---------- */
+    L('lo1', 'lolcode', 1, 'HAI and KTHXBYE', 'LOLCODE is written in lolspeak. HAI starts the program, VISIBLE prints, and KTHXBYE ends it.', { k: 'predict', q: 'What does this print?', code: 'HAI 1.2\nVISIBLE "HAI WORLD"\nKTHXBYE', ans: ['HAI WORLD'], hint: 'VISIBLE prints the text.' }),
+    L('lo2', 'lolcode', 2, 'Ending the program', 'The last line of a LOLCODE program is KTHXBYE, which means thanks and goodbye.', { k: 'choice', q: 'Which word ends a LOLCODE program?', opts: ['KTHXBYE', 'HAI', 'VISIBLE', 'GTFO'], a: 0 }),
+    L('lo3', 'lolcode', 3, 'Variables', 'I HAS A name makes a variable and it is set with R name ITZ value.', { k: 'choice', q: 'Which keyword prints?', opts: ['VISIBLE', 'HAI', 'KTHXBYE', 'ITZ'], a: 0 }),
+
+    /* ---------- ArnoldC ---------- */
+    L('ar1', 'arnoldc', 1, 'Film quotes', 'ArnoldC uses lines from Arnold Schwarzenegger films as its keywords instead of the usual words.', { k: 'choice', q: 'Which line starts the main function?', opts: ["IT'S SHOWTIME", 'HAI', 'BEGIN', 'YOU HAVE BEEN TERMINATED'], a: 0 }),
+    L('ar2', 'arnoldc', 2, 'Printing', 'TALK TO THE HAND prints a line, and the program ends with YOU HAVE BEEN TERMINATED.', { k: 'choice', q: 'What does TALK TO THE HAND do?', opts: ['Prints text', 'Ends the program', 'Starts a loop', 'Declares a variable'], a: 0 }),
+    L('ar3', 'arnoldc', 3, 'Ending', 'Every ArnoldC program closes with the famous line that ends The Terminator.', { k: 'choice', q: 'Which line ends the program?', opts: ['YOU HAVE BEEN TERMINATED', 'KTHXBYE', 'END', 'BYE'], a: 0 }),
+
+    /* ---------- Rockstar ---------- */
+    L('rs1', 'rockstar', 1, 'Lyrics that run', 'A Rockstar program is written so that it reads like the lyrics of a rock song, but it still runs.', { k: 'predict', q: 'What does this print?', code: 'Say "Hello"', ans: ['Hello'], hint: 'Say prints the text.' }),
+    L('rs2', 'rockstar', 2, 'Say it', 'Say and Print both print, and numbers can be written as words.', { k: 'choice', q: 'Which keyword prints in Rockstar?', opts: ['Say', 'Speak', 'Show', 'Println'], a: 0 }),
+    L('rs3', 'rockstar', 3, 'Poetic numbers', 'Numbers can be written as poetry: "my dreams were ice" counts as zero, and the words are counted for the rest.', { k: 'choice', q: 'What does Rockstar code look like?', opts: ['Song lyrics', 'A recipe', 'A play', 'A legal contract'], a: 0 }),
+
+    /* ---------- Emojicode ---------- */
+    L('em1', 'emojicode', 1, 'Emoji as words', 'In Emojicode the emoji are not decoration: they are the keywords that make the program run.', { k: 'choice', q: 'What are the emoji in an Emojicode program?', opts: ['The keywords and names', 'Comments', 'Just decoration', 'String contents only'], a: 0 }),
+    L('em2', 'emojicode', 2, 'A whole language', 'It is object-oriented, with types and methods, written almost entirely in emoji.', { k: 'choice', q: 'Emojicode is…', opts: ['An object-oriented language written with emoji', 'A picture format', 'A chat protocol', 'A font'], a: 0 }),
+    L('em3', 'emojicode', 3, 'Why it exists', 'It was made to see whether a language written in pictures could still be a real, usable language.', { k: 'choice', q: 'Emojicode programs use emoji to…', opts: ['Write the whole program, not just text strings', 'Draw the window', 'Choose a colour theme', 'Store passwords'], a: 0 }),
+
+    /* ---------- FALSE ---------- */
+    L('fa1', 'false', 1, 'Stack and single characters', 'FALSE is a stack language where every instruction is one character, and its only values are 0 (false) and 1 (true).', { k: 'choice', q: 'FALSE is a ___ language.', opts: ['stack-based', 'picture-based', 'music-based', 'spreadsheet'], a: 0 }),
+    L('fa2', 'false', 2, 'One character, one instruction', 'Because each instruction is a single character, a short FALSE program looks like line noise.', { k: 'choice', q: 'How long is a FALSE instruction?', opts: ['One character', 'Two characters', 'One word', 'A whole line'], a: 0 }),
+    L('fa3', 'false', 3, 'Two values', 'A stack item is either true or false, and the operators work on those two values.', { k: 'choice', q: 'How many values does FALSE have?', opts: ['Two: 0 and 1', 'One', 'Ten', 'As many as memory allows'], a: 0 }),
+
+    /* ---------- Thue ---------- */
+    L('th1', 'thue', 1, 'Rules, not steps', 'A Thue program is a list of rules that replace one piece of text with another. There is no order of steps at all.', { k: 'choice', q: 'A Thue program is a set of…', opts: ['rewrite rules on text', 'numbered lines', 'stack operations', 'musical notes'], a: 0 }),
+    L('th2', 'thue', 2, 'Any rule that fits', 'When several rules match, the choice is random, so the same program can take different paths.', { k: 'choice', q: 'How is the next rule chosen?', opts: ['At random among the rules that match', 'Always the first one', 'The longest one', 'By line number'], a: 0 }),
+    L('th3', 'thue', 3, 'It stops when nothing fits', 'The program ends when no rule matches any part of the text, and the text left is the result.', { k: 'choice', q: 'When does a Thue program stop?', opts: ['When no rule matches any more', 'After ten steps', 'When it reaches the last line', 'When you press Stop'], a: 0 }),
+
+    /* ---------- Underload ---------- */
+    L('un1', 'underload', 1, 'Six symbols', 'Underload is a tiny stack language: a whole program is built from six characters such as ~ : ! * ( ).', { k: 'choice', q: 'Underload is built from how many symbols?', opts: ['Six', 'Two', 'Sixteen', 'As many as you like'], a: 0 }),
+    L('un2', 'underload', 2, 'Strings on a stack', 'The program works on string fragments kept on a stack, so even the code itself can be moved around.', { k: 'choice', q: 'What does Underload keep on its stack?', opts: ['String fragments', 'Pictures', 'Files', 'Only numbers'], a: 0 }),
+    L('un3', 'underload', 3, 'Grouping', 'Round brackets gather characters into one string item, ready to be used as a unit.', { k: 'choice', q: 'What do round brackets do?', opts: ['Group characters into one string', 'Start a comment', 'Print a value', 'Multiply two numbers'], a: 0 }),
+
+    /* ---------- Deadfish ---------- */
+    L('df1', 'deadfish', 1, 'Four commands', 'Deadfish has four commands: i adds 1, d takes 1 away, s squares the counter, and o prints it.', { k: 'predict', q: 'What does this print?', code: 'iiiso', ans: ['9'], hint: '3, squared.' }),
+    L('df2', 'deadfish', 2, 'Counting commands', 'There are no loops and no variables beyond the single counter, which is why the whole language fits on one line.', { k: 'choice', q: 'How many commands does Deadfish have?', opts: ['4', '8', '2', '12'], a: 0 }),
+    L('df3', 'deadfish', 3, 'The counter', 'Everything acts on one number. i and d move it by one and s multiplies it by itself.', { k: 'choice', q: 'What do i and d do?', opts: ['Add 1 and take 1 from the counter', 'Print and read', 'Square and halve', 'Start and end a loop'], a: 0 }),
+
+    /* ---------- Slashes ---------- */
+    L('sl1', 'slashes', 1, 'All about slashes', 'Slashes (often written ///) is a language of string substitution: the program replaces patterns in its own text.', { k: 'choice', q: 'Slashes programs are…', opts: ['String substitutions', 'Maths formulas', 'Pictures', 'Music'], a: 0 }),
+    L('sl2', 'slashes', 2, 'The special character', 'A slash marks a substitution, so to print a slash you have to escape it with a backslash.', { k: 'choice', q: 'Which character must be escaped to print it?', opts: ['/', 'a', '1', 'space'], a: 0 }),
+    L('sl3', 'slashes', 3, 'The output', 'Rules run one after another until no pattern matches, and whatever text is left is the output.', { k: 'choice', q: 'What is the output of a Slashes program?', opts: ['The text left after all substitutions', 'The list of rules', 'The last rule only', 'Nothing, it only proves things'], a: 0 }),
+
+    /* ---------- Brain-Flak ---------- */
+    L('bk1', 'brainflak', 1, 'Only brackets', 'Brain-Flak programs contain nothing but brackets, and each pair means a different operation.', { k: 'choice', q: 'Brain-Flak programs contain only…', opts: ['brackets', 'letters', 'numbers', 'spaces'], a: 0 }),
+    L('bk2', 'brainflak', 2, 'Two kinds', 'There are two pairs: round brackets and angle brackets. Each pair works on its own stack.', { k: 'predict', q: 'How many different bracket pairs does Brain-Flak use?', code: '() <>', ans: ['2'], hint: 'Round and angle.' }),
+    L('bk3', 'brainflak', 3, 'Two stacks', 'Brain-Flak keeps two stacks and can move values between them, which is how it does arithmetic.', { k: 'choice', q: 'Where does Brain-Flak keep its values?', opts: ['On two stacks', 'In one variable', 'In a file', 'In the brackets themselves'], a: 0 }),
+
+    /* ---------- HQ9+ ---------- */
+    L('hq1', 'hq9', 1, 'H', 'HQ9+ has four commands: H prints Hello, world!, Q prints the program itself, 9 sings 99 bottles, and + adds 1 to a counter.', { k: 'predict', q: 'What does this print?', code: 'H', ans: ['Hello, world!'], hint: 'H is Hello, world!.' }),
+    L('hq2', 'hq9', 2, 'Q', 'Q prints the program\'s own source code, which makes writing a program that prints itself trivial.', { k: 'choice', q: 'What does Q do?', opts: ['Prints the program\'s own source', 'Quits', 'Sings 99 bottles', 'Adds 1'], a: 0 }),
+    L('hq3', 'hq9', 3, 'The plus', 'The + simply adds 1 to a counter that nothing else ever reads.', { k: 'choice', q: 'What does + do?', opts: ['Adds 1 to a counter nobody uses', 'Prints a plus sign', 'Adds two numbers', 'Ends the program'], a: 0 }),
+
+    /* ---------- FRACTRAN ---------- */
+    L('fr1', 'fractran', 1, 'A list of fractions', 'A FRACTRAN program is just a list of fractions, and running it means multiplying a number by them.', { k: 'choice', q: 'A FRACTRAN program is a list of…', opts: ['fractions', 'lines', 'brackets', 'words'], a: 0 }),
+    L('fr2', 'fractran', 2, 'One step', 'Each step looks for the first fraction that turns the current number into a whole number, and multiplies by it.', { k: 'choice', q: 'How does FRACTRAN take a step?', opts: ['It multiplies by the first fraction that gives a whole number', 'It adds the fractions', 'It picks a random fraction', 'It prints the fractions'], a: 0 }),
+    L('fr3', 'fractran', 3, 'Number as state', 'The whole state of the program is one number; the fractions are the program, and the number is the memory.', { k: 'choice', q: 'What is the program\'s state?', opts: ['One whole number', 'A list of strings', 'A picture', 'A stack of brackets'], a: 0 }),
+
+    /* ---------- BCT ---------- */
+    L('bc1', 'bct', 1, 'Binary only', 'BCT (binary combinatory logic) is written entirely in 0s and 1s, with no other characters at all.', { k: 'choice', q: 'BCT programs are written in…', opts: ['0s and 1s', 'letters', 'brackets', 'fractions'], a: 0 }),
+    L('bc2', 'bct', 2, 'Two combinators', 'It is built from the two combinators s and k, each written as a short string of bits.', { k: 'choice', q: 'Which combinators does BCT use?', opts: ['s and k', 'a and b', 'i and o', 'add and sub'], a: 0 }),
+    L('bc3', 'bct', 3, 'Reduction', 'Running the program means reducing the expression step by step until no rule applies.', { k: 'choice', q: 'What does a BCT program do?', opts: ['Reduces the combinator expression step by step', 'Prints 1s and 0s', 'Draws a binary tree', 'Multiplies numbers'], a: 0 }),
+
+    /* ---------- Whenever ---------- */
+    L('wh1', 'whenever', 1, 'No order', 'Whenever has no rule about which statement runs next: any statement may be chosen at any time.', { k: 'choice', q: 'Whenever programs run statements…', opts: ['In no set order', 'Top to bottom', 'Backwards', 'Alphabetically'], a: 0 }),
+    L('wh2', 'whenever', 2, 'Why it is strange', 'Because the order is free, a correct program must work whichever way the statements happen to run.', { k: 'choice', q: 'What makes Whenever unpredictable?', opts: ['Any statement may run next', 'It uses random numbers', 'It reads the clock', 'It needs the internet'], a: 0 }),
+    L('wh3', 'whenever', 3, 'A joke with a point', 'It is a joke about concurrency: programs that really do run in a random order are exactly why locking and threads are hard.', { k: 'choice', q: 'Whenever is best described as…', opts: ['A joke language about concurrency and order', 'A fast compiler', 'A database language', 'A drawing language'], a: 0 }),
+
+    /* ---------- Hexagony ---------- */
+    L('hx1', 'hexagony', 1, 'A hexagon', 'A Hexagony program is laid out as a hexagon, and the instruction pointer walks it in six directions.', { k: 'choice', q: 'A Hexagony program is shaped like…', opts: ['a hexagon', 'a square', 'a circle', 'a line'], a: 0 }),
+    L('hx2', 'hexagony', 2, 'Six ways', 'From each cell the pointer may go in any of six directions, so the shape of the program is the flow of control.', { k: 'predict', q: 'How many directions can the pointer take?', code: 'Hexagony grid', ans: ['6'], hint: 'Six sides.' }),
+    L('hx3', 'hexagony', 3, 'Edges', 'At an edge the pointer wraps around to the other side, so a small hexagon still has plenty of room.', { k: 'choice', q: 'What happens at an edge?', opts: ['The pointer wraps to the other side', 'The program crashes', 'It prints the edge', 'It stops'], a: 0 }),
+
+    /* ---------- Velato ---------- */
+    L('ve1', 'velato', 1, 'Music as code', 'A Velato program is a MIDI file: the notes of a tune are what the computer runs.', { k: 'choice', q: 'Velato programs are…', opts: ['MIDI music files', 'text files', 'pictures', 'spreadsheets'], a: 0 }),
+    L('ve2', 'velato', 2, 'Notes are instructions', 'Pitch and timing of each note stand for commands, so the music has to be written carefully to run.', { k: 'choice', q: 'What are the instructions in Velato?', opts: ['The notes', 'The file name', 'The volume only', 'The album art'], a: 0 }),
+    L('ve3', 'velato', 3, 'Two arts at once', 'It was made so a program could also be a piece of music you might actually listen to.', { k: 'choice', q: 'Why was Velato made?', opts: ['To make programs that are also music', 'To hide malware in songs', 'To compress audio', 'To teach chords'], a: 0 }),
   ];
   const POINTS = [0, 10, 15, 20];
 
@@ -590,6 +969,77 @@ const CodeLessons = (() => {
       ['How data is stored', 'negative numbers; text as numbers; decimals (floating point)', 'bn11 bn12'],
     ]),
   };
+
+  /* the Playground languages outside the original courses: three short units each, one lesson in each */
+  const NEWTOPICS = {
+    scheme: ['display; +; s-expressions', 'quote; car; cdr', 'recursion instead of loops'],
+    prolog: ['facts; atoms', '?- queries; variables', 'rules; :-'],
+    forth: ['the stack; +; .', 'subtraction order', ': definitions; ;'],
+    basic: ['PRINT; maths', 'LET; variables', 'line numbers; GOTO'],
+    masm: ['mov; registers', 'add; doubling', '.code; .data; .stack'],
+    fsharp: ['printfn; %d', 'let; the |> pipe', 'immutability'],
+    vbnet: ['Console.WriteLine', 'Dim; & joining text', 'Option Strict'],
+    nodejs: ['console.log; map', 'no window or document', 'require; fs'],
+    batch: ['@echo off; echo', 'set; %VAR%', 'running a .bat'],
+    vbscript: ['WScript.Echo', 'Dim', 'text and numbers'],
+    jscript: ['WScript.Echo', 'Microsoft JavaScript', 'string methods'],
+    perl: ['print; semicolons', 'arrays; scalar', '=~ and patterns'],
+    awk: ['$1 and $2', 'NR; NF; END', 'counting lines'],
+    sed: ['s/a/b/', 'the g flag', '-n and p'],
+    fish: ['set; $var', 'defaults and completion', 'for ... end'],
+    haskell: ['print; brackets', 'map; lambdas', 'purity'],
+    zig: ['types; u8', 'std.debug.print', 'comptime'],
+    nim: ['echo', 'var; let; const', 'ranges; loops'],
+    commonlisp: ['prefix syntax', 'list; car', 'macros'],
+    clojure: ['println', 'immutability', 'map; inc'],
+    erlang: ['io:format', 'processes; messages', 'matching with ='],
+    elixir: ['IO.puts', 'the |> pipe', 'the BEAM'],
+    ocaml: ['print_int', 'let bindings', 'lists'],
+    r: ['print', 'c(); mean()', 'data frames'],
+    julia: ['println', 'ranges; sum', 'type specialisation'],
+    fortran: ['print *', 'arrays from 1', 'do loops'],
+    cobol: ['DISPLAY', 'divisions', 'PIC clauses'],
+    pascal: ['writeln', ':= assignment', 'for ... do'],
+    ada: ['Put_Line', 'compile-time checks', 'safety-critical use'],
+    d: ['writeln', 'import', 'slices; length'],
+    crystal: ['puts', 'Ruby-like syntax', 'type inference'],
+    scala: ['println', 'val and var', 'ranges'],
+    dart: ['print', 'final; null safety', 'Flutter'],
+    wat: ['the stack', 'i32.add', '.wat and .wasm'],
+    bf: ['+ and -', 'loops [ ]', '. and ,'],
+    ook: ['Ook pairs', 'one pair per command', 'the same tape'],
+    cow: ['moo words', 'a Brainfuck variant', 'the command count'],
+    befunge93: ['the grid; 2 3 + .', '@ to end', 'arrows; wrapping'],
+    funge98: ['dimensions', 'fingerprints', 'direction'],
+    malbolge: ['why it exists', 'base 3', 'self-modifying code'],
+    piet: ['programs as images', 'hues', 'colour steps'],
+    chicken: ['lines of chicken', 'counting the word', 'the other-word rule'],
+    intercal: ['the parody', 'COME FROM', 'PLEASE'],
+    spl: ['acts and scenes', 'characters as variables', 'labels'],
+    chef: ['the recipe shape', 'ingredients', 'method steps'],
+    whitespace: ['spaces; tabs; newlines', 'nothing visible', 'hiding code'],
+    unlambda: ['s, k and i', '.x printing', 'no variables'],
+    lolcode: ['HAI; KTHXBYE', 'VISIBLE', 'I HAS A'],
+    arnoldc: ['IT\'S SHOWTIME', 'TALK TO THE HAND', 'YOU HAVE BEEN TERMINATED'],
+    rockstar: ['Say', 'lyrics', 'poetic numbers'],
+    emojicode: ['emoji keywords', 'objects and methods', 'why it exists'],
+    false: ['the stack; single characters', 'one character per instruction', 'two values'],
+    thue: ['rewrite rules', 'random choice', 'when it stops'],
+    underload: ['six symbols', 'strings on a stack', 'grouping'],
+    deadfish: ['i, d, s and o', 'the command count', 'the counter'],
+    slashes: ['substitution', 'the escaped slash', 'the output'],
+    brainflak: ['brackets only', 'two bracket pairs', 'two stacks'],
+    hq9: ['H', 'Q', '+'],
+    fractran: ['fractions', 'one step', 'number as state'],
+    bct: ['0s and 1s', 's and k', 'reduction'],
+    whenever: ['no order', 'unpredictability', 'the joke'],
+    hexagony: ['the hexagon', 'six directions', 'wrapping'],
+    velato: ['MIDI files', 'notes as instructions', 'programs as music'],
+  };
+  Object.keys(NEWTOPICS).forEach(lang => {
+    const ls = LESSONS.filter(l => l.lang === lang);
+    UNITS[lang] = U(lang, NEWTOPICS[lang].map((topics, i) => [ls[i] ? ls[i].t : 'Lesson ' + (i + 1), topics, ls[i] ? ls[i].id : '']));
+  });
   const BYID = {}; LESSONS.forEach(l => { BYID[l.id] = l; });
   const unitsOf = lang => UNITS[lang] || [];
   const unitLessons = u => u.ls.map(id => BYID[id]).filter(Boolean);

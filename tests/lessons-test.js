@@ -90,11 +90,10 @@ module.exports = async ok => {
   ok('coding: the playground runs Python and JavaScript in the sandbox, previews HTML, and asks the AI to explain any language', /data-cl="play"/.test(ui) && /RUNS = \{ python: 'python', javascript: 'js', html: 'html' \}/.test(ui) && /A\.ai\.stream\(/.test(ui) && /PL\.GROUPS\.map\(/.test(ui) && /esolang-worker\.js/.test(ui));
   const playground = require('../lib/code-playground');
   const launch = rd('lib/code-playground/run.sh');
-  const containerLangs = langs.filter(id => !['python', 'javascript', 'html', 'sql', 'binary'].includes(id));
-  const PLAY = require('../web/js/code-playground-langs.js');
-  ok('coding: every container language has a launcher and a Playground starter',
-    containerLangs.length === playground.LANGS.size && langs.every(id => PLAY.byId(id) && PLAY.byId(id).ex.trim()) &&
-    containerLangs.every(id => playground.LANGS.has(id) && new RegExp('^  ' + id + '\\)', 'm').test(launch)));
+  const PLAY = require('../web/js/code-playground-langs.js'), containerLangs = [...playground.LANGS];
+  ok('coding: every Playground language has a course, and every container language a launcher and a Playground starter',
+    langs.every(id => { const p = PLAY.byId(id); return p && p.ex.trim(); }) &&
+    containerLangs.every(id => langs.includes(id) && new RegExp('^  ' + id + '\\)', 'm').test(launch)));
   ok('coding: the container runner rejects unsupported languages and empty or oversized source',
     playground.validate({ lang: 'bash', code: 'echo Hello' }) &&
     !playground.validate({ lang: 'unknown', code: 'echo Hello' }) &&
