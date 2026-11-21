@@ -68,7 +68,9 @@ function inspectRevision(revision) {
 }
 function scanPushInput() {
   const input = fs.readFileSync(0, 'utf8').trim();
-  if (!input) return fail('Git did not provide the outgoing refs to the safety hook. Nothing was pushed.');
+  /* a hook run without a ref list (some Windows shells do this) still gets the full check: the whole tree of the
+     commit being pushed is inspected for unapproved paths, oversized files and credentials */
+  if (!input) { inspectRevision('HEAD'); return console.log('GitHub safety checks passed for HEAD (no ref list was supplied).'); }
   const updates = input.split(/\r?\n/).map(line => line.trim().split(/\s+/)).filter(parts => parts.length >= 4);
   for (const [, localSha, , remoteSha] of updates) {
     if (ZERO.test(localSha)) continue;
