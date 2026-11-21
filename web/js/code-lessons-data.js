@@ -13,6 +13,7 @@ const CodeLessons = (() => {
     { id: 'python', n: 'Python', ic: '🐍', run: true, about: 'Easy to read and used everywhere: scripts, data, security tools and AI.' },
     { id: 'javascript', n: 'JavaScript', ic: '🟨', run: true, about: 'The language of web pages, and of servers with Node.' },
     { id: 'html', n: 'HTML & CSS', ic: '🌐', run: true, about: 'The structure (HTML) and the look (CSS) of every web page.' },
+    { id: 'scratch', n: 'Scratch', ic: '🐱', run: true, about: 'Blocks instead of typing: snap a hat, motion, looks and pen blocks together and watch the cat do it on the screen.' },
     { id: 'sql', n: 'SQL', ic: '🗃️', about: 'Ask questions of a database. Also how SQL injection works.' },
     { id: 'bash', n: 'Bash', ic: '🐚', about: 'The Linux and macOS command line, and shell scripts.' },
     { id: 'powershell', n: 'PowerShell', ic: '💠', about: 'The Windows command line and automation language.' },
@@ -101,6 +102,11 @@ const CodeLessons = (() => {
   /* a mini project: a bigger exercise that builds a small real program (shown with 🛠, worth extra points) */
   const P = (id, lang, lv, t, teach, ex) => Object.assign(L(id, lang, lv, t, teach, ex), { proj: 1 });
   const LESSONS = [
+    /* ---------- Scratch (blocks) ---------- */
+    L('scr1', 'scratch', 1, 'Your first script', 'A Scratch script is a stack of blocks under a hat. The hat says when the script starts; the blocks under it run in order, top to bottom, one after the other.', { k: 'blank', code: 'when flag clicked\nmove 10 steps\n___ 4\n  turn 90 degrees\n  move 50 steps', ans: [['repeat']], hint: 'The block that runs the blocks inside it four times.' }),
+    L('scr2', 'scratch', 1, 'What will it say?', 'say puts a speech bubble on the screen and prints the words in the output. Only the blocks the script reaches run, so a hat that is never pressed says nothing.', { k: 'predict', q: 'What does the cat say when you press the flag?', code: 'when flag clicked\nsay Ready! for 1\nrepeat 3\n  move 20 steps', ans: ['Ready!'], hint: 'The cat only says one thing.' }),
+    L('scr3', 'scratch', 2, 'A square in four moves', 'repeat 4 with turn 90 degrees goes forward, turns, and after four turns is facing the way it started. With the pen down, the four sides join up into a square.', { k: 'choice', q: 'What does this script draw, with the pen down?', code: 'when flag clicked\npen down\nrepeat 4\n  move 50 steps\n  turn 90 degrees', opts: ['A square', 'A triangle', 'A straight line', 'A circle'], a: 0 }),
+    L('scr4', 'scratch', 3, 'Keys and forever', 'when key pressed is a second hat: pressing that key starts its own script, even while the flag script is still going. forever repeats its blocks until you press ■ Stop, so it draws and answers keys for ever.', { k: 'predict', q: 'Right after you press the flag, before touching any key, what does the cat say?', code: 'when flag clicked\nsay Hello! for 1\nwhen key space pressed\nsay Jump! for 0.5', ans: ['Hello!'], hint: 'Only the flag script starts by itself.' }),
     /* ---------- Python ---------- */
     L('py1', 'python', 1, 'Say hello', 'print() shows text on the screen. Text goes in quotes: print("Hi").', { k: 'run', code: '# Make this print exactly: Hello, world!\n', expect: 'Hello, world!', must: ['print\\s*\\('], sol: 'print("Hello, world!")', hint: 'print("Hello, world!")' }),
     L('py2', 'python', 1, 'Variables', 'A variable is a name for a value: age = 36. You can do maths with it, and print() can show several things separated by commas.', { k: 'run', code: 'name = "Ada"\nage = 36\n# Print: Ada will be 37   (use the variables, and age + 1)\n', expect: 'Ada will be 37', must: ['age\\s*\\+\\s*1'], sol: 'name = "Ada"\nage = 36\nprint(name, "will be", age + 1)', hint: 'print(name, "will be", age + 1)' }),
@@ -856,6 +862,11 @@ const CodeLessons = (() => {
       ['Layout', 'flexbox; grid; position', 'h5 h25 h7 h26 hP2'],
       ['Responsive design', 'media queries; the viewport tag; relative units', 'h9 h27'],
       ['Polish', ':hover and states; transitions; CSS variables; animations; accessibility', 'h28 h30 h29 h31 hP3'],
+    ]),
+    scratch: U('scratch', [
+      ['Blocks and hats', 'scripts and hats; when flag clicked; when key pressed; say; order of blocks', 'scr1 scr2'],
+      ['Moving and drawing', 'move and turn; the pen; repeat; drawing shapes', 'scr3'],
+      ['Forever and keys', 'forever; keys; several scripts at once; stopping', 'scr4'],
     ]),
     sql: U('sql', [
       ['Reading data', 'SELECT; FROM; WHERE; ORDER BY; LIMIT; DISTINCT', 's1 s2 s5'],

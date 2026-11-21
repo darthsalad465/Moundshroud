@@ -2,10 +2,11 @@
 (() => {
   const root = $('p-notes'), collections = A.collectionSelect;
   let list = [], cur = null, saveT = null, dirty = false, preview = false, folder = '', changing = false, saving = Promise.resolve();
+  const inertSeen = new Set();
   root.innerHTML =
     '<div class="split"><div class="side"><div style="padding:8px"><div class="row"><input id="nq" type="text" placeholder="Filter notes..."><button class="pri" id="nnew" title="New note (Ctrl+N when in Notes)">+</button></div></div><div id="nselect"></div><div class="list" id="nlist" data-selection-area></div>' +
     '<div class="small mute" style="padding:8px 10px;border-top:1px solid var(--line)" id="nfold"></div></div>' +
-    '<div class="main"><div class="row" style="padding:8px 12px;gap:6px;flex-wrap:wrap" id="nbar"></div><div id="npath" class="small mute" style="padding:6px 12px 0;display:flex;gap:6px;align-items:center;overflow:hidden;white-space:nowrap;cursor:pointer" title="Where this note is saved"></div><textarea id="ne" placeholder="Pick a note on the left or press + to start a new one.&#10;&#10;Tip: write in plain text or Markdown (# headings, - lists, **bold**)."></textarea><div id="npv" class="m a" style="max-width:none;margin:0;border-radius:0"></div></div></div>';
+    '<div class="main"><div class="row" style="padding:8px 12px;gap:6px;flex-wrap:wrap" id="nbar"></div><div id="npath" class="small mute" style="padding:6px 12px 0;display:flex;gap:6px;align-items:center;overflow:hidden;white-space:nowrap;cursor:pointer" title="Where this note is saved"></div><textarea id="ne" placeholder="Pick a note on the left or press + to start a new one.&#10;&#10;Tip: write in plain text or Markdown (# headings, - lists, **bold**).&#10;&#10;Notes are stored as plain text on this PC. Nothing in a note runs unless you press Run, and Run uses the offline sandbox, so anything a note contains cannot reach this PC."></textarea><div id="npv" class="m a" style="max-width:none;margin:0;border-radius:0"></div></div></div>';
   const ne = $('ne');
   $('nselect').innerHTML = collections.toolbar('<button class="ib dang" data-selection="delete">Delete selected</button>');
   const selection = collections.bind(root, { delete: deleteGroup });
@@ -39,9 +40,10 @@
     const p = cur && cur.path;
     el.dataset.path = p || '';
     el.title = p ? 'Click to copy the full path' : 'New notes are saved as Markdown files in this folder';
-    el.innerHTML = p
+    el.innerHTML = (p
       ? '<span aria-hidden="true">📄</span><span>Saved as</span><code style="overflow:hidden;text-overflow:ellipsis">' + A.esc(p) + '</code>'
-      : '<span aria-hidden="true">📄</span><span>New note — will be saved in</span><code>' + A.esc(folder || 'Assistant Notes') + '</code>';
+      : '<span aria-hidden="true">📄</span><span>New note — will be saved in</span><code>' + A.esc(folder || 'Assistant Notes') + '</code>') +
+      (cur && cur.inert ? '<span class="badge" style="flex-shrink:0" title="This note keeps a name Windows would run (like .bat or .js), so it is stored as plain .txt. Nothing in it can start on this PC; ▶ Run still uses the offline sandbox.">🔒 inert text</span>' : '');
   }
   $('npath').onclick = () => { const p = $('npath').dataset.path; if (p) A.copy(p); };
   const renderPreview = text => {
@@ -150,8 +152,9 @@
       try {
         const r = await A.api('/api/notes/save', { id: cur?.id, title: cur?.title, content });
         if (!r.id) throw new Error(r.error);
-        cur = { id: r.id, title: r.title, path: r.path };
-        $('ntitle').textContent = r.title;
+        cur = { id: r.id, title: r.title, path: r.path, inert: !!r.inert };
+        $('ntitle').textContent = r.title; pathLine();
+        if (r.inert && !inertSeen.has(r.id)) { inertSeen.add(r.id); A.toast('Saved as inert text (.txt): nothing in this note can run on this PC.'); }
         await refresh(true);
       } catch (error) {
         dirty = true;
@@ -161,7 +164,7 @@
     try { await saving; } finally { saving = Promise.resolve(); }
   }
   function showNote(note) {
-    cur = note ? { id: note.id, title: note.title, path: note.path } : null;
+    cur = note ? { id: note.id, title: note.title, path: note.path, inert: !!note.inert } : null;
     ne.value = note?.content || '';
     preview = false;
     $('npv').style.display = 'none';
@@ -195,7 +198,7 @@
       const r = await A.api('/api/notes/rename', { id, title });
       if (!r.id) throw new Error(r.error || 'Could not rename the note.');
       if (cur?.id === id) {
-        cur = { id: r.id, title: r.title, path: r.path };
+        cur = { id: r.id, title: r.title, path: r.path, inert: !!r.inert };
         ne.value = r.content;
         if (preview) $('npv').innerHTML = renderPreview(ne.value);
         bar();
@@ -220,7 +223,8 @@
   A.notes = {
     async create(title, content) {
       await flush(); const r = await A.api('/api/notes/save', { title, content: content.startsWith('#') ? content : '# ' + title + '\n\n' + content });
-      await refresh(true); A.showTab('notes'); await open(r.id); A.toast('Saved to Notes');
+      await refresh(true); A.showTab('notes'); await open(r.id);
+      A.toast(r.inert ? 'Saved to Notes as inert text (.txt): it cannot run on this PC.' : 'Saved to Notes');
     },
     async openByPath(p) {
       await refresh(true);

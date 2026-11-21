@@ -19,7 +19,8 @@
   const fileShells = ['bash', 'powershell', 'cmd'];
   const sampleFiles = 'fragments/part1.txt = FLAG{\nfragments/part2.txt = CUSTOM_\nfragments/part3.txt = PUZZLE}\nREADME.txt = Combine all three fragments in fragments/!';
   const field = (label, control) => '<label class="small" style="display:grid;gap:3px;min-width:0">' + label + control + '</label>';
-  const RESET = { bash: 'reset', powershell: 'Reset', cmd: 'reset', python: 'reset()', node: 'clear', sql: 'RESET;', git: 'git reset-sandbox', docker: 'reset', network: 'reset', crypto: 'reset' };
+  const RESET = { bash: 'reset', powershell: 'Reset', cmd: 'reset', python: 'reset()', node: 'clear', sql: 'RESET;', git: 'git reset-sandbox', docker: 'reset', network: 'reset', crypto: 'reset', pentest: 'reset-target', remote: 'reset-range' };
+  /* the two Security ranges practise their own objectives; the Labyrinth and Puzzle Studio cover the ten terminals */
   const labDepthOf = id => {
     try { const v = JSON.parse(localStorage.getItem('tplab_' + id) || '{}'); return Math.max(1, v.depth | 0 || 1); } catch (e) { return 1; }
   };
@@ -183,7 +184,7 @@
     }
 
     function puzSession(id, forceNew, customSpec, seedOverride, extraLayers) {
-      if (!PUZ) return null;
+      if (!PUZ || !PUZ.CATEGORIES?.[id]) return null;
       if (forceNew || !S.puzSessions[id]) {
         const saved = !forceNew && TP.readSave(puzzleSaveKey(id));
         const generation = saved?.generated;
@@ -206,7 +207,7 @@
     }
 
     const labSession = id => {
-      if (!LAB || !LAB.session) return null;
+      if (!LAB || !LAB.session || !Array.isArray(LAB.flavors) || !LAB.flavors.includes(id)) return null;
       if (!S.lab[id]) {
         const session = S.lab[id] = LAB.session(id);
         if (session.depth() < labNoteDepth) {
@@ -235,8 +236,11 @@
           const sh = byId(id);
           S.logs[key] = [
             { k: 'dim', t: sh.about },
-            { k: 'dim', t: 'Type help for commands, job start for an assignment, or curios for the discovery journal.' }
+            { k: 'dim', t: sh.range
+              ? 'A simulated, offline range: every host, account, file and flag is invented. Type help for the commands, targets for scope, status for the objectives.'
+              : 'Type help for commands, job start for an assignment, or curios for the discovery journal.' }
           ];
+          if (sh.range) S.logs[key].push({ k: 'dim', t: sh.run('status') });
           if (sh.jobs?.().active) S.logs[key].push({ k: 'dim', t: sh.run('job status') });
         }
       }
@@ -623,6 +627,47 @@
         draw();
       }
     }
+    /* Any scenario, any size: the local model writes the story, the files and the key, the builder pads the room to the
+       file count the player asked for. The room is a normal custom puzzle, so ls/cd/cat/grep/find all work in it. */
+    async function askAiPuzzle() {
+      const q = ($('puzaiq') && $('puzaiq').value || '').trim();
+      if (!q) { if (A.toast) A.toast('Describe the scenario you want first.'); return; }
+      const maxFiles = PUZ.ROOM_FILES_MAX || 20000;
+      const size = Math.max(1, Math.min(maxFiles, Math.trunc(Number($('puzaisize') && $('puzaisize').value)) || 40));
+      const model = (document.getElementById('model') || {}).value || ls.get('model', '');
+      S.puzAi = { busy: true, msg: 'Asking ' + (model || 'the local model') + ' for a ' + size + '-file room…' };
+      draw();
+      const stop = typeof AbortController === 'function' ? new AbortController() : null;
+      const timer = stop ? setTimeout(() => stop.abort(), 240000) : null;
+      try {
+        const r = await fetch('/api/chat', { method: 'POST', signal: stop ? stop.signal : undefined, body: JSON.stringify({
+          model, stream: false, think: false, keep_alive: '3m', format: 'json',
+          messages: [
+            { role: 'system', content: 'You invent complete fictional terminal puzzles. Fiction only, invented people and organisations only, never a real company, agency or person. Answer with JSON.' },
+            { role: 'user', content: PUZ.aiPlanPrompt(q, size) }
+          ]
+        }) });
+        const j = await r.json();
+        if (timer) clearTimeout(timer);
+        const plan = PUZ.parseAiPlan(String((j.message && j.message.content) || j.response || ''));
+        if (!plan || !plan.answer) throw new Error('the reply had no key to check');
+        if (!Object.keys(plan.files).length) throw new Error('the reply had no files');
+        const item = PUZ.addCustom(PUZ.buildAiRoom(plan, { shell: S.shell, difficulty: S.puzDiff, files: size }));
+        const made = Object.keys(item.files || {}).length;
+        S.puzAi = { busy: false, msg: '' };
+        S.mode = 'puzzle'; ls.set('tpg_mode', S.mode); S.filter = '';
+        S.puzDiff = item.difficulty; S.puzCat = 'auto';
+        ls.set('tpg_pdiff', S.puzDiff);
+        puzSession(S.shell, true, item);
+        if (A.toast) A.toast('AI puzzle loaded · ' + made + ' files. Work in the room, then type: solve <answer>');
+        draw();
+      } catch (e) {
+        if (timer) clearTimeout(timer);
+        S.puzAi = { busy: false, msg: 'The model did not answer usefully (' + ((e && e.message) || e) + '). Try again, or describe it more simply.' };
+        draw();
+      }
+    }
+
     function scenarioClick(act, name) {
       const editor = $('tpgscentext'), title = $('tpgscenname');
       if (act === 'labcustom') { labs.mode = 'custom'; labs.msg = ''; return draw(); }
@@ -742,6 +787,7 @@
     function puzzlePanel() {
       if (!PUZ) return '<div style="' + box + ';padding:8px" class="small mute">Puzzle studio not loaded.</div>';
       const s = puzSession(S.shell);
+      if (!s) return '<div style="' + box + ';padding:8px" class="small mute">Puzzle Studio covers the ten standard terminals. A Security range has its own objectives in Sandbox mode.</div>';
       const pz = s.puzzle;
       S.puzDiff = pz.difficulty;
       S.puzCat = pz.generation?.category || 'auto';
@@ -780,6 +826,18 @@
           '<input id="puzseed" placeholder="Load seed code…" autocomplete="off" style="flex:1;min-width:0;font-size:11px;' + mono + '">' +
           '<button class="ib" data-act="puzloadseed" style="font-size:11px;padding:3px 7px">Load</button>' +
         '</div>' +
+        '<div style="margin-top:8px;border-top:1px solid var(--line);padding-top:7px">' +
+          '<div class="small" style="font-weight:600;margin-bottom:3px">🤖 Describe any scenario</div>' +
+          '<div class="small mute" style="font-size:10.5px;margin-bottom:4px">Say what you want to do in the terminal — a heist, a lost server, a museum at night. The local model writes the room and the key.</div>' +
+          '<textarea id="puzaiq" rows="3" placeholder="e.g. A night guard at a lighthouse needs the passphrase hidden in the assistant keeper’s logs." style="font-size:12px;resize:vertical"></textarea>' +
+          '<div class="row" style="gap:5px;margin-top:4px;align-items:center">' +
+            '<span class="small mute" style="font-size:11px">size</span>' +
+            '<input id="puzaisize" type="number" min="1" max="' + PUZ.ROOM_FILES_MAX + '" value="40" style="width:78px;font-size:11.5px" title="How many files the room gets — as many as you want">' +
+            '<span class="small mute" style="font-size:11px">files</span><span style="flex:1"></span>' +
+            '<button class="pri" data-act="puzai" style="padding:4px 9px;font-size:12px"' + (S.puzAi && S.puzAi.busy ? ' disabled' : '') + '>✨ Build room</button>' +
+          '</div>' +
+          (S.puzAi && S.puzAi.msg ? '<div class="small mute" style="font-size:10.5px;margin-top:4px;line-height:1.45">' + esc(S.puzAi.msg) + '</div>' : '') +
+        '</div>' +
         '<div class="small mute" style="margin-top:6px;font-size:11px">Solved: <b>' + st.solved + '</b> · 🔥 ' + st.streak + ' (🟢' + st.byDiff.easy + ' 🟡' + st.byDiff.medium + ' 🟠' + st.byDiff.hard + ' 🔴' + st.byDiff.insane + ')</div>' +
         (customList.length ? '<div style="margin-top:7px;border-top:1px solid var(--line);padding-top:6px"><div class="small mute" style="font-size:10.5px;margin-bottom:4px">YOUR CUSTOM PUZZLES (' + customList.length + ')</div>' +
           '<div style="max-height:180px;overflow:auto">' +
@@ -814,8 +872,8 @@
             '<span style="flex:1"></span>' +
             '<div class="row" style="gap:4px;align-items:center">' +
               '<button class="ib' + (S.mode === 'sandbox' ? ' on' : '') + '" data-mode="sandbox">🧪 Sandbox</button>' +
-              '<button class="ib' + (puz ? ' on' : '') + '" data-mode="puzzle">🧩 Puzzles</button>' +
-              '<button class="ib' + (lab ? ' on' : '') + '" data-mode="lab">🌀 Labyrinth</button>' +
+              '<button class="ib' + (puz ? ' on' : '') + '" data-mode="puzzle"' + (supportsPuzzle(S.shell) ? '' : ' title="Puzzle Studio covers the ten standard terminals"') + (supportsPuzzle(S.shell) ? '' : ' aria-disabled="true"') + '>🧩 Puzzles</button>' +
+              '<button class="ib' + (lab ? ' on' : '') + '" data-mode="lab"' + (supportsLab(S.shell) ? '' : ' title="The Labyrinth covers the ten standard terminals"') + (supportsLab(S.shell) ? '' : ' aria-disabled="true"') + '>🌀 Labyrinth</button>' +
             '</div>' +
           '</div>' +
           '<div class="row" style="gap:8px;align-items:center;margin-top:6px"><span id="tpggroup" class="small mute"></span><span style="flex:1"></span><span id="tpgcount" class="small mute"></span></div>' +
@@ -961,9 +1019,17 @@
         }).join('') + '</div>').join('');
     }
 
+    const supportsLab = id => !!(LAB && Array.isArray(LAB.flavors) && LAB.flavors.includes(id));
+    const supportsPuzzle = id => !!(PUZ && PUZ.CATEGORIES?.[id]);
+
     function switchShell(id) {
       if (!byId(id)) return;
       if (id !== S.shell) guestMcode = null;
+      /* a Security range has its own objectives, so it opens in Sandbox mode rather than an empty room */
+      if ((S.mode === 'lab' && !supportsLab(id)) || (S.mode === 'puzzle' && !supportsPuzzle(id))) {
+        S.mode = 'sandbox';
+        ls.set('tpg_mode', S.mode);
+      }
       S.shell = id;
       ls.set('tpg_shell', id);
       S.filter = '';
@@ -975,6 +1041,8 @@
 
     function switchMode(mode) {
       if (mode === S.mode) return;
+      if (mode === 'lab' && !supportsLab(S.shell)) { if (A.toast) A.toast('The Labyrinth descends the ten standard terminals. A Security range has its own objectives.'); return; }
+      if (mode === 'puzzle' && !supportsPuzzle(S.shell)) { if (A.toast) A.toast('Puzzle Studio generates puzzles for the ten standard terminals. A Security range has its own objectives.'); return; }
       guestMcode = null;
       S.mode = mode === 'lab' ? 'lab' : mode === 'puzzle' ? 'puzzle' : 'sandbox';
       ls.set('tpg_mode', S.mode);
@@ -1062,19 +1130,48 @@
       refreshMcode();
     }
 
+    /* Some commands are silent by design: chmod prints nothing when it succeeds, and a pipeline that ends in cat/head/grep
+       prints nothing when the command before it printed nothing. On a screen that reads as a broken terminal, so a silent
+       line gets a grey explanation of its own — never styled as if the program had printed it. */
+    function quietHint(command) {
+      const line = String(command || '').trim();
+      if (!line) return '';
+      const pipe = line.split('|');
+      const head = (pipe[0] || '').trim();
+      const perm = /^chmod(?:\s|$)/i.test(head);
+      const operands = perm ? head.split(/\s+/).slice(1).filter(word => !word.startsWith('-')) : [];
+      const target = operands.length > 1 ? operands[1] : '';
+      if (pipe.length > 1) {
+        const name = (pipe[1].trim().split(/\s+/)[0] || 'cat').toLowerCase();
+        if (perm) return '(no output: chmod changes permissions silently, and ' + name + ' only prints what it is given — the pipe carried nothing.' +
+          (target ? ' Read the file itself: cat ' + target : '') + ')';
+        return '(no output: the command before the pipe printed nothing, so ' + name + ' had nothing to work on. ' +
+          name + ' prints a file you name, or text piped into it.)';
+      }
+      if (perm) return '(chmod prints nothing when it succeeds' + (target ? ' — run ls -l ' + target + ' to see the new mode' : '') + '.)';
+      const read = /^(?:sudo\s+)?(cat|type|more|less|head|tail|grep|nl|xxd|od|base64)\s+(.*)$/i.exec(line);
+      if (read) {
+        const file = read[2].split(/\s+/).filter(word => !word.startsWith('-')).pop() || '';
+        return '(' + read[1].toLowerCase() + ' printed nothing' + (file ? ': ' + file + ' is empty — ls -l shows its size' : '') + '.)';
+      }
+      return '';
+    }
+
     function exec(line, shellOnly = false) {
       /* Safety net: no command may leave the coach panel blank. */
       explained = false;
       const before = curLog().length;
       const out = execLine(line, shellOnly);
       const cmd = String(line == null ? '' : line).trim();
-      if (!cmd || explained) return out;
       const printed = curLog().slice(before).filter(entry => entry.k !== 'cmd').map(entry => entry.t).join('\n').trim();
       const text = printed || (typeof out === 'string' ? out.trim() : '');
+      const hint = text ? '' : quietHint(cmd);
+      if (hint) { curLog().push({ k: 'dim', t: hint }); paintOut(); }
+      if (!cmd || explained) return out;
       coachNote({
         title: text ? 'Command handled' : 'Command ran without printing text', kind: 'neutral', command: cmd.slice(0, 420),
         why: [text ? 'The terminal printed: ' + text.split('\n').find(line => line.trim()).trim().slice(0, 300) :
-          'The command was handled by the terminal and printed no text. Check the prompt for the state it left behind.'],
+          hint || 'The command was handled by the terminal and printed no text. Check the prompt for the state it left behind.'],
         next: ['Type help to see the commands this terminal accepts.']
       });
       return out;
@@ -1192,7 +1289,8 @@
       // Shells without files (Python, SQL, git...) keep a small note filesystem of their own for the same commands.
       const files = discoveryTree();
       if (canDiscoverNote && files) note().mount(files.tree, files.home, files.win);
-      const discovery = !canDiscoverNote || shellOnly === 'agent' ? null : files ? note().payload(cmd) :
+      /* a Security range is not a file sandbox: its own commands own every word, including ls/cat/grep */
+      const discovery = !canDiscoverNote || sh.range || shellOnly === 'agent' ? null : files ? note().payload(cmd) :
         /^(?:ls|ll|dir|tree|cat|type|more|less|head|tail|grep|wc|find|stat|file|chmod|cd|pwd|decode|base64|hex|xxd|rot13|rev|reverse|echo|printf|get-childitem|get-content|set-location|get-location)(?:\s|$)/i.test(cmd) ? note().command(cmd) : null;
       if (discovery) {
         log.push({ k: 'cmd', t: currentPrompt() + cmd });
@@ -1446,6 +1544,7 @@
       else if (b.dataset.act === 'puzwalk') exec('walkthrough', true);
       else if (b.dataset.act === 'puzcheck') { const a = $('puzans'); if (a && a.value.trim()) { exec('solve ' + a.value.trim(), true); a.value = ''; } }
       else if (b.dataset.act === 'puzcreate' && PUZ) { S.puzEditor = {}; draw(); }
+      else if (b.dataset.act === 'puzai' && PUZ) { askAiPuzzle(); return; }
       else if (b.dataset.act === 'puzcustomize' && PUZ) {
         const base = puzSession(S.shell).puzzle;
         const saved = base.custom && PUZ.loadCustom().find(item => item.id === base.id);
@@ -1513,9 +1612,9 @@
   }
 
   P.games.terminal_playground = {
-    name: 'Terminal playground · 10 shells',
+    name: 'Terminal playground · 10 shells + pentest ranges',
     icon: '🧪',
-    desc: 'Ten simulated terminals with free play, repeatable practice jobs, hidden curios, custom puzzles, and an endless Labyrinth.',
+    desc: 'Ten simulated terminals with free play, repeatable practice jobs, hidden curios, custom puzzles and an endless Labyrinth, plus two offline Security ranges: breach a fake website or take remote access to invented PCs.',
     cat: 'cyber',
     mount: (el, api) => mount(el, api)
   };

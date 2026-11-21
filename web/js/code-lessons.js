@@ -2,7 +2,8 @@
 // Each language is a map of units from first steps to expert (UNITS in code-lessons-data.js). A unit has hand-written lessons,
 // 🛠 mini projects, a 👑 boss (a mixed test that unlocks the next unit) and 🤖 AI topics: the local AI teaches any topic in the unit
 // and writes practice questions on it. ⚡ Speed rounds are 60 seconds of quick-fire questions. Ranks and 🎖 badges reward progress.
-// Python and JavaScript run in the chat's sandbox (web/js/interp.js); HTML and CSS show a live preview with scripts switched off;
+// Python and JavaScript run in the chat's sandbox (web/js/interp.js); HTML runs on the sandboxed Screen (web/js/code-stage.js)
+// with scripts on and no network, so games can be played, and JavaScript can be run as a page there too (canvas, keyboard, games);
 // the other languages use "what does it print", "fix the bug", "fill the blank" and multiple choice, checked against stored answers.
 // Code boxes act like an editor: Enter is a new line that keeps the indent, Ctrl+Enter runs or checks (keyboard.js leaves [data-ownkeys] alone).
 // 🧪 Playground: 84 languages listed in code-playground-langs.js. Python, JavaScript, HTML and SQL run in the browser; esoteric
@@ -36,7 +37,7 @@
   /* Python, JavaScript and HTML run here; every language can be explained by the AI */
   const RUNS = { python: 'python', javascript: 'js', html: 'html' };
   /* the editor's own language name (web/js/code-ed.js), so a lesson's code is coloured in its real language */
-  const ceLang = id => ({ python: 'py', javascript: 'js', html: 'html', css: 'css', bash: 'sh', shell: 'sh', sql: 'sql', json: 'json', nodejs: 'js', typescript: 'js', jscript: 'js' }[id] || 'txt');
+  const ceLang = id => ({ python: 'py', javascript: 'js', html: 'html', scratch: 'txt', css: 'css', bash: 'sh', shell: 'sh', sql: 'sql', json: 'json', nodejs: 'js', typescript: 'js', jscript: 'js' }[id] || 'txt');
   const COMMENT = { python: '#', bash: '#', powershell: '#', ruby: '#', sql: '--', lua: '--', asm: ';', html: '' };
   const keysTip = what => '<div class="small mute cl-keys"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> ' + what + ' · <kbd>Enter</kbd> new line (keeps the indent) · <kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd> indent · <kbd>Ctrl</kbd>+<kbd>/</kbd> comment · <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo</div>';
   /* make a textarea behave like a code editor. Edits go through insertText so Ctrl+Z and Ctrl+Y still undo and redo them.
@@ -90,7 +91,8 @@
   }
   function home() {
     const s = load();
-    return '<div class="dw-gateway"><div><b>Debug workshop</b><small>Trace a broken program, edit its JavaScript and run the repair against five cases.</small></div><button class="ib" data-cl="workshop">Open a repair ticket →</button></div>' + rankCard(s) +
+    return '<div class="dw-gateway"><div><b>Debug workshop</b><small>Endless repair tickets in 82 languages at three difficulty levels: real broken functions for JavaScript and Python (run against test cases), and one quietly changed token to find in every other language.</small></div><button class="ib" data-cl="workshop">Open a repair ticket →</button></div>' + rankCard(s) +
+      '<div class="cl-card cl-lang" data-cl="slab" style="margin-bottom:12px"><div class="row" style="gap:12px;align-items:center"><div style="font-size:28px">🦠</div><div style="flex:1"><b>Sample lab</b><div class="small mute" style="line-height:1.45">Paste or drop a suspicious file and read what it is and what it says it does — hashes, sections, scripts, addresses, registry keys. Nothing runs; behaviour comes only from a disposable Windows Sandbox VM.</div></div><span class="small" style="color:var(--acc)">Open →</span></div></div>' +
       '<div class="cl-card cl-lang" data-cl="play" style="margin-bottom:12px"><div class="row" style="gap:12px;align-items:center"><div style="font-size:28px">🧪</div><div style="flex:1"><b>Code playground</b><div class="small mute" style="line-height:1.45">' + (window.PlayLangs ? PlayLangs.LANGS.length + ' languages, from Python and C to Brainfuck and Shakespeare. ' : '') + 'Run programs offline, preview HTML and CSS, or ask the AI to explain your code.</div></div><span class="small" style="color:var(--acc)">Open →</span></div></div>' +
       '<div class="cl-grid">' + C.LANGS.map(x => { const ls2 = C.byLang(x.id), d = ls2.filter(l => s.done[l.id]).length, us = C.unitsOf(x.id), bb = us.filter(u => s.boss[u.id]).length; return '<div class="cl-card cl-lang" data-cl="lang" data-id="' + x.id + '"><div style="font-size:26px">' + x.ic + '</div><b>' + esc(x.n) + '</b>' + (x.run ? ' <span class="small" style="color:var(--acc)">runs here</span>' : '') + '<div class="small mute" style="margin-top:4px;line-height:1.45">' + esc(x.about) + '</div>' + bar(d, ls2.length) + '<div class="small mute">' + us.length + ' units · ' + d + ' of ' + ls2.length + ' lessons' + (bb ? ' · 👑 ' + bb : '') + '</div></div>'; }).join('') + '</div>';
   }
@@ -124,10 +126,31 @@
     if (ex.k === 'choice') return '<b>' + esc(ex.q) + '</b>' + (ex.code ? codeWithLines(ex.code) : '') + ex.opts.map((o, k) => '<button class="ib cl-opt" data-cl="pick" data-i="' + k + '">' + esc(o) + '</button>').join('');
     return '';
   }
+  /* ----- Scratch lessons get the real block editor, not a textarea: the lesson's script arrives as blocks ----- */
+  function scratchStart(l) {
+    const ex = (l && l.ex) || {};
+    if (ex.sol) return ex.sol;
+    let k = 0;
+    return String(ex.code || '').replace(/___/g, () => {
+      const a = (ex.ans && ex.ans[k++]) || [];
+      return a[0] || '___';
+    });
+  }
+  function scratchLessonBody(l) {
+    return '<div class="cl-card"><b>🧩 Build it with blocks</b>' +
+      '<div class="small mute" style="margin:4px 0 8px">The same drag-and-drop editor as the Playground, loaded with this lesson\'s script. Drag blocks in, move them about, nest them in a repeat, then run it and watch the cat.</div>' +
+      '<textarea id="clscode" aria-label="Scratch script" spellcheck="false" style="display:none">' + esc(scratchStart(l)) + '</textarea>' +
+      '<div id="clscrblocks"></div>' +
+      '<div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap"><button class="pri" data-cl="scrrun">▶ Run on the screen</button><button class="ib" data-cl="scrstop" hidden>■ Stop</button><button class="ib" data-cl="scrreset">↺ Lesson script</button></div>' +
+      '<div class="small mute" style="margin-top:8px">Screen · the cat follows your blocks; click the screen, then use the keys</div>' +
+      '<pre class="cl-pre" id="clscrout" role="status" style="min-height:2em"></pre>' +
+      '<div id="clscrstage" style="margin-top:8px"></div></div>';
+  }
   function lessonPage() {
     const l = curL; if (!l) return home(); const x = langOf(l.lang), u = C.unitOf(l.id), list = u ? C.unitLessons(u) : C.byLang(l.lang), i = list.indexOf(l), done = load().done[l.id];
     return '<div class="row" style="gap:8px;margin-bottom:10px;flex-wrap:wrap"><button class="ib" data-cl="lang" data-id="' + l.lang + '">← ' + esc(x.n) + '</button><span class="small mute">' + (u ? 'Unit ' + u.n + ' · ' + esc(u.t) + ' · ' : '') + C.LEVELS[l.lv] + ' · ' + (l.proj ? '🛠 mini project' : 'lesson ' + (i + 1) + ' of ' + list.length) + (done ? ' · ✅ done' : '') + '</span></div>' +
-      '<div class="cl-card"><b style="font-size:18px">' + (l.proj ? '🛠️' : x.ic) + ' ' + esc(l.t) + '</b><div style="margin-top:6px;line-height:1.6">' + esc(l.teach) + '</div></div><div class="cl-card">' + exBody(l, true) + '<div id="clfb"></div></div>';
+      '<div class="cl-card"><b style="font-size:18px">' + (l.proj ? '🛠️' : x.ic) + ' ' + esc(l.t) + '</b><div style="margin-top:6px;line-height:1.6">' + esc(l.teach) + '</div></div><div class="cl-card">' + exBody(l, true) + '<div id="clfb"></div></div>' +
+      (l.lang === 'scratch' ? scratchLessonBody(l) : '');
   }
 
   /* ----- 👑 boss: a few of the unit's lessons, mixed, one at a time, no hints ----- */
@@ -267,43 +290,59 @@
   /* ----- Code Playground: the languages and their examples are in web/js/code-playground-langs.js ----- */
   const PL = window.PlayLangs, PKEY = 'codeplay';
   const plangOf = id => PL.byId(id) || PL.byId('python');
-  const MINI = ['scheme', 'prolog', 'forth', 'basic'];
-  /* what the server can run, from GET /api/code-playground/status: {local: {id: true}, docker: [ids], dockerInstalled} */
+  const MINI = PL.MINI;
+  /* what the server can run, from GET /api/code-playground/status:
+     { sandbox: {available, languages}, docker: {installed, running, image, ready, reason}, backend: {id: 'windows-sandbox'|'docker'} } */
+  const noStatus = () => ({ sandbox: { available: false, languages: [] }, docker: { installed: false, running: false, image: false, ready: false }, backend: {} });
   let pstat = null, pstatAsk = null;
   function askStatus() {
     if (pstat || pstatAsk) return;
-    pstatAsk = fetch('/api/code-playground/status').then(r => r.json()).then(s => { pstat = s && s.local ? s : { local: {}, docker: [] }; })
-      .catch(() => { pstat = { local: {}, docker: [], failed: true }; })
+    pstatAsk = fetch('/api/code-playground/status').then(r => r.json()).then(s => {
+      pstat = s && s.sandbox && s.docker && s.backend ? s : noStatus();
+    }).catch(() => { pstat = noStatus(); pstat.failed = true; })
       .finally(() => { pstatAsk = null; if (view === 'play' && !prun) draw(); });
   }
-  /* where a language runs now: app, mini, eso, pc, docker or none (with the reason) */
-  function where(l) {
-    if (['py', 'js', 'html', 'sql', 'binary'].includes(l.run)) return { g: 'app' };
-    if (l.run === 'eso') return { g: MINI.includes(l.id) ? 'mini' : 'eso' };
-    if (l.run === 'local' && !pstat) return { g: 'pc', checking: true };
-    if (l.run === 'local' && pstat.local[l.id]) return { g: 'pc' };
-    const dock = PL.DOCKER.includes(l.id);
-    if (dock && pstat && pstat.dockerInstalled) return { g: 'docker' };
-    const why = l.why || (l.run === 'local' ? 'The tools it needs are not installed on this PC.' : PL.NOTOOL);
-    return { g: 'none', why: why + (dock ? ' It can run in the Playground\'s Docker image, but Docker is not installed.' : '') };
-  }
+  /* where a language runs now: app, mini, eso, pc (Windows Sandbox), docker or none (with the reason). The rules live
+     in code-playground-langs.js so every language always has a reason, including while the status is still loading. */
+  function where(l) { return PL.route(l, pstat); }
   const pload = () => {
     let state;
     try { state = JSON.parse(ls.get(PKEY, '{}')); } catch (e) { }
     const obj = v => v && typeof v === 'object' && !Array.isArray(v) ? v : {};
-    return { lang: PL.byId(state?.lang) ? state.lang : 'python', code: obj(state?.code), inp: obj(state?.inp) };
+    return { lang: PL.byId(state?.lang) ? state.lang : 'python', code: obj(state?.code), inp: obj(state?.inp), page: !!state?.page };
   };
-  let plang = pload().lang, plast = null, pctl = null, prun = null;
+  let plang = pload().lang, plast = null, pctl = null, prun = null, pstage = null, ptpStop = null;
   const pstore = s => { try { ls.set(PKEY, JSON.stringify(s)); } catch (e) { } };
   const playSave = code => { const s = pload(); s.lang = plang; s.code[codeKey()] = String(code).slice(0, 50000); pstore(s); };
   const inputSave = text => { const s = pload(); s.inp[plang] = String(text).slice(0, 20000); pstore(s); };
   /* the AI reply as safe HTML: everything escaped, then code blocks, `code` and **bold** */
   const fmt = t => String(t || '').split(/```[^\n`]*\n?([\s\S]*?)(?:```|$)/).map((p, i) => i % 2 ? '<pre class="cl-pre">' + esc(p.replace(/\n$/, '')) + '</pre>' : esc(p).replace(/`([^`\n]+)`/g, '<code>$1</code>').replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>').replace(/^#{1,4} +(.+)$/gm, '<b>$1</b>').replace(/\n/g, '<br>')).join('');
   function playNote(x, w) {
-    if (w.g === 'none') return '<div class="cl-pnote cl-pno" id="plnote">⛔ <b>' + esc(x.n) + ' cannot run here.</b> ' + esc(w.why) + ' The example shows what it looks like, and 🧠 Explain still works.</div>';
-    if (w.g === 'pc') return '<div class="cl-pnote" id="plnote">💻 ' + (w.checking ? 'Checking this PC for its tools… ' : '') + esc(x.how || '') + ' It runs on this PC as your Windows user, with no container, like a program started from a terminal.</div>';
-    if (w.g === 'docker') return '<div class="cl-pnote" id="plnote">🐳 Runs in the Playground\'s Docker image, with no network. ' + esc(x.how || '') + '</div>';
+    if (w.checking) return '<div class="cl-pnote" id="plnote">🛡️ Checking which safe sandboxes are available…</div>';
+    if (w.g === 'none') return '<div class="cl-pnote cl-pno" id="plnote">⛔ <b>' + esc(x.n) + ' cannot run safely here.</b> ' + esc(w.why) + ' The example shows what it looks like, and 🧠 Explain still works.</div>';
+    if (w.g === 'pc') return '<div class="cl-pnote" id="plnote">🛡️ ' + esc(x.how || '') + ' Runs in <b>Windows Sandbox</b>: a disposable, isolated Windows VM with networking, clipboard, printer and camera/microphone sharing turned off. The first run can take a minute while it starts.</div>';
+    if (w.g === 'docker') return '<div class="cl-pnote" id="plnote">🐳 ' + esc(x.how || '') + ' Runs in the Playground\'s <b>Docker sandbox</b>: no network, read-only filesystem, unprivileged user, 1 GB memory and a time limit.' + (x.id === 'powershell' ? ' This is Linux PowerShell 7, not Windows PowerShell.' : '') + '</div>';
     return x.how ? '<div class="cl-pnote" id="plnote">' + (w.g === 'eso' || w.g === 'mini' ? '🧩 ' : '') + esc(x.how) + '</div>' : '';
+  }
+  /* One-time setup for the safe backends. Shown only when it can actually help: the language needs Windows
+     Sandbox or Docker, and that backend is not ready right now (or PowerShell is running in Docker and the
+     learner might want Windows PowerShell instead). */
+  function setupHTML(x, w) {
+    if (w.checking) return '';
+    const sb = PL.SANDBOX.includes(x.id), dkLang = PL.DOCKER.includes(x.id);
+    const dk = (pstat && pstat.docker) || {};
+    const parts = [];
+    if (sb && w.g !== 'pc') {
+      parts.push('<b>Windows Sandbox</b>: on Windows 11 Pro, Enterprise or Education, open <i>Turn Windows features on or off</i>, tick <b>Windows Sandbox</b>, restart, then reopen the app. It needs administrator rights. Runs happen in a disposable VM with networking, clipboard, printer and camera/microphone sharing turned off.');
+    }
+    if (dkLang && w.g !== 'docker') {
+      const lead = dk.installed && !dk.running ? 'Docker is installed. Start Docker Desktop and wait until it says the engine is running.'
+        : dk.running && !dk.image ? 'Docker is running. From the app folder, build the Playground image once:'
+          : 'Install Docker Desktop and start it in Linux container mode. Then, from the app folder, build the Playground image once:';
+      parts.push('<b>Docker</b>: ' + lead + ' <code>docker build --platform=linux/amd64 -t moundshroud-code-playground:1 lib/code-playground</code> After that, Docker runs work offline with no network.');
+    }
+    if (!parts.length) return '';
+    return '<details class="small mute" id="plruntime"' + (w.g === 'none' ? ' open' : '') + '><summary>Safe runtime setup</summary>' + parts.map(p => '<p style="margin:6px 0">' + p + '</p>').join('') + '</details>';
   }
   /* ----- Playground modes, like the Terminal playground: 🧪 Sandbox, 🧩 Challenges (code-challenges.js) and 🌀 Code Labyrinth ----- */
   const CC = window.CodeChallenges, CKEY = 'codechal';
@@ -399,28 +438,56 @@
   function playPage() {
     const ch = curChal(); if (ch && ch.lang) plang = ch.lang;
     const x = plangOf(plang), st = pload(), code = st.code[codeKey()], html = x.run === 'html', w = where(x);
+    const pageMode = !!(st.page && x.run === 'js'), scratch = x.run === 'scratch', stageMode = html || pageMode || scratch;
     const blank = pmode === 'sandbox' ? x.ex : x.cm ? x.cm + ' Print the answer to the puzzle above.\n' : '';
-    const opts = PL.GROUPS.map(([g, label]) => {
-      const ls2 = PL.LANGS.filter(l => where(l).g === g);
+    /* shells sit in their own group: they open the Terminal playground, whatever the sandbox status says */
+    const groups = PL.GROUPS.slice(); groups.splice(1, 0, ['term', 'Opens the Terminal playground']);
+    const groupOf = l => l.term ? 'term' : where(l).g;
+    const opts = groups.map(([g, label]) => {
+      const ls2 = PL.LANGS.filter(l => groupOf(l) === g);
       return ls2.length ? '<optgroup label="' + esc(label + ' (' + ls2.length + ')') + '">' + ls2.map(l => '<option value="' + l.id + '"' + (l.id === plang ? ' selected' : '') + '>' + l.ic + ' ' + esc(l.n) + '</option>').join('') + '</optgroup>' : '';
     }).join('');
-    const runnable = PL.LANGS.filter(l => where(l).g !== 'none').length;
+    const runnable = PL.LANGS.filter(l => l.term || where(l).g !== 'none').length;
     const inp = typeof st.inp[plang] === 'string' ? st.inp[plang] : x.inp || '';
+    /* shells are not compiled here: they open the Terminal playground, a simulated machine with its own files */
+    if (x.term) return back('home', '', 'All languages') +
+      '<div class="cl-card"><b style="font-size:19px">🧪 Code playground</b><div class="small mute" style="margin-top:4px">' + PL.LANGS.length + ' languages, ' + runnable + ' of them can run safely here, offline.</div></div>' +
+      '<div class="cl-card"><div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><label class="small">Language <select id="plang" aria-label="Language">' + opts + '</select></label></div>' +
+      '<div class="small mute" style="margin-bottom:8px">🖥 <b>' + esc(x.n) + '</b> opens the <b>Terminal playground</b> below: a simulated computer with its own files and services. Commands really work there and nothing on this PC is touched. Pick another language above to write and run a program instead.</div>' +
+      '<div id="cltp"></div>' +
+      (w.g === 'none' ? '<div class="small mute" style="margin-top:8px">' + esc(w.why) + ' The simulated terminal does not need ' + (w.checking ? 'anything else' : 'that') + ' and always works.</div>' : '') +
+      '</div>';
     return back('home', '', 'All languages') +
-      '<div class="cl-card"><b style="font-size:19px">🧪 Code playground</b><div class="small mute" style="margin-top:4px">' + PL.LANGS.length + ' languages, ' + runnable + ' of them run here, offline.</div>' + modeTabs() + '</div>' +
+      '<div class="cl-card"><b style="font-size:19px">🧪 Code playground</b><div class="small mute" style="margin-top:4px">' + PL.LANGS.length + ' languages, ' + runnable + ' of them can run safely here, offline.</div>' +
+      '<div class="small mute" style="margin-top:6px">🛡️ Safe mode: Python and JavaScript run in a sealed browser worker; native code runs only inside Windows Sandbox or Docker. Nothing is run as your Windows user.</div>' + modeTabs() + '</div>' +
       '<div class="cl-card"><div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><label class="small">Language <select id="plang" aria-label="Language"' + (ch && ch.lang ? ' disabled' : '') + '>' + opts + '</select></label></div>' +
       chalCard(ch) + playNote(x, w) +
-      '<textarea class="cl-ed" id="clcode" aria-label="Code" data-lang="' + ceLang(plang) + '" spellcheck="false" maxlength="50000" style="min-height:240px" placeholder="Enter ' + esc(x.n) + '">' + esc(typeof code === 'string' ? code : blank) + '</textarea>' + keysTip(html ? 'refreshes the preview' : 'runs') +
-      (html ? '' : '<details class="small" id="plinw"' + (inp ? ' open' : '') + ' style="margin-top:6px"><summary class="mute" style="cursor:pointer">Input for the program (what it reads, like typing into a terminal)</summary><textarea class="cl-ans cl-pin" id="plin" aria-label="Program input" spellcheck="false" maxlength="20000" rows="3" style="display:block;width:100%;margin-top:6px" placeholder="Lines the program can read">' + esc(inp) + '</textarea></details>') +
-      '<div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap"><button class="pri" data-cl="prun"' + (w.g === 'none' ? ' disabled title="' + esc(x.n) + ' cannot run here"' : '') + '>' + (html ? '↻ Refresh preview' : ch ? '▶ Run and check' : '▶ Run') + '</button><button class="ib" data-cl="pkill" hidden>■ Stop program</button><button class="ib" data-cl="pexp">🧠 Explain</button><button class="ib" data-cl="pstop" hidden>■ Stop explanation</button><button class="ib" data-cl="pex">↺ Example</button><button class="ib" data-cl="pclear">Clear</button></div>' +
-      (html ? '<div class="small mute" style="margin:8px 0 4px">Live preview</div><iframe class="cl-prev" id="clprev" sandbox="" title="Preview"></iframe>' : '<div class="small mute" style="margin-top:8px">Output</div><pre class="cl-pre" id="clout" role="status" style="min-height:2.5em"></pre><div class="cl-figs" id="clfig"></div>') +
-      (PL.DOCKER.includes(plang) && w.g !== 'pc' ? '<details class="small mute" id="plruntime"><summary>Docker runtime setup</summary>Install Docker and start it in Linux container mode. From the app folder containing <code>lib</code>, run <code>docker build --platform=linux/amd64 -t moundshroud-code-playground:1 lib/code-playground</code>. After setup, runs work offline.</details>' : '') +
+      (scratch
+        ? '<textarea id="clcode" aria-label="Scratch script" spellcheck="false" style="display:none">' + esc(typeof code === 'string' ? code : blank) + '</textarea><div id="clblocks"></div>'
+        : '<textarea class="cl-ed" id="clcode" aria-label="Code" data-lang="' + ceLang(plang) + '" spellcheck="false" maxlength="50000" style="min-height:240px" placeholder="Enter ' + esc(x.n) + '">' + esc(typeof code === 'string' ? code : blank) + '</textarea>' + keysTip(html ? 'refreshes the preview' : 'runs')) +
+      (html || scratch ? '' : '<details class="small" id="plinw"' + (inp ? ' open' : '') + ' style="margin-top:6px"><summary class="mute" style="cursor:pointer">Input for the program (what it reads, like typing into a terminal)</summary><textarea class="cl-ans cl-pin" id="plin" aria-label="Program input" spellcheck="false" maxlength="20000" rows="3" style="display:block;width:100%;margin-top:6px" placeholder="Lines the program can read">' + esc(inp) + '</textarea></details>') +
+      '<div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap"><button class="pri" data-cl="prun"' + (w.g === 'none' ? ' disabled title="' + esc(w.checking ? 'Checking which safe sandboxes are available…' : x.n + ' cannot run safely here. ' + w.why) + '"' : ' title="' + esc(w.g === 'pc' ? 'Runs in Windows Sandbox' : w.g === 'docker' ? 'Runs in Docker' : '') + '"') + '>' + (stageMode ? '▶ Run on the screen' : ch ? '▶ Run and check' : '▶ Run') + '</button><button class="ib" data-cl="pkill" hidden>■ Stop program</button><button class="ib" data-cl="pexp">🧠 Explain</button><button class="ib" data-cl="pstop" hidden>■ Stop explanation</button><button class="ib" data-cl="pex">↺ Example</button><button class="ib" data-cl="pclear">Clear</button>' +
+      (x.run === 'js' ? '<label class="small" style="display:flex;gap:5px;align-items:center;white-space:nowrap" title="Run your JavaScript in a sandboxed web page: canvas, DOM, keyboard and games all work, still with no network"><input type="checkbox" data-cl="ppage"' + (pageMode ? ' checked' : '') + '> 🖥 Show it as a web page</label>' : '') + '</div>' +
+      '<div class="small mute" style="margin-top:8px">' + (scratch ? 'Screen · the cat follows your blocks; click the screen, then use the keys' : html ? 'Screen · preview with scripts off; ▶ Run on the screen runs the page (still no network)' : pageMode ? 'Screen · your code runs as a web page (canvas and keys work); console messages appear below' : 'Output') + '</div>' +
+      '<pre class="cl-pre" id="clout" role="status" style="min-height:2.5em"></pre><div class="cl-figs" id="clfig"></div>' +
+      '<div id="plstage" style="margin-top:8px"></div>' +
+      setupHTML(x, w) +
       '<div id="plai" class="cl-ai"></div>' +
       (A.cyberPad ? '<div style="display:grid;gap:8px;margin-top:12px">' +
         A.cyberPad.notesHTML('cppad', { title: '📝 Notes &amp; sketchpad', rows: 4, placeholder: 'Notes, snippets, answers, ideas — saved on this PC.' }) +
         A.cyberPad.aiHTML('cpai', { hint: 'Ask about your code, the output or the language.', placeholder: 'e.g. why does this loop stop early?' }) +
         '</div>' : '') +
       '</div>';
+  }
+  /* the Terminal playground, mounted in the page for the shell languages */
+  function mountTerminal(b) {
+    const host = b && b.querySelector('#cltp'); if (!host) return;
+    const shell = plangOf(plang).term;
+    const game = A.play && A.play.games && A.play.games.terminal_playground;
+    if (!game || !game.mount) { host.innerHTML = '<div class="small mute">The Terminal playground is not loaded. Reload the page and try again.</div>'; return; }
+    try { ls.set('tpg_shell', shell); } catch (e) { }
+    try { ptpStop = game.mount(host, {}) || null; }
+    catch (e) { ptpStop = null; host.innerHTML = '<div class="small mute">The Terminal playground could not start: ' + esc(e.message || e) + '</div>'; }
   }
   /* run a worker with one message; it is ended when the run stops, fails or takes too long */
   function runWorker(url, msg, signal, ms, slow) {
@@ -460,13 +527,38 @@
     const ed = H.querySelector('#clcode'), out = H.querySelector('#clout'), btn = H.querySelector('[data-cl="prun"]'), kill = H.querySelector('[data-cl="pkill"]');
     if (!ed || !btn || prun) return;
     const code = ed.value, lg = plang, x = plangOf(lg), w = where(x), input = (H.querySelector('#plin') || {}).value || '';
-    if (x.run === 'html') { H.querySelector('#clprev').srcdoc = code; markPlayed(); return; }
-    if (w.g === 'none') { out.textContent = '⛔ ' + x.n + ' cannot run here. ' + w.why; return; }
+    if (x.run === 'scratch') {
+      if (!pstage || !window.CodeStage || !window.CodeScratch) { out.textContent = 'The screen for Scratch did not load. Reload the page and try again.'; return; }
+      pstage.showDoc(window.CodeStage.page(window.CodeScratch.program(code)));
+      out.textContent = 'The cat is on the screen: click it, then use the keys. What it says appears here.';
+      if (kill) kill.hidden = false;
+      markPlayed();
+      return;
+    }
+    if (x.run === 'html') {
+      if (pstage) pstage.show(code.trim() || '<p style="font:16px system-ui;padding:24px;color:#446">Nothing to preview yet — type some HTML.</p>');
+      out.textContent = code.trim() ? 'Your page is on the screen. Click it to play; use ⛶ Full screen for games.' : 'The screen is empty: type some HTML first.';
+      markPlayed();
+      return;
+    }
+    if (lg === 'javascript' && pload().page) {
+      if (pstage && window.CodeStage) pstage.showDoc(window.CodeStage.page(code));
+      out.textContent = 'Running on the screen. Click it to play and use its keys; console messages and errors appear here.';
+      markPlayed();
+      return;
+    }
+    if (w.checking) { out.textContent = '🛡️ Checking which safe sandboxes are available — press Run again in a moment.'; askStatus(); return; }
+    if (w.g === 'none') { out.textContent = '⛔ ' + x.n + ' cannot run safely here. ' + (w.why || PL.NOTOOL) + ' Nothing was run.'; return; }
     if (!code.trim()) { out.textContent = 'Enter some code first.'; return; }
     const ctl = prun = new AbortController();
     btn.disabled = true; if (kill) kill.hidden = false;
-    out.textContent = w.g === 'pc' && /^(c|cpp|masm|rust|csharp|vbnet)$/.test(lg) ? 'Compiling and running…' : 'Running…';
-    let r;
+    const compiled = /^(c|cpp|holyc|java|csharp|go|rust|typescript|kotlin|swift|asm)$/.test(lg);
+    out.textContent = w.g === 'pc' ? 'Starting Windows Sandbox — the first run can take a minute…'
+      : w.g === 'docker' ? (compiled ? 'Starting the Docker sandbox and compiling…' : 'Starting the Docker sandbox…')
+        : compiled ? 'Compiling and running…' : 'Running…';
+    let r, timedOut = false;
+    /* a native run waits for a whole VM or container to start, but never forever: after two minutes there is still an answer */
+    const guard = setTimeout(() => { timedOut = true; ctl.abort(); }, 150000);
     try {
       if (RUNS[lg]) r = await A.interp.run(RUNS[lg], code, { signal: ctl.signal, isolated: true });
       else if (x.run === 'sql') r = await runSql(code, ctl.signal);
@@ -477,23 +569,37 @@
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ lang: lg, code, input }), signal: ctl.signal,
         });
-        r = await res.json();
+        let data;
+        try { data = await res.json(); } catch (e) { data = { ok: false, error: 'The Playground server answered ' + res.status + ' instead of a result.' }; }
+        r = data;
       }
-    } catch (error) { r = { ok: false, error: ctl.signal.aborted ? 'Run stopped.' : error.message }; }
+    } catch (error) {
+      r = {
+        ok: false,
+        error: timedOut ? 'The sandbox did not answer within 2 minutes — it may still be starting. Try again, or open “Safe runtime setup”.'
+          : ctl.signal.aborted ? 'Run stopped.' : String(error && error.message || error)
+      };
+    } finally { clearTimeout(guard); }
     if (prun !== ctl) return;
     prun = null;
     btn.disabled = false; if (kill) kill.hidden = true;
     if (view !== 'play' || H.querySelector('#clout') !== out) return;
     const error = String(r.error || 'The program did not run.').split('\n').filter(line => !/^\s+at\s/.test(line)).join('\n').trim();
+    if (r.unavailable) {
+      out.textContent = '⛔ ' + error + '\n\nNothing was run. Open “Safe runtime setup” below for the one-time setup.';
+      H.querySelector('#plruntime')?.setAttribute('open', '');
+      return;
+    }
     const failure = /^[A-Za-z]*Error:/.test(error) || /^ICL\d/.test(error) ? error : 'Error: ' + error;
     const text = [r.stdout, r.stderr, r.value !== undefined && r.value !== '' ? '→ ' + r.value : '', r.ok ? '' : failure]
       .filter(Boolean).map(part => String(part).replace(/\r?\n$/, '')).join('\n');
+    /* whatever happened, something is always printed: output, an error, a drawing note, or an explicit "no output" */
     out.textContent = text || (r.figures && r.figures.length ? 'The program drew ' + r.figures.length + ' picture' + (r.figures.length > 1 ? 's' : '') + ' — shown below.' : 'Finished with no output.');
     showFigures(H.querySelector('#clfig'), r.figures);
+    if (r.figures && r.figures.length && pstage && window.CodeStage) pstage.showDoc(window.CodeStage.pictures(r.figures));
     plast = { lang: lg, code, text: out.textContent };
     if (pmode !== 'sandbox') judge(r, lg);
     if (r.ok) markPlayed();
-    else if (r.unavailable) H.querySelector('#plruntime')?.setAttribute('open', '');
   }
   function markPlayed() { const s = load(); if (!s.played) { s.played = 1; save(s); } }
   function cancelPlay() {
@@ -520,22 +626,187 @@
     if (pctl === ctl) { pctl = null; if (stop) stop.hidden = true; }
   }
 
+  /* ----- 🦠 Sample lab: read a suspicious file without running it, then run it only inside Windows Sandbox ----- */
+  let slab = null, slabPayload = null, slabResult = null, slabBusy = '';
+  const sevIc = { high: '🔴', med: '🟠', low: '🟡', info: '🔵' };
+  const bytesB64 = bytes => { let s = ''; const CH = 0x8000; for (let i = 0; i < bytes.length; i += CH) s += String.fromCharCode.apply(null, bytes.subarray(i, i + CH)); return btoa(s); };
+  const kb = n => n < 1024 ? n + ' B' : n < 1024 * 1024 ? (n / 1024).toFixed(1) + ' KB' : (n / 1048576).toFixed(2) + ' MB';
+  function slabFacts(r) {
+    const rows = [
+      ['Type', r.kind === 'pe' ? 'Windows program (PE)' : r.kind === 'elf' ? 'Linux program (ELF)' : r.kind === 'script' ? r.script + ' script' : r.kind],
+      ['Size', kb(r.size) + ' · entropy ' + r.entropy + ' of 8'],
+      ['SHA-256', r.sha256], ['SHA-1', r.sha1], ['MD5', r.md5],
+    ];
+    if (r.pe) rows.push(['Header', r.pe.machine + ' · ' + r.pe.bits + '-bit · ' + r.pe.subsystem + (r.pe.stamped ? ' · built ' + r.pe.stamped : '')]);
+    return '<div style="display:grid;gap:4px;margin:8px 0">' + rows.map(([k, v]) => '<div class="row" style="gap:8px;align-items:baseline"><span class="small mute" style="min-width:76px">' + esc(k) + '</span><code class="small" style="word-break:break-all">' + esc(v) + '</code></div>').join('') + '</div>';
+  }
+  const slabChips = (title, list, max) => !list || !list.length ? '' : '<div style="margin-top:8px"><div class="small mute">' + esc(title) + '</div>' + list.slice(0, max || 12).map(v => '<span class="cl-chip" style="cursor:text;font-family:Consolas,monospace;font-size:12px">' + esc(v) + '</span>').join('') + '</div>';
+  function slabReportHtml() {
+    if (slabBusy && !slab) return '<div class="cl-card"><div class="small mute">' + esc(slabBusy) + '</div></div>';
+    if (!slab) return '<div class="cl-card"><div class="small mute">Read a file and the report appears here: what kind of file it is, its hashes, its sections, what its text is trying to do, and every address and path it mentions. Nothing is executed to make this report.</div></div>';
+    const vc = slab.verdict.level === 'high' ? 'var(--bad,#c33)' : slab.verdict.level === 'med' ? '#c80' : 'var(--ok,#3a3)';
+    const run = !slabPayload ? '' : '<div class="cl-card"><div class="row" style="gap:8px;align-items:center;flex-wrap:wrap"><button class="pri" data-cl="slrun"' + (slab.canRun && !slabBusy ? '' : ' disabled') + '>▶ Run it in Windows Sandbox</button><span class="small mute">' + esc(slab.canRun ? 'Boots a disposable VM with no network. Up to 2 minutes.' : slab.runWhy) + '</span></div>' +
+      (slab.canRun ? '<details class="small" style="margin-top:8px"><summary class="mute" style="cursor:pointer">Input for the sample (what it reads from stdin)</summary><textarea class="cl-ans" id="slin" spellcheck="false" rows="2" style="display:block;width:100%;margin-top:6px" placeholder="Lines the sample can read"></textarea></details>' : '') +
+      (slabBusy && slab ? '<div class="small mute" style="margin-top:8px">' + esc(slabBusy) + '</div>' : '') +
+      '<div id="slres">' + slabRunHtml() + '</div></div>';
+    return '<div class="cl-card"><div class="row" style="gap:10px;align-items:center;flex-wrap:wrap"><div style="font-size:26px">' + (slab.verdict.level === 'high' ? '🦠' : slab.verdict.level === 'med' ? '⚠️' : '🔎') + '</div><div style="flex:1"><b>' + esc(slab.name) + '</b><div class="small" style="color:' + vc + '">' + esc(slab.verdict.text) + '</div></div><span class="small mute">' + slab.findings.filter(f => f.sev === 'high').length + ' high · ' + slab.findings.filter(f => f.sev === 'med').length + ' medium · ' + slab.signalCount + ' indicators</span></div>' +
+      slabFacts(slab) +
+      (slab.pe && slab.pe.sections.length ? '<div class="small mute">Sections</div><div class="cl-pre" style="margin-top:4px">' + slab.pe.sections.map(s => esc(s.name.padEnd(10).slice(0, 10)) + ' ' + String(s.size).padStart(8) + ' B  entropy ' + String(s.entropy).padStart(4) + (s.exec ? '  code' : '') + (s.write ? ' writable' : '')).join('\n') + '</div>' : '') +
+      '<div class="small mute" style="margin-top:8px">What the file says it does</div>' + slab.findings.map(f => '<div style="margin:6px 0"><b>' + sevIc[f.sev] + ' ' + esc(f.label) + '</b><div class="small mute">' + esc(f.detail) + '</div></div>').join('') +
+      slabChips('Web addresses', slab.indicators.urls, 15) + slabChips('IP addresses', slab.indicators.ips, 10) + slabChips('Domains', slab.indicators.domains, 10) +
+      slabChips('Registry keys', slab.indicators.registry, 8) + slabChips('File paths', slab.indicators.paths, 8) + slabChips('Email addresses', slab.indicators.emails, 6) + slabChips('Wallet addresses', slab.indicators.wallets, 4) +
+      '<div class="small mute" style="margin-top:10px">A static read cannot prove what a file does. A sample that shows nothing here can still act once it runs.</div></div>' + run;
+  }
+  function slabRunHtml() {
+    const r = slabResult;
+    if (!r) return '';
+    if (r.unavailable || !r.backend && !r.ok) return '<div class="cl-pnote cl-pno" style="margin-top:8px">' + esc(r.error || 'The sample was not run.') + '</div>';
+    const f = r.files || [], pr = r.processes || [];
+    return '<div class="cl-pnote" style="margin-top:8px"><b>' + (r.ok ? '✅ Ran to completion' : r.error ? '⏹ ' + esc(r.error) : '❌ Failed') + '</b>' + (r.exitCode != null ? ' · exit code ' + esc(r.exitCode) : '') + (r.ms != null ? ' · ' + Math.round(r.ms / 100) / 10 + ' s' : '') +
+      (r.stdout ? '<div class="small mute" style="margin-top:6px">Output</div><pre class="cl-pre" style="max-height:260px;overflow:auto">' + esc(r.stdout) + '</pre>' : '<div class="small mute" style="margin-top:6px">It printed nothing.</div>') +
+      (r.stderr ? '<div class="small mute">Errors</div><pre class="cl-pre" style="max-height:160px;overflow:auto">' + esc(r.stderr) + '</pre>' : '') +
+      '<div class="small mute" style="margin-top:6px">Processes it started</div>' + (pr.length ? '<div>' + pr.map(p => '<span class="cl-chip" style="cursor:text">' + esc(p) + '</span>').join('') + '</div>' : '<div class="small mute">None beyond the sample itself.</div>') +
+      '<div class="small mute" style="margin-top:6px">Files it wrote (in the disposable VM, deleted with it)</div>' + (f.length ? '<div class="cl-pre" style="max-height:200px;overflow:auto">' + f.map(x => esc((x.dir ? x.dir + '\\' : '') + x.name) + '  ' + kb(x.size)).join('\n') + '</div>' : '<div class="small mute">None.</div>') +
+      '<div class="small mute" style="margin-top:6px">The VM had no network, no shared clipboard and no host folders. Its own temporary folder is deleted when it shuts down.</div></div>';
+  }
+  function paintSlab() {
+    if (!H) return;
+    const rep = H.querySelector('#slrep'); if (rep) rep.innerHTML = '<div class="cl-wrap">' + slabReportHtml() + '</div>';
+    const msg = H.querySelector('#slmsg'); if (msg && !slabBusy) msg.textContent = '';
+  }
+  const slabMsg = text => { const m = H && H.querySelector('#slmsg'); if (m) m.textContent = text || ''; };
+  /* A.api sends a body with no Content-Type, and the Sample lab routes refuse anything but JSON */
+  const slabPost = async (path, body) => {
+    const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const j = await r.json().catch(() => null);
+    if (!j) throw new Error('The server did not answer (' + r.status + ').');
+    return j;
+  };
+  async function slabAnalyze(file) {
+    if (slabBusy) return;
+    const ta = H && H.querySelector('#sltext'), box = H && H.querySelector('#slb64');
+    let payload;
+    try {
+      if (file) {
+        if (file.size > 8 * 1024 * 1024) throw new Error('That file is larger than 8 MB.');
+        payload = { name: file.name || 'sample.bin', b64: bytesB64(new Uint8Array(await file.arrayBuffer())) };
+      } else {
+        const text = ta ? ta.value : '';
+        if (!text.trim()) throw new Error('Choose a file, or paste the sample text below.');
+        payload = box && box.checked
+          ? { name: 'pasted.bin', b64: text.replace(/\s+/g, '') }
+          : { name: 'pasted.txt', b64: bytesB64(new TextEncoder().encode(text)) };
+      }
+    } catch (e) { slabMsg(e.message); return; }
+    slab = null; slabResult = null; slabPayload = payload; slabBusy = file ? 'Reading ' + (file.name || 'the file') + '…' : 'Reading the pasted sample…';
+    slabMsg(''); paintSlab();
+    try {
+      const r = await slabPost('/api/sample-lab/analyze', payload);
+      if (!r || !r.report) throw new Error((r && r.error) || 'The sample could not be read.');
+      slab = r.report;
+    } catch (e) { slab = null; slabPayload = null; slabMsg('Could not read the sample: ' + (e.message || String(e))); }
+    slabBusy = ''; paintSlab();
+  }
+  async function slabRunIt() {
+    if (!slabPayload || slabBusy) return;
+    const inp = H && H.querySelector('#slin');
+    slabResult = null; slabBusy = 'Running the sample in Windows Sandbox — it boots a fresh VM, so give it a minute or two…'; paintSlab();
+    try { slabResult = await slabPost('/api/sample-lab/run', Object.assign({}, slabPayload, { input: inp ? inp.value : '' })); }
+    catch (e) { slabResult = { ok: false, error: 'The sample could not be run: ' + (e.message || String(e)) }; }
+    slabBusy = ''; paintSlab();
+  }
+  function samplePage() {
+    return back('home', '', 'All languages') +
+      '<div class="cl-card"><div class="row" style="gap:12px;align-items:center;flex-wrap:wrap"><div style="font-size:30px">🦠</div><div style="flex:1;min-width:220px"><b style="font-size:19px">Sample lab</b><div class="small mute">Read a suspicious file without running it — type, hashes, sections, scripts, addresses, registry keys. Then, only if you ask, run it in a disposable Windows Sandbox.</div></div></div>' +
+      '<div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap"><button class="pri" data-cl="slpick">📄 Choose a file…</button><span class="small mute">or drop one on the box below · up to 8 MB</span></div>' +
+      '<input type="file" id="slfile" style="display:none" aria-label="Sample file">' +
+      '<div id="sldrop" style="margin-top:10px;border:1px dashed var(--line);border-radius:10px;padding:10px"><div class="small mute" style="margin-bottom:6px">Paste a script, or the base64 of a binary sample:</div>' +
+      '<textarea class="cl-ed" id="sltext" data-ownkeys="" spellcheck="false" style="min-height:120px" placeholder="five lines of PowerShell, a URL… or base64"></textarea>' +
+      '<div class="row" style="gap:10px;margin-top:8px;flex-wrap:wrap"><label class="small" style="display:flex;gap:5px;align-items:center"><input type="checkbox" id="slb64"> the box is base64</label><button class="pri" data-cl="slana">🔬 Read it (safe)</button><button class="ib" data-cl="slclear">Clear</button></div>' +
+      '<div class="small" id="slmsg" style="color:var(--bad,#c33);margin-top:6px"></div></div>' +
+      '<div class="small mute" style="margin-top:10px">Reading never runs the file: no interpreter, no sandbox, no network. Running it needs Windows Sandbox turned on, and then it happens in a disposable VM with networking, clipboard, printer, camera and microphone sharing off.</div></div>' +
+      '<div id="slrep"></div>';
+  }
+
   function draw() {
     if (!H) return; const b = H.querySelector('#clbody'); if (!b) return;
-    const page = { play: playPage, lesson: lessonPage, lang: langPage, boss: bossPage, speed: speedPage, ai: aiPage, badges: badgesPage }[view] || home;
+    if (ptpStop) { try { ptpStop(); } catch (e) { } ptpStop = null; }
+    const scratchLesson = view === 'lesson' && curL && curL.lang === 'scratch';
+    if (view !== 'play' && !scratchLesson && pstage) { try { pstage.destroy(); } catch (e) { } pstage = null; }
+    const page = { play: playPage, lesson: lessonPage, lang: langPage, boss: bossPage, speed: speedPage, ai: aiPage, badges: badgesPage, samplelab: samplePage }[view] || home;
     b.innerHTML = '<div class="cl-wrap">' + page() + '</div>';
+    if (view === 'samplelab') {
+      paintSlab();
+      const fi = b.querySelector('#slfile');
+      if (fi) fi.addEventListener('change', () => { const f = fi.files && fi.files[0]; if (f) slabAnalyze(f); });
+      const drop = b.querySelector('#sldrop');
+      if (drop) {
+        const stop = e => { e.preventDefault(); e.stopPropagation(); };
+        drop.addEventListener('dragover', e => { stop(e); drop.style.borderColor = 'var(--acc)'; });
+        drop.addEventListener('dragleave', () => { drop.style.borderColor = ''; });
+        drop.addEventListener('drop', e => {
+          stop(e); drop.style.borderColor = '';
+          const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+          if (f) slabAnalyze(f); else slabMsg('Drop a file, or paste the sample text.');
+        });
+      }
+    }
     const ed = b.querySelector('#clcode'), l = ['lesson', 'boss', 'speed', 'ai'].includes(view) && curL;
     if (ed) {
-      if (view === 'play') { editorKeys(ed, plang, playRun); ed.addEventListener('input', () => playSave(ed.value)); const pin = b.querySelector('#plin'); if (pin) { pin.setAttribute('data-ownkeys', ''); pin.addEventListener('input', () => inputSave(pin.value)); } askStatus(); }
+      if (view === 'play') { if (plangOf(plang).run !== 'scratch') editorKeys(ed, plang, playRun); ed.addEventListener('input', () => playSave(ed.value)); const pin = b.querySelector('#plin'); if (pin) { pin.setAttribute('data-ownkeys', ''); pin.addEventListener('input', () => inputSave(pin.value)); } askStatus(); }
       else editorKeys(ed, l ? l.lang : lang, () => l && l.ex.k === 'run' ? run() : check());
-      const preview = b.querySelector('#clprev');
-      if (preview) { const upd = () => { if (preview.isConnected) preview.srcdoc = ed.value; }; let t = null; ed.addEventListener('input', () => { clearTimeout(t); t = setTimeout(upd, 250); }); upd(); }
+      if (view === 'play') {
+        if (pstage) { try { pstage.destroy(); } catch (e) { } pstage = null; }
+        const stageHost = b.querySelector('#plstage'), shell = plangOf(plang), asPage = !!pload().page;
+        if (stageHost && window.CodeStage) {
+          pstage = window.CodeStage.mount(stageHost, {
+            title: '🖥 Screen', height: shell.run === 'scratch' ? 360 : 320,
+            hint: shell.run === 'html' || shell.run === 'scratch' || (shell.run === 'js' && asPage) ? 'Click the screen, then use its keys' : 'Pictures and pages appear here',
+            empty: shell.run === 'scratch' ? 'Build a script from the blocks, then press ▶ Run on the screen.'
+              : shell.run === 'html' ? 'Your page appears here. Press ▶ Run on the screen, or type above.'
+                : 'Run a program that draws a picture, or tick “Show it as a web page” for canvas, DOM and games.',
+            onLog: (text, kind) => {
+              const o = H && H.querySelector('#clout'); if (!o) return;
+              o.textContent = (o.textContent ? o.textContent + '\n' : '') + (kind === 'error' ? '⛔ ' : '') + text;
+            }
+          });
+          if (shell.run === 'html') {
+            /* typing never runs the page: the live preview keeps scripts off, and ▶ Run on the screen turns them on */
+            const live = () => { if (pstage && ed.isConnected) pstage.showDoc(window.CodeStage.doc(ed.value, { scripts: false })); };
+            let still = null; ed.addEventListener('input', () => { clearTimeout(still); still = setTimeout(live, 350); }); live();
+          }
+          /* Scratch: the block palette writes the script text into the hidden editor beside it */
+          if (shell.run === 'scratch' && window.CodeScratch) {
+            const blocks = b.querySelector('#clblocks');
+            if (blocks) window.CodeScratch.editor(blocks, ed);
+          }
+        }
+      }
     }
+    /* Scratch lessons: the drag-and-drop block editor, with the screen beside it */
+    if (scratchLesson) {
+      if (pstage) { try { pstage.destroy(); } catch (e) { } pstage = null; }
+      const st = b.querySelector('#clscrstage');
+      if (st && window.CodeStage) {
+        pstage = window.CodeStage.mount(st, {
+          title: '🖥 Screen', height: 340, hint: 'Click the screen, then use its keys',
+          empty: 'Drag blocks into the script, then press ▶ Run on the screen.',
+          onLog: (text, kind) => {
+            const o = H && H.querySelector('#clscrout'); if (!o) return;
+            o.textContent = (o.textContent ? o.textContent + '\n' : '') + (kind === 'error' ? '⛔ ' : '') + text;
+          }
+        });
+      }
+      const sblk = b.querySelector('#clscrblocks'), sta = b.querySelector('#clscode');
+      if (sblk && sta && window.CodeScratch) window.CodeScratch.editor(sblk, sta);
+    }
+    /* a shell language is not compiled here: it opens the Terminal playground in place of the editor */
+    if (view === 'play' && plangOf(plang).term) mountTerminal(b);
     /* answer boxes: Enter is a new line, Ctrl+Enter checks; in fill-the-blank Enter moves to the next blank */
     const a = b.querySelector('#clans');
     if (a) { if (l && l.ex.k === 'fix') editorKeys(a, l.lang, check); else { a.setAttribute('data-ownkeys', ''); a.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); check(); } }); } if (view === 'speed') a.focus(); }
     const ps = b.querySelector('#plang');
-    if (ps) ps.addEventListener('change', () => { cancelPlay(); playSave(ed.value); plang = ps.value; const s = pload(); s.lang = plang; try { ls.set(PKEY, JSON.stringify(s)); } catch (e) { } draw(); });
+    if (ps) ps.addEventListener('change', () => { cancelPlay(); const ce = b.querySelector('#clcode'); if (ce) playSave(ce.value); plang = ps.value; const s = pload(); s.lang = plang; try { ls.set(PKEY, JSON.stringify(s)); } catch (e) { } setTimeout(draw, 0); });
     if (view === 'play' && A.cyberPad) {
       A.cyberPad.bindNotes(b, 'cppad', 'codeplay');
       A.cyberPad.bindAI(b, 'cpai', {
@@ -602,11 +873,43 @@
     if (k === 'home') return go('home');
     if (k === 'workshop') return A.cybertab.go('workshop');
     if (k === 'play') return go('play');
+    if (k === 'slab') return go('samplelab');
+    if (k === 'slpick') { const fi = H && H.querySelector('#slfile'); if (fi) fi.click(); return; }
+    if (k === 'slana') return slabAnalyze(null);
+    if (k === 'slrun') return slabRunIt();
+    if (k === 'slclear') {
+      slab = null; slabPayload = null; slabResult = null; slabBusy = '';
+      const ta = H && H.querySelector('#sltext'); if (ta) ta.value = '';
+      const fi = H && H.querySelector('#slfile'); if (fi) fi.value = '';
+      const box = H && H.querySelector('#slb64'); if (box) box.checked = false;
+      slabMsg(''); paintSlab(); return;
+    }
     if (k === 'badges') return go('badges');
     if (view === 'play' && chalClick(k, el)) return;
     if (k === 'prun') return playRun();
+    if (k === 'ppage') { const s = pload(); s.page = !!el.checked; pstore(s); setTimeout(draw, 0); return; }
     if (k === 'pexp') return explain();
-    if (k === 'pkill') { if (prun) prun.abort(); return; }
+    if (k === 'scrrun') {
+      const sta = H.querySelector('#clscode'), out = H.querySelector('#clscrout'), stop = H.querySelector('[data-cl="scrstop"]');
+      if (!sta || !window.CodeScratch) return;
+      if (!pstage || !window.CodeStage) { if (out) out.textContent = 'The screen did not load. Reload the page and try again.'; return; }
+      pstage.showDoc(window.CodeStage.page(window.CodeScratch.program(sta.value)));
+      if (out) out.textContent = 'The cat is on the screen: click it, then use the keys. What it says appears here.';
+      if (stop) stop.hidden = false;
+      return;
+    }
+    if (k === 'scrstop') {
+      if (pstage && pstage.post) { try { pstage.post({ msStop: 1 }); } catch (e) { } }
+      el.hidden = true;
+      return;
+    }
+    if (k === 'scrreset') {
+      const sta = H.querySelector('#clscode'), out = H.querySelector('#clscrout');
+      if (sta) { sta.value = scratchStart(curL); sta.dispatchEvent(new Event('input', { bubbles: true })); }
+      if (out) out.textContent = '';
+      return;
+    }
+    if (k === 'pkill') { if (prun) prun.abort(); if (plangOf(plang).run === 'scratch' && pstage && pstage.post) { pstage.post({ msStop: 1 }); el.hidden = true; } return; }
     if (k === 'pex') {
       cancelPlay();
       const ed = H.querySelector('#clcode'), x = plangOf(plang);
@@ -631,6 +934,7 @@
       H.querySelector('[data-cl="pstop"]').hidden = true;
       const out = H.querySelector('#clout');
       if (out) out.textContent = '';
+      if (pstage) pstage.clear();
       H.querySelector('#plai').textContent = '';
       return;
     }

@@ -87,7 +87,7 @@ module.exports = async ok => {
   ok('coding: plain Enter never checks an answer; Ctrl+Enter does, and Enter in a blank moves to the next one', !/key === 'Enter'\) \{ e\.preventDefault\(\); check\(\)/.test(ui) && /e\.key === 'Enter' && \(e\.ctrlKey \|\| e\.metaKey\)/.test(ui) && /<textarea id="clans"/.test(ui) && /bl\[k \+ 1\]/.test(ui));
   ok('coding: code boxes keep every key (keyboard.js skips [data-ownkeys]) and edits stay undoable', /closest\('\[data-ownkeys\]'\)/.test(rd('web/js/keyboard.js')) && /data-ownkeys/.test(ui) && /execCommand\('insertText'/.test(ui));
   ok('coding: the page shows units with bosses, AI topics, speed rounds and badges', ['data-cl="boss"', 'data-cl="topic"', 'data-cl="speed"', 'data-cl="badges"', 'C.unlocked(', 'C.newBadges(', 'C.aiExercise(', 'A.ai.once('].every(s => ui.includes(s)) && /clearInterval\(sp\.timer\)/.test(ui));
-  ok('coding: the playground runs Python and JavaScript in the sandbox, previews HTML, and asks the AI to explain any language', /data-cl="play"/.test(ui) && /RUNS = \{ python: 'python', javascript: 'js', html: 'html' \}/.test(ui) && /A\.ai\.stream\(/.test(ui) && /PL\.GROUPS\.map\(/.test(ui) && /esolang-worker\.js/.test(ui));
+  ok('coding: the playground runs Python and JavaScript in the sandbox, previews HTML, and asks the AI to explain any language', /data-cl="play"/.test(ui) && /RUNS = \{ python: 'python', javascript: 'js', html: 'html' \}/.test(ui) && /A\.ai\.stream\(/.test(ui) && /PL\.GROUPS\.slice\(\)/.test(ui) && /esolang-worker\.js/.test(ui));
   const playground = require('../lib/code-playground');
   const launch = rd('lib/code-playground/run.sh');
   const PLAY = require('../web/js/code-playground-langs.js'), containerLangs = [...playground.LANGS];

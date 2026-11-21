@@ -31,6 +31,20 @@ module.exports = async ok => {
     ok('playground: the ' + l.n + ' example runs', r.ok && want[l.id] !== undefined && r.stdout.includes(want[l.id]), (r.error || '') + ' ' + JSON.stringify((r.stdout || '').slice(0, 120)));
   }
   ok('playground: an endless loop is stopped by the time limit with its output kept', (() => { const r = E.run('bf', '+[.]', '', { ms: 300 }); return !r.ok && r.stopped && /^Stopped/.test(r.error) && r.stdout.length > 0; })());
+  /* whatever a learner types, every built-in interpreter answers with either output or a sentence explaining what happened */
+  const silent = [];
+  for (const l of P.LANGS.filter(x => x.run === 'eso')) {
+    for (const code of ['', '<<<not a program>>>', l.ex]) {
+      let r;
+      try { r = E.run(l.id, code, '', { ms: 400 }); } catch (e) { r = { ok: false, error: '' }; }
+      /* an empty stdout from a valid program is an outcome (the Playground prints "Finished with no output.");
+         what must never happen is a failure with no explanation, or no result at all */
+      if (!r || typeof r !== 'object') silent.push(l.id + ' [' + code.slice(0, 12) + '] (no result)');
+      else if (!r.ok && !String(r.error || '').trim()) silent.push(l.id + ' [' + code.slice(0, 12) + '] (blank error)');
+    }
+  }
+  ok('playground: every built-in interpreter gives an outcome for empty, garbage and example code (never a blank result)',
+    silent.length === 0, silent.slice(0, 8).join(', '));
   ok('playground: Malbolge rejects a character that is not an instruction', !E.run('malbolge', 'aaaa', '').ok);
   ok('playground: INTERCAL complains when nobody says PLEASE', /INSUFFICIENTLY POLITE/.test(E.run('intercal', 'DO .1 <- #1\nDO .2 <- #2\nDO .3 <- #3\nDO .4 <- #4\nDO GIVE UP', '').error || ''));
   ok('playground: Brainfuck and BASIC read the Input box', E.run('bf', ',.,.', 'ok').stdout === 'ok' && /Hi Ada/.test(E.run('basic', '10 INPUT N$\n20 PRINT "Hi "; N$', 'Ada\n').stdout));

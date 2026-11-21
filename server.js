@@ -481,7 +481,7 @@ const mmParamCount = v => {
   if (!m) return 0;
   return (parseFloat(m[1]) || 0) * unit(m[2]);
 };
-const CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: data:; worker-src 'self' blob:; frame-src 'self' blob: data: app://moundshroud-lib http://127.0.0.1:" + LIBPORT + " http://localhost:" + LIBPORT + " http://127.0.0.1:" + artexmod.PORT + " http://localhost:" + artexmod.PORT + " http://127.0.0.1:" + juiceshop.FRAME + " http://localhost:" + juiceshop.FRAME + " https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
+const CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: data:; worker-src 'self' blob:; frame-src 'self' blob: data: app://moundshroud-lib http://127.0.0.1:" + LIBPORT + " http://localhost:" + LIBPORT + " http://127.0.0.1:" + artexmod.PORT + " http://localhost:" + artexmod.PORT + " http://127.0.0.1:" + artexmod.PROXY_PORT + " http://localhost:" + artexmod.PROXY_PORT + " http://127.0.0.1:" + juiceshop.FRAME + " http://localhost:" + juiceshop.FRAME + " https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
 const CSP_OFFLINE = CSP.replace(' https://www.youtube-nocookie.com', '');
 const cyberDesktopAssets = require('./lib/cyber-desktop-assets');
 function allowedCaller(req) {
@@ -508,13 +508,32 @@ async function handleAppRequest(req, res) {
       res.once('close', () => ctl.abort());
       const input = await jbody(req, 1_250_000).catch(() => null);
       if (!playground.validate(input)) {
-        return json(res, 400, { ok: false, error: 'Choose a supported language and enter up to 200 KB of code.' });
+        return json(res, 400, { ok: false, error: 'Choose a supported language, up to 200 KB of code, and up to 100 KB of input.' });
       }
       const result = await playground.run(input, ctl.signal);
       if (!ctl.signal.aborted) return json(res, 200, result);
       return;
     }
     if (url === '/api/code-playground/status' && req.method === 'GET') return json(res, 200, require('./lib/code-playground').status());
+    /* Sample lab: reading a sample never executes it; running one needs Windows Sandbox, and the refusal says so. */
+    if ((url === '/api/sample-lab/analyze' || url === '/api/sample-lab/run') && req.method === 'POST') {
+      if (!/^application\/json(?:\s*;|$)/i.test(req.headers['content-type'] || '')) {
+        return json(res, 415, { ok: false, error: 'Expected a JSON request.' });
+      }
+      const lab = require('./lib/sample-lab');
+      const body = await jbody(req, 12_500_000).catch(() => null);
+      if (!body) return json(res, 413, { ok: false, error: 'That sample is too large. The limit is 8 MB.' });
+      try {
+        if (url === '/api/sample-lab/analyze') return json(res, 200, { ok: true, report: lab.analyze(body) });
+        const ctl = new AbortController();
+        res.once('close', () => ctl.abort());
+        const result = await lab.run(body, ctl.signal);
+        if (!ctl.signal.aborted) return json(res, 200, result);
+        return;
+      } catch (e) {
+        return json(res, 400, { ok: false, error: e.message || String(e) });
+      }
+    }
     /* ---- pages & static files ---- */
     if (req.method === 'GET' && (url === '/' || url === '/index.html')) return serveFile(res, WEB, 'index.html', req);
     if (req.method === 'GET' && url.startsWith('/web/')) {

@@ -6,8 +6,77 @@
 // A.interp.run(lang, code, {files}) -> {ok, stdout, error, figures:[base64 png], ms}
 (() => {
   const PY_TIME = 60000, JS_TIME = 10000;
-  const SEAL = 'const __allow=self.__allow||"";const __f=self.fetch;self.fetch=function(u,o){const s=String(u&&u.url||u);if(__allow&&s.indexOf(__allow)===0)return __f.call(self,u,o);return Promise.reject(new Error("The sandbox has no network."));};' +
-    '["XMLHttpRequest","WebSocket","EventSource","indexedDB","caches","importScripts","BroadcastChannel","SharedWorker","Worker"].forEach(function(k){try{Object.defineProperty(self,k,{value:undefined,configurable:false,writable:false});}catch(e){try{self[k]=undefined;}catch(x){}}});';
+  /* The worker's network lockdown. It runs after Pyodide has loaded and before any user code, and its closure keeps
+     the original fetch away from that code. The original is also replaced on the prototype chain, so deleting
+     `self.fetch` (the old escape) finds no working copy. Only URLs under the Pyodide folder are allowed, and encoded
+     slashes or dots are rejected so a path cannot walk out of it. Everything else that can reach the network is
+     removed: XHR, WebSocket, EventSource, beacon, WebTransport, WebRTC, script/worker loading, BroadcastChannel,
+     SharedWorker and caches. This is defence in depth, not the only boundary: the page's CSP and same-origin checks
+     still apply. */
+  function sealNetwork() {
+    var g = self;
+    if (g.__oaSealed) return;
+    var loc = (g.location && g.location.href) || 'http://sandbox.invalid/';
+    var base = '';
+    try {
+      if (g.__allow) {
+        base = new URL(String(g.__allow), loc).href;
+        if (base.charAt(base.length - 1) !== '/') base += '/';
+      }
+    } catch (e) { base = ''; }
+    function allowed(input) {
+      var raw = '';
+      try { raw = typeof input === 'string' ? input : (input && typeof input.url === 'string' ? input.url : ''); } catch (e) { return false; }
+      if (!base || !raw) return false;
+      var u;
+      try { u = new URL(raw, loc); } catch (e) { return false; }
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+      var href = u.href;
+      if (href !== base && href.indexOf(base) !== 0) return false;
+      if (/%2f|%5c|%2e/i.test(u.pathname)) return false;
+      return true;
+    }
+    var real = g.fetch;
+    function net(input, init) {
+      if (allowed(input)) return real.call(g, input, init);
+      return Promise.reject(new Error('The sandbox has no network.'));
+    }
+    function blockOn(obj, key) {
+      var p = obj, found = false;
+      while (p) {
+        var d = Object.getOwnPropertyDescriptor(p, key);
+        if (d) {
+          found = true;
+          try { Object.defineProperty(p, key, { value: undefined, configurable: false, writable: false, enumerable: !!d.enumerable }); }
+          catch (e) { try { p[key] = undefined; } catch (x) { } }
+        }
+        p = Object.getPrototypeOf(p);
+      }
+      if (!found) { try { Object.defineProperty(obj, key, { value: undefined, configurable: false, writable: false }); } catch (e) { } }
+    }
+    function replaceOn(obj, key, value) {
+      var p = obj;
+      while (p) {
+        var d = Object.getOwnPropertyDescriptor(p, key);
+        if (d) {
+          try { Object.defineProperty(p, key, { value: value, configurable: false, writable: false, enumerable: !!d.enumerable }); }
+          catch (e) { }
+        }
+        p = Object.getPrototypeOf(p);
+      }
+      try { Object.defineProperty(obj, key, { value: value, configurable: false, writable: false }); } catch (e) { }
+    }
+    replaceOn(g, 'fetch', net);
+    ['XMLHttpRequest', 'WebSocket', 'WebSocketStream', 'EventSource', 'indexedDB', 'caches', 'importScripts',
+      'BroadcastChannel', 'SharedWorker', 'Worker', 'WebTransport', 'RTCPeerConnection', 'webkitRTCPeerConnection',
+      'RTCDataChannel'].forEach(function (k) { blockOn(g, k); });
+    try {
+      var nav = g.navigator;
+      if (nav) ['sendBeacon', 'serviceWorker'].forEach(function (k) { blockOn(nav, k); });
+    } catch (e) { }
+    try { Object.defineProperty(g, '__oaSealed', { value: true, configurable: false, writable: false }); } catch (e) { }
+  }
+  const SEAL = '(' + sealNetwork.toString() + ')();';
 
   /* ---------- bundled libraries ---------- */
   /* The sandbox ships a few pure-Python packages in web/vendor/python-libs (chess, …). They are written into every
@@ -65,9 +134,13 @@
     const base = (A.interpreterAssets || location.origin + '/web/vendor/') + 'pyodide/';
     /* Python loads its engine with importScripts, so the worker seals itself the moment Python is ready, before any code runs */
     const src = 'importScripts(' + JSON.stringify(base + 'pyodide.js') + ');self.__allow=' + JSON.stringify(base) + ';function __seal(){' + SEAL + '}' +
-      'let P=null,out=[],err=[];' +
-      'const ready=loadPyodide({indexURL:' + JSON.stringify(base) + '}).then(async p=>{P=p;__seal();p.setStdout({batched:s=>out.push(s)});p.setStderr({batched:s=>err.push(s)});try{p.FS.mkdir("/data");}catch(e){}return true;});' +
-      'self.onmessage=async e=>{const {id,code,files,collectFigures,libs,argv}=e.data;out=[];err=[];const t0=Date.now();let res={id};' +
+      'let P=null,out=[],err=[],cut={o:0,ox:0,e:0,ex:0};' +
+      /* output is capped while it is produced, so a program that prints for ever still stops with a readable result and
+         cannot exhaust the page's memory */
+      'const put=(a,k,s)=>{s=String(s);if(cut[k]>=200000){if(!cut[k+"x"]){cut[k+"x"]=1;a.push("\\n[output truncated at 200 KB]");if(k==="o")postMessage({progress:out.join("\\n")});}return;}const room=200000-cut[k];a.push(room<s.length?s.slice(0,room):s);cut[k]+=Math.min(s.length,room);};' +
+      'let beat=0;' +
+      'const ready=loadPyodide({indexURL:' + JSON.stringify(base) + '}).then(async p=>{P=p;__seal();p.setStdout({batched:s=>{put(out,"o",s);if(++beat%200===0)postMessage({progress:out.join("\\n")});}});p.setStderr({batched:s=>put(err,"e",s)});try{p.FS.mkdir("/data");}catch(e){}return true;});' +
+      'self.onmessage=async e=>{const {id,code,files,collectFigures,libs,argv}=e.data;out=[];err=[];cut.o=0;cut.ox=0;cut.e=0;cut.ex=0;const t0=Date.now();let res={id};' +
       'try{await ready;' +
       'if(libs&&libs.length){try{P.FS.mkdir("/libs");}catch(x){}for(const l of libs){try{P.FS.writeFile("/libs/"+l.name,new Uint8Array(l.data));}catch(x){}}' +
       'try{await P.runPython("import sys; [sys.path.insert(0, p) for p in "+JSON.stringify(libs.map(l=>"/libs/"+l.name))+"]");}catch(x){}}' +
@@ -78,7 +151,7 @@
       'try{await P.runPythonAsync(' + JSON.stringify(CLEAR_FIGS) + ');}catch(x){}' +
       'const v=await P.runPythonAsync(code);' +
       'let figs=[];if(collectFigures){try{const r=await P.runPythonAsync(' + JSON.stringify(CAPTURE) + ');figs=(r&&r.toJs)?r.toJs():[];r&&r.destroy&&r.destroy();}catch(x){}}' +
-      'let val=v===undefined||v===null?"":String(v);if(v&&v.destroy)v.destroy();' +
+      'let val=v===undefined||v===null?"":String(v);if(val.length>20000)val=val.slice(0,20000)+" …[value truncated]";if(v&&v.destroy)v.destroy();' +
       'res={id,ok:true,stdout:out.join("\\n"),stderr:err.join("\\n"),value:val,figures:figs,ms:Date.now()-t0};' +
       '}catch(x){let ef=[];try{if(collectFigures){const rr=await P.runPythonAsync(' + JSON.stringify(CAPTURE) + ');ef=(rr&&rr.toJs)?rr.toJs():[];rr&&rr.destroy&&rr.destroy();}}catch(y){}res={id,ok:false,stdout:out.join("\\n"),stderr:err.join("\\n"),error:String(x&&x.message||x).split("\\n").slice(-12).join("\\n"),figures:ef,ms:Date.now()-t0};}' +
       'postMessage(res);};ready.then(()=>postMessage({hello:1}),e=>postMessage({hello:0,err:String(e&&e.message||e)}));';
@@ -112,9 +185,14 @@
   }
   function pythonResult(me, code, files, signal, collectFigures, libs, argv) {
     const id = Math.random().toString(36).slice(2);
+    let partial = '';
     return new Promise(done => {
-      const k = setTimeout(() => { me.close(); if (py === me) py = null; finish({ ok: false, error: 'Stopped after ' + PY_TIME / 1000 + ' seconds (an endless loop, or too much work).', stdout: '', figures: [], ms: PY_TIME }); }, PY_TIME);
-      const h = e => { if (e.data?.id === id) finish(e.data); };
+      /* a program that never finishes still shows what it printed before the limit was reached */
+      const k = setTimeout(() => { me.close(); if (py === me) py = null; finish({ ok: false, error: 'Stopped after ' + PY_TIME / 1000 + ' seconds (an endless loop, or too much work).', stdout: partial, figures: [], ms: PY_TIME }); }, PY_TIME);
+      const h = e => {
+        if (e.data?.id === id) return finish(e.data);
+        if (e.data && typeof e.data.progress === 'string') partial = e.data.progress;
+      };
       const abort = () => finish({ ok: false, error: 'Run stopped.' });
       function finish(result) {
         clearTimeout(k);
@@ -142,13 +220,14 @@
     'const __b64=async b=>{const u=new Uint8Array(await b.arrayBuffer());let s="";for(let i=0;i<u.length;i+=32768)s+=String.fromCharCode.apply(null,u.subarray(i,i+32768));return btoa(s);};' +
     'const __shots=async()=>{const o=[];for(const c of __canv){try{o.push(await __b64(await c.convertToBlob({type:"image/png"})));}catch(e){}}return o.slice(-4);};';
   function runJS(code, signal) {
-    const src = SEAL + JS_DRAW + 'self.onmessage=async e=>{const out=[];const fmt=a=>a.map(x=>typeof x==="string"?x:(()=>{try{return JSON.stringify(x);}catch(z){return String(x);}})()).join(" ");const console={log:(...a)=>out.push(fmt(a)),info:(...a)=>out.push(fmt(a)),warn:(...a)=>out.push(fmt(a)),error:(...a)=>out.push(fmt(a)),table:(a)=>out.push(fmt([a]))};const t0=Date.now();' +
-      'try{const v=await (new Function("console",\'"use strict";return (async()=>{\'+e.data.code+\'\\n})()\'))(console);postMessage({ok:true,stdout:out.join("\\n"),value:v===undefined?"":(typeof v==="string"?v:JSON.stringify(v)),figures:await __shots(),ms:Date.now()-t0});}' +
+    const src = SEAL + JS_DRAW + 'self.onmessage=async e=>{const out=[];const fmt=a=>a.map(x=>typeof x==="string"?x:(()=>{try{return JSON.stringify(x);}catch(z){return String(x);}})()).join(" ");let used=0,told=0;let beat=0;const say=(...a)=>{const s=fmt(a);if(used>=200000){if(!told){told=1;out.push("[output truncated at 200 KB]");postMessage({progress:out.join("\\n")});}return;}const room=200000-used;out.push(room<s.length?s.slice(0,room):s);used+=Math.min(s.length,room);if(++beat%200===0)postMessage({progress:out.join("\\n")});};const console={log:say,info:say,warn:say,error:say,table:a=>say(fmt([a]))};const show=v=>{if(v===undefined)return "";let t;try{t=typeof v==="string"?v:JSON.stringify(v);}catch(z){t=String(v);}if(t==null)t=String(v);return t.slice(0,20000);};const t0=Date.now();' +
+      'try{const v=await (new Function("console",\'"use strict";return (async()=>{\'+e.data.code+\'\\n})()\'))(console);postMessage({ok:true,stdout:out.join("\\n"),value:show(v),figures:await __shots(),ms:Date.now()-t0});}' +
       'catch(x){postMessage({ok:false,stdout:out.join("\\n"),error:String(x&&x.stack||x).split("\\n").slice(0,4).join("\\n"),figures:await __shots(),ms:Date.now()-t0});}};';
     return new Promise(done => {
       const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
       let w; try { w = new Worker(url); } catch (e) { return done({ ok: false, error: 'The sandbox could not start.', stdout: '', figures: [] }); } finally { URL.revokeObjectURL(url); }
-      const k = setTimeout(() => finish({ ok: false, error: 'Stopped after ' + JS_TIME / 1000 + ' seconds (an endless loop?).', stdout: '', figures: [], ms: JS_TIME }), JS_TIME);
+      let partial = '';
+      const k = setTimeout(() => finish({ ok: false, error: 'Stopped after ' + JS_TIME / 1000 + ' seconds (an endless loop?).', stdout: partial, figures: [], ms: JS_TIME }), JS_TIME);
       const abort = () => finish({ ok: false, error: 'Run stopped.' });
       function finish(result) {
         clearTimeout(k);
@@ -158,8 +237,11 @@
       }
       if (signal?.aborted) return abort();
       signal?.addEventListener('abort', abort, { once: true });
-      w.onmessage = e => finish(e.data);
-      w.onerror = e => finish({ ok: false, error: String(e.message || 'error'), stdout: '', figures: [] });
+      w.onmessage = e => {
+        if (e.data && typeof e.data.progress === 'string') { partial = e.data.progress; return; }
+        finish(e.data);
+      };
+      w.onerror = e => finish({ ok: false, error: String(e.message || 'error'), stdout: partial, figures: [] });
       w.postMessage({ code });
     });
   }

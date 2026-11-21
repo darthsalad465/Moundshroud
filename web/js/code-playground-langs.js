@@ -1,21 +1,22 @@
 // Coding › Playground: the language list. Every language has an example program and says how it runs: in the app
 // (Python with Pyodide, JavaScript, HTML, SQLite), in the Playground's own interpreters (web/js/esolangs.js,
-// esolangs-words.js, minilangs.js), with compilers on this PC (lib/code-playground-local.js), in the optional Docker
-// image (lib/code-playground), or not at all here, with the reason. Used by web/js/code-lessons.js and the tests.
+// esolangs-words.js, minilangs.js), in Windows Sandbox for Windows-native scripts, in the optional Docker image
+// (lib/code-playground) for Linux toolchains, or not at all here, with the reason. Native code is never run as the
+// signed-in Windows user. Used by web/js/code-lessons.js and the tests.
 (function (root) {
   'use strict';
   const R = String.raw;
   const GROUPS = [
     ['app', 'Runs in the app'],
     ['mini', 'Classic languages (built-in interpreters)'],
-    ['pc', 'Runs with tools on this PC'],
+    ['pc', 'Runs in a sandbox on this PC'],
     ['eso', 'Esoteric languages (built-in interpreters)'],
-    ['docker', 'Runs in the Docker image'],
-    ['none', 'Cannot run here yet'],
+    ['docker', 'Runs in the Docker sandbox'],
+    ['none', 'Cannot run safely here yet'],
   ];
   /* the languages the optional Docker image (lib/code-playground/run.sh) can run */
   const DOCKER = ['bash', 'powershell', 'c', 'cpp', 'holyc', 'java', 'csharp', 'go', 'rust', 'typescript', 'kotlin', 'swift', 'php', 'ruby', 'lua', 'asm'];
-  const NOTOOL = 'Its compiler or interpreter is not on this PC, and the Playground does not include one.';
+  const NOTOOL = 'Its compiler or interpreter is not in a safe sandbox here, and the app does not run native code as your Windows user.';
   const L = [
     /* ---------- in the app ---------- */
     { id: 'python', n: 'Python', ic: '🐍', run: 'py', ce: 'py', cm: '#', how: 'Python 3 with Pyodide, inside the app. numpy and pandas load on first use.',
@@ -30,9 +31,16 @@ print(", ".join(fizzbuzz(i) for i in range(1, 16)))
 console.log('Hello from JavaScript!');
 console.log(words.map(w => w.toUpperCase()).join(' · '));
 ` },
-    { id: 'html', n: 'HTML & CSS', ic: '🌐', run: 'html', ce: 'html', cm: '', how: 'Preview updates as you type. Scripts are disabled.',
+    { id: 'html', n: 'HTML & CSS', ic: '🌐', run: 'html', ce: 'html', cm: '', how: 'Preview updates as you type. Scripts and network are disabled in the preview.',
       ex: R`<h1 style="font-family: Georgia; color: teal">Hello!</h1>
 <p>Edit this page and watch the preview change.</p>
+` },
+    { id: 'scratch', n: 'Scratch', ic: '🐱', run: 'scratch', ce: 'scratch', cm: '//', how: 'Drag blocks onto the script, then ▶ Run on the screen: the cat moves, draws with a pen and talks. Blocks are saved as text, so a script can be shared or copied.',
+      ex: R`when flag clicked
+say Hello from Scratch! for 2
+repeat 4
+  move 60 steps
+  turn 90 degrees
 ` },
     { id: 'sql', n: 'SQL (SQLite)', ic: '🗃️', run: 'sql', ce: 'sql', cm: '--', how: 'SQLite starts with an empty database for each run.',
       ex: R`CREATE TABLE planets (name TEXT, moons INTEGER);
@@ -92,7 +100,7 @@ main :-
 70 END
 ` },
     /* ---------- with tools on this PC ---------- */
-    { id: 'c', n: 'C', ic: '⚙️', run: 'local', cm: '//', how: 'Compiled with Microsoft C/C++ (cl.exe) from Visual Studio.',
+    { id: 'c', n: 'C', ic: '⚙️', run: 'local', cm: '//', how: 'Compiled with GCC in the Docker sandbox.',
       ex: R`#include <stdio.h>
 
 /* Print a small times table. */
@@ -104,7 +112,7 @@ int main(void) {
     return 0;
 }
 ` },
-    { id: 'cpp', n: 'C++', ic: '➕', run: 'local', cm: '//', how: 'Compiled as C++20 with Microsoft C/C++ (cl.exe).',
+    { id: 'cpp', n: 'C++', ic: '➕', run: 'local', cm: '//', how: 'Compiled as C++20 with g++ in the Docker sandbox.',
       ex: R`#include <iostream>
 #include <string>
 #include <vector>
@@ -118,7 +126,7 @@ int main() {
     std::cout << "Sum of squares 1..5 = " << total << '\n';
 }
 ` },
-    { id: 'masm', n: 'Assembly x64 (MASM, Windows)', ic: '🔩', run: 'local', cm: ';', how: 'Assembled with ml64.exe and linked against kernel32.lib. The entry point is main.',
+    { id: 'masm', n: 'Assembly x64 (MASM, Windows)', ic: '🔩', run: 'local', cm: ';', how: 'Assembled with ml64.exe and linked against kernel32.lib. The entry point is main.', why: 'MASM needs the Windows C++ toolchain, which is not in the Docker image, and the app does not run native code as your Windows user.',
       ex: R`; x64 Windows assembly (MASM): write one line with the Windows API, then exit.
 extrn GetStdHandle : proc
 extrn WriteFile : proc
@@ -145,7 +153,7 @@ main proc
 main endp
 end
 ` },
-    { id: 'rust', n: 'Rust', ic: '🦀', run: 'local', cm: '//', how: 'Compiled with rustc (edition 2021).',
+    { id: 'rust', n: 'Rust', ic: '🦀', run: 'local', cm: '//', how: 'Compiled with rustc in the Docker sandbox (edition 2021).',
       ex: R`fn fib(n: u64) -> u64 {
     if n < 2 { n } else { fib(n - 1) + fib(n - 2) }
 }
@@ -156,7 +164,7 @@ fn main() {
     println!("First ten Fibonacci numbers: {:?}", fibs);
 }
 ` },
-    { id: 'csharp', n: 'C#', ic: '🎯', run: 'local', cm: '//', how: 'Compiled with the .NET SDK\'s C# compiler. Top-level statements and the common usings work.',
+    { id: 'csharp', n: 'C#', ic: '🎯', run: 'local', cm: '//', how: 'Compiled with the .NET SDK in the Docker sandbox. Top-level statements and the common usings work.',
       ex: R`// C# top-level statements: no class or Main needed.
 var names = new[] { "Ada", "Grace", "Linus" };
 Console.WriteLine("Hello from C#!");
@@ -164,13 +172,13 @@ foreach (var (name, i) in names.Select((n, i) => (n, i)))
     Console.WriteLine($"{i + 1}. {name} has {name.Length} letters");
 Console.WriteLine($"Longest: {names.MaxBy(n => n.Length)}");
 ` },
-    { id: 'fsharp', n: 'F#', ic: '🔷', run: 'local', cm: '//', how: 'Runs as an F# script with the .NET SDK (dotnet fsi).',
+    { id: 'fsharp', n: 'F#', ic: '🔷', run: 'local', cm: '//', how: 'Runs as an F# script with the .NET SDK (dotnet fsi).', why: 'F# is not in the Docker image, and the app does not run native code as your Windows user.',
       ex: R`let square x = x * x
 printfn "Hello from F#!"
 [1..5] |> List.map square |> List.iter (printfn "%d")
 printfn "Sum of squares: %d" ([1..5] |> List.sumBy square)
 ` },
-    { id: 'vbnet', n: 'Visual Basic (.NET)', ic: '🅱️', run: 'local', cm: "'", how: 'Compiled with the .NET SDK\'s Visual Basic compiler.',
+    { id: 'vbnet', n: 'Visual Basic (.NET)', ic: '🅱️', run: 'local', cm: "'", how: 'Compiled with the .NET SDK\'s Visual Basic compiler.', why: 'Visual Basic is not in the Docker image, and the app does not run native code as your Windows user.',
       ex: R`Module Program
     Sub Main()
         Console.WriteLine("Hello from Visual Basic!")
@@ -180,7 +188,7 @@ printfn "Sum of squares: %d" ([1..5] |> List.sumBy square)
     End Sub
 End Module
 ` },
-    { id: 'typescript', n: 'TypeScript', ic: '🔷', run: 'local', cm: '//', how: 'Node.js strips the types and runs it.',
+    { id: 'typescript', n: 'TypeScript', ic: '🔷', run: 'local', cm: '//', how: 'Compiled with tsc and run by Node.js in the Docker sandbox.',
       ex: R`interface Planet { name: string; moons: number }
 
 const planets: Planet[] = [
@@ -193,38 +201,38 @@ const describe = (p: Planet): string => p.name + " has " + p.moons + (p.moons ==
 console.log("Hello from TypeScript!");
 planets.forEach(p => console.log(describe(p)));
 ` },
-    { id: 'nodejs', n: 'JavaScript (Node.js)', ic: '🟩', run: 'local', cm: '//', how: 'Runs with Node.js on this PC, with its modules (fs, os, path).',
+    { id: 'nodejs', n: 'JavaScript (Node.js)', ic: '🟩', run: 'local', cm: '//', how: 'Runs with Node.js.', why: 'Node.js is not in the Docker image, and the app does not run native code as your Windows user.',
       ex: R`const os = require('os');
 console.log('Hello from Node.js ' + process.version + '!');
 console.log('This PC has ' + os.cpus().length + ' processor threads.');
 ` },
-    { id: 'powershell', n: 'PowerShell', ic: '💠', run: 'local', cm: '#', how: 'Runs with Windows PowerShell.',
+    { id: 'powershell', n: 'PowerShell', ic: '💠', run: 'local', cm: '#', term: 'powershell', how: 'Opens the PowerShell terminal from the Terminal playground, a fully simulated Windows PC: nothing runs on this PC. The same shell also runs in Windows Sandbox or Docker when they are set up (see the Terminal playground).',
       ex: R`Write-Output "Hello from PowerShell!"
 1..5 | ForEach-Object { "{0} squared is {1}" -f $_, ($_ * $_) }
 $today = Get-Date
 Write-Output ("Today is " + $today.DayOfWeek)
 ` },
-    { id: 'batch', n: 'Batch (cmd.exe)', ic: '🪟', run: 'local', cm: 'REM', how: 'Runs as a .bat file with cmd.exe.',
+    { id: 'batch', n: 'Batch (cmd.exe)', ic: '🪟', run: 'local', cm: 'REM', term: 'cmd', how: 'Opens the Command Prompt terminal from the Terminal playground, a fully simulated Windows PC: nothing runs on this PC. Batch files also run in Windows Sandbox when it is set up (see the Terminal playground).',
       ex: R`@echo off
 echo Hello from a Windows batch file!
 for /L %%i in (1,1,5) do echo Count %%i
 set /a total=6*7
 echo 6 times 7 is %total%
 ` },
-    { id: 'vbscript', n: 'VBScript', ic: '📜', run: 'local', cm: "'", how: 'Runs with Windows Script Host (cscript).',
+    { id: 'vbscript', n: 'VBScript', ic: '📜', run: 'local', cm: "'", how: 'Runs with Windows Script Host (cscript) inside Windows Sandbox (Windows only).',
       ex: R`WScript.Echo "Hello from VBScript!"
 Dim i
 For i = 1 To 5
     WScript.Echo i & " cubed is " & (i ^ 3)
 Next
 ` },
-    { id: 'jscript', n: 'JScript (Windows Script Host)', ic: '📜', run: 'local', cm: '//', how: 'Runs with Windows Script Host (cscript). This is the 1990s JavaScript dialect.',
+    { id: 'jscript', n: 'JScript (Windows Script Host)', ic: '📜', run: 'local', cm: '//', how: 'Runs with Windows Script Host (cscript) inside Windows Sandbox (Windows only). This is the 1990s JavaScript dialect.',
       ex: R`WScript.Echo("Hello from JScript!");
 for (var i = 1; i <= 5; i++) {
     WScript.Echo(i + " doubled is " + (i * 2));
 }
 ` },
-    { id: 'bash', n: 'Bash', ic: '🐚', run: 'local', ce: 'sh', cm: '#', how: 'Runs with the Bash that comes with Git for Windows.',
+    { id: 'bash', n: 'Bash', ic: '🐚', run: 'local', ce: 'sh', cm: '#', term: 'bash', how: 'Opens the Bash terminal from the Terminal playground, a fully simulated Linux PC: nothing runs on this PC. Bash scripts also run in the Docker sandbox when it is set up (see the Terminal playground).',
       ex: R`#!/bin/bash
 echo "Hello from Bash!"
 for i in 1 2 3 4 5; do
@@ -233,7 +241,7 @@ done
 name="Moundshroud"
 echo "$name has ${'${'}#name} letters"
 ` },
-    { id: 'perl', n: 'Perl', ic: '🐪', run: 'local', cm: '#', how: 'Runs with the Perl that comes with Git for Windows.',
+    { id: 'perl', n: 'Perl', ic: '🐪', run: 'local', cm: '#', how: 'Runs with Perl.', why: 'Perl is not in the Docker image, and the app does not run native code as your Windows user.',
       ex: R`use strict;
 use warnings;
 
@@ -245,14 +253,14 @@ for my $w (sort { length($a) <=> length($b) } @words) {
 (my $backwards = "The quick brown fox") =~ s/(\w+)/reverse $1/ge;
 print "$backwards\n";
 ` },
-    { id: 'awk', n: 'AWK', ic: '🦅', run: 'local', cm: '#', how: 'Runs with GNU AWK. It reads the Input box line by line.',
+    { id: 'awk', n: 'AWK', ic: '🦅', run: 'local', cm: '#', how: 'Runs with GNU AWK. It reads the Input box line by line.', why: 'AWK is not in the Docker image, and the app does not run native code as your Windows user.',
       inp: 'Ada 91\nGrace 87\nLinus 78\n',
       ex: R`# AWK reads the Input box line by line: a name and a score.
 BEGIN { print "Hello from AWK!" }
 { total += $2; print $1 " scored " $2 }
 END { if (NR) printf "Average: %.1f\n", total / NR }
 ` },
-    { id: 'sed', n: 'sed', ic: '✂️', run: 'local', cm: '#', how: 'Runs with GNU sed. It edits the Input box text line by line.',
+    { id: 'sed', n: 'sed', ic: '✂️', run: 'local', cm: '#', how: 'Runs with GNU sed. It edits the Input box text line by line.', why: 'sed is not in the Docker image, and the app does not run native code as your Windows user.',
       inp: 'The colour of the sky\nA colourful day\n',
       ex: R`# sed edits the Input box text line by line.
 s/colour/color/g
@@ -646,8 +654,53 @@ Each note's interval from the current root note picks a command,
 so a program is written in a music editor, not as text.
 ` },
   ];
+  /* Windows-native scripts run in Windows Sandbox (lib/code-sandbox-windows.js), never on the host. */
+  const SANDBOX = ['powershell', 'batch', 'vbscript', 'jscript'];
+  /* The HTML preview runs in a sandboxed frame. This CSP also blocks every network request, so a page cannot
+     load a remote image or call back out. Scripts are off in the lessons preview; the terminal's runner can turn
+     them on, still with no network. */
+  const PREVIEW_CSP = "default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src data: blob:; font-src data: blob:; media-src data: blob:; connect-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'";
+  const PREVIEW_CSP_SCRIPTS = PREVIEW_CSP.replace("script-src 'none'", "script-src 'unsafe-inline' 'unsafe-eval' blob: data:");
+  function previewDoc(code, scripts) {
+    const csp = scripts ? PREVIEW_CSP_SCRIPTS : PREVIEW_CSP;
+    const tag = '<meta http-equiv="Content-Security-Policy" content="' + csp.replace(/"/g, '&quot;') + '">';
+    const text = String(code == null ? '' : code);
+    const doctype = /^\s*<!doctype[^>]*>/i.exec(text);
+    if (doctype) {
+      const at = doctype.index + doctype[0].length;
+      return text.slice(0, at) + tag + text.slice(at);
+    }
+    return tag + text;
+  }
   const byId = id => L.find(x => x.id === id);
-  const api = { GROUPS, LANGS: L, DOCKER, NOTOOL, byId };
+  /* Where a language runs right now, and, when it cannot run, a sentence a learner can act on. Every language always
+     gets an answer: app, mini, eso, pc, docker, or none with a reason. `checking` is only true until the status call
+     answers. code-lessons.js and the tests both use this, so a language can never end up with a blank explanation. */
+  const MINI = ['scheme', 'prolog', 'forth', 'basic'];
+  /* these open the Terminal playground instead of the code editor: the shell is simulated, so it is safe and always there */
+  const SHELLS = L.filter(l => l.term).reduce((all, l) => { all[l.id] = l.term; return all; }, {});
+  function route(l, status) {
+    if (!l) return { g: 'none', why: 'That language is not in the Playground.' };
+    if (['py', 'js', 'html', 'sql', 'binary', 'scratch'].includes(l.run)) return { g: 'app' };
+    if (l.run === 'eso') return { g: MINI.includes(l.id) ? 'mini' : 'eso' };
+    if (l.run === 'none') return { g: 'none', why: l.why || NOTOOL };
+    if (!status) return { g: 'none', checking: true, why: 'Checking which safe sandboxes are available…' };
+    if (status.failed) {
+      return { g: 'none', why: 'The safe-sandbox check could not be read. Reload the page, or open “Safe runtime setup” below.' };
+    }
+    const backend = status.backend && status.backend[l.id];
+    if (backend) return { g: backend === 'docker' ? 'docker' : 'pc', sandbox: backend };
+    const dk = status.docker || {};
+    const onPc = SANDBOX.includes(l.id), inDocker = DOCKER.includes(l.id);
+    const dockerWhy = dk.installed
+      ? (!dk.running ? 'Docker is installed, but its engine is not running.' : 'Docker is running, but the Playground image is not built.')
+      : 'Docker is not installed.';
+    if (onPc && !inDocker) return { g: 'none', why: 'Windows Sandbox is not turned on. This Windows-only language is refused rather than run as your Windows user.' };
+    if (inDocker && !onPc) return { g: 'none', why: dockerWhy + (dk.installed ? '' : ' The app does not run native code as your Windows user.') };
+    if (onPc && inDocker) return { g: 'none', why: 'Windows Sandbox is not turned on, and ' + dockerWhy.charAt(0).toLowerCase() + dockerWhy.slice(1) };
+    return { g: 'none', why: l.why || NOTOOL };
+  }
+  const api = { GROUPS, LANGS: L, DOCKER, SANDBOX, NOTOOL, PREVIEW_CSP, PREVIEW_CSP_SCRIPTS, previewDoc, byId, route, MINI, SHELLS };
   root.PlayLangs = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

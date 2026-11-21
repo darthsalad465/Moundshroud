@@ -13,6 +13,8 @@
   P.open = (id, game) => { if (id === 'cyber') return A.cybertab.go('games', game);      /* the cyber games live in the Cyber tab now */ A.showTab('play'); leave(true); sub = id; ls.set('playsub', id); render(); if (game) setTimeout(() => P.start(game), 50); };
   function render() { const my = ++tok; if (A.music && !cur) A.music.stop(); bar(); const b = $('plbody'); b.innerHTML = ''; b.onclick = null; (SEC[sub] || SEC.arcade)(b, my); }
   A.registerTab('play', 'Games', () => { if (!cur) render(); else if (A.music) A.music.play(cur.id); });
+  /* a game in progress is a live thing with its own clock: switching tabs never resumes it from a snapshot */
+  if (A.state) A.state.ephemeral('play', () => !!cur);
 
   /* ---------- high scores ---------- */
   const hsKey = id => 'hs_' + id;

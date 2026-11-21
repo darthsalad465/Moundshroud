@@ -6,6 +6,7 @@
     'terminal-scenarios', 'terminal-sandbox-python', 'terminal-manual-content', 'terminal-manual-beginner',
     'terminal-manual', 'terminal-command-coach', 'terminal-labyrinth-data',
     'terminal-labyrinth-data2', 'terminal-labyrinth', 'terminal-puzzles',
+    'terminal-pentest', 'terminal-remote',
     'mcode-custom', 'mcode-swarm', 'mcode-whip', 'terminal-playground-mcode', 'terminal-playground'
   ];
   const status = document.getElementById('cd-terminal-status');

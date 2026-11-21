@@ -72,7 +72,7 @@ A.keep = (host, key, render, opts) => {
 };
 /* forget every kept page of a host (its pages' _cleanup runs); the next A.keep makes them fresh */
 A.keepReset = host => { if (!host || !host._kp) return; for (const el of Object.values(host._kp)) { if (el._cleanup) { try { el._cleanup(); } catch (e) { } } } host._kpGone = true; };
-A.registerTab = (name, label, onShow, opts = {}) => { A.tabs[name] = { label, onShow, hidden: !!opts.hidden }; A.order.push(name); };
+A.registerTab = (name, label, onShow, opts = {}) => { A.tabs[name] = { label, onShow, hidden: !!opts.hidden, ephemeral: !!opts.ephemeral }; A.order.push(name); };
 /* A page only needs to keep working while you are on it or an AI is working on it. A.aiBusy(tab,on) marks a page
    whose AI job must keep running when you switch away; A.pageAwake(tab) is true for the open tab and those pages.
    A.every(tab,ms,fn) is a timer that skips its work while the tab is asleep, so hidden pages stop polling and drawing. */
@@ -276,7 +276,8 @@ A.showTab = name => {
   if (!A.tabs[name]) return;
   const _t0 = nowMs();
   const prev = A.cur; A.cur = name; try { A.closePop(); } catch (e) { }
-  if (prev !== name) { try { A.emit('tab:hide', prev); } catch (e) { } } try { A.emit('tab:show', name); } catch (e) { }
+  /* the page you are leaving keeps its own instance: what was typed, ticked and scrolled is remembered for it alone */
+  if (prev !== name) { try { A.emit('tab:hide', prev); } catch (e) { } try { if (A.state) A.state.save(prev); } catch (e) { } } try { A.emit('tab:show', name); } catch (e) { }
   /* every page is switched off except this one, whether or not its module has registered its tab yet: a page loaded
      later (the Chat tab is loaded on its own) must never stay on under the one being shown */
   for (const p of document.querySelectorAll('section.panel')) p.classList.toggle('on', p.id === 'p-' + name);
@@ -285,6 +286,7 @@ A.showTab = name => {
   /* one page failing to open must never take the rest of the app with it: it gets a "try again" card instead */
   const fail = e => { try { A.problems && A.problems.push('page', 'Opening ' + name + ': ' + (e && e.message || e), (e && e.stack || '').split('\n')[1] || ''); } catch (x) { } const p = $('p-' + name); if (p && !p.textContent.trim()) { p.innerHTML = '<div class="pad" style="margin:auto;max-width:460px;text-align:center"><h3>This page hit a problem</h3><p class="mute small">The rest of Moundshroud still works. The details were saved for Settings › Problems.</p><button class="pri" onclick="A.showTab(\'' + name + '\')">Try again</button></div>'; } };
   if (A.tabs[name].onShow) { try { const r = A.tabs[name].onShow(); if (r && r.catch) r.catch(fail); } catch (e) { fail(e); } }
+  try { if (A.state) A.state.load(name); } catch (e) { }
   /* how long the page took to be on screen: the work and the paint after it. The timer stops early in a window that is
      hidden or covered (a browser may pause animation frames for minutes), so the number always means something. */
   if (A.act) {

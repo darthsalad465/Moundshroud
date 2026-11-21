@@ -22,7 +22,8 @@ async function run(ok) {
   ctx.self = ctx.window = ctx.globalThis = ctx;
   vm.createContext(ctx);
   const playgroundFiles = ['cyber-crack', 'terminal-unix', 'terminal-ops-training', 'terminal-playground-data', 'terminal-playground-data2',
-    'terminal-playground-data3', 'terminal-playground-curios', 'terminal-playground-jobs', 'terminal-scenarios'];
+    'terminal-playground-data3', 'terminal-playground-curios', 'terminal-playground-jobs', 'terminal-scenarios',
+    'terminal-pentest', 'terminal-remote'];
   for (const script of playgroundFiles) {
     const f = 'web/js/' + script + '.js';
     vm.runInContext(fs.readFileSync(path.join(root, f), 'utf8'), ctx, { filename: f });
@@ -32,7 +33,7 @@ async function run(ok) {
   require('./bash-combinations-test.js')(ok, TP.makeBash);
 
   const jobSeed = 12345;
-  for (const shell of TP.shells) {
+  for (const shell of TP.shells.filter(s => !s.range)) {
     storage.set('tpg_jobs_' + shell.id, JSON.stringify({ number: 1, seed: jobSeed, completed: 0, active: false, solved: false }));
   }
   const getJobOutput = (shell, request, number) => {
@@ -57,7 +58,7 @@ async function run(ok) {
     return lines.join('\n');
   };
   const jobErrors = [];
-  for (const shell of TP.shells) {
+  for (const shell of TP.shells.filter(s => !s.range)) {
     for (let number = 1; number <= 15; number++) {
       const request = TP.jobs.makeJob(shell.id, number, jobSeed);
       const brief = shell.run(number === 1 ? 'job start' : 'job next');
@@ -89,7 +90,7 @@ async function run(ok) {
   const eggCommands = ['fortune', 'Get-MoonPhase', 'dir /moon', 'import moth', 'require("moon-dust")',
     'curio SELECT * FROM lost_socks;', 'git stash list --attic', 'docker stats --aquarium', 'ping moon.test', 'curio hex moonstone'];
   ok('sandbox curios: every shell has hidden interactions, and repeated discoveries do not increase the total',
-    TP.shells.every((shell, i) => shell.run(eggCommands[i]).includes('✦ Discovered:') && !shell.run(eggCommands[i]).includes('✦ Discovered:')) &&
+    TP.shells.filter(shell => !shell.range).every((shell, i) => shell.run(eggCommands[i]).includes('✦ Discovered:') && !shell.run(eggCommands[i]).includes('✦ Discovered:')) &&
     practiceBash.run('curios').includes('10/70 discovered') &&
     !byId('crypto').run('hex moonstone').includes('moonstone falls'));
   ok('sandbox curios: app and Sleepy Hollow eggs answer in every shell',
@@ -97,9 +98,10 @@ async function run(ok) {
     byId('bash').run('cd /sleepy-hollow').includes('closed after dark') && byId('cmd').run('pumpkin').includes('shattered pumpkin') &&
     byId('git').run('find head').includes('since 1776'));
 
-  // Every documented example across all 10 shells runs cleanly without command-not-found or NameError
+  // Every documented example across all 10 shells runs cleanly without command-not-found or NameError (the Security
+  // ranges have their own examples: some only make sense inside a shell or session, so they are tested on their own)
   let badExamples = [];
-  for (const sh of TP.shells) {
+  for (const sh of TP.shells.filter(shell => !shell.range)) {
     for (const c of sh.commands) {
       const out = String(sh.run(c.ex) || '');
       if (/command not found|not recognized|NameError:|is not a git command|is not a docker command|does not exist/i.test(out)) {
@@ -633,6 +635,28 @@ async function run(ok) {
     custRoom.run('cat fragments/part{1,2,3}.txt | tr -d "\\n"') === 'FLAG{CUSTOM_OK}' &&
     custSes.run('solve FLAG{CUSTOM_OK}').solved === true);
 
+  /* AI-authored rooms: any scenario, and as many files as the player asks for. */
+  const aiPlan = PUZ.parseAiPlan('```json\n{"title":"Lighthouse watch","brief":"The night guard logged the passphrase.","answer":"TIDE-4491","files":[{"path":"briefing/orders.txt","text":"Relieve the guard at pier 9."},{"path":"logs/guard.txt","text":"03:12 passphrase: TIDE-4491"}],"hints":["Read the logs"],"walkthrough":["cat logs/guard.txt","solve TIDE-4491"]}\n```');
+  const aiBad = PUZ.parseAiPlan('I could not do that.');
+  const aiSpec = PUZ.addCustom(PUZ.buildAiRoom(aiPlan, { shell: 'bash', files: 2500 }));
+  const aiRoom = PUZ.buildCustomFileRoom(aiSpec);
+  const aiSes = PUZ.createSession(aiRoom);
+  const aiCount = Object.keys(aiSpec.files || {}).length;
+  const padded = PUZ.padRoom({ 'a.txt': 'one' }, 1200, 'seed');
+  ok('AI puzzle rooms: read the model plan, keep its key files, and grow to any file count the player asks for',
+    aiPlan.title === 'Lighthouse watch' && aiPlan.answer === 'TIDE-4491' && aiBad === null &&
+    aiCount === 2500 && aiSpec.files['logs/guard.txt'].includes('TIDE-4491') &&
+    Object.keys(padded).length === 1200 && padded['a.txt'] === 'one' &&
+    Object.values(padded).every(text => typeof text === 'string'), JSON.stringify({ aiCount, files: Object.keys(padded).length }));
+  ok('AI puzzle rooms: the key is reachable with ordinary commands in the room and solve verifies it',
+    aiRoom.run('cat logs/guard.txt').includes('TIDE-4491') &&
+    aiRoom.run('grep -r passphrase logs').includes('TIDE-4491') &&
+    aiRoom.run('ls').includes('logs') &&
+    aiSes.run('hint').out.includes('Read the logs') &&
+    aiSes.run('walkthrough').out.includes('solve TIDE-4491') &&
+    aiSes.run('solve WRONG-KEY').solved !== true &&
+    aiSes.run('solve TIDE-4491').solved === true);
+
   const ranks = Object.keys(PUZ.DIFFS);
   const progressionFailures = [];
   for (const shell of TL.flavors) {
@@ -703,23 +727,32 @@ async function run(ok) {
 
   /* ---- 6. Detailed `help` & `help <cmd>` across Playground, Labyrinth, and Puzzle Studio ---- */
   const helpFailures = [];
-  for (const sh of TP.shells) {
+  for (const sh of TP.shells.filter(shell => !shell.range)) {
     const h = String(sh.run('help') || '');
     if (!h.includes('SANDBOX COMMAND REFERENCE') || h.split('\n').length < 8) {
       helpFailures.push('playground:' + sh.id);
     }
   }
   const topicChecks = [
-    ['bash grep', byId('bash').run('help grep').includes('search lines matching regex')],
+    ['bash grep', (g => g.includes('OPTIONS') && g.includes('ignore case') && g.includes('EXAMPLES'))(byId('bash').run('help grep'))],
     ['ps process', byId('powershell').run('help Get-Process').includes('processes')],
     ['cmd findstr', byId('cmd').run('help findstr').includes('regex search')],
-    ['py help', byId('python').run('help sum').includes('builtins')],
+    ['py help', (g => g.includes('sum(iterable)') && g.includes('EXAMPLES') && g.includes('sum(range(5))'))(byId('python').run('help sum'))],
     ['node help', byId('node').run('help Buffer').includes('base64, and hex buffers')],
     ['sql join', byId('sql').run('help JOIN').includes('combine rows')],
-    ['git rebase', byId('git').run('help rebase').includes('combine histories')],
-    ['docker inspect', byId('docker').run('help inspect').includes('JSON config')],
+    ['git rebase', (g => g.includes('Reapply commits') && g.includes('git rebase main') && g.includes('EXAMPLES'))(byId('git').run('help rebase'))],
+    ['docker inspect', (g => g.includes('as JSON') && g.includes('docker inspect app-web-1') && g.includes('EXAMPLES'))(byId('docker').run('help inspect'))],
     ['net nmap', byId('network').run('help nmap').includes('open TCP ports')],
-    ['crypto vigenere', byId('crypto').run('help vigenere').includes('Vigen')]
+    ['crypto vigenere', byId('crypto').run('help vigenere').includes('Vigen')],
+    // New man pages added in the full-coverage pass: each must show real flags/examples and the shared chaining note.
+    ['bash tar', (g => g.includes('OPTIONS') && g.includes('create a new archive') && g.includes('tar -tzf') && g.includes('PIPES & CHAINING'))(byId('bash').run('help tar'))],
+    ['bash find flags', (g => g.includes('-name') && g.includes('find . -name') && g.includes('EXAMPLES'))(byId('bash').run('help find'))],
+    ['ps where-object', (g => g.includes('-gt') && g.includes('$_.CPU') && g.includes('OBJECT PIPELINE'))(byId('powershell').run('help Where-Object'))],
+    ['cmd certutil', (g => g.includes('-hashfile') && g.includes('-encode') && g.includes('PIPES & REDIRECTION'))(byId('cmd').run('help certutil'))],
+    ['sql select', (g => g.includes('DISTINCT') && g.includes('SELECT * FROM users') && g.includes('WRITING QUERIES'))(byId('sql').run('help SELECT'))],
+    ['docker run flags', (g => g.includes('-d') && g.includes('--name') && g.includes('docker run') && g.includes('EXAMPLES'))(byId('docker').run('help run'))],
+    ['crypto base64 decode', (g => g.includes('-d') && g.includes('base64 -d') && g.includes('CHAINING TRANSFORMS'))(byId('crypto').run('help base64'))],
+    ['bash morse chaining', (g => g.includes('morse -d') && g.includes('EXAMPLES'))(byId('bash').run('help morse'))]
   ];
   const labBash = TL.session('bash');
   const labHelp = labBash.run('help').out;
@@ -730,7 +763,7 @@ async function run(ok) {
     helpFailures.length === 0 &&
     topicChecks.every(x => x[1]) &&
     labHelp.includes('SANDBOX COMMAND REFERENCE') && labHelp.includes('LABYRINTH COMMANDS') &&
-    labHelpTopic.includes('extract column N') &&
+    labHelpTopic.includes('select columns') && labHelpTopic.includes('EXAMPLES') &&
     puzHelp.includes('SANDBOX COMMAND REFERENCE') && puzHelp.includes('PUZZLE STUDIO COMMANDS') &&
     puzHelpTopic.includes('Base64'),
     JSON.stringify({ helpFailures, failedTopics: topicChecks.filter(x => !x[1]).map(x => x[0]) }));
@@ -858,6 +891,8 @@ async function run(ok) {
   const journalVisible = nodes.get('tpgout').innerHTML.includes('Curio journal');
   click({ mode: 'puzzle' });
   const puzzleVisible = nodes.get('tpgtitle').textContent.includes('Bash') && !nodes.has('tpgjobs');
+  /* the AI scenario box: describe anything, choose any room size */
+  const aiBoxVisible = nodes.has('puzaiq') && nodes.has('puzaisize') && /Describe any scenario/.test(stageMarkup);
   click({ mode: 'sandbox' });
   const jobResumed = nodes.get('tpgprompt').textContent.includes('[job 15]');
   const input = nodes.get('tpgin');
@@ -874,7 +909,8 @@ async function run(ok) {
   };
   const printed = () => nodes.get('tpgout').innerHTML;
   const manual = ctx.TerminalPlayground.manual;
-  const indexes = ctx.TerminalPlayground.shells.map(shell => manual.buildIndex(shell));
+  const standardShells = ctx.TerminalPlayground.shells.filter(shell => !shell.range);
+  const indexes = standardShells.map(shell => manual.buildIndex(shell));
   const bashManual = indexes.find(index => index.shell.id === 'bash');
   const cmdManual = indexes.find(index => index.shell.id === 'cmd');
   const gitManual = indexes.find(index => index.shell.id === 'git');
@@ -1094,7 +1130,7 @@ async function run(ok) {
   let opens = 0, manualOpens = 0, pipeDecodes = 0; const noteMisses = [], pipeMisses = [];
   for (const mode of ['sandbox', 'lab', 'puzzle']) {
     click({ mode });
-    for (const { id } of TP.shells) {
+    for (const { id } of TP.shells.filter(shell => !shell.range)) {
       click({ shell: id });
       enter('help');
       if (manualDialog?.open && manualPage().includes('What do you want to do?') &&
@@ -1475,7 +1511,7 @@ async function run(ok) {
   ok('mcode: the server requires an installed local model and strips tool calls and image attachments',
     accepted.status === 200 && missing.status === 404 && cloud.status === 400 && !accepted.data.tools &&
     JSON.stringify(accepted.data.messages) === '[{"role":"user","content":"hello"}]');
-  ok('playground UI: practice controls, discovery journal, and mode switching work together', openJob && journalVisible && puzzleVisible && jobResumed);
+  ok('playground UI: practice controls, discovery journal, AI scenario box, and mode switching work together', openJob && journalVisible && puzzleVisible && aiBoxVisible && jobResumed);
   ok('playground UI: the Bash input preserves multiline scripts and runs them with Enter', keepsNewline && ranMultiline);
 
   const savedProgress = JSON.parse(storage.get('tpg_jobs_bash'));

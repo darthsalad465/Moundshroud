@@ -24,7 +24,10 @@
       ['grep', '🔍 Log Hunt'],
       ['nested', '🌳 Deep Nested Tree'],
       ['encoded', '🔐 Encoded Secret'],
-      ['count', '📊 Log Frequency Count']
+      ['count', '📊 Log Frequency Count'],
+      ['sep', '📐 Field Separators (awk -F, cut -d)'],
+      ['flags', '🚩 Grep Flags (-i -w -n -v -l)'],
+      ['recon', '🧭 Whole-Disk Recon (grep -r)']
     ],
     powershell: [
       ['auto', '🎲 Random (Tier-Scaled)'],
@@ -35,7 +38,10 @@
       ['hidden', '🔒 Hidden Vault'],
       ['assemble', '📦 Fragment Assembly'],
       ['grep', '🔍 Select-String Hunt'],
-      ['nested', '🌳 Recursive Search']
+      ['nested', '🌳 Recursive Search'],
+      ['sep', '📐 Delimited Fields (Import-Csv)'],
+      ['flags', '🚩 Pattern Flags'],
+      ['recon', '🧭 Whole-Disk Recon']
     ],
     cmd: [
       ['auto', '🎲 Random (Tier-Scaled)'],
@@ -46,7 +52,10 @@
       ['hidden', '🔒 Hidden Files (/a)'],
       ['assemble', '📦 Fragment Assembly'],
       ['grep', '🔍 findstr Hunt'],
-      ['nested', '🌳 Deep dir /s /b']
+      ['nested', '🌳 Deep dir /s /b'],
+      ['sep', '📐 Delimited Fields (for /f delims)'],
+      ['flags', '🚩 findstr Flags'],
+      ['recon', '🧭 Whole-Disk Recon']
     ],
     python: [
       ['auto', '🎲 Random (Tier-Scaled)'],
@@ -446,14 +455,17 @@
     C.grep = (a, s) => {
       let flags = '', rest = [];
       for (const x of a) { if (x.startsWith('-') && x.length > 1) flags += x.slice(1); else rest.push(x); }
-      const pat = rest.shift(); if (pat == null) return 'usage: grep [-invrcEo] <pattern> [file...]';
-      let re; try { re = new RegExp(pat, flags.includes('i') ? 'i' : ''); } catch (e) { return 'grep: bad pattern'; }
-      const hits = [];
+      const pat = rest.shift(); if (pat == null) return 'usage: grep [-invrcEowlH] <pattern> [file...]';
+      /* -w means whole words only, -l means show the file names instead of the lines */
+      const patRe = flags.includes('w') ? '\\b(?:' + pat + ')\\b' : pat;
+      let re; try { re = new RegExp(patRe, flags.includes('i') ? 'i' : ''); } catch (e) { return 'grep: bad pattern'; }
+      const hits = [], names = [];
       const scan = (txt, lbl) => String(txt).split('\n').forEach((l, i) => {
         const matched = re.test(l);
         if (matched !== flags.includes('v')) {
           const body = flags.includes('o') && !flags.includes('v') ? (l.match(re) || [''])[0] : l;
-          hits.push((lbl && (rest.length > 1 || flags.includes('r') || flags.includes('R')) ? lbl + ':' : '') + (flags.includes('n') ? (i + 1) + ':' : '') + body);
+          hits.push((lbl && (rest.length > 1 || flags.includes('r') || flags.includes('R') || flags.includes('H')) ? lbl + ':' : '') + (flags.includes('n') ? (i + 1) + ':' : '') + body);
+          if (lbl && flags.includes('l') && !names.includes(lbl)) names.push(lbl);
         }
       });
       if (!rest.length) scan(s || '', '');
@@ -472,6 +484,7 @@
           scan(result.text, f);
         }
       }
+      if (flags.includes('l')) return names.join('\n');
       return flags.includes('c') ? String(hits.length) : hits.join('\n');
     };
     C.findstr = (a, s) => {
@@ -1786,6 +1799,212 @@
     };
   }
 
+  /* ================================================================ FIELD CRAFT
+     Real recon with the tools people actually reach for, and a different one every time: a table whose field separator
+     is comma, tab, pipe, semicolon or colon; greps that only work with -i, -w, -n, -v, -c or -l; and disks where the one
+     file that matters has to be found first. Nothing is ever solved with the same command twice. */
+  const NAMES = ['Mira Halvorsen', 'Bram Okafor', 'Ilse Kowalski', 'Rafe Duarte', 'Nadia Petrov', 'Tomas Eklund', 'Zara Quiroga', 'Oskar Weiss', 'Delia Moreau', 'Yusuf Ibarra', 'Greta Strand', 'Farid Nakamura'];
+  const DEPTS = ['Harbour Ops', 'Night Shift', 'Lost Property', 'Client Cover', 'Records', 'Dispatch', 'Compliance'];
+  const SEP_INFO = {
+    ',': { name: 'comma', file: 'roster.csv', awk: "awk -F','", cut: "cut -d','", ps: "-Delimiter ','", cmd: 'delims=,', word: 'comma' },
+    '|': { name: 'pipe', file: 'roster.psv', awk: "awk -F'|'", cut: "cut -d'|'", ps: "-Delimiter '|'", cmd: 'delims=|', word: 'pipe' },
+    ';': { name: 'semicolon', file: 'roster.ssv', awk: "awk -F';'", cut: "cut -d';'", ps: "-Delimiter ';'", cmd: 'delims=;', word: 'semicolon' },
+    ':': { name: 'colon', file: 'roster.colon', awk: "awk -F':'", cut: "cut -d':'", ps: "-Delimiter ':'", cmd: 'delims=:', word: 'colon' },
+    '\t': { name: 'tab', file: 'roster.tsv', awk: "awk -F'\\t'", cut: "cut -f", ps: '-Delimiter "`t"', cmd: 'delims=<TAB>', word: 'tab' }
+  };
+  const sepKeys = shell => shell === 'cmd' ? [',', '|', ';', ':'] : [',', '|', ';', ':', '\t'];
+  const solvers = (shell, sep, col, needle) => {
+    const S = SEP_INFO[sep];
+    if (shell === 'powershell') return ["Select-String -Pattern '" + needle + "' " + S.file, 'Get-Content ' + S.file + ' | Select-String -Pattern "' + needle + '"'];
+    if (shell === 'cmd') return ['findstr /i "' + needle + '" ' + S.file];
+    return [S.awk + " '$0 ~ /" + needle + "/ { print $" + col + " }' " + S.file, 'grep -i "' + needle + '" ' + S.file + ' | ' + (sep === '\t' ? S.cut + ' ' + col : S.cut + ' -f' + col)];
+  };
+
+  function makeFieldPuzzle(shell, diff, seed) {
+    const r = L.rnd((seed ^ 0x27d4eb2f) >>> 0);
+    const sep = pick(r, sepKeys(shell));
+    const S = SEP_INFO[sep];
+    const ans = L.newToken(r);
+    const colNames = ['name', 'dept', 'site', 'score', 'code'];
+    const codeCol = 5, nameCol = 1, deptCol = 2;
+    const n = diff === 'easy' ? 5 : 8 + r(5);
+    const people = shuffle(NAMES.slice(), r).slice(0, n);
+    const rows = people.map((who, i) => {
+      const dept = DEPTS[(i + r(DEPTS.length)) % DEPTS.length];
+      const score = 40 + r(60);
+      const code = who === people[0] ? ans : L.newToken(r);
+      return [who, dept, 'site-' + (10 + r(80)), String(score), code];
+    });
+    const target = rows[0];
+    const cell = v => v.split(sep).join(' ');
+    const tableOf = () => [colNames.join(sep), ...rows.map(row => row.map(cell).join(sep))].join('\n') + '\n';
+    const cutFor = col => sep === '\t' ? S.cut + ' ' + col : S.cut + ' -f' + col;
+    const files = {};
+    const extra = {};
+
+    if (diff === 'easy') {
+      files[S.file] = tableOf();
+      files['README.txt'] = 'Rota export. Fields are separated by a ' + S.word + '.\nThe access code is in the last column.\n';
+      extra.brief = 'A staff rota exported as ' + S.word + '-separated fields. Find the access code in the row for ' + target[0] + ' (ls, then read the file).';
+      extra.hint = 'ls · cat ' + S.file + ' · grep -i "' + target[0] + '" ' + S.file;
+      extra.walk = ['ls', 'cat ' + S.file, 'grep -i "' + target[0] + '" ' + S.file];
+      extra.stages = 1;
+    } else if (diff === 'medium') {
+      /* two people share a first name: the whole name and the department both matter */
+      const twin = target[0].split(' ');
+      rows.push([twin[0] + ' Ashworth', target[1] === DEPTS[0] ? DEPTS[1] : DEPTS[0], 'site-' + (10 + r(80)), '55', L.newToken(r)]);
+      files[S.file] = tableOf();
+      files['notes/leaver.txt'] = 'Please remove ' + rows.at(-1)[0] + ' at the end of the month, before the audit.\n';
+      extra.brief = 'The rota was exported with ' + S.word + '-separated fields. Two people share the first name "' + twin[0] + '". Find the access code for ' + target[0] + ' in ' + target[1] + ' — the full name and the department both matter.';
+      extra.hint = 'ls -R · cat ' + S.file + ' · grep -iw "' + target[1] + '" ' + S.file + ' · column ' + codeCol;
+      extra.walk = ['ls -R', 'cat ' + S.file, 'grep -iw "' + target[1] + '" ' + S.file].concat(solvers(shell, sep, codeCol, target[0]));
+      extra.stages = 2;
+    } else if (diff === 'hard') {
+      /* two files join on the id: the code is in the second one */
+      const id = 1000 + r(9000);
+      const ids = rows.map((row, i) => i === 0 ? String(id) : String(id + i * 7));
+      files['staff.csv'] = 'id,name,dept\n' + rows.map((row, i) => [ids[i], row[0], row[1]].map(cell).join(',')).join('\n') + '\n';
+      files['badges.csv'] = 'id,issued,code\n' + rows.map((row, i) => [ids[i], '2026-0' + (1 + r(9)) + '-1' + r(9), row[4]].join(',')).join('\n') + '\n';
+      files['README.txt'] = 'The two exports share the id column. Join them by hand: grep the id in one file, then grep it in the other.\n';
+      extra.brief = 'Two comma-separated exports share an id column. Find ' + target[0] + '\'s id in staff.csv, then use that id in badges.csv to get the access code. Nothing links them but the number.';
+      extra.hint = 'grep -iw "' + target[0] + '" staff.csv  →  take the id (' + id + ')  →  grep -w "' + id + '" badges.csv  →  cut -d\',\' -f3';
+      extra.walk = ['ls', 'cat staff.csv', 'grep -iw "' + target[0] + '" staff.csv', 'grep -w "' + target[0] + '" staff.csv | cut -d\',\' -f1', 'grep -w "' + id + '" badges.csv'];
+      extra.stages = 3;
+    } else {
+      /* insane: the separator is disclosed in one file, the row hides in another, and the code is Base64 */
+      const sealed = b64e(ans);
+      rows[0][4] = sealed;
+      files['manifest/meta.ini'] = 'export=rota\nseparator=' + S.word + '\ncolumns=name:' + nameCol + ';dept:' + deptCol + ';code:' + codeCol + '\nnote=the access code is Base64, decode it last\n';
+      files[S.file] = tableOf();
+      files['decoy/' + S.file] = 'name' + sep + 'code\nGhost' + sep + b64e(L.newToken(r)) + '\n';
+      extra.brief = 'No documentation on the export. Work it out: find the manifest that names the separator and columns, find the rota file (not the decoy with the same name), pull ' + target[0] + '\'s code, then Base64-decode it.';
+      extra.hint = 'find . -name "*.ini" · cat manifest/meta.ini · cat ' + S.file + ' · grep -i "' + target[0] + '" ' + S.file + ' · base64 -d';
+      extra.walk = ['find . -name "*.ini"', 'cat manifest/meta.ini', 'cat ' + S.file, 'grep -i "' + target[0] + '" ' + S.file, 'grep -i "' + target[0] + '" ' + S.file + ' | ' + cutFor(codeCol) + ' | base64 -d'];
+      extra.stages = 4;
+    }
+    return buildCustomFileRoom({
+      id: 'gen-field-' + seed, shell, difficulty: diff, category: 'sep', stages: extra.stages,
+      title: DIFFS[diff].label + ' · ' + S.name[0].toUpperCase() + S.name.slice(1) + '-Separated Fields',
+      brief: extra.brief, hint: extra.hint, walkthrough: extra.walk, answer: diff === 'insane' ? ans : target[4], files
+    });
+  }
+
+  function makeFlagPuzzle(shell, diff, seed) {
+    const r = L.rnd((seed ^ 0x165667b1) >>> 0);
+    const ans = L.newToken(r);
+    const words = ['amber', 'vault', 'ember', 'copper', 'saffron', 'marble', 'quartz', 'lantern', 'tundra', 'cobalt'];
+    const word = pick(r, words), blocker = pick(r, ['OK', 'ROTATION', 'TRAINING', 'TEST']);
+    const lines = [];
+    const dig = (lo, hi) => String(lo + r(hi - lo + 1)).padStart(2, '0');
+    const stamp = () => '2026-' + dig(1, 9) + '-' + dig(1, 28) + 'T' + dig(0, 23) + ':' + dig(0, 59) + ':' + dig(0, 59) + 'Z';
+    const n = diff === 'easy' ? 6 : 10 + r(8);
+    const at = r(n - 2) + 1;
+    for (let i = 0; i < n; i++) {
+      const who = 'svc-' + pick(r, ['ingest', 'billing', 'relay', 'archive']);
+      const detail = pick(r, ['cache warm', 'retry 1/3', 'token refresh', 'queue depth 12', 'flush', 'sync ok']);
+      lines.push(stamp() + ' ' + who + ' ' + detail + (i === at ? ' ' + word + ' flag=' + ans : ' flag=' + L.newToken(r)));
+    }
+    /* decoys that contain the word inside a longer token, so -w is the only way through */
+    /* a decoy that only contains the word inside a longer token (so -w rejects it), then a decoy that is a real
+       whole-word match but carries the blocker word (so -v rejects it on hard) */
+    if (diff !== 'easy') lines.splice(at, 0, stamp() + ' svc-' + pick(r, ['ingest', 'relay']) + ' archived_' + word + ' flag=' + L.newToken(r));
+    if (diff === 'hard' || diff === 'insane') lines.splice(at + 2, 0, stamp() + ' svc-archive ' + word + ' ' + blocker + ' flag=' + L.newToken(r));
+    const log = lines.join('\n') + '\n';
+    const files = {};
+    const cmd = (shell === 'cmd' ? 'findstr /i /w "' + word + '" audit.log' : shell === 'powershell' ? 'Select-String -Pattern "\\b' + word + '\\b" audit.log' : 'grep -iwn "' + word + '" audit.log');
+
+    if (diff === 'easy') {
+      files['audit.log'] = log;
+      files['README.txt'] = 'The flag is on the line mentioning ' + word.toUpperCase() + '. Flag values look like FLAG-AB12CD.\n';
+      return buildCustomFileRoom({
+        id: 'gen-flag-easy-' + seed, shell, difficulty: diff, category: 'flags', stages: 1,
+        title: 'Easy · Log Hunt', brief: 'One log, many lines, one flag. Search for the word ' + word + ' (any case) and read the flag= value.',
+        hint: 'grep -i ' + word + ' audit.log', walkthrough: ['ls', 'grep -i ' + word + ' audit.log'], answer: ans, files
+      });
+    }
+
+    if (diff === 'medium') {
+      files['audit.log'] = log;
+      files['README.txt'] = 'Careful: ' + word + ' also appears inside longer words such as archived_' + word + '. Use whole-word matching (-w) or you will follow the wrong line.\n';
+      return buildCustomFileRoom({
+        id: 'gen-flag-med-' + seed, shell, difficulty: diff, category: 'flags', stages: 2,
+        title: 'Medium · Whole-Word Hunt (-w)',
+        brief: 'The word ' + word + ' also hides inside longer tokens. Use whole-word matching (grep -w) to find the real line, then read its flag.',
+        hint: cmd + ' · then cut -d= -f2', walkthrough: ['cat README.txt', 'grep -i ' + word + ' audit.log', cmd], answer: ans, files
+      });
+    }
+
+    if (diff === 'hard') {
+      files['audit.log'] = log;
+      files['README.txt'] = 'Two traps: the word appears inside longer tokens, and one matching line is a ' + blocker + ' line. Whole word, not case sensitive, then exclude the ' + blocker + ' line.\n';
+      const excl = shell === 'cmd' ? 'findstr /i /w "' + word + '" audit.log | findstr /i /v "' + blocker + '"' : 'grep -iw "' + word + '" audit.log | grep -iv "' + blocker + '"';
+      return buildCustomFileRoom({
+        id: 'gen-flag-hard-' + seed, shell, difficulty: diff, category: 'flags', stages: 3,
+        title: 'Hard · -w then -v',
+        brief: 'Find the whole-word, case-insensitive match for ' + word + ', then throw away the line that mentions ' + blocker + '. The flag value is after flag=.',
+        hint: excl + '  →  cut -d= -f2', walkthrough: ['cat README.txt', cmd, excl, excl + ' | cut -d= -f2'], answer: ans, files
+      });
+    }
+
+    /* insane: several logs, -l to find the file, -iwn to find the line, Base64 for the last hop */
+    const dirs = ['var/log', 'var/log/old', 'opt/audit', 'srv/logs'];
+    const chosen = pick(r, dirs);
+    const sealed = b64e(ans);
+    for (let i = 0; i < 9; i++) {
+      const d = dirs[i % dirs.length];
+      const name = d + '/' + pick(r, ['audit', 'relay', 'ingest']) + '-' + (10 + i) + '.log';
+      files[name] = lines.slice(0, 4 + (i % 3)).map(l => l.replace(/flag=\S+/, 'flag=' + L.newToken(r))).join('\n') + '\n';
+    }
+    files[chosen + '/audit-99.log'] = log + 'sealed=' + sealed + '\n';
+    files['README.txt'] = 'Many logs, one secret. Use grep -rl to find the file that holds the word, then grep -inw for the line, then decode the sealed= value.\n';
+    const rl = shell === 'cmd' ? 'findstr /s /i "' + word + '" *.log' : 'grep -ril "' + word + '" .';
+    return buildCustomFileRoom({
+      id: 'gen-flag-insane-' + seed, shell, difficulty: diff, category: 'flags', stages: 4,
+      title: 'Insane · -r -l then decode',
+      brief: 'Nine logs, one secret. Find which file mentions ' + word + ' (grep -rl), find the whole-word line (grep -inw), and both the flag and a sealed Base64 value are there. The answer is the decoded sealed value.',
+      hint: rl + '  →  grep -inw "' + word + '" <file>  →  grep sealed= <file> | cut -d= -f2 | base64 -d',
+      walkthrough: [rl, 'grep -inw "' + word + '" ' + chosen + '/audit-99.log', 'grep sealed= ' + chosen + '/audit-99.log | cut -d= -f2 | base64 -d'],
+      answer: ans, files
+    });
+  }
+
+  function makeReconPuzzle(shell, diff, seed) {
+    const r = L.rnd((seed ^ 0x9e3779b1) >>> 0);
+    const ans = L.newToken(r);
+    const count = diff === 'easy' ? 3 : diff === 'medium' ? 8 : diff === 'hard' ? 12 : 16;
+    const dirs = ['exports', 'exports/old', 'notes', 'notes/private', 'tmp', 'archive', 'archive/2019', 'hr'];
+    const files = {};
+    const secretDir = pick(r, dirs), secretName = pick(r, ['ledger', 'rota', 'keys', 'payroll', 'badges']);
+    const hidden = diff === 'hard' || diff === 'insane';
+    const sealed = b64e(ans);
+    const secretPath = secretDir + '/' + (hidden ? '.' : '') + secretName + '-' + (100 + r(899)) + '.txt';
+    for (let i = 0; i < count; i++) {
+      const d = dirs[i % dirs.length] + (i % 3 === 0 ? '/misc' : '');
+      const name = d + '/' + pick(r, ['note', 'letter', 'memo', 'sheet']) + '-' + (10 + i) + '.txt';
+      files[name] = [pick(r, ['Nothing to report.', 'Filed for the audit.', 'Awaiting signature.', 'See the folder upstairs.']), 'ref=' + L.newToken(r)].join('\n') + '\n';
+    }
+    files[secretPath] = 'owner=' + pick(r, ['night desk', 'records', 'the deputy']) + '\nkey=' + (diff === 'insane' ? sealed : ans) + '\n';
+    if (diff === 'insane') files['archive/2019/ledger-decoy.txt'] = 'key=' + b64e('NOT-THE-' + L.newToken(r)) + '\nnote=old export, do not use\n';
+    if (diff !== 'easy') files['README.txt'] = 'One file on this disk holds key=. The rest are noise. Find it, then read it.\n';
+
+    const grepFor = shell === 'cmd' ? 'findstr /s /i "key=" *.txt' : 'grep -rl "key=" .';
+    const reveal = ['ls -la', 'find . -type f', 'grep -rn "key=" .'];
+    const brief = diff === 'easy'
+      ? 'Three files. One of them holds key=. Find it and read the value.'
+      : diff === 'medium'
+        ? count + ' files across several folders and only one holds key=. Search the whole disk with grep -r instead of reading them one by one.'
+        : diff === 'hard'
+          ? count + ' files, and the one you want is a hidden file in a hidden folder (its name starts with a dot). grep -rl finds the file; ls -la proves you looked properly.'
+          : count + ' files, two of them claim to hold key=, and the values are Base64. One is an old decoy in archive/2019. Find the live one, decode it.';
+    const hint = diff === 'easy' ? 'ls · cat <file>' : diff === 'insane' ? grepFor + '  →  base64 -d  (ignore archive/2019)' : grepFor + '  →  cat <file>';
+    return buildCustomFileRoom({
+      id: 'gen-recon-' + seed, shell, difficulty: diff, category: 'recon', stages: diff === 'easy' ? 1 : diff === 'insane' ? 4 : 2,
+      title: DIFFS[diff].label + ' · Whole-Disk Recon', brief, hint,
+      walkthrough: reveal.concat([grepFor, 'cat ' + secretPath]).concat(diff === 'insane' ? ['cat ' + secretPath + ' | grep key= | cut -d= -f2 | base64 -d'] : []),
+      answer: ans, files
+    });
+  }
+
   /* ================================================================ MASTER GENERATOR */
   function generate(opts) {
     const o = opts || {};
@@ -1805,6 +2024,10 @@
 
     /* --- 1. OS File Shells (Bash / PowerShell / CMD) --- */
     if (shell === 'bash' || shell === 'powershell' || shell === 'cmd') {
+      /* field craft: separators, grep flags and whole-disk recon, each at its own difficulty */
+      if (cat === 'sep') return tagSeed(makeFieldPuzzle(shell, diff, seed), 'sep');
+      if (cat === 'flags') return tagSeed(makeFlagPuzzle(shell, diff, seed), 'flags');
+      if (cat === 'recon') return tagSeed(makeReconPuzzle(shell, diff, seed), 'recon');
       if (cat === 'breadcrumb') return tagSeed(makeBreadcrumbPuzzle(shell, diff === 'easy' ? 'medium' : diff, seed), 'breadcrumb');
       if (cat === 'corrupt_shards') return tagSeed(makeCorruptShardsPuzzle(shell, diff === 'easy' ? 'medium' : diff, seed), 'corrupt_shards');
       if (cat === 'forensic_corr') return tagSeed(makeForensicCorrPuzzle(shell, diff === 'easy' || diff === 'medium' ? 'hard' : diff, seed), 'forensic_corr');
@@ -1813,11 +2036,14 @@
       // Insane ALWAYS generates a true 4–5 stage CTF gauntlet — never a 1-step room!
       if (diff === 'insane') {
         const pickCat = cat === 'auto'
-          ? pick(r, ['breadcrumb', 'corrupt_shards', 'forensic_corr', 'pipeline'])
-          : (cat === 'assemble' ? 'corrupt_shards' : cat === 'grep' || cat === 'count' ? 'forensic_corr' : cat === 'encoded' ? 'pipeline' : 'breadcrumb');
+          ? pick(r, ['breadcrumb', 'corrupt_shards', 'forensic_corr', 'pipeline', 'sep', 'flags', 'recon'])
+          : (cat === 'assemble' ? 'corrupt_shards' : cat === 'grep' || cat === 'count' ? 'forensic_corr' : cat === 'encoded' ? 'pipeline' : cat);
         const rm = pickCat === 'breadcrumb' ? makeBreadcrumbPuzzle(shell, 'insane', seed)
           : pickCat === 'corrupt_shards' ? makeCorruptShardsPuzzle(shell, 'insane', seed)
           : pickCat === 'forensic_corr' ? makeForensicCorrPuzzle(shell, 'insane', seed)
+          : pickCat === 'sep' ? makeFieldPuzzle(shell, 'insane', seed)
+          : pickCat === 'flags' ? makeFlagPuzzle(shell, 'insane', seed)
+          : pickCat === 'recon' ? makeReconPuzzle(shell, 'insane', seed)
           : makePipelinePuzzle(shell, 'insane', seed);
         return tagSeed(rm, pickCat);
       }
@@ -1825,18 +2051,24 @@
       // Hard ALWAYS generates a 3–4 stage layered puzzle!
       if (diff === 'hard') {
         const pickCat = cat === 'auto'
-          ? pick(r, ['breadcrumb', 'corrupt_shards', 'forensic_corr', 'pipeline'])
-          : (cat === 'assemble' ? 'corrupt_shards' : cat === 'grep' || cat === 'count' ? 'forensic_corr' : cat === 'encoded' ? 'pipeline' : 'breadcrumb');
+          ? pick(r, ['breadcrumb', 'corrupt_shards', 'forensic_corr', 'pipeline', 'sep', 'flags', 'recon'])
+          : (cat === 'assemble' ? 'corrupt_shards' : cat === 'grep' || cat === 'count' ? 'forensic_corr' : cat === 'encoded' ? 'pipeline' : cat);
         const rm = pickCat === 'breadcrumb' ? makeBreadcrumbPuzzle(shell, 'hard', seed)
           : pickCat === 'corrupt_shards' ? makeCorruptShardsPuzzle(shell, 'hard', seed)
           : pickCat === 'forensic_corr' ? makeForensicCorrPuzzle(shell, 'hard', seed)
+          : pickCat === 'sep' ? makeFieldPuzzle(shell, 'hard', seed)
+          : pickCat === 'flags' ? makeFlagPuzzle(shell, 'hard', seed)
+          : pickCat === 'recon' ? makeReconPuzzle(shell, 'hard', seed)
           : makePipelinePuzzle(shell, 'hard', seed);
         return tagSeed(rm, pickCat);
       }
 
       // Medium ALWAYS generates a 2–3 stage puzzle!
       if (diff === 'medium') {
-        const pickCat = cat === 'auto' ? pick(r, ['pipeline', 'hidden', 'nested', 'assemble', 'encoded', 'breadcrumb']) : cat;
+        const pickCat = cat === 'auto' ? pick(r, ['pipeline', 'hidden', 'nested', 'assemble', 'encoded', 'breadcrumb', 'sep', 'flags', 'recon']) : cat;
+        if (pickCat === 'sep') return tagSeed(makeFieldPuzzle(shell, 'medium', seed), 'sep');
+        if (pickCat === 'flags') return tagSeed(makeFlagPuzzle(shell, 'medium', seed), 'flags');
+        if (pickCat === 'recon') return tagSeed(makeReconPuzzle(shell, 'medium', seed), 'recon');
         if (pickCat === 'breadcrumb') return tagSeed(makeBreadcrumbPuzzle(shell, 'medium', seed), 'breadcrumb');
         if (pickCat === 'pipeline') return tagSeed(makePipelinePuzzle(shell, 'medium', seed), 'pipeline');
         return tagSeed(makeMediumClassicPuzzle(shell, pickCat, seed), pickCat);
@@ -2062,7 +2294,116 @@
     } catch (e) { return room; }
   }
 
+  /* ================================================================ AI-AUTHORED ROOMS
+     The local model writes the story, the files and the key; the builder can then make the room as large as the player
+     asked for, because size comes from repetition here, not from the model's answer length. */
+  const ROOM_FILES_MAX = 20000, ROOM_CHARS_MAX = 24000000;
+
+  function aiPlanPrompt(desc, size) {
+    return 'Design one complete fictional puzzle that a learner solves by typing commands in a ' + 'terminal. ' +
+      'The player describes what they want: """' + String(desc || '').slice(0, 2000) + '"""\n\n' +
+      'Answer with JSON only, no prose, shaped exactly like:\n' +
+      '{"title":"short title","brief":"what the player must do, 1-3 sentences","answer":"the key they submit, one short token",' +
+      '"files":[{"path":"relative/path.txt","text":"file contents"}],"hints":["hint 1","hint 2"],"walkthrough":["command 1","command 2"]}\n\n' +
+      'Rules:\n' +
+      '- Everything is invented fiction: invented people, organisations and places; never a real company, agency or person.\n' +
+      '- The answer must be findable by running ordinary shell commands (ls, cd, cat, grep, find, sort, uniq, head, tail, wc, cut, base64, tr) on the files you list. No network, no guessing.\n' +
+      '- List 4-12 files with real contents that tell the story. The player will be given ' + Math.max(1, Math.min(ROOM_FILES_MAX, Number(size) || 40)) + ' files in total, so make your own files the important ones; the rest are clutter the app adds.\n' +
+      '- Each walkthrough entry is one command that works in the sandbox, ending with "solve <answer>".\n' +
+      '- Text inside "text" is the file as it would be on disk (newlines as \\n).';
+  }
+
+  /* the model's answer, read forgivingly: JSON, or JSON inside a code fence, or a list of files in text form */
+  function parseAiPlan(text) {
+    const raw = String(text || '');
+    const start = raw.indexOf('{'), end = raw.lastIndexOf('}');
+    let plan = null;
+    if (start >= 0 && end > start) {
+      const body = raw.slice(start, end + 1);
+      try { plan = JSON.parse(body); } catch (e) {
+        try { plan = JSON.parse(body.replace(/,\s*([}\]])/g, '$1')); } catch (e2) { plan = null; }
+      }
+    }
+    if (!plan || typeof plan !== 'object') return null;
+    const files = {};
+    const push = (path, text) => {
+      const clean = String(path || '').trim().replace(/^[.\/\\]+/, '').replace(/\\/g, '/');
+      if (!clean || clean.length > 300 || /(^|\/)..(\/|$)/.test(clean)) return;
+      const body = String(text == null ? '' : text);
+      if (files[clean]) return;
+      files[clean] = body.slice(0, 400000);
+    };
+    if (Array.isArray(plan.files)) plan.files.forEach(f => { if (f && typeof f === 'object') push(f.path || f.name, f.text != null ? f.text : f.content); else if (typeof f === 'string') push(f, ''); });
+    else if (plan.files && typeof plan.files === 'object') Object.entries(plan.files).forEach(([p, t]) => push(p, typeof t === 'string' ? t : t && t.text));
+    const list = v => (Array.isArray(v) ? v : typeof v === 'string' ? [v] : []).map(x => String(x).trim()).filter(Boolean).slice(0, 40);
+    return {
+      title: String(plan.title || '').trim().slice(0, 120),
+      brief: String(plan.brief || plan.goal || plan.mission || '').trim().slice(0, 3000),
+      answer: String(plan.answer || plan.key || '').trim().slice(0, 200),
+      files,
+      hints: list(plan.hints),
+      walkthrough: list(plan.walkthrough || plan.solution),
+      stages: Number(plan.stages) || 1
+    };
+  }
+
+  /* filler for the size the player asked for: plausible files that make the room feel big without hiding the point */
+  function padRoom(files, target, seedText) {
+    const out = Object.assign({}, files);
+    const have = Object.keys(out).length;
+    const want = Math.min(ROOM_FILES_MAX, Math.max(have, Math.trunc(Number(target) || 0)));
+    if (want <= have) return out;
+    let h = 2166136261;
+    for (const ch of String(seedText || 'room')) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+    const rnd = () => { h ^= h << 13; h >>>= 0; h ^= h >> 17; h ^= h << 5; h >>>= 0; return h / 4294967296; };
+    const pick = a => a[Math.floor(rnd() * a.length)];
+    const dirs = ['archive', 'logs', 'docs', 'exports', 'backup', 'notes', 'reports', 'tmp', 'shared', 'inbox'];
+    const kinds = ['txt', 'log', 'csv', 'md', 'json'];
+    const words = ['alpha', 'birch', 'cobalt', 'delta', 'ember', 'fable', 'garnet', 'harbor', 'indigo', 'juniper', 'kelp', 'lumen', 'marble', 'nectar', 'onyx', 'pike', 'quartz', 'rune', 'sable', 'tide'];
+    let chars = Object.keys(out).reduce((n, k) => n + out[k].length, 0);
+    for (let i = have; i < want && chars < ROOM_CHARS_MAX; i++) {
+      const dir = dirs[i % dirs.length] + '/' + (2019 + (i % 7));
+      const name = dir + '/' + pick(words) + '-' + String(1000 + i) + '.' + pick(kinds);
+      const rows = 2 + Math.floor(rnd() * 5);
+      const lines = [];
+      for (let r = 0; r < rows; r++) {
+        const stamp = '2026-' + String(1 + Math.floor(rnd() * 12)).padStart(2, '0') + '-' + String(1 + Math.floor(rnd() * 28)).padStart(2, '0') + 'T' + String(Math.floor(rnd() * 24)).padStart(2, '0') + ':' + String(Math.floor(rnd() * 60)).padStart(2, '0') + ':00Z';
+        lines.push(stamp + ' ' + pick(['routine', 'sync', 'export', 'queued', 'archived', 'verified', 'retry', 'health-check']) + ' ref=' + Math.floor(rnd() * 900000 + 100000));
+      }
+      const text = lines.join('\n') + '\n';
+      out[name] = text;
+      chars += text.length;
+    }
+    return out;
+  }
+
+  /* a full custom puzzle from what the model wrote, padded to the size that was asked for */
+  function buildAiRoom(plan, opts) {
+    opts = opts || {};
+    const files = padRoom(plan.files || {}, opts.files || 0, (plan.title || '') + (plan.answer || '') + (opts.files || ''));
+    const text = Object.entries(files).map(([p, t]) => '=== ' + p + ' ===\n' + t).join('\n');
+    return {
+      shell: opts.shell || 'bash',
+      difficulty: opts.difficulty || 'medium',
+      title: plan.title || 'AI puzzle',
+      brief: plan.brief || 'Explore the files and find the key.',
+      answer: plan.answer || '',
+      filesText: text.slice(0, ROOM_CHARS_MAX),
+      files,
+      hints: plan.hints,
+      walkthrough: plan.walkthrough,
+      stages: Math.max(1, Math.min(30, Number(plan.stages) || 1)),
+      custom: true
+    };
+  }
+
   window.TerminalPuzzles = {
+    aiPlanPrompt,
+    parseAiPlan,
+    padRoom,
+    buildAiRoom,
+    ROOM_FILES_MAX,
+    ROOM_CHARS_MAX,
     DIFFS,
     CATEGORIES,
     generate: generateCase,
@@ -2091,7 +2432,7 @@
         brief: String(spec.brief || '').trim().slice(0, 800),
         hint: String(spec.hint || '').trim().slice(0, 400),
         answer: String(spec.answer || '').trim().slice(0, 200),
-        filesText: String(spec.filesText || '').slice(0, 64000),
+        filesText: String(spec.filesText || '').slice(0, ROOM_CHARS_MAX),
         hints: lines(spec.hints),
         walkthrough: lines(spec.walkthrough),
         stages: Math.min(30, Math.max(1, Math.trunc(Number(spec.stages)) || 1)),
@@ -2105,7 +2446,9 @@
           seed: (Number(seed) >>> 0) || newSeed()
         };
       } else {
-        item.files = parseFilesText(item.filesText);
+        /* AI rooms hand over a ready file map, so contents that happen to contain an "=== path ===" line cannot break it */
+        const ready = spec.files && typeof spec.files === 'object' && !Array.isArray(spec.files) ? spec.files : null;
+        item.files = ready ? Object.fromEntries(Object.entries(ready).map(([p, t]) => [String(p), String(t == null ? '' : t)])) : parseFilesText(item.filesText);
       }
       saveCustom([item, ...list.filter(entry => entry.id !== item.id)]);
       return item;

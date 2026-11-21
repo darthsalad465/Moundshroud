@@ -1,10 +1,10 @@
-// The safe terminal: runs a file from Notes (or any file on this PC) in the same sealed sandboxes as the Code
-// Playground, then keeps a working command prompt under it. The prompt is a real disposable Linux box (the
-// Playground's own Bash sandbox), and python3 / pip lines are executed by the bundled interpreter, so the window
-// behaves like any other terminal while the PC's files, network and programs are never touched.
-// Python and JavaScript run in a Web Worker with no network and no access to the page; SQLite and the small
-// interpreters run in their own workers; compiled languages run through the Playground's server runner, which uses
-// a fresh temporary folder and a time limit.
+// The safe terminal: runs a file from Notes (or any file on this PC) in the same sandboxes as the Code Playground,
+// then keeps a working command prompt under it. The prompt is the app's own simulated Bash over an in-memory folder
+// (not a real Linux machine and not this PC); python3 / pip lines are executed by the bundled interpreter, so the
+// window behaves like a terminal while the PC's files, network and programs are never touched.
+// Python and JavaScript run in a sealed Web Worker with no network and no access to the page; SQLite and the small
+// interpreters run in their own workers; HTML runs in an isolated frame with no network; native languages run in
+// Windows Sandbox or Docker, and are refused when neither is ready.
 // A.codeRunner.open({name, code, input}) · A.codeRunner.openFile() · A.codeRunner.run({name, code, input})
 (() => {
   'use strict';
@@ -22,6 +22,10 @@
     'f': 'forth', forth: 'forth', scm: 'scheme', scheme: 'scheme', pro: 'prolog', prolog: 'prolog', bas: 'basic',
   };
   const isCodeName = name => !!langFor(name);
+  const PREVIEW_CSP = "default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' blob: data:; style-src 'unsafe-inline'; img-src data: blob:; font-src data: blob:; media-src data: blob:; connect-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'";
+  const previewDoc = code => window.PlayLangs && typeof window.PlayLangs.previewDoc === 'function'
+    ? window.PlayLangs.previewDoc(code, true)
+    : '<meta http-equiv="Content-Security-Policy" content="' + PREVIEW_CSP + '">' + String(code == null ? '' : code);
   function langFor(name) {
     const m = String(name || '').toLowerCase().match(/\.([a-z0-9]+)$/);
     if (!m) return null;
@@ -67,7 +71,9 @@
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ lang: l.id, code, input: input || '' }), signal,
         });
-        r = await res.json();
+        let data;
+        try { data = await res.json(); } catch (e) { data = { ok: false, error: 'The Playground server answered ' + res.status + ' instead of a result.' }; }
+        r = data;
       }
     } catch (error) {
       r = { ok: false, error: signal && signal.aborted ? 'Run stopped.' : (error.message || String(error)) };
@@ -185,7 +191,7 @@
     let hi = 0;
     const baseHint = () => imported
       ? 'Copied ' + imported + ' into the sandbox — try ls, cat ' + last.name + ', or python3 ' + last.name + '.'
-      : (shell ? 'A real shell in a disposable sandbox. Nothing on this PC is touched.' : '');
+      : (shell ? 'A simulated shell over an in-memory folder. Nothing on this PC is touched.' : '');
     hint(baseHint());
     input.addEventListener('keydown', e => {
       if (e.key === 'Enter') {
@@ -217,33 +223,65 @@
       $('stop').hidden = false;
       const out = document.createElement('div');
       out.className = 'trm-out';
+      const browserLang = l && ['py', 'js', 'sql', 'eso', 'binary'].includes(l.run);
+      const startNote = !l ? 'Checking this file type…'
+        : l.run === 'html' ? 'Rendering in an isolated frame — scripts run, but the frame has no network and cannot see Moundshroud or your files.'
+          : browserLang ? 'Running in a sealed browser worker — no network and no access to this page or this PC\'s files.'
+            : 'Starting the sandbox — native code runs only in Windows Sandbox or Docker, never as your Windows user.';
       out.innerHTML = '<div class="p">moundshroud@sandbox <span class="c">~</span> % ' + esc('run ' + name) + '</div>' +
-        '<div class="c">Running in the sealed sandbox — no network, no access to this PC\'s files.</div>' +
+        '<div class="c">' + esc(startNote) + '</div>' +
         '<div class="c" data-trm="wait">Working...</div>';
       body.appendChild(out); body.scrollTop = body.scrollHeight;
       const wait = out.querySelector('[data-trm="wait"]');
       const t = setInterval(() => { if (wait) wait.textContent = 'Working' + '.'.repeat(1 + (Date.now() / 400 | 0) % 3); }, 400);
-      let r;
+      let r, timedOut = false;
+      /* a native run can wait for a VM to start, but it never hangs: after two minutes the window still reports an outcome */
+      const guard = setTimeout(() => { timedOut = true; ctl.abort(); }, 150000);
       try { r = await runLang(l || { id: 'none', n: 'this file type', run: 'none' }, code, stdinText, ctl.signal); }
-      finally { clearInterval(t); busy = false; if (ctl) ctl = null; $('stop').hidden = true; }
+      finally { clearTimeout(guard); clearInterval(t); busy = false; if (ctl) ctl = null; $('stop').hidden = true; }
       if (!openWin) return;
       wait.remove();
+      if (timedOut) r = { ok: false, error: 'The sandbox did not answer within 2 minutes — it may still be starting. Press Run again.' };
+      r = r || { ok: false, error: 'The program did not run.' };
       if (!l) { line('e', '✗ This file type cannot run in the sandbox. Use an extension like .py, .js, .html, .sql, .sh or .c.'); return; }
       if (r.html !== undefined) {
-        const fr = document.createElement('iframe');
-        fr.className = 'trm-frame'; fr.setAttribute('sandbox', 'allow-scripts allow-forms allow-popups allow-modals');
-        fr.srcdoc = r.html;
-        out.appendChild(fr);
-        line('c', 'Shown in a sealed frame: scripts run, but the page cannot see Moundshroud or your files.');
+        const holder = document.createElement('div');
+        holder.style.margin = '6px 0';
+        out.appendChild(holder);
+        if (window.CodeStage) {
+          const stage = window.CodeStage.mount(holder, {
+            title: '🖥 ' + (last.name || 'Preview'), height: 340,
+            hint: 'Click the screen, then use its keys',
+            empty: 'Nothing to show.',
+            onLog: (text, kind) => line(kind === 'error' ? 'e' : 'c', (kind === 'error' ? '⛔ ' : '') + text)
+          });
+          stage.show(r.html);
+        } else {
+          const fr = document.createElement('iframe');
+          fr.className = 'trm-frame'; fr.setAttribute('sandbox', 'allow-scripts allow-modals');
+          fr.setAttribute('referrerpolicy', 'no-referrer');
+          fr.srcdoc = previewDoc(r.html);
+          out.appendChild(fr);
+        }
+        line('c', 'Shown in an isolated screen: scripts run in an opaque origin with no network, so the page cannot see Moundshroud or your files. Use ⛶ Full screen to play.');
       } else {
         const text = [r.stdout, r.stderr, r.value !== undefined && r.value !== '' ? '→ ' + r.value : ''].filter(x => x !== undefined && x !== '').map(x => String(x).replace(/\r?\n$/, '')).join('\n');
         if (text) { const pre = document.createElement('pre'); pre.className = 'trm-src'; pre.textContent = text; out.appendChild(pre); }
-        if (!r.ok) { const e = String(r.error || 'The program did not finish.').split('\n').filter(x => !/^\s+at\s/.test(x)).join('\n'); line('e', '✗ ' + e); }
-        else if (!text) line('c', 'Finished with no output.');
-        line('c', '— exit ' + (r.ok ? 0 : 1) + ' · ' + (r.ms || 0) + ' ms · ' + (r.lang || l.n) + ' · nothing on this PC was touched');
+        const e = String(r.error || 'The program did not finish.').split('\n').filter(x => !/^\s+at\s/.test(x)).join('\n').trim() || 'The program did not finish.';
+        if (r.unavailable) {
+          line('e', '⛔ ' + e);
+          line('c', 'Nothing was run. Native code needs Windows Sandbox or Docker; see the setup notes in the Code Playground.');
+        } else {
+          if (!r.ok) line('e', '✗ ' + e);
+          else if (!text) line('c', 'Finished with no output.');
+          const backend = r.backend === 'windows-sandbox' ? 'Windows Sandbox' : r.backend === 'docker' ? 'Docker sandbox'
+            : l.run === 'html' ? 'isolated preview' : browserLang ? 'sealed browser worker' : 'sandbox';
+          line('c', '— exit ' + (r.ok ? 0 : 1) + ' · ' + (r.ms || 0) + ' ms · ' + (r.lang || l.n) + ' · ' + backend + ' · nothing on this PC was touched');
+        }
       }
       body.scrollTop = body.scrollHeight;
-      if (!r.ok) hint('If the tools for this language are not installed, the Playground shows which ones it can run.');
+      if (r.unavailable) hint('Native code needs Windows Sandbox or Docker; the Code Playground page shows the one-time setup.');
+      else if (!r.ok) hint('The error is above. You can edit the file and press Run again.');
       else hint(baseHint());
     }
 

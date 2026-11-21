@@ -26,7 +26,13 @@
     if (window.DOMPurify && typeof window.DOMPurify.sanitize === 'function') {
       return window.DOMPurify.sanitize(String(html || ''), { USE_PROFILES: { html: true, svg: true, svgFilters: true } });
     }
-    return String(html || '');
+    /* DOMPurify is not loaded: strip everything active instead of showing a note's HTML exactly as it is */
+    return String(html || '')
+      .replace(/<\s*(script|style|iframe|frame|frameset|object|embed|applet|link|meta|base|form|template|noscript|svg|math)\b[\s\S]*?<\s*\/\s*\1\s*>/gi, '')
+      .replace(/<\s*(script|style|iframe|frame|frameset|object|embed|applet|link|meta|base|form|input|button|textarea|select|template|svg|math)\b[^>]*>/gi, '')
+      .replace(/\son[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+      .replace(/\s(srcdoc|formaction|action)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+      .replace(/\s(href|src|xlink:href)\s*=\s*(?:"|')?\s*(?:javascript|vbscript|data:text\/html)[^"'\s>]*/gi, ' $1="#"');
   }
 
   function diffHtml(a, b, mode = 'lines') {

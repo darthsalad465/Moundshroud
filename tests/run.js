@@ -537,6 +537,10 @@ try {
     try { await require('./lessons-test.js')(ok); } catch (e) { ok('the coding lessons test loads', false, e.message); }
     try { await require('./office-lan-test.js')(ok); } catch (e) { ok('the sandbox office network test loads', false, e.message); }
     try { await require('./playground-langs-test.js')(ok); } catch (e) { ok('the playground languages test loads', false, e.message); }
+    try { await require('./code-sandbox-test.js')(ok); } catch (e) { ok('the safe sandbox test loads', false, e.message); }
+    try { await require('./debug-workshop-test.js')(ok); } catch (e) { ok('the debug workshop test loads', false, e.message); }
+    try { await require('./state-keep-test.js')(ok); } catch (e) { ok('the per-tab state test loads', false, e.message); }
+    try { await require('./i18n-test.js')(ok); } catch (e) { ok('the interface language test loads', false, e.message); }
     try { await require('./swarm-test.js')(ok); } catch (e) { ok('the swarm modules load', false, e.message); }
     try { await require('./agent-modes-test.js')(ok); } catch (e) { ok('the agent modes module loads', false, e.message); }
     try { await require('./bible-test.js')(ok); } catch (e) { ok('the bible expert test loads', false, e.message); }
@@ -570,6 +574,8 @@ try {
     try { await require('./cyber-infinite-test.js')(ok); } catch (e) { ok('the infinite cyber games test loads', false, e.message); }
     try { await require('./openwhip-test.js')(ok); } catch (e) { ok('the OpenWhip integration test loads', false, e.message); }
     try { await require('./terminal-commands-test.js')(ok); } catch (e) { ok('the terminal simulation commands test loads', false, e.message); }
+    try { await require('./terminal-ranges-test.js')(ok); } catch (e) { ok('the security ranges test loads', false, e.message); }
+    try { await require('./notes-safety-test.js')(ok); } catch (e) { ok('the notes safety test loads', false, e.message); }
     try { await require('./mcode-terminal-test.js')(ok); } catch (e) { ok('the mcode simulated terminal test loads', false, e.message); }
     try { await require('./pt-test.js')(ok); } catch (e) { ok('the Packet Tracer simulator test loads', false, e.message); }
     try { const MT = require(path.join(__dirname, '..', 'lib', 'mail.js'))._t, pw = 'tést "pw" ✓', blob = await MT.protectPw(pw); ok('mail: Windows keeps the password protected and gives it back', !blob.includes('pw') && await MT.unprotectPw(blob) === pw); } catch (e) { ok('mail: Windows keeps the password protected', false, e.message); }
