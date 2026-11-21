@@ -12,13 +12,16 @@
   /* ---------- Python ---------- */
   let py = null;      /* {w, ready: Promise, busy} */
   function pyWorker() {
-    const base = location.origin + '/web/vendor/pyodide/';
+    const base = (A.interpreterAssets || location.origin + '/web/vendor/') + 'pyodide/';
     /* Python loads its engine with importScripts, so the worker seals itself the moment Python is ready, before any code runs */
     const src = 'importScripts(' + JSON.stringify(base + 'pyodide.js') + ');self.__allow=' + JSON.stringify(base) + ';function __seal(){' + SEAL + '}' +
       'let P=null,out=[],err=[];' +
       'const ready=loadPyodide({indexURL:' + JSON.stringify(base) + '}).then(async p=>{P=p;__seal();p.setStdout({batched:s=>out.push(s)});p.setStderr({batched:s=>err.push(s)});try{p.FS.mkdir("/data");}catch(e){}return true;});' +
-      'self.onmessage=async e=>{const {id,code,files,collectFigures}=e.data;out=[];err=[];const t0=Date.now();let res={id};' +
+      'self.onmessage=async e=>{const {id,code,files,collectFigures,libs,argv}=e.data;out=[];err=[];const t0=Date.now();let res={id};' +
       'try{await ready;' +
+      'if(libs&&libs.length){try{P.FS.mkdir("/libs");}catch(x){}for(const l of libs){try{P.FS.writeFile("/libs/"+l.name,new Uint8Array(l.data));}catch(x){}}' +
+      'try{await P.runPython("import sys; [sys.path.insert(0, p) for p in "+JSON.stringify(libs.map(l=>"/libs/"+l.name))+"]");}catch(x){}}' +
+      'try{await P.runPython(argv?"import os, sys; os.makedirs(\'/data\', exist_ok=True); os.chdir(\'/data\'); sys.argv = "+JSON.stringify(argv):"import os; os.makedirs(\'/data\', exist_ok=True); os.chdir(\'/data\')");}catch(x){}' +
       '(files||[]).forEach(f=>{try{P.FS.writeFile("/data/"+f.name.replace(/[\\\\/:*?"<>|]/g,"_"),f.text);}catch(x){}});' +
       'await P.loadPackagesFromImports(code,{messageCallback:()=>{},errorCallback:()=>{}});' +
       'if(/matplotlib/.test(code)){await P.runPythonAsync("import matplotlib\\nmatplotlib.use(\\"AGG\\")");}' +
@@ -55,7 +58,7 @@
     await py.ready;
     return pythonResult(py, code, files, signal, collectFigures);
   }
-  function pythonResult(me, code, files, signal, collectFigures) {
+  function pythonResult(me, code, files, signal, collectFigures, libs, argv) {
     const id = Math.random().toString(36).slice(2);
     return new Promise(done => {
       const k = setTimeout(() => { me.close(); if (py === me) py = null; finish({ ok: false, error: 'Stopped after ' + PY_TIME / 1000 + ' seconds (an endless loop, or too much work).', stdout: '', figures: [], ms: PY_TIME }); }, PY_TIME);
@@ -70,7 +73,7 @@
       if (signal?.aborted) return abort();
       signal?.addEventListener('abort', abort, { once: true });
       me.w.addEventListener('message', h);
-      me.w.postMessage({ id, code, collectFigures, files: (files || []).map(f => ({ name: String(f.name || 'file.txt'), text: String(f.text || '') })) });
+      me.w.postMessage({ id, code, collectFigures, libs, argv, files: (files || []).map(f => ({ name: String(f.name || 'file.txt'), text: String(f.text || '') })) });
     });
   }
 
@@ -98,6 +101,32 @@
     });
   }
 
+  /* A private, long-lived Python session: state (variables, imports) survives between calls, for the sandbox shells.
+     Each session owns its own worker, so it never mixes with the chat interpreter. */
+  function session() {
+    let me = null, chain = Promise.resolve();
+    const ensure = () => me || (me = pyWorker());
+    const api = {
+      run(code, o = {}) {
+        const job = chain.then(async () => {
+          const w = ensure();
+          await w.ready;
+          return pythonResult(w, code, o.files, o.signal, !!o.collectFigures, o.libs, o.argv);
+        }).then(result => {
+          if (result && !result.ok && /Stopped after|Run stopped/.test(String(result.error || ''))) api.close();
+          return result;
+        }, e => {
+          api.close();
+          return { ok: false, error: String(e && e.message || e), stdout: '', figures: [] };
+        });
+        chain = job.then(() => { }, () => { });
+        return job;
+      },
+      close() { if (me) { try { me.close(); } catch (e) { } me = null; } }
+    };
+    return api;
+  }
+
   const LANG = l => /^(py|python|python3)$/i.test(l) ? 'python' : /^(js|javascript|node)$/i.test(l) ? 'js' : '';
   async function run(lang, code, o) {
     const L = LANG(lang); if (!L) return { ok: false, error: 'Only Python and JavaScript can run here.', stdout: '', figures: [] };
@@ -110,7 +139,7 @@
   /* the result, as text for the AI to read */
   const asText = r => ((r.stdout || '').trim() + (r.value ? '\n' + r.value : '') + (r.ok ? '' : '\nERROR: ' + (r.error || '')) + (r.figures && r.figures.length ? '\n[' + r.figures.length + ' chart(s) shown to the user]' : '')).trim().slice(0, 6000) || '(no output)';
   const warm = () => { if (!py) { py = pyWorker(); py.ready.catch(() => { py = null; }); } };
-  A.interp = { run, firstBlock, asText, warm, LANG };
+  A.interp = { run, firstBlock, asText, warm, LANG, session };
   /* Automatic code execution is opt-in. Remember explicit choices. */
   const sw = document.getElementById('runcode');
   if (sw) { try { sw.checked = ls.get('runcode', '0') === '1'; } catch (e) { sw.checked = false; } sw.addEventListener('change', () => { try { ls.set('runcode', sw.checked ? '1' : '0'); } catch (e) { } }); }

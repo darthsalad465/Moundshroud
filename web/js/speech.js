@@ -6,9 +6,14 @@
   const PV = [], NAMES = { 'en_US-lessac-medium': ['Lessac', 'US female'], 'en_US-ryan-medium': ['Ryan', 'US male'], 'en_GB-jenny_dioco-medium': ['Jenny', 'UK female'], 'en_GB-alan-medium': ['Alan', 'UK male'] };
   const pvName = f => { const n = NAMES[f]; if (n) return 'Natural ' + n[0] + ' (' + n[1] + ')'; const p = f.split('-'); return 'Natural ' + (p[1] || f).replace(/_/g, ' ') + ' (' + p[0].replace('_', '-') + ')'; };
   try { fetch('/api/tts/voices').then(r => r.json()).then(d => { (d.voices || []).forEach(f => { if (!PV.some(x => x.piper === f)) PV.push({ name: pvName(f), lang: f.split('-')[0].replace('_', '-'), localService: true, piper: f }); }); PV.sort((a, b) => (a.name > b.name ? 1 : -1)); try { window.dispatchEvent(new Event('oa-natural-voices')); } catch (e) { } }).catch(() => { }); } catch (e) { }
+  /* the app language (Settings › Voice & sound) comes first: its natural voice, then any on-device voice for it.
+     English is only the fallback for when this PC has nothing for the chosen language. */
   function pick() {
-    const v = voices(), want = ls.get('voice', '');
-    return PV.find(x => x.name === want) || (!want && PV.find(x => /Lessac/.test(x.name))) || v.find(x => x.name === want) || v.filter(x => x.localService && /^en/i.test(x.lang)).sort((a, b) => (/Zira|Aria|Jenny|David|Mark/i.test(b.name) ? 1 : 0) - (/Zira|Aria|Jenny|David|Mark/i.test(a.name) ? 1 : 0))[0] || v.find(x => /^en/i.test(x.lang)) || v[0];
+    const v = voices(), want = ls.get('voice', ''), LX = (typeof A !== 'undefined' && A.language) || null;
+    const mine = x => !LX || LX.matches(x), nat = PV.filter(mine), en = !LX || LX.get() === 'en';
+    const nice = v.filter(x => x.localService && /^en/i.test(x.lang)).sort((a, b) => (/Zira|Aria|Jenny|Hazel|Sonia|Libby|Natasha|David|Mark/i.test(b.name) ? 1 : 0) - (/Zira|Aria|Jenny|Hazel|Sonia|Libby|Natasha|David|Mark/i.test(a.name) ? 1 : 0))[0];
+    return nat.find(x => x.name === want) || (!want && en && nat.find(x => /Lessac/.test(x.name))) || v.find(x => x.name === want) ||
+      (en ? (nice || v.find(x => /^en/i.test(x.lang))) : (LX && LX.pick(v))) || v[0];
   }
   function clean(t) { return t.replace(/```[\s\S]*?```/g, ' code block. ').replace(/[*_`#>]+/g, '').replace(/\[(\d+)\]/g, '').replace(/https?:\/\/\S+/g, ' link ').replace(/\s+/g, ' ').trim(); }
   function chunks(t) { const out = []; let cur = ''; for (const s of t.split(/(?<=[.!?])\s+/)) { if ((cur + ' ' + s).length > 220 && cur) { out.push(cur); cur = s; } else cur = cur ? cur + ' ' + s : s; } if (cur) out.push(cur); return out.flatMap(c => { const r = []; while (c.length > 260) { const i = c.lastIndexOf(' ', 240); r.push(c.slice(0, i > 0 ? i : 240)); c = c.slice(i > 0 ? i : 240); } r.push(c); return r; }); }

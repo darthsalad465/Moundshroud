@@ -153,6 +153,7 @@
           '  hint                                  show a clue for the current room',
           '  depth                                 display current depth, tier, and stats',
           '  map                                   view all Labyrinth depth tiers',
+          '  mcode <passphrase>                    open the mcode helper (find the hidden mcode.txt note first; from depth 5)',
           '  save                                  save the current checkpoint and workspace',
           '  reset                                 restart descent from depth 1 with a fresh seed'
         ].join('\n');

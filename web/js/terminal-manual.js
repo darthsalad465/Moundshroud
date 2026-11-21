@@ -234,7 +234,7 @@
   let serial = 0;
   function create(root, { focusTerminal, useExample }) {
     const heading = 'tpg-manual-heading-' + ++serial;
-    let dialog, index, chapter = '', page = null, filter = '', flags = [], message = '', lastCommand = '', browsing = false;
+    let dialog, index, chapter = '', page = null, filter = '', flags = [], message = '', lastCommand = '', browsing = false, mission = null;
     const trail = [];
     const get = name => dialog?.querySelector('[data-manual="' + name + '"]');
     const wordsToKnow = [
@@ -294,8 +294,20 @@
       const starterCards = index.starters.map(entry =>
         '<button type="button" data-manual-page="' + esc(entry.key) + '"><strong>' + esc(entry.beginner.title) + '</strong>' +
         '<code>' + esc(entry.name) + '</code></button>').join('');
-      return '<h3>What do you want to do?</h3><p>Pick a card. It shows what to type and what happens next.</p>' +
+      return missionBlock() + '<h3>What do you want to do?</h3><p>Pick a card. It shows what to type and what happens next.</p>' +
         '<div class="tpg-manual-starters">' + starterCards + '</div>' + wordsToKnow + windowGuide;
+    }
+
+    // A card for the mission, puzzle or room you are on, with its goal and the commands that fit it.
+    function missionBlock() {
+      if (!mission) return '';
+      const objective = String(mission.objective || '').split('\n').map(line => line.trim()).filter(Boolean)
+        .map(line => '<p>' + esc(line) + '</p>').join('');
+      const cmds = (mission.commands || []).filter(c => Array.isArray(c) && c[0]).map(([command, desc]) =>
+        '<div class="tpg-manual-example"><pre>' + esc(command) + '</pre><p>' + esc(desc || '') + '</p>' +
+        '<button type="button" data-manual-insert="' + esc(command) + '">Copy to my terminal</button></div>').join('');
+      return '<section class="tpg-manual-mission"><h3>🎯 ' + esc(mission.heading || 'Current mission') + '</h3>' +
+        objective + (cmds ? '<p class="tpg-manual-count">Commands that help here</p>' + cmds : '') + '</section>';
     }
 
     function paintCommand() {
@@ -427,7 +439,7 @@
       }
     }
 
-    function open(shell, mode, scenarioExamples, query) {
+    function open(shell, mode, scenarioExamples, query, missionCtx) {
       const host = root.querySelector('[data-terminal-manual]');
       if (!host) return false;
       if (!dialog || !host.contains(dialog)) {
@@ -477,6 +489,7 @@
         });
       }
       index = buildIndex(shell, mode, scenarioExamples);
+      mission = missionCtx && (missionCtx.objective || (missionCtx.commands && missionCtx.commands.length)) ? missionCtx : null;
       trail.length = 0; chapter = ''; page = null; filter = ''; flags = []; lastCommand = ''; browsing = false; message = '';
       if (!dialog.open) {
         if (typeof dialog.showModal === 'function') dialog.showModal();

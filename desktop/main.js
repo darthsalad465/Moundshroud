@@ -13,6 +13,7 @@ const LIB_ORIGIN = 'app://moundshroud-lib';
 const CORE_DIR = app.isPackaged
   ? path.join(process.resourcesPath, 'app-core')
   : path.resolve(__dirname, '..');
+const cyberDesktopAssets = require(path.join(CORE_DIR, 'lib', 'cyber-desktop-assets'));
 
 if (!app.isPackaged) {
   app.setPath('userData', path.join(CORE_DIR, 'desktop-profile'));
@@ -262,7 +263,7 @@ async function forwardToWorker(target, request) {
 }
 
 /* ---- Fast async static file serving for / and /web/* (non-blocking, zero IPC hop) ---- */
-async function serveStaticWeb(rel, request) {
+async function serveStaticWeb(rel, request, extraHeaders) {
   let cleanRel = '';
   try { cleanRel = decodeURIComponent(rel); } catch (e) { return new Response('Bad path', { status: 400 }); }
   if (cleanRel.includes('\0')) return new Response('Bad path', { status: 400 });
@@ -282,7 +283,8 @@ async function serveStaticWeb(rel, request) {
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'no-referrer',
     'Cross-Origin-Resource-Policy': 'same-origin',
-    'Content-Security-Policy': APP_CSP
+    'Content-Security-Policy': APP_CSP,
+    ...extraHeaders
   };
 
   const rangeHdr = request.headers.get('range');
@@ -320,7 +322,11 @@ function registerAppProtocol() {
           return serveStaticWeb('index.html', request);
         }
         if ((request.method === 'GET' || request.method === 'HEAD') && u.pathname.startsWith('/web/')) {
-          return serveStaticWeb(u.pathname.slice(5), request);
+          const guestAsset = cyberDesktopAssets.asset(u.pathname);
+          if (guestAsset) return serveStaticWeb(guestAsset, request, cyberDesktopAssets.assetHeaders);
+          const headers = u.pathname === cyberDesktopAssets.terminalPage
+            ? { 'Content-Security-Policy': cyberDesktopAssets.policy(APP_ORIGIN) } : undefined;
+          return serveStaticWeb(u.pathname.slice(5), request, headers);
         }
         return forwardToWorker('app', request);
       }

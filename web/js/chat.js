@@ -222,6 +222,8 @@ function readBudget(m) {
   const runOn = () => { const c = document.getElementById('runcode'); return !!(c && c.checked); };
   function systemPrompt(sources, voice, allowRun) {
     let s = 'You are MOUNDSHROUD, the assistant in Main Chat. Reply with text or code. You cannot take actions in the app or create or edit images. Use the supplied sources when relevant. Only report code execution when you receive sandbox output. Be clear, accurate and reasonably concise. Today is ' + new Date().toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) + '.';
+    const LX = (typeof A !== 'undefined' && A.language) ? A.language : null;      // the app language (Settings › Voice & sound)
+    if (LX && LX.get() !== 'en') s += '\n\nReply in ' + LX.name() + ', even when the question is written in English. Keep code, commands and identifiers as they are.';
     const persona = (ls.get('persona', '') || '').trim();      // the user's own personality setting (Settings › Personality) leads the prompt
     if (persona) s += '\n\nThe user has set how you should act and think. Follow this closely in your tone, style and behaviour, as long as it stays safe and honest:\n' + persona;
     if (sources.length) {

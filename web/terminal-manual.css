@@ -62,3 +62,10 @@
   .tpg-manual article{padding:12px}
   .tpg-manual nav{gap:6px}
 }
+
+/* "Current mission" card at the top of the manual landing page */
+.tpg-manual-mission { border: 1px solid var(--acc, #6ee7a0); border-radius: 10px;
+  background: rgba(110, 231, 160, .07); padding: 10px 12px; margin: 0 0 14px; }
+.tpg-manual-mission h3 { margin: 0 0 6px; }
+.tpg-manual-mission > p { margin: 2px 0; }
+.tpg-manual-mission .tpg-manual-example { margin-top: 8px; }

@@ -3,6 +3,23 @@
 // Tabs, back / forward with a history list, reload, find in page, zoom, print, favorites, and your tabs come back next time.
 (() => {
   const root = $('p-web');
+  const homeParent = root.parentElement;
+  const homeNext = root.nextSibling;
+  let desktopHost = null;
+  function moveBrowser(target, before = null) {
+    if (root.parentElement === target) return;
+    if (target.moveBefore) target.moveBefore(root, before);
+    else target.insertBefore(root, before);
+  }
+  function releaseBrowser() {
+    if (!desktopHost) return;
+    desktopHost = null;
+    root.classList.remove('in-cyber-desktop', 'on');
+    moveBrowser(homeParent, homeNext?.parentElement === homeParent ? homeNext : null);
+  }
+  function showBrowser() {
+    if (!desktopHost || A.cur !== 'cyber') A.showTab('web');
+  }
   let books = [], book = '', hi = -1, sugT = null, curTitle = '', started = false, tabs = [], active = 0, f = null, uid = 1;
   const DARK = 'html,body{background:#0e1016!important;color:#dfe4f7!important}a{color:#a99bff!important}a:visited{color:#c3b6ff!important}' +
     'body{font-family:"Segoe UI",system-ui,sans-serif!important;line-height:1.6;max-width:880px;margin:0 auto;padding:14px 18px!important}' +
@@ -151,7 +168,7 @@
   function favState() { const u = curUrl(), on = u && A.fav && A.fav.has(u); $('lstar').textContent = on ? '⭐' : '☆'; const b = $('lfavb'); if (b) b.textContent = A.fav && A.fav.has('book:' + book, 'book') ? '⭐ Library favorited' : '☆ Favorite this library'; }
   document.addEventListener('favchange', favState);
   $('lback').onclick = back; $('lfwd').onclick = fwd; $('lrel').onclick = () => { const t = T(); if (t.loading) { if (t.fr) t.fr.lf.stop(); t.loading = false; render(); return; } if (t.fr) { t.loading = true; t.fr.lf.reload(); render(); } };
-  $('lfs').onclick = () => { if (A.pageFS) A.pageFS.toggle(); };
+  $('lfs').onclick = () => act('fs');
   $('lbm').onclick = () => A.bm.menu($('lbm'), { where: 'web', frame: () => T().fr, url: curUrl, title: () => curTitle || curUrl(), open: b => openUrl(b.u, b.t, { bm: b }) });
   $('lhome').onclick = () => goHome(); $('lstar').onclick = () => { const u = curUrl(); if (!u) return A.toast('Open a library page first'); A.fav.toggle({ u, t: curTitle || u, k: 'page' }); favState(); };
   const showHist = e => { if (e && e.preventDefault) e.preventDefault(); const t = T(), h = $('lhist'); h.innerHTML = t.stack.map((x, i) => '<div data-hi="' + i + '"' + (i === t.i ? ' class="cur"' : '') + '>' + esc(x.t || x.u || 'Search') + '</div>').reverse().join(''); h.style.display = 'block'; };
@@ -169,7 +186,10 @@
     const t = T();
     if (a === 'newtab') newTab(); else if (a === 'closetab') { const e = E(t); if (e && e.u) closed.push(e); closeTab(active); } else if (a === 'find') openFind(); else if (a === 'reader') { if (!E(t).u || !t.fr) return A.toast('Open a page first to use Reader view'); t.reader = !t.reader; t.fr.lf.css(pageCss(t)); saveTabs(); A.toast(t.reader ? 'Reader view on' : 'Reader view off'); } else if (a === 'zin') zoom(.1); else if (a === 'zout') zoom(-.1); else if (a === 'zreset') zoom(0);
     else if (a === 'print') { if (t.fr && E(t).u) t.fr.lf.print(); else A.toast('Open a page first'); }
-    else if (a === 'fs') { if (A.pageFS) A.pageFS.toggle(); }
+    else if (a === 'fs') {
+      if (desktopHost) desktopHost.closest('.cd-window')?.querySelector('[data-action="maximize"]')?.click();
+      else if (A.pageFS) A.pageFS.toggle();
+    }
     else if (a === 'copy') { const u = curUrl(); if (u) A.copy(location.origin + u); else A.toast('Open a library page first'); }
     else if (a === 'clearhist') A.confirm('Clear browsing history and recent searches on this device? Your bookmarks and favorites will be kept.').then(ok => { if (ok) { A.fav.clearHistory('all'); tabs.forEach(x => { const current = E(x); x.stack = [current || { u: '', t: 'Search' }]; x.i = 0; }); closed.length = 0; saveTabs(); render(); A.toast('Browsing history cleared'); } });
     else if (a === 'thist') showHist(); else if (a === 'allhist') A.fav.open('hist'); else if (a === 'favs') A.fav.open('all'); else if (a === 'bmbar') { bmOn = !bmOn; ls.set('lib_bmbar', bmOn ? '1' : '0'); bmBar(); setHead(); } else if (a === 'dict' || a === 'thes' || a === 'rhy') { const w = (lastSel || '').trim().split(/\s+/)[0] || ''; if (a === 'thes') A.thes.open(w); else if (a === 'rhy') A.rhyme.open(w); else $('wbar').querySelector('[data-a=dict]').click(); }
@@ -206,8 +226,8 @@
     else if (c && lk === 'p' && E(T()).u) { e.preventDefault(); act('print'); }
     else if (k === 'Escape') { if ($('lfind').style.display === 'flex') closeFind(); else if (e.target && e.target.ownerDocument !== document) parent.postMessage('esc', '*'); }
   }
-  document.addEventListener('keydown', e => { if (!root.classList.contains('on')) return; if (e.target.id === 'lfq') return; if (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName) && !(e.ctrlKey || e.altKey || e.metaKey)) return; kd(e); }, true);
-  document.addEventListener('mouseup', e => { if (!root.classList.contains('on')) return; if (e.button === 3) { e.preventDefault(); back(); } else if (e.button === 4) { e.preventDefault(); fwd(); } });
+  document.addEventListener('keydown', e => { if (!root.classList.contains('on') || (desktopHost && !root.contains(e.target))) return; if (e.target.id === 'lfq') return; if (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName) && !(e.ctrlKey || e.altKey || e.metaKey)) return; kd(e); }, true);
+  document.addEventListener('mouseup', e => { if (!root.classList.contains('on') || (desktopHost && !root.contains(e.target))) return; if (e.button === 3) { e.preventDefault(); back(); } else if (e.button === 4) { e.preventDefault(); fwd(); } });
 
   /* ---------- home and the rest of the library ---------- */
   function home() {
@@ -251,14 +271,14 @@
   /* back to the screen you see when you first open the Library: closes shelves and any open page, clears the search */
   function goHome() { hideSug(); curTitle = ''; q.value = ''; navigate(''); }
   function show(url, title) { navigate(url, title); }
-  function openUrl(url, title, opts) { A.showTab('web'); init().then(() => { if (!/^\//.test(url)) url = '/wiki/' + url; const r = navigate(url, title, opts && opts.newTab); if (opts && opts.bm) { const tt = r && r.id ? r : T(); tt.resume = opts.bm; } }); }
+  function openUrl(url, title, opts) { showBrowser(); init().then(() => { if (!/^\//.test(url)) url = '/wiki/' + url; const r = navigate(url, title, opts && opts.newTab); if (opts && opts.bm) { const tt = r && r.id ? r : T(); tt.resume = opts.bm; } }); }
   function runSearch(term, bookName) {
     term = (term || '').trim(); if (!term) return; hideSug(); const bk = bookName || book || (books[0] || {}).name; if (!bk) return;
     show('/wiki/search?content=' + enc(bk) + '&pattern=' + enc(term), 'Results for ' + term);
   }
   async function random() { await init(); const bk = book || (books[0] || {}).name; if (!bk) return; show('/wiki/random?content=' + enc(bk), ''); }
   function openBook(name) {
-    A.showTab('web'); init().then(() => { const bk = books.find(x => x.name === name); if (!bk) return A.toast('That library is not installed any more.'); book = name; $('lbook').value = name; navigate('/wiki/content/' + name, bk.title); });
+    showBrowser(); init().then(() => { const bk = books.find(x => x.name === name); if (!bk) return A.toast('That library is not installed any more.'); book = name; $('lbook').value = name; navigate('/wiki/content/' + name, bk.title); });
   }
 
   function lab(s) { const d = document.createElement('div'); d.innerHTML = s; return esc(d.textContent).replace(/&lt;b&gt;/g, '<b>').replace(/&lt;\/b&gt;/g, '</b>'); }
@@ -287,7 +307,7 @@
 
   async function define(word) {
     word = (word || '').trim(); if (!word) return A.toast('Select a single word first');
-    A.showTab('web'); await init();
+    showBrowser(); await init();
     const d = books.find(b => b.category === 'Dictionary');
     if (!d) { A.toast('The dictionary is not installed - using the encyclopedia'); q.value = word; return runSearch(word); }
     book = d.name; $('lbook').value = d.name; q.value = word;
@@ -317,11 +337,20 @@
 
   A.lib = {
     openUrl, openBook, define, init, home: goHome, dark: () => DARK + (A.custom ? A.custom.bookCss() : ''),
-    search(term, cat, hint) { A.showTab('web'); init().then(() => { q.value = ''; navigate(''); A.websearch.mount($('wh')); A.websearch.search(term); }); },
+    dock(host) {
+      desktopHost = host;
+      moveBrowser(host);
+      root.classList.add('in-cyber-desktop', 'on');
+      init();
+      setHead();
+      return () => { if (desktopHost === host) releaseBrowser(); };
+    },
+    search(term, cat, hint) { showBrowser(); init().then(() => { q.value = ''; navigate(''); A.websearch.mount($('wh')); A.websearch.search(term); }); },
     pending: () => { const p = pending; pending = null; return p; },
     selection: () => lastSel, back, forward: fwd, newTab: (u, t) => newTab(u, t), tabs: () => tabs.map(t => ({ title: E(t).t, url: E(t).u })), current: () => ({ url: curUrl(), title: curTitle })
   };
   addEventListener('message', e => { if (e.data === 'esc') A.escape && A.escape(); });
+  A.on('tab:show', name => { if (name === 'web') releaseBrowser(); });
   A.registerTab('web', 'Browser', () => { init(); setTimeout(() => { if (T() && !E(T()).u) A.websearch.focus(); }, 50); });
   A.ready.push(() => init());
 })();

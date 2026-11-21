@@ -1,7 +1,10 @@
 // The safe terminal: runs a file from Notes (or any file on this PC) in the same sealed sandboxes as the Code
-// Playground, then shows what it printed in a terminal window of its own. Python and JavaScript run in a Web Worker
-// with no network and no access to the page; SQLite and the small interpreters run in their own workers; compiled
-// languages run through the Playground's server runner, which uses a fresh temporary folder and a time limit.
+// Playground, then keeps a working command prompt under it. The prompt is a real disposable Linux box (the
+// Playground's own Bash sandbox), and python3 / pip lines are executed by the bundled interpreter, so the window
+// behaves like any other terminal while the PC's files, network and programs are never touched.
+// Python and JavaScript run in a Web Worker with no network and no access to the page; SQLite and the small
+// interpreters run in their own workers; compiled languages run through the Playground's server runner, which uses
+// a fresh temporary folder and a time limit.
 // A.codeRunner.open({name, code, input}) · A.codeRunner.openFile() · A.codeRunner.run({name, code, input})
 (() => {
   'use strict';
@@ -51,6 +54,8 @@
     const t0 = Date.now();
     let r;
     try {
+      /* interp.js can still be loading when the very first window opens, so give it a moment instead of failing */
+      if (l.run === 'py' || l.run === 'js') for (let i = 0; i < 30 && !(A.interp && A.interp.run); i++) await new Promise(done => setTimeout(done, 100));
       if (l.run === 'py') r = await A.interp.run('python', code, { isolated: true, signal });
       else if (l.run === 'js') r = await A.interp.run('js', code, { isolated: true, signal });
       else if (l.run === 'html') r = { ok: true, stdout: '', html: code };
@@ -90,8 +95,12 @@
     '.trm-body .p{color:#5ee1a1}.trm-body .c{color:#8fa4c8}.trm-body .e{color:#ff9a9a}.trm-body .n{color:#ffd479}.trm-body .o{color:#dbe4f7}' +
     '.trm-src{margin:0;white-space:pre-wrap;color:#b9c7e4}.trm-frame{width:100%;height:340px;border:1px solid #26314a;border-radius:9px;background:#fff}' +
     '.trm-foot{border-top:1px solid #26314a;padding:8px 12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:#101725}' +
-    '.trm-foot textarea{flex:1;min-width:140px;height:34px;resize:vertical;background:#080c14;border:1px solid #2c3852;border-radius:7px;color:#d7e0f5;padding:6px 8px;font:inherit;font-size:12px}' +
-    '.trm-hint{font-size:11px;color:#7d8dad;width:100%}' +
+    '.trm-in{flex:1;display:flex;align-items:center;gap:6px;min-width:220px;background:#080c14;border:1px solid #2c3852;border-radius:7px;padding:4px 8px}' +
+    '.trm-in .trm-ps1{color:#5ee1a1;white-space:nowrap;font-size:12.5px}' +
+    '.trm-in input{flex:1;min-width:60px;background:transparent;border:0;outline:none;color:#d7e0f5;font:inherit;font-size:13px;padding:3px 0}' +
+    '.trm-tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;width:100%}' +
+    '.trm-cmd .p{color:#5ee1a1}.trm-cmd{white-space:pre-wrap}' +
+    '.trm-hint{font-size:11px;color:#7d8dad;flex:1;min-width:120px}' +
     '</style>';
 
   let openWin = null;
@@ -106,10 +115,14 @@
       '<div class="trm-bar"><span class="trm-dots"><i></i><i></i><i></i></span><span class="trm-name">🖥️ Safe terminal · ' + esc(opts.name || 'sandbox') + '</span>' +
       '<button data-trm="stop" hidden>■ Stop</button><button data-trm="close" title="Close (Esc)">✕</button></div>' +
       '<div class="trm-body" data-trm="body"></div>' +
-      '<div class="trm-foot"><textarea data-trm="stdin" placeholder="Input for the program (stdin), one line per read" spellcheck="false"></textarea>' +
+      '<div class="trm-foot">' +
+      '<div class="trm-in"><span class="trm-ps1" data-trm="ps1"></span>' +
+      '<input data-trm="line" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Command" placeholder="Type a command and press Enter — help, ls, cat README.md, python3 hello.py"></div>' +
+      '<div class="trm-tools">' +
       '<button data-trm="again" style="border:1px solid #3a4a68;background:#1d5f45;color:#dff7ec;border-radius:8px;padding:7px 13px;font:inherit;font-size:12px;cursor:pointer">▶ Run again</button>' +
       '<button data-trm="file" style="border:1px solid #3a4a68;background:#1b2434;color:#cfd9ee;border-radius:8px;padding:7px 13px;font:inherit;font-size:12px;cursor:pointer">📂 Open a file from this PC</button>' +
-      '<span class="trm-hint" data-trm="hint"></span></div></div>';
+      '<button data-trm="input" style="border:1px solid #3a4a68;background:#1b2434;color:#cfd9ee;border-radius:8px;padding:7px 13px;font:inherit;font-size:12px;cursor:pointer">⌨ Program input…</button>' +
+      '<span class="trm-hint" data-trm="hint"></span></div></div></div>';
     document.body.appendChild(back);
     openWin = back;
     const $ = s => back.querySelector('[data-trm="' + s + '"]');
@@ -117,6 +130,83 @@
     let ctl = null, busy = false, last = { name: opts.name || 'sandbox', code: String(opts.code || '') };
     const line = (cls, text) => { const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = text; body.appendChild(d); body.scrollTop = body.scrollHeight; return d; };
     const hint = t => { $('hint').textContent = t; };
+
+    /* ---------- the prompt: this window is a terminal, not just a report ---------- */
+    const TP = window.TerminalPlayground;
+    const shell = TP && typeof TP.makeBash === 'function' ? TP.makeBash() : null;
+    const HOME = ['home', 'dev'];
+    let stdinText = '', cmdBusy = false;
+    const promptText = () => (shell ? shell.prompt() : 'sandbox $ ');
+    const paintPrompt = () => { const el = $('ps1'); if (el) el.textContent = promptText(); };
+    /* the file the window was opened for is copied onto the sandbox disk, so its own folder works like a normal one */
+    let imported = null;
+    if (shell && last.code.trim()) { try { imported = shell.importFile(last.name, last.code); } catch (e) { imported = null; } }
+    paintPrompt();
+
+    async function command(text) {
+      const cmd = String(text == null ? '' : text).trim();
+      if (!cmd || cmdBusy) return;
+      const echo = document.createElement('div');
+      echo.className = 'trm-cmd';
+      const ps1 = document.createElement('span'); ps1.className = 'p'; ps1.textContent = promptText();
+      echo.appendChild(ps1); echo.appendChild(document.createTextNode(cmd));
+      body.appendChild(echo); body.scrollTop = body.scrollHeight;
+      if (/^(?:clear|cls)$/i.test(cmd)) { body.innerHTML = ''; paintPrompt(); return; }
+      if (/^(?:exit|logout)$/i.test(cmd)) return close();
+      const snap = shell ? (shell.snapshot() || {}) : {};
+      const spec = shell && TP.python ? TP.python.parse(cmd, { shell: 'bash', tree: snap.fs, cwd: snap.cwd, home: HOME }) : null;
+      if (spec) {
+        if (spec.text != null) { if (spec.text) line('o', spec.text); }
+        else {
+          cmdBusy = true;
+          const wait = line('c', 'python: starting the bundled interpreter (the first run takes a few seconds)…');
+          try {
+            const result = await TP.python.run(spec);
+            if (!openWin) return;
+            wait.className = 'o';
+            wait.textContent = result.text || '(python finished with no output)';
+          } catch (e) {
+            wait.className = 'e';
+            wait.textContent = 'python: ' + (e && e.message || e);
+          } finally { cmdBusy = false; }
+        }
+      } else if (shell) {
+        let out = '';
+        try { out = shell.run(cmd); } catch (e) { out = 'sandbox: ' + (e && e.message || e); }
+        if (out) line('o', String(out));
+      } else {
+        line('e', 'The sandbox did not load, so commands cannot run here.');
+      }
+      paintPrompt();
+      body.scrollTop = body.scrollHeight;
+    }
+
+    const input = $('line'), hist = [];
+    let hi = 0;
+    const baseHint = () => imported
+      ? 'Copied ' + imported + ' into the sandbox — try ls, cat ' + last.name + ', or python3 ' + last.name + '.'
+      : (shell ? 'A real shell in a disposable sandbox. Nothing on this PC is touched.' : '');
+    hint(baseHint());
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const value = input.value;
+        input.value = '';
+        if (value.trim()) { hist.push(value); hi = hist.length; }
+        command(value);
+      } else if (e.key === 'ArrowUp') {
+        if (!hist.length) return;
+        e.preventDefault();
+        hi = Math.max(0, Math.min(hi, hist.length) - 1);
+        input.value = hist[hi];
+      } else if (e.key === 'ArrowDown') {
+        if (!hist.length) return;
+        e.preventDefault();
+        hi = Math.min(hist.length, hi + 1);
+        input.value = hi >= hist.length ? '' : hist[hi];
+      }
+    });
+    body.onclick = e => { if (!e.target.closest('iframe')) input.focus(); };
 
     async function go() {
       if (busy) return;
@@ -134,7 +224,7 @@
       const wait = out.querySelector('[data-trm="wait"]');
       const t = setInterval(() => { if (wait) wait.textContent = 'Working' + '.'.repeat(1 + (Date.now() / 400 | 0) % 3); }, 400);
       let r;
-      try { r = await runLang(l || { id: 'none', n: 'this file type', run: 'none' }, code, $('stdin').value, ctl.signal); }
+      try { r = await runLang(l || { id: 'none', n: 'this file type', run: 'none' }, code, stdinText, ctl.signal); }
       finally { clearInterval(t); busy = false; if (ctl) ctl = null; $('stop').hidden = true; }
       if (!openWin) return;
       wait.remove();
@@ -154,7 +244,7 @@
       }
       body.scrollTop = body.scrollHeight;
       if (!r.ok) hint('If the tools for this language are not installed, the Playground shows which ones it can run.');
-      else hint('');
+      else hint(baseHint());
     }
 
     back.onclick = e => {
@@ -164,13 +254,27 @@
       const a = b.dataset.trm;
       if (a === 'close') close();
       else if (a === 'stop') { if (ctl) ctl.abort(); }
-      else if (a === 'again') go();
-      else if (a === 'file') pickFile(f => { last = { name: f.name, code: f.text }; back.querySelector('.trm-name').textContent = '🖥️ Safe terminal · ' + f.name; body.innerHTML = ''; line('c', f.name + (f.path ? ' · ' + f.path : '')); go(); });
+      else if (a === 'again') { go(); input.focus(); }
+      else if (a === 'file') pickFile(f => {
+        last = { name: f.name, code: f.text };
+        if (shell) { try { imported = shell.importFile(f.name, f.text); } catch (e) { imported = null; } }
+        back.querySelector('.trm-name').textContent = '🖥️ Safe terminal · ' + f.name;
+        body.innerHTML = '';
+        line('c', f.name + (f.path ? ' · ' + f.path : ''));
+        hint(baseHint());
+        go(); input.focus();
+      });
+      else if (a === 'input') A.prompt('Input for the program (stdin)', stdinText, { title: 'Program input' }).then(value => {
+        if (value == null) return;
+        stdinText = String(value);
+        hint(stdinText ? 'Input ready — Run again feeds it to the file.' : 'No input for the file.');
+      }).catch(() => { });
     };
     const onKey = e => { if (e.key === 'Escape' && openWin === back) { e.stopPropagation(); close(); } };
     document.addEventListener('keydown', onKey, true);
     back._cleanup = () => document.removeEventListener('keydown', onKey, true);
     if (opts.auto !== false) go();
+    input.focus();
     return back;
   }
 

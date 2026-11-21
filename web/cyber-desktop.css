@@ -1,0 +1,303 @@
+/* Cyber Desktop and its embedded terminal use the same guest palette. */
+.cd-shell, .cd-terminal-page {
+  color-scheme: dark;
+  --ink: #edf6ff;
+  --mute: #a6b7cc;
+  --line: #34435c;
+  --acc: #92dcff;
+  --panel: #101a2b;
+  --panel2: #152136;
+  color: var(--ink);
+  background: #080d18;
+  font: 14px/1.45 system-ui, sans-serif;
+}
+.cd-shell *, .cd-terminal-page * { box-sizing: border-box; }
+.cd-shell [hidden], .cd-terminal-page [hidden] { display: none !important; }
+.cd-shell button, .cd-shell input, .cd-shell select, .cd-shell textarea,
+.cd-terminal-page button, .cd-terminal-page input, .cd-terminal-page select, .cd-terminal-page textarea {
+  color: inherit;
+  font: inherit;
+}
+.cd-shell button, .cd-terminal-page button {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #141f32;
+  cursor: pointer;
+  padding: 6px 10px;
+}
+.cd-shell button:hover, .cd-terminal-page button:hover, .cd-terminal-page .ib.on, .cd-shell button[aria-pressed="true"] {
+  border-color: #6fa8d9;
+  background: #243c59;
+}
+.cd-shell button:disabled { opacity: .42; cursor: default; }
+.cd-shell :focus-visible, .cd-terminal-page :focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+.cd-shell input:not([type="radio"]), .cd-shell textarea, .cd-shell select,
+.cd-terminal-page input, .cd-terminal-page select, .cd-terminal-page textarea {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #0a1424;
+  padding: 7px 9px;
+  min-width: 0;
+}
+.cd-shell h1, .cd-shell h2, .cd-shell p { margin: 0; }
+.cd-shell p, .cd-shell small { color: var(--mute); }
+.cd-shell { display: flex; flex: 1; min-height: 0; flex-direction: column; margin: 10px; border: 1px solid #33445c; border-radius: 13px; overflow: hidden; }
+.cd-shell:fullscreen, .cd-shell.cd-expanded { margin: 0; border: 0; border-radius: 0; width: 100%; height: 100%; }
+#p-cyber:has(.cd-expanded) { contain: none; }
+.cd-shell.cd-expanded { position: fixed; inset: 0; z-index: 9900; }
+.cd-chrome, .cd-panel, .cd-title, .cd-browser-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: none;
+}
+.cd-chrome { min-height: 44px; padding: 5px 9px; background: #141d2c; border-bottom: 1px solid #314159; }
+.cd-chrome > span { display: flex; align-items: center; gap: 7px; color: var(--mute); font-size: 12px; white-space: nowrap; }
+.cd-chrome img { width: 21px; height: 21px; }
+.cd-chrome button { white-space: nowrap; font-size: 12px; }
+.cd-screen, .cd-workspace { position: relative; min-height: 0; flex: 1; }
+.cd-boot, .cd-login, .cd-desktop { position: absolute; inset: 0; }
+.cd-boot { display: grid; place-items: center; overflow: auto; padding: 18px; background: radial-gradient(ellipse at 40% 6%, #10243f, #060a12 70%); font-family: Consolas, monospace; }
+.cd-boot.cd-off { background: #05070b; }
+.cd-boot.cd-off .cd-boot-inner { display: none; }
+.cd-boot-inner { width: min(490px, 100%); padding: clamp(16px, 4vw, 30px); border: 1px solid #33445f; border-top: 3px solid #8ddaff; border-radius: 12px; background: #0b1422; box-shadow: 0 18px 70px #0008; }
+.cd-firmware { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; letter-spacing: .1em; }
+.cd-firmware strong { color: #8fd9ff; font-size: 19px; }
+.cd-firmware span { margin-left: auto; color: var(--mute); font-size: 10px; }
+.cd-shell .cd-post { border-block: 1px solid #263a53; color: #a7c3df; margin: 15px 0; padding: 10px 0; font-size: 12px; }
+.cd-boot h2 { font-size: 17px; margin-bottom: 8px; }
+.cd-boot-options { display: grid; gap: 7px; }
+.cd-boot-options button { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 3px 8px; text-align: left; padding: 9px 12px; }
+.cd-boot-options small { grid-row: 2; }
+.cd-boot-options i { grid-column: 2; grid-row: 1 / 3; align-self: center; color: #84c9f3; font-style: normal; }
+
+.cd-screen, .cd-wallpapers [data-theme] {
+  --night: #090e20;
+  --horizon: #17294b;
+  --glow: #227cae;
+  --beam: #82d7f4;
+}
+.cd-screen[data-theme="glacier"], .cd-wallpapers [data-theme="glacier"] { --night: #081721; --horizon: #14505a; --glow: #2cacaf; --beam: #b5fff1; }
+.cd-screen[data-theme="ember"], .cd-wallpapers [data-theme="ember"] { --night: #1d101b; --horizon: #4e263d; --glow: #ac4939; --beam: #ffba81; }
+.cd-screen[data-theme="violet"], .cd-wallpapers [data-theme="violet"] { --night: #110d23; --horizon: #333063; --glow: #7349b8; --beam: #d8baff; }
+.cd-login, .cd-desktop, .cd-wallpapers [data-theme] {
+  background:
+    radial-gradient(ellipse at 13% 82%, color-mix(in srgb,var(--beam) 24%,transparent), transparent 34%),
+    radial-gradient(ellipse at 72% 24%, var(--glow), transparent 52%),
+    linear-gradient(149deg, var(--night) 8%, var(--horizon) 70%, var(--night));
+}
+.cd-login { display: grid; place-items: center; overflow: auto; padding: 14px; }
+.cd-login-card { display: grid; gap: 9px; width: min(380px, 100%); padding: clamp(15px, 3vw, 25px); border: 1px solid #6884a5; border-radius: 16px; background: #0d1628ee; box-shadow: 0 20px 70px #020611ae; }
+.cd-login-icon { display: grid; width: 44px; height: 44px; place-items: center; border: 1px solid #466e93; border-radius: 12px; background: #162942; }
+.cd-login-icon img { width: 34px; height: 34px; }
+.cd-login h2 { font-size: 22px; letter-spacing: -.025em; }
+.cd-login label { display: grid; gap: 5px; margin-top: 5px; }
+.cd-password-help { font-size: 12px; }
+.cd-password-help code { color: #cee7ff; }
+.cd-shell .cd-primary { background: #9edcff; border-color: #b8e5ff; color: #071526; font-weight: 700; }
+.cd-shell .cd-primary:hover { background: #c1ecff; }
+.cd-login [data-login-error] { color: #ffb5ad; font-size: 12px; }
+.cd-desktop { isolation: isolate; display: flex; flex-direction: column; overflow: hidden; }
+.cd-desktop::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    linear-gradient(148deg,transparent 43%, color-mix(in srgb,var(--beam) 38%,transparent) 43.2%,transparent 44.4%,transparent 49%,color-mix(in srgb,var(--beam) 20%,transparent) 49.2%,transparent 50%),
+    repeating-linear-gradient(148deg, transparent 0 60px, #edf6ff11 61px, transparent 62px 110px),
+    repeating-linear-gradient(31deg, transparent 0 65px, #edf6ff0c 66px, transparent 67px 120px);
+  mask-image: linear-gradient(100deg,transparent,#000 42%,#000 86%,transparent);
+}
+.cd-panel { min-height: 35px; padding: 3px 8px; background: #07111edb; border-bottom: 1px solid #99ceff38; font-size: 12px; }
+.cd-panel button { padding: 3px 7px; }
+.cd-panel > div { display: flex; gap: 8px; align-items: center; }
+.cd-menu { position: absolute; z-index: 4; top: 37px; left: 8px; display: grid; gap: 4px; min-width: 155px; padding: 6px; background: #0a1527; border: 1px solid #496482; border-radius: 10px; box-shadow: 0 12px 35px #0009; }
+.cd-menu button { text-align: left; }
+.cd-menu i { margin-right: 8px; font-style: normal; color: var(--acc); }
+.cd-power-menu { left: auto; right: 8px; }
+.cd-hero { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: clamp(12px, 4vw, 40px); padding: 15px; pointer-events: none; text-shadow: 0 3px 18px #060c1e; }
+.cd-hero span { font-size: clamp(8px, 1.3vw, 12px); letter-spacing: .14em; color: #cee7ff; }
+.cd-hero h1 { font-size: clamp(27px, 6vw, 78px); letter-spacing: -.065em; line-height: 1; margin: 5px 0 9px; }
+.cd-hero p { color: #daeaff; }
+.cd-orbit {
+  display: grid; place-items: center; flex: none; width: clamp(58px, 15vw, 154px); aspect-ratio: 1; border-radius: 50%;
+  border: 1px solid var(--beam); box-shadow: 0 0 55px color-mix(in srgb,var(--beam) 36%,transparent), inset 0 0 24px #060c1eab;
+  color: var(--beam); background: radial-gradient(ellipse, #192b52ba, #0a162cdd); font-size: clamp(30px, 7vw, 78px);
+}
+.cd-dock { display: flex; flex: none; align-self: center; max-width: calc(100% - 12px); overflow-x: auto; gap: 3px; margin: 4px 0 7px; padding: 4px; border: 1px solid #99ceff6b; border-radius: 13px; background: #0b1426e8; box-shadow: 0 8px 28px #0007; }
+.cd-dock button { position: relative; min-width: 43px; padding: 3px 7px 5px; display: grid; justify-items: center; gap: 2px; border-color: transparent; background: transparent; font-size: 10px; white-space: nowrap; }
+.cd-dock i { font: 600 20px/1.1 system-ui, sans-serif; color: #c2eaff; }
+.cd-running::after { content: ""; position: absolute; bottom: 1px; width: 9px; height: 2px; border-radius: 5px; background: #9ad9ff; }
+.cd-dock .cd-minimized::after { opacity: .45; }
+.cd-windows { position: absolute; inset: 0; pointer-events: none; isolation: isolate; }
+.cd-window {
+  position: absolute; display: flex; flex-direction: column;
+  width: min(100%, var(--cd-width, 880px)); height: min(100%, var(--cd-height, 440px));
+  left: clamp(0px, var(--cd-x, 0px), calc(100% - min(100%, var(--cd-width, 880px))));
+  top: clamp(0px, var(--cd-y, 0px), calc(100% - min(100%, var(--cd-height, 440px))));
+  border: 1px solid #597697; border-radius: 12px; background: #101b2e; overflow: hidden; pointer-events: auto; box-shadow: 0 12px 32px #0008;
+}
+.cd-shell .cd-window.cd-maximized { inset: 0; width: 100%; height: 100%; border-radius: 0; }
+.cd-window.cd-focused { border-color: var(--acc); }
+.cd-title { min-height: 34px; padding: 3px 6px 3px 11px; background: #1c2a42; border-bottom: 1px solid #374860; font-size: 12px; font-weight: 650; cursor: grab; touch-action: none; user-select: none; }
+.cd-window.cd-maximized .cd-title { cursor: default; }
+.cd-title div { display: flex; gap: 4px; }
+.cd-title button { padding: 1px 7px; min-width: 24px; }
+.cd-shell .cd-resize { position: absolute; z-index: 30; inset: auto 0 0 auto; width: 17px; height: 17px; padding: 0; border: 0; border-radius: 0; background: transparent; cursor: nwse-resize; touch-action: none; }
+.cd-resize::after { content: ""; position: absolute; inset: 5px 3px 3px 5px; border: solid var(--acc); border-width: 0 2px 2px 0; opacity: .55; }
+.cd-window.cd-maximized .cd-resize { display: none; }
+.cd-app-body { flex: 1; min-height: 0; overflow: auto; }
+.cd-app-body iframe { display: block; border: 0; width: 100%; height: 100%; }
+.cd-content { display: grid; align-content: start; gap: 11px; padding: clamp(12px, 3vw, 25px); }
+.cd-content h2 { font-size: 22px; letter-spacing: -.02em; }
+.cd-content dl { display: grid; grid-template-columns: auto 1fr; gap: 5px 14px; margin: 0; }
+.cd-content dd { margin: 0; color: var(--mute); }
+.cd-content label select { margin-left: 8px; }
+.cd-wallpapers, .cd-case-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 155px), 1fr)); gap: 8px; }
+.cd-wallpapers button { display: grid; gap: 5px; }
+.cd-wallpapers span { height: 44px; margin-inline: -2px; border: 1px solid #ffffff34; border-radius: 6px; }
+.cd-case-grid button { display: grid; justify-items: start; gap: 3px; text-align: left; padding: 10px; overflow-wrap: anywhere; }
+.cd-case-grid i { color: var(--acc); font-style: normal; }
+.cd-case pre { overflow: auto; padding: 12px; margin: 0; border: 1px solid #354960; border-radius: 8px; background: #080f1d; color: #bfe6fa; white-space: pre-wrap; overflow-wrap: anywhere; }
+.cd-case > button, .cd-case form > button { justify-self: start; }
+.cd-case fieldset { display: grid; gap: 5px; border: 1px solid var(--line); border-radius: 8px; margin: 0 0 8px; }
+.cd-case legend { padding: 0 4px; }
+.cd-case form p { margin-top: 8px; }
+.cd-notes textarea { width: 100%; min-height: 140px; resize: vertical; }
+.cd-browser-bar { justify-content: start; padding: 6px; border-bottom: 1px solid var(--line); gap: 4px; }
+.cd-browser-bar form { display: flex; flex: 1; gap: 4px; min-width: 0; }
+.cd-browser-bar input { flex: 1; }
+
+.cd-terminal-page { margin: 0; }
+.cd-terminal-page main { display: grid; justify-items: center; padding: 8px; }
+.cd-terminal-page .small { font-size: 12px; }
+.cd-terminal-page .row { display: flex; }
+.cd-terminal-page .mute { color: var(--mute); }
+.cd-terminal-page .ib { font-size: 12px; }
+.cd-terminal-page #tpgout { overflow-wrap: anywhere; }
+#cd-terminal-status { position: fixed; z-index: 10; right: 10px; bottom: 10px; max-width: calc(100% - 20px); padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: #182a42; }
+.cd-terminal-page .term-fs-box.term-fs { position: fixed; z-index: 8; inset: 0; display: flex; flex-direction: column; }
+.cd-terminal-page .term-fs .term-fs-out { flex: 1; min-height: 0; }
+@media (max-width: 865px) {
+  .cd-terminal-page #tpggrid { grid-template-columns: 125px minmax(0,1fr) !important; }
+  .cd-terminal-page #tpggrid > :last-child { grid-column: 1 / -1; min-width: 0; }
+}
+@media (max-width: 520px) {
+  .cd-shell { margin: 4px; }
+  .cd-chrome > b, .cd-dock span { display: none; }
+  .cd-dock i { font-size: 18px; }
+  .cd-terminal-page #tpggrid { grid-template-columns: minmax(0,1fr) !important; }
+  .cd-terminal-page #tpgtabs { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); }
+}
+
+/* Guest application launcher, desktop layouts, and docked Browser tab. */
+.cd-screen[data-theme="custom"] .cd-desktop,
+.cd-screen[data-theme="custom"] .cd-login {
+  background: linear-gradient(#0713224d, #07132265), var(--cd-wallpaper, none) center / cover no-repeat, #142239;
+}
+.cd-screen[data-theme="custom"] .cd-desktop::before { display: none; }
+.cd-wallpapers [data-theme="custom"] { background: var(--cd-wallpaper, none) center / cover no-repeat, #24364e; }
+.cd-app-menu { width: min(440px, calc(100% - 16px)); max-height: calc(100% - 53px); align-content: start; overflow: auto; padding: 10px; }
+.cd-app-menu > input { width: 100%; }
+.cd-app-menu-apps { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 4px; padding: 4px 0; }
+.cd-app-menu-apps button { padding: 5px 7px; }
+.cd-menu-heading { margin: 2px 0; color: var(--mute); font-size: 11px; letter-spacing: .04em; }
+.cd-app-menu-tools { border-top: 1px solid var(--line); padding-top: 4px; }
+.cd-app-menu-tools details { border-bottom: 1px solid color-mix(in srgb, var(--line) 68%, transparent); }
+.cd-app-menu-tools summary { padding: 5px 4px; cursor: pointer; }
+.cd-app-menu-tools summary small { float: right; }
+.cd-app-menu-tools details > div { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; }
+.cd-app-menu-tools button { font-size: 12px; padding: 3px 7px; }
+.cd-guide-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 235px), 1fr)); gap: 9px; }
+.cd-guide-grid section { display: grid; grid-template-rows: auto 1fr auto; gap: 8px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel2); padding: 12px; }
+.cd-guide-grid h3 { margin: 0; font-size: 15px; }
+.cd-guide-grid button, .cd-content > button { justify-self: start; }
+.cd-case-nav, .cd-incident-progress { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.cd-incident-progress progress { width: min(240px, 65%); accent-color: var(--acc); }
+.cd-incident-progress span { color: var(--mute); font-size: 12px; }
+.cd-incident-brief { border-left: 2px solid var(--acc); background: var(--panel2); padding: 10px 13px; }
+.cd-incident-brief h3 { margin: 0 0 5px; font-size: 14px; }
+.cd-utility { display: grid; gap: 9px; max-width: 100%; }
+.cd-utility textarea { display: block; width: 100%; margin-top: 5px; resize: vertical; }
+.cd-utility button { justify-self: start; }
+.cd-shell input[type="file"] { max-width: 100%; }
+.cd-window[data-window="browser"] .cd-app-body { position: relative; }
+.cd-shell #p-web.in-cyber-desktop { --bg: #0c1627; --text: var(--ink); --acc2: #6595e3; --bad: #f28c8c; }
+.cd-shell #p-web.in-cyber-desktop #ltor,
+.cd-shell #p-web.in-cyber-desktop #wsask,
+.cd-shell #p-web.in-cyber-desktop .ws-chat-suggestion,
+.cd-shell #p-web.in-cyber-desktop [data-ask],
+.cd-shell #p-web.in-cyber-desktop [data-note],
+.cd-shell #p-web.in-cyber-desktop [data-a="ask"],
+.cd-shell #p-web.in-cyber-desktop [data-a="note"] { display: none !important; }
+.cd-shell #p-web.in-cyber-desktop #lnav { flex-wrap: wrap; }
+.cd-shell #p-web.in-cyber-desktop #lbox { flex-basis: 160px; min-width: min(160px, 100%); }
+.cd-shell #p-web.in-cyber-desktop #lframes iframe { min-width: 0; }
+.cd-shell #p-web.in-cyber-desktop .ws-hero { padding-block: 20px 12px; }
+.cd-shell #p-web.in-cyber-desktop .ws-hero h1 { font-size: clamp(23px, 3vw, 36px); }
+.cd-shell #p-web.in-cyber-desktop .ws-hero > .mute { margin-bottom: 12px !important; }
+.cd-shell[data-interface="operator"], .cd-terminal-page[data-interface="operator"] {
+  --ink: #f1eade; --acc: #ffd387; --mute: #c5b9a8; --line: #625039; --panel: #211d1b; --panel2: #2c241e;
+}
+.cd-shell[data-interface="operator"] { border-color: #7a5c35; }
+.cd-shell[data-interface="operator"] :is(.cd-panel,.cd-title,.cd-chrome,.cd-dock,.cd-menu) { background: #231c16; border-color: #795e3d; }
+.cd-shell[data-interface="operator"] :is(.cd-window,.cd-login-card) { background: #211b17; border-color: #825f34; border-radius: 5px; }
+.cd-shell[data-interface="operator"] button, .cd-terminal-page[data-interface="operator"] button { border-radius: 4px; }
+.cd-shell[data-interface="operator"] .cd-desktop { display: grid; grid-template: auto minmax(0, 1fr) / auto minmax(0, 1fr); }
+.cd-shell[data-interface="operator"] .cd-panel { grid-column: 1 / -1; }
+.cd-shell[data-interface="operator"] .cd-workspace { grid-area: 2 / 2; }
+.cd-shell[data-interface="operator"] .cd-dock { grid-area: 2 / 1; align-self: center; display: grid; gap: 3px; max-height: 100%; overflow: auto; margin: 5px; }
+.cd-shell[data-interface="operator"] .cd-dock span { display: none; }
+.cd-shell[data-interface="operator"] .cd-hero { font-family: Consolas, monospace; }
+.cd-shell[data-interface="operator"] .cd-orbit { border-radius: 9px; }
+.cd-shell[data-interface="workstation"], .cd-terminal-page[data-interface="workstation"] {
+  --ink: #f4f9ff; --acc: #a4e6ff; --mute: #b5cedf; --line: #476884; --panel: #14283c; --panel2: #1c344b;
+}
+.cd-shell[data-interface="workstation"] :is(.cd-chrome,.cd-panel,.cd-title) { background: #1a3955; border-color: #5d8bac; }
+.cd-shell[data-interface="workstation"] :is(.cd-window,.cd-menu) { background: #14283c; border-color: #5d8bac; border-radius: 4px; }
+.cd-shell[data-interface="workstation"] .cd-dock { width: 100%; max-width: none; align-self: stretch; justify-content: start; border-radius: 0; margin: 0; padding: 4px 7px; background: #193550; }
+.cd-shell[data-interface="workstation"] .cd-dock button { display: flex; align-items: center; min-height: 28px; }
+.cd-shell[data-interface="workstation"] .cd-dock i { font-size: 15px; }
+.cd-shell[data-interface="workstation"] .cd-orbit { width: clamp(48px, 9vw, 100px); font-size: clamp(22px, 5vw, 48px); }
+.cd-shell[data-interface="workstation"] .cd-hero h1 { font-weight: 550; letter-spacing: -.035em; }
+.cd-shell[data-interface="operator"] button[aria-pressed="true"] { border-color: #ffcb76; background: #51381d; }
+.cd-shell[data-interface="operator"] .cd-primary { background: #ffd387; color: #231609; }
+@media (max-height: 450px) {
+  .cd-shell[data-interface="operator"] .cd-dock { align-self: stretch; }
+}
+
+/* Beginner walkthroughs and compact Cyber navigation. */
+.cd-tutorial-tip { padding: 11px 13px; border: 1px solid var(--line); border-left: 3px solid var(--acc); border-radius: 8px; background: var(--panel2); }
+.cd-tutorial-tip p { margin-top: 3px; }
+.cd-terminal-page .cd-tutorial-tip { margin: 8px 8px 0; font-size: 12px; }
+.cd-terminal-page .cd-tutorial-tip p { margin-bottom: 0; color: var(--mute); }
+.cd-tutorial select { max-width: 100%; }
+@media (max-width: 1050px), (max-height: 690px) {
+  #p-cyber:has(#cysub [data-s="desktop"].on) #cysub { flex-wrap: nowrap !important; overflow-x: auto; scrollbar-width: thin; }
+  #p-cyber:has(#cysub [data-s="desktop"].on) #cysub > * { flex: none; white-space: nowrap; }
+}
+
+/* Fictional remote sessions run as ordinary Cyber Desktop windows. */
+.cd-remote-form { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
+.cd-remote-form label { display: grid; gap: 4px; }
+.cd-remote-form label select { margin-left: 0; }
+.cd-remote-form input { max-width: 180px; }
+.cd-remote-screen { min-height: 100%; display: flex; flex-direction: column; gap: 8px; padding: 9px; background: var(--panel); }
+.cd-remote-screen > header, .cd-remote-screen > nav, .cd-remote-folder { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.cd-remote-screen > header { padding: 5px 6px; border-bottom: 1px solid var(--line); }
+.cd-remote-screen > header strong { color: var(--acc); }
+.cd-remote-screen > header span { color: var(--mute); font-size: 12px; }
+.cd-remote-screen > nav button { padding: 4px 8px; }
+.cd-remote-wallpaper { display: grid; flex: 1; align-content: center; gap: 7px; padding: clamp(14px, 5vw, 42px); min-height: 165px; border: 1px solid var(--line); border-radius: 9px; background: linear-gradient(145deg,#121e3d,#16366a 55%,#20568a 56%,#132340); }
+.cd-remote-screen[data-remote-os="linux"] .cd-remote-wallpaper { background: linear-gradient(135deg,#17152c,#343657 52%,#4a4070 53%,#171629); }
+.cd-remote-wallpaper > b { font-size: clamp(22px, 5vw, 42px); letter-spacing: -.035em; }
+.cd-remote-panel, .cd-remote-files form, .cd-remote-files label { display: grid; gap: 7px; }
+.cd-remote-files { display: grid; grid-template-columns: minmax(112px, 1fr) minmax(0, 2fr); align-items: start; gap: 8px; }
+.cd-remote-files > div:first-child { display: grid; gap: 4px; max-height: 200px; overflow: auto; }
+.cd-remote-files button { text-align: left; overflow-wrap: anywhere; }
+.cd-remote-files textarea { width: 100%; resize: vertical; font-family: Consolas, monospace; }
+.cd-remote-panel pre { margin: 0; min-height: 100px; max-height: 225px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: 8px 10px; background: #080f1d; border: 1px solid var(--line); border-radius: 8px; }
+
+/* Breach Lab launcher and overlay inside the Moundshroud Browser window */
+.cd-breach-launch { position: absolute; top: 8px; right: 12px; z-index: 6; cursor: pointer;
+  font-size: 12px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--acc);
+  background: rgba(110, 231, 160, .12); color: var(--text); }
+.cd-breach-launch:hover { background: rgba(110, 231, 160, .22); }
+.cd-breach-overlay { position: absolute; inset: 0; z-index: 5; overflow: auto;
+  background: var(--panel, #0e1016); }
+.cd-breach-overlay .cd-content { max-width: 820px; margin: 0 auto; }
