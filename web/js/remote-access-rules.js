@@ -530,7 +530,7 @@ const RemoteAccess = (function () {
     const homeTree = {
       '.bash_history': { mode: '600', text: ['ls -la', 'cat /var/www/app/.env', 'base64 -w0 /var/www/app/.env > .env.b64', 'sudo -l', 'exit'].join('\n') },
       'notes.txt': { mode: '644', text: 'web01 build notes\n- the app lives in /var/www/app\n- backups run from /opt/backup/run.sh every 5 minutes\n- records sit on db01.' + sc.domain },
-      '.ssh': { 'id_rsa': { mode: '600', text: '-----BEGIN OPENSSH PRACTICE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAABlwAAAAdzc2gtcn\nNhAAAAAwEAAQAAAYEA0Kk7f8yQ2m4dQm9vZGhyb3VkZW1vMTIzNDU2Nzg5MGFiY2RlZg\n-----END OPENSSH PRACTICE KEY-----' } }
+      '.ssh': { 'id_rsa': { mode: '600', text: '-----BEGIN OPENSSH PRACTICE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAABlwAAAAdzc2gtcn\nNhAAAAAwEAAQAAAYEA0Kk7f8yQ2m4dQm9vZGhyb3VkZW1vMTIzNDU2Nzg5MGFiY2RlZg\n-----END OPENSSH PRACTICE KEY-----' } }   // practice key in a simulated home folder: never a real one
     };
     const tree = {
       etc: {
