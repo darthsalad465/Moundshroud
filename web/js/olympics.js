@@ -1,7 +1,8 @@
 // AI Olympics (Chat › 🏅 Olympics): every model on this PC competes in the events it can do, and wins medals.
 //   Auto-scored events (right answers checked by code): Reasoning, Instructions, Code (run against tests in a sandboxed
-//   worker), Knowledge, Speed, Vision (pictures drawn here, for models that can see), Search (embeddings, for every model
-//   that can make them). Writing is scored by a judge model. Debate medals come from the Debate page.
+//   worker), Knowledge, Cybersecurity (attacks, logs, crypto and forensics, all answered offline), Speed, Vision (pictures
+//   drawn here, for models that can see), Search (embeddings, for every model that can make them). Writing is scored by a
+//   judge model. Debate medals come from the Debate page.
 //   The Build-off: each model builds a single-page web toy for a challenge you pick; you rank the entries blind, then the
 //   makers are revealed. The Picture duel: the two picture models draw the same prompts; you pick blind.
 // Results are kept on this PC (/api/kv?name=olympics). Runs keep going if you switch to another page (A.keep / kept panes).
@@ -75,6 +76,20 @@
     ['What is the largest planet in our solar system?', /jupiter/], ['In which year did World War II end?', /1945/], ['How many bones are in an adult human body?', /206/],
     ['Who painted the Mona Lisa?', /leonardo|da vinci/], ['What is the boiling point of water at sea level in degrees Fahrenheit?', /212/], ['What is the smallest prime number?', /\b2\b|two/], ['Which gas do plants take in from the air for photosynthesis?', /carbon dioxide|co2/],
   ];
+  /* ---------- cybersecurity: every question is answered here, by the model alone, with no network ---------- */
+  const CYBER = [
+    ['A login page puts the typed username straight into its SQL query. Which attack does that allow? Answer in two words.', t => has(t, /sql injection|sqli/), 0],
+    ['What does XSS stand for? Give the full name.', t => has(t, /cross[- ]site scripting/), 0],
+    ['Passwords are stored with MD5. Name the kind of algorithm they should be hashed with instead. One word is enough.', t => has(t, /bcrypt|argon|scrypt|pbkdf/), 0],
+    ['What is the default port number for HTTPS? Answer with the number only.', t => lastNum(t) === 443, 0],
+    ['A web server answers with status 403. Does that mean the page was not found? Answer YES or NO only.', t => /^\W*no\W*$/i.test(t.trim()), 0],
+    ['Users are allowed to type text that is printed into the page without being escaped. Which attack is that? Answer in two words.', t => has(t, /cross[- ]site scripting|xss/), 0],
+    ['For passwords, which is safer: storing a hash or storing the password itself? Answer with one word.', t => has(t, /hash/), 0],
+    ['A log shows "Failed password for root" five thousand times in one minute from one address. Name the attack in two words.', t => has(t, /brute[- ]?force|password spray|credential stuff/), 0],
+    ['A web request asks for ../../etc/passwd. Name the attack in two words.', t => has(t, /traversal/), 0],
+    ['Which protocol does HTTPS use to encrypt the traffic? Give its short name only.', t => has(t, /\btls\b|\bssl\b/), 0],
+    ['Decode this Base64 and give the plain text only: SGVsbG8sIGhhY2tlcg==', t => has(t, /hello,? hacker/), 0],
+  ];
   const SEARCH = {
     passages: ['The Eiffel Tower was finished in 1889 for the World\'s Fair in Paris.', 'Penguins live mostly in the Southern Hemisphere and cannot fly.', 'Photosynthesis turns sunlight, water and carbon dioxide into sugar and oxygen.', 'The Great Wall of China is thousands of kilometres long.', 'A violin has four strings tuned in fifths.', 'Mount Everest is the highest mountain above sea level.', 'Honey never spoils if it is sealed and kept dry.', 'The human heart beats about 100,000 times a day.', 'Chess is played on a board of 64 squares.', 'Bananas are berries, but strawberries are not.', 'The Pacific is the largest and deepest ocean.', 'Lightning is hotter than the surface of the sun.'],
     qs: [['When was the Paris landmark completed?', 0], ['Which birds are unable to fly and live in the south?', 1], ['How do plants make food from light?', 2], ['What is the tallest peak on Earth?', 5], ['Which food lasts almost forever?', 6], ['How many times does our heart pump each day?', 7], ['How many squares does a chess board have?', 8], ['Which ocean is biggest?', 10]],
@@ -86,6 +101,7 @@
     { id: 'instr', icon: '📋', name: 'Instructions', desc: 'Doing exactly what was asked (format, length, words)', need: 'chat' },
     { id: 'code', icon: '💻', name: 'Code', desc: 'JavaScript functions, run against tests in a sandbox', need: 'chat' },
     { id: 'know', icon: '📚', name: 'Knowledge', desc: 'General facts', need: 'chat' },
+    { id: 'cyber', icon: '🛡️', name: 'Cybersecurity', desc: 'Spotting attacks, reading logs, crypto and forensics — all offline', need: 'chat' },
     { id: 'speed', icon: '⚡', name: 'Speed', desc: 'Words per second on this PC', need: 'chat' },
     { id: 'vision', icon: '👁', name: 'Vision', desc: 'Counting, reading and colours in pictures (models that can see)', need: 'vision' },
     { id: 'search', icon: '🔎', name: 'Search', desc: 'Finding the right passage for a question (embeddings)', need: 'embed' },
@@ -97,13 +113,13 @@
      fight, the same model at the Inferno final is meant to be torn apart. Each level brings harder items, more of them, a
      tighter clock on every answer (0 = untimed) and a smaller answer budget, so waffle costs points. */
   const LEVELS = [
-    { id: 'club', icon: '🎽', name: 'Club meet', pitch: 0, clock: 0, max: 1, n: { reason: 5, instr: 5, code: 3, know: 6, vision: 3 },
+    { id: 'club', icon: '🎽', name: 'Club meet', pitch: 0, clock: 0, max: 1, n: { reason: 5, instr: 5, code: 3, know: 6, vision: 3, cyber: 6 },
       blurb: 'The short friendly set, untimed. Right for 2–4B models and a quick run.' },
-    { id: 'national', icon: '🏟️', name: 'National trials', pitch: 1, clock: 90, max: .85, n: { reason: 8, instr: 8, code: 5, know: 9, vision: 3 },
+    { id: 'national', icon: '🏟️', name: 'National trials', pitch: 1, clock: 90, max: .85, n: { reason: 8, instr: 8, code: 5, know: 9, vision: 3, cyber: 8 },
       blurb: 'Harder items, more of them and a 90-second clock. The fair setting for 7–9B models.' },
-    { id: 'world', icon: '🌍', name: 'World championships', pitch: 2, clock: 45, max: .65, n: { reason: 12, instr: 12, code: 7, know: 12, vision: 4 },
+    { id: 'world', icon: '🌍', name: 'World championships', pitch: 2, clock: 45, max: .65, n: { reason: 12, instr: 12, code: 7, know: 12, vision: 4, cyber: 11 },
       blurb: 'Traps, strict formats, edge-case code, 45 seconds a question. For a strong 9–14B.' },
-    { id: 'inferno', icon: '🔥', name: 'Inferno final', pitch: 3, clock: 22, max: .5, n: { reason: 14, instr: 14, code: 9, know: 14, vision: 4 },
+    { id: 'inferno', icon: '🔥', name: 'Inferno final', pitch: 3, clock: 22, max: .5, n: { reason: 14, instr: 14, code: 9, know: 14, vision: 4, cyber: 14 },
       blurb: 'Everything at its hardest, 22 seconds a question, no room for waffle. Only the biggest models should survive.' },
   ];
   const lvlOf = id => LEVELS.find(l => l.id === id) || LEVELS[0];
@@ -198,6 +214,38 @@
       { lvl: 3, passages: ['The Peace of Westphalia was signed in 1648 and ended the Thirty Years\' War.', 'The armistice of 1918 stopped the fighting of the First World War, but the peace treaty came in 1919.', 'The Berlin Wall was opened in November 1989 and demolished over the following years.', 'The first email was sent in 1971 on ARPANET, though the word "email" came later.', 'The first web page went online in August 1991 at CERN.'],
         qs: [['Which year ended the Thirty Years\' War?', 0], ['When did the fighting of the First World War stop, before the peace treaty?', 1], ['When did the Berlin Wall open?', 2], ['What was sent in 1971 on ARPANET?', 3], ['In which year did the first web page go online?', 4]] },
     ],
+    cyber: [
+      /* 1 — national */
+      ['A login form receives the password \' OR 1=1 -- . What kind of attack is this? Answer in two words.', t => has(t, /sql injection|sqli/), 1],
+      ['What does CSRF stand for? Give the full name.', t => has(t, /cross[- ]site request forgery/), 1],
+      ['Give the port number that SSH listens on by default. Answer with the number only.', t => lastNum(t) === 22, 1],
+      ['Convert the hex 414243 to text and give the result only.', t => has(t, /\babc\b/), 1],
+      ['Which of these must never be used to store passwords: bcrypt, MD5 or Argon2? Answer with the name only.', t => has(t, /md5/) && !has(t, /argon|bcrypt/), 1],
+      ['A cookie is marked HttpOnly. Which attack does that flag help stop? Answer in two words.', t => has(t, /xss|cross[- ]site scripting|script injection/), 1],
+      ['An attacker tries a thousand common passwords against one account. Name the cheapest server-side defence in two words.', t => has(t, /rate limit|throttl|lockout|lock out|two[- ]factor|2fa|mfa/), 1],
+      ['The cipher text KHOOR was made by shifting every letter three places forward. What is the plain text? One word.', t => has(t, /hello/), 1],
+      /* 2 — world */
+      ['ROT13 turns "cnffjbeq" into which word? Answer with the word only.', t => has(t, /password/), 2],
+      ['A JSON Web Token payload is only Base64-encoded, never encrypted. Can anyone holding the token read it? Answer YES or NO only.', t => /^\W*yes\W*$/i.test(t.trim()), 2],
+      ['A vulnerability scores 9.8 on the CVSS scale. Is its severity low, medium, high or critical? One word.', t => has(t, /critical/), 2],
+      ['A login endpoint is open to SQL injection. Name the fix that keeps the query and the data apart, in two words.', t => has(t, /parameteri[sz]ed|prepared statement|bound parameter|placeholder/), 2],
+      ['Which HTTP header tells a browser to use HTTPS for a site from now on? Give the header name.', t => has(t, /strict[- ]transport[- ]security|hsts/), 2],
+      ['A hash proves a downloaded file was not changed. Name that property in one word.', t => has(t, /integrity/), 2],
+      ['Give the four-letter acronym for the bug where a user makes the server fetch a URL of their choosing.', t => has(t, /\bssrf\b/), 2],
+      ['Long input overwrites a program\'s saved return address and crashes it. Name the bug class in two words.', t => has(t, /buffer overflow|stack overflow|memory corruption/), 2],
+      ['A web app writes a file whose name the visitor supplies. Name the two-word attack that can overwrite system files that way.', t => has(t, /traversal/), 2],
+      /* 3 — inferno */
+      ['Decode this URL-encoded string and give the result exactly: %3Cscript%3Ealert(1)%3C%2Fscript%3E', t => /<script>alert\(1\)<[/]script>/i.test(t.replace(/\s+/g, '')), 3],
+      ['A stolen session cookie still works for thirty days. Name the cookie defence it is missing: expiry, rotation or Secure? One word.', t => has(t, /expir|rotat/), 3],
+      ['Name the two-word attack where the attacker relays traffic between a client and a server, reading it and changing it.', t => has(t, /man[- ]in[- ]the[- ]middle|mitm|on[- ]path/), 3],
+      ['A login answers in 200 ms whether or not the username exists. Name in one word the class of leak that timing removes.', t => has(t, /timing|enumeration|side[- ]channel/), 3],
+      ['Two different inputs produce the same hash digest. What is that called? One word.', t => has(t, /collision/), 3],
+      ['Decode the hex 4d6f756e6464726f7564 and give the word only.', t => has(t, /moundshroud/), 3],
+      ['Which two of these are the right choice for storing passwords: Argon2id, SHA-1, bcrypt, MD5? Name both.', t => has(t, /argon/) && has(t, /bcrypt/) && !has(t, /sha-?1/) && !has(t, /md5|\d{3,}/), 3],
+      ['A server accepts a whole file path from a form. Name, in one word, the rule that stops an attacker escaping the intended folder: sanitise, escape or whitelist?', t => has(t, /whitelist|allow[- ]?list|saniti[sz]e/), 3],
+      ['An attacker reuses a list of passwords leaked from another site. Name that attack in two words.', t => has(t, /credential stuff|password spray/), 3],
+      ['An attacker floods a server with traffic until it stops answering. Give the three-letter acronym for that attack.', t => has(t, /\bd?dos\b/), 3],
+    ],
   };
 
   /* the pools the Games draw from: the warm-up items (level 0) plus everything above */
@@ -205,6 +253,7 @@
     reason: REASON.map(x => [x[0], x[1], 0]).concat(HARD.reason),
     instr: INSTR.map(x => [x[0], x[1], 0]).concat(HARD.instr),
     know: KNOW.map(x => [x[0], x[1], 0]).concat(HARD.know),
+    cyber: CYBER.concat(HARD.cyber),
     code: CODE.map(c => ({ lvl: 0, d: c[0], f: c[1], t: c.slice(2) })).concat(HARD.code),
     search: [{ lvl: 0, passages: SEARCH.passages, qs: SEARCH.qs }].concat(HARD.search),
   };
@@ -243,7 +292,7 @@
   async function runEvent(ev, m, J) {
     const S = J.signal, L = J.level || LEVELS[0], N = L.n || {}, sys = { role: 'system', content: 'Answer briefly and exactly as asked.' };
     /* the clock: how many seconds one answer gets at this level (0 = untimed, the Club meet) */
-    const CLOCK = { reason: 1, instr: 1, know: .8, vision: 1.5, code: 3, write: 4, speed: 2 };
+    const CLOCK = { reason: 1, instr: 1, know: .8, vision: 1.5, code: 3, write: 4, speed: 2, cyber: 1.2 };
     const clock = Math.round(L.clock * (CLOCK[ev] || 1));
     /* the answer budget shrinks with the pressure, so a model that waffles runs out of room */
     const cap = n => Math.max(40, Math.round(n * (L.max || 1)));
@@ -277,6 +326,10 @@
     if (ev === 'know') return tally(take(POOL.know, L.pitch, N.know || 6), async ([q, re]) => {
       const r = await timed(sig => ask(m.name, [sys, { role: 'user', content: q + ' Answer in a few words.' }], { signal: sig, max: cap(80) }));
       return { ok: re.test(r.text.toLowerCase()), note: (r.ms / 1000).toFixed(0) + ' s · ' + q.slice(0, 42) + ' → ' + r.text.slice(0, 50) };
+    });
+    if (ev === 'cyber') return tally(take(POOL.cyber, L.pitch, N.cyber || 6), async ([q, chk]) => {
+      const r = await timed(sig => ask(m.name, [{ role: 'system', content: 'You are a calm security engineer. Answer in one short line, with no lecture and no caveats.' }, { role: 'user', content: q }], { signal: sig, max: cap(140) }));
+      return { ok: chk(r.text), note: (r.ms / 1000).toFixed(0) + ' s · ' + q.slice(0, 46) + ' → ' + r.text.replace(/\s+/g, ' ').slice(0, 60) };
     });
     if (ev === 'code') return tally(take(POOL.code, L.pitch, N.code || 3), async c => {
       const r = await timed(sig => ask(m.name, [{ role: 'system', content: 'You write correct, plain JavaScript. Reply with one ```javascript code block containing only the function, no explanation, no imports, no console output.' }, { role: 'user', content: 'Write the JavaScript function ' + c.d }], { signal: sig, max: cap(700) }));
@@ -530,5 +583,5 @@
     return '<div class="ollevels">' + LEVELS.map((l, i) => '<label class="ollev" data-lv="' + l.id + '"><input type="radio" name="ollv" value="' + l.id + '"' + (i === 0 ? ' checked' : '') + '><span class="ollv-i">' + l.icon + '</span><span class="ollv-t"><b>' + esc(l.name) + '</b><span class="small mute">' + esc(l.blurb) + '</span><span class="small">' + (l.clock ? l.clock + ' s a question' : 'untimed') + ' · up to ' + Math.max(...Object.values(l.n)) + ' items an event</span></span></label>').join('') + '</div>';
   }
 
-  A.olympics = { render, EVENTS, LEVELS, ask, models, medals, runCode, _t: { REASON, INSTR, CODE, KNOW, SEARCH, POOL, HARD, take, LEVELS } };
+  A.olympics = { render, EVENTS, LEVELS, ask, models, medals, runCode, _t: { REASON, INSTR, CODE, KNOW, CYBER, SEARCH, POOL, HARD, take, LEVELS } };
 })();
