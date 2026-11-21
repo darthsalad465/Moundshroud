@@ -10,7 +10,7 @@ Moundshroud is a Windows desktop assistant that brings local AI, research tools,
 ## Live app reference
 
 - **App version:** 1.4.0
-- **In-app Guide last updated:** 2026-11-20
+- **In-app Guide last updated:** 2026-11-21
 
 ### Main sections
 
