@@ -34,4 +34,16 @@ module.exports = async ok => {
   ok('olympics: the pools are deep enough for the biggest level', ['reason', 'instr', 'code', 'know'].every(e => T.POOL[e].filter(x => (x[2] != null ? x[2] : x.lvl) <= 3).length >= 14 || e === 'code') && T.POOL.code.length >= 9);
   ok('olympics: every hard code task has a function name and tests', T.POOL.code.every(c => typeof c.f === 'string' && c.f.length > 2 && c.t.length >= 2));
   ok('olympics: every search set points at a real passage', T.POOL.search.every(s => s.qs.every(([, i]) => i >= 0 && i < s.passages.length)));
+  /* cybersecurity: an event of its own, checked by code, with no network anywhere */
+  const C = q => T.CYBER.find(x => x[0].startsWith(q))[1];
+  ok('olympics: cybersecurity is an event every chat model can enter', O.EVENTS.some(e => e.id === 'cyber' && e.need === 'chat'));
+  ok('olympics: SQL injection is recognised, and a wrong answer is not', C('A login page puts')('SQL injection') && !C('A login page puts')('Cross-site scripting'));
+  ok('olympics: XSS is recognised by its full name', C('What does XSS')('Cross-site scripting (XSS)') && !C('What does XSS')('XML safe storage'));
+  ok('olympics: the HTTPS port must be 443', C('What is the default port number for HTTPS')('443') && !C('What is the default port number for HTTPS')('80'));
+  ok('olympics: a 403 is not a 404', C('A web server answers with status 403')('No') && !C('A web server answers with status 403')('Yes'));
+  ok('olympics: the Base64 forensic question decodes to the right text', C('Decode this Base64')('Hello, hacker') && !C('Decode this Base64')('SGVsbG8sIGhhY2tlcg=='));
+  ok('olympics: it is fair to pick out MD5 as unsafe', (() => { const f = q => T.POOL.cyber.find(x => x[0].startsWith(q))[1]; return f('Which of these must never')('MD5') && !f('Which of these must never')('bcrypt'); })());
+  ok('olympics: every cybersecurity item has a level and a checker that accepts a right answer', T.POOL.cyber.every(x => typeof x[0] === 'string' && typeof x[1] === 'function') && T.POOL.cyber.every(x => x[2] >= 0 && x[2] <= 3));
+  ok('olympics: the cybersecurity pool is deep enough for the Inferno final', T.take(T.POOL.cyber, 3, 14).length === 14 && T.POOL.cyber.filter(x => x[2] === 3).length >= 9);
+  ok('olympics: every level asks for cybersecurity questions', T.LEVELS.every(l => l.n.cyber >= 6));
 };
