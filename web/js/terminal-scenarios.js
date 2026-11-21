@@ -80,7 +80,15 @@
     let s = seed >>> 0 || 1;
     return () => { s = Math.imul(s ^ (s >>> 15), 0x2c1b3c6d) + 0x297a2d39 >>> 0; s ^= s >>> 12; return (s >>> 0) / 4294967296; };
   }
-  function randomize(shellId, seed = (Math.random() * 4294967295) >>> 0) {
+  /* A whole case from the lore engine: a themed organisation, its paperwork, and a pile of juicy documents hidden in
+     it (web/js/terminal-lore.js). Every parameter can be chosen; anything left alone is picked from the seed. */
+  function randomize(shellId, seed = (Math.random() * 4294967295) >>> 0, opts) {
+    const L = window.TerminalLore;
+    if (!L || !L.disk) return randomizeLegacy(shellId, seed);
+    const built = L.disk(L.normalize(Object.assign({}, opts || {}, { shell: shellId, seed })));
+    return { name: built.name, seed: built.seed, files: built.files, lore: built.lore };
+  }
+  function randomizeLegacy(shellId, seed = (Math.random() * 4294967295) >>> 0) {
     const r = rng(seed), pick = list => list[Math.floor(r() * list.length)], int = (a, b) => a + Math.floor(r() * (b - a + 1));
     const win = shellId === 'powershell' || shellId === 'cmd';
     const project = pick(['orchard', 'lighthouse', 'tinker', 'harbor', 'quill', 'nimbus', 'saffron', 'atlas-api', 'kettle', 'juniper']);

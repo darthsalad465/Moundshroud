@@ -28,6 +28,7 @@
   const terminalSaveKey = key => 'tpg_terminal_view_' + key;
   const puzzleSaveKey = id => 'tpg_active_puzzle_' + id;
   const mcodeSettingKey = 'tpg_mcode_enabled';
+  /* The Labyrinth keeps the note back until depth 5; the sandbox beside it and every exercise always carry one. */
   const labNoteDepth = 5, labCodeDepth = 18;
   const discoveryNote = (scope, room, fallback = 'sandbox', depth = 0) =>
     TP.mcodeNote(scope, room?.seedCode || room?.id || room?.title || fallback, room?.difficulty || 'easy', depth);
@@ -126,8 +127,10 @@
           swarmStore: { load: () => TP.readSave?.('tpg_mcode_swarm'), save: value => TP.writeSave?.('tpg_mcode_swarm', value) },
           // The whip cracks against the terminal output, where mcode writes its reply.
           // Each change also repaints the 🪢 /whip button, so Ctrl+C and a solved puzzle switch it off too.
+          // The whip is drawn inside this terminal only: its own pointer events, its own canvas box, nothing of the rest
+          // of the app. A terminal in another tab cannot turn it on either — `host` is the element it was mounted in.
           whipCursor: A.mcodeWhip ? {
-            on: onCrack => { A.mcodeWhip.on({ onCrack, target: () => visible() ? $('tpgout') : null }); paintWhipButton(); },
+            on: onCrack => { A.mcodeWhip.on({ onCrack, host: el, target: () => visible() ? $('tpgout') : null }); paintWhipButton(); },
             off: () => { A.mcodeWhip.off(); paintWhipButton(); }
           } : null,
           context: () => mcodeContext(mode, id),
@@ -472,6 +475,37 @@
 
     /* ---- Sandbox scenarios (web/js/terminal-scenarios.js): randomize the disk, edit every file as text, save named setups ---- */
     const scenarioShell = () => S.mode === 'sandbox' && TP.scenarios && ['bash', 'powershell', 'cmd'].includes(S.shell);
+
+    /* ---- Scenario Lab: every parameter of a generated case, or ask the local model to invent one ---- */
+    const LORE = () => window.TerminalLore || null;
+    const labs = { mode: '', msg: '', busy: false };
+    const loreForm = () => {
+      const L = LORE();
+      if (!L) return '<div class="small" style="color:var(--bad)">The lore engine did not load — check terminal-lore.js.</div>';
+      const row = (label, control) => '<label class="small mute" style="display:block;margin-top:6px">' + label + '</label>' + control;
+      const sel = (id, list, extra) => '<select id="' + id + '" style="width:100%;font-size:12px;padding:3px">' + extra + list.map(x => '<option value="' + x.id + '">' + esc(x.label) + '</option>').join('') + '</select>';
+      return '<div style="margin-top:4px">' +
+        row('Theme — who owns the disk', sel('tpgtheme', L.OPTIONS.themes, '<option value="">🎲 Random</option>')) +
+        row('Organisation (blank = invented)', '<input id="tpgorg" placeholder="e.g. Ministry of Water and Grid" style="width:100%;box-sizing:border-box;font-size:12px">') +
+        '<div class="row" style="gap:6px;margin-top:6px"><div style="flex:1">' + row('Seed (same seed = same case)', '<input id="tpgseed" placeholder="random" style="width:100%;box-sizing:border-box;font-size:12px">') + '</div>' +
+        '<div style="flex:1">' + row('Juicy documents (0–14)', '<input id="tpgsecrets" type="number" min="0" max="14" value="5" style="width:100%;box-sizing:border-box;font-size:12px">') + '</div></div>' +
+        '<div class="row" style="gap:6px"><div style="flex:1">' + row('Decoy files (0–12)', '<input id="tpgextra" type="number" min="0" max="12" value="4" style="width:100%;box-sizing:border-box;font-size:12px">') + '</div>' +
+        '<div style="flex:1">' + row('Clutter', sel('tpgnoise', L.OPTIONS.noise)) + '</div></div>' +
+        row('Which secrets may appear', '<div id="tpgcats" class="small" style="max-height:132px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:5px;line-height:1.7">' +
+          L.OPTIONS.secrets.map(s => '<label style="display:inline-flex;gap:3px;align-items:center;width:49%" title="juice ' + s.juice + '/3"><input type="checkbox" data-lcat="' + s.id + '"> ' + s.icon + ' ' + esc(s.label) + '</label>').join('') + '</div>') +
+        '<label class="small mute" style="display:flex;gap:5px;align-items:center;margin-top:6px"><input type="checkbox" id="tpgmcode"> Drop an mcode note in the disk</label>' +
+        '<div class="small mute" style="margin-top:4px">Leave the secret boxes unticked to let the generator pick from every category.</div>' +
+        '<div class="row" style="gap:5px;flex-wrap:wrap;margin-top:6px"><button class="pri" data-act="labbuild">Build &amp; load</button>' +
+        '<button class="ib" data-act="labedit">Build into editor</button><button class="ib" data-act="labsave">Build &amp; save</button>' +
+        '<button class="ib" data-act="labclose">Close</button></div>' +
+        '<div class="small" style="margin-top:5px">' + esc(labs.msg || '') + '</div></div>';
+    };
+    const aiForm = () => '<div style="margin-top:4px">' +
+      '<div class="small mute">Describe the case you want and the local model fills in the parameters: the organisation, how many documents, which kinds of secret, how much clutter. Nothing leaves this PC.</div>' +
+      '<textarea id="tpgaiq" rows="4" spellcheck="false" placeholder="e.g. a shipping company smuggling weapons through Trieste, 8 documents, lots of customs clutter, one blackmail file" style="width:100%;box-sizing:border-box;font-size:12px;margin-top:5px"></textarea>' +
+      '<div class="row" style="gap:5px;flex-wrap:wrap;margin-top:6px"><button class="pri" data-act="aigo" ' + (labs.busy ? 'disabled' : '') + '>' + (labs.busy ? 'Thinking…' : '✨ Generate the case') + '</button>' +
+      '<button class="ib" data-act="labcustom">Fine-tune by hand</button><button class="ib" data-act="labclose">Close</button></div>' +
+      '<div class="small" style="margin-top:5px">' + esc(labs.msg || '') + '</div></div>';
     function scenarioPanel() {
       const saved = TP.scenarios.list();
       const rows = saved.slice(0, 8).map(item => '<div class="row" style="gap:5px;align-items:center;margin-top:4px">' +
@@ -481,10 +515,13 @@
         '<button class="ib" data-act="scendel" data-name="' + esc(item.name) + '" title="Delete this saved scenario" style="padding:2px 7px;font-size:11.5px">✕</button></div>').join('');
       if (!S.scen) {
         return '<div class="tpgsc-panel" style="' + box + ';padding:8px 10px;margin-bottom:8px">' +
-          '<div class="row" style="gap:6px;align-items:center"><b class="small">🗂 Scenarios</b><span style="flex:1"></span>' +
-          '<button class="ib" data-act="scenrand" title="Fill the home folder with a new random project">🎲 Randomize</button>' +
+          '<div class="row" style="gap:6px;align-items:center;flex-wrap:wrap"><b class="small">🗂 Scenarios</b><span style="flex:1"></span>' +
+          '<button class="ib" data-act="scenrand" title="Fill the home folder with a new random case">🎲 Randomize</button>' +
+          '<button class="ib" data-act="labcustom" title="Choose the theme, organisation, documents and clutter">🛠 Customize</button>' +
+          '<button class="ib" data-act="labai" title="Describe a case and let the local model build it">✨ Ask AI</button>' +
           '<button class="ib" data-act="scenedit" title="Edit every file in the home folder as text">✏ Edit files</button></div>' +
-          (rows || '<div class="small mute" style="margin-top:4px">Saved scenarios appear here.</div>') + '</div>';
+          (labs.mode === 'custom' ? loreForm() : labs.mode === 'ai' ? aiForm() : '') +
+          (rows || '<div class="small mute" style="margin-top:4px">Saved scenarios appear here. Every random disk is a whole invented case — a fictional organisation, its paperwork, and documents it would rather you never read.</div>') + '</div>';
       }
       return '<div class="tpgsc-panel" style="' + box + ';padding:8px 10px;margin-bottom:8px">' +
         '<div class="row" style="gap:6px;align-items:center;margin-bottom:5px"><b class="small">✏ Scenario files</b><span style="flex:1"></span><button class="ib" data-act="scenclose">Close</button></div>' +
@@ -514,8 +551,87 @@
       const target = discoveryTree();
       return target ? TP.scenarios.serialize(TP.scenarios.read(target.tree, target.home, target.win)) : '';
     };
+    /* read every knob on the Customize form; anything blank falls back to the generator */
+    function readLabOpts() {
+      const v = id => ($(id) && $(id).value) || '';
+      const cats = [...el.querySelectorAll('[data-lcat]')].filter(x => x.checked).map(x => x.dataset.lcat);
+      const noise = v('tpgnoise') || 'some';
+      let extra = v('tpgextra') === '' ? 4 : Number(v('tpgextra')) || 0;
+      if (noise === 'lots') extra = Math.max(extra, 9);
+      if (noise === 'none') extra = 0;
+      return { theme: v('tpgtheme'), org: v('tpgorg').trim(), seed: Number(v('tpgseed')) || 0, secrets: v('tpgsecrets') === '' ? 4 : Number(v('tpgsecrets')) || 0, extra, noise, mcode: !!($('tpgmcode') && $('tpgmcode').checked), categories: cats };
+    }
+    function caseSummary(sc) {
+      const s = (sc.lore && sc.lore.secrets) || [];
+      if (!sc.lore) return sc.name;
+      return sc.lore.icon + ' ' + sc.lore.org + ' (' + sc.lore.theme + ', ' + sc.lore.unit + ') · case ' + sc.lore.caseId + ' · ' + s.length + ' juicy document' + (s.length === 1 ? '' : 's') + (s.length ? ': ' + s.slice(0, 6).map(x => x.label).join(', ') + (s.length > 6 ? '…' : '') : '');
+    }
+    function buildCase(mode) {
+      if (!LORE()) { labs.msg = 'The lore engine did not load.'; return draw(); }
+      const opts = readLabOpts();
+      let sc;
+      try { sc = TP.scenarios.randomize(S.shell, opts.seed || undefined, opts); }
+      catch (e) { labs.msg = 'Could not build that case: ' + e.message; return draw(); }
+      const summary = caseSummary(sc);
+      if (mode === 'editor' || mode === 'save') {
+        S.scen = { name: sc.name, text: TP.scenarios.serialize(sc.files), msg: summary };
+        if (mode === 'save') { const saved = TP.scenarios.save(sc.name, S.shell, sc.files); if (saved) S.scen.name = saved; labs.msg = 'Saved "' + sc.name + '". ' + summary; return draw(); }
+        labs.msg = summary;
+        return draw();
+      }
+      const err = applyScenario(sc.files, sc.name);
+      labs.msg = err || summary;
+      if (err && A.toast) A.toast(err);
+      draw();
+    }
+    /* the Ask AI box: the local model answers with the parameters, the generator writes the case */
+    async function askCase() {
+      const L = LORE();
+      if (!L) { labs.msg = 'The lore engine did not load.'; return draw(); }
+      const q = ($('tpgaiq') && $('tpgaiq').value || '').trim();
+      const model = (document.getElementById('model') || {}).value || ls.get('model', '');
+      labs.busy = true; labs.msg = 'Asking ' + (model || 'the local model') + '…'; draw();
+      const ask = 'Design one fictional computer-forensics training case for a terminal sandbox. Reply with JSON only, no prose. Keys: theme (one of ' + L.OPTIONS.themes.map(t => t.id).join(', ') + '), org (an invented organisation name, max 40 characters, never a real company or agency), secrets (a number 3-10), categories (3-8 items from: ' + L.OPTIONS.secrets.map(s => s.id).join(', ') + '), extra (0-12 decoy files), noise ("none" or "some" or "lots"), note (one sentence of story).' + (q ? ' The player asked for: ' + q : '');
+      let msg = '';
+      try {
+        const r = await fetch('/api/chat', { method: 'POST', body: JSON.stringify({ model, stream: false, think: false, keep_alive: '3m', format: 'json', messages: [{ role: 'system', content: 'You invent fictional security-exercise scenarios. Fiction only, invented organisations only. Answer with JSON.' }, { role: 'user', content: ask }] }) });
+        const j = await r.json();
+        msg = String((j.message && j.message.content) || j.response || '');
+        const spec = JSON.parse(msg.slice(msg.indexOf('{'), msg.lastIndexOf('}') + 1));
+        const opts = Object.assign({ shell: S.shell }, L.normalize({
+          theme: L.OPTIONS.themes.some(t => t.id === spec.theme) ? spec.theme : '',
+          org: String(spec.org || '').slice(0, 40),
+          secrets: spec.secrets, extra: spec.extra, noise: spec.noise,
+          categories: (Array.isArray(spec.categories) ? spec.categories : []).filter(id => L.OPTIONS.secrets.some(s => s.id === id))
+        }));
+        const sc = TP.scenarios.randomize(S.shell, undefined, opts);
+        const err = applyScenario(sc.files, sc.name);
+        labs.busy = false; labs.mode = '';
+        labs.msg = '';
+        if (err) labs.msg = err;
+        if (A.toast) A.toast((spec.note ? spec.note + ' — ' : '') + caseSummary(sc));
+        const target = discoveryTree();
+        if (target) {
+          curLog().push({ k: 'dim', t: 'Case loaded: ' + caseSummary(sc) });
+          if (sc.lore) curLog().push({ k: 'dim', t: 'Every file here is invented for practice. Look in ' + (S.shell === 'bash' ? 'intel/' : 'Documents\\Restricted\\') + ' and read the paperwork like an investigator.' });
+          saveView(logKey(S.shell));
+        }
+        return draw();
+      } catch (e) {
+        labs.busy = false;
+        labs.msg = 'The model did not answer usefully (' + (e && e.message || e) + '). Try again, or use Customize to set the parameters by hand.';
+        draw();
+      }
+    }
     function scenarioClick(act, name) {
       const editor = $('tpgscentext'), title = $('tpgscenname');
+      if (act === 'labcustom') { labs.mode = 'custom'; labs.msg = ''; return draw(); }
+      if (act === 'labai') { labs.mode = 'ai'; labs.msg = ''; return draw(); }
+      if (act === 'labclose') { labs.mode = ''; labs.msg = ''; return draw(); }
+      if (act === 'labbuild') return buildCase();
+      if (act === 'labedit') return buildCase('editor');
+      if (act === 'labsave') return buildCase('save');
+      if (act === 'aigo') { askCase(); return; }
       if (S.scen && editor) { S.scen.text = editor.value; S.scen.name = title?.value || ''; }
       if (act === 'scenrand') { const sc = TP.scenarios.randomize(S.shell); const error = applyScenario(sc.files, sc.name); if (error && A.toast) A.toast(error); }
       else if (act === 'scenedit') S.scen = { name: '', text: scenarioText(), msg: '' };
@@ -1298,7 +1414,7 @@
         if (input && typeof command === 'string') { input.value = command; input.oninput?.(); input.focus(); }
       }
       else if (b.dataset.act === 'saveprogress') saveProgress();
-      else if (/^scen/.test(b.dataset.act || '') && scenarioShell()) scenarioClick(b.dataset.act, b.dataset.name);
+      else if ((/^scen/.test(b.dataset.act || '') || ['labcustom', 'labai', 'labbuild', 'labedit', 'labsave', 'labclose', 'aigo'].includes(b.dataset.act)) && scenarioShell()) scenarioClick(b.dataset.act, b.dataset.name);
       else if (b.dataset.act === 'mcodeswarm' && mcodeEnabled) exec('mcode /swarm');
       else if (b.dataset.act === 'mcodewhip' && mcodeEnabled) { exec('mcode /whip'); paintWhipButton(); }
       else if (b.dataset.act === 'mcodeswitch' && TP.mcodeIsUnlocked()) {
