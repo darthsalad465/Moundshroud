@@ -1695,6 +1695,7 @@ if (url === '/api/chat' && req.method === 'POST') {
     if (url === '/api/artex/status') return json(res, 200, await artexmod.status());
     if (url === '/api/artex/start' && req.method === 'POST') { const b = await jbody(req, 1e3).catch(() => ({})); return json(res, 200, await artexmod.start(b || {})); }
     if (url === '/api/artex/stop' && req.method === 'POST') return json(res, 200, await artexmod.stop());
+    if (url === '/api/artex/install' && req.method === 'POST') return json(res, 200, await artexmod.install());
     /* Auto-commit on/off: a flag file (data/autocommit.off) the Stop hook's scripts/auto-commit.ps1 reads. */
     if (url === '/api/autocommit' && req.method === 'GET') { const off = fs.existsSync(path.join(DATA, 'autocommit.off')); return json(res, 200, { on: !off }); }
     if (url === '/api/autocommit' && req.method === 'POST') { const b = await jbody(req, 1e3).catch(() => ({})); const f = path.join(DATA, 'autocommit.off'); try { if (b && b.on) { if (fs.existsSync(f)) fs.unlinkSync(f); } else { fs.writeFileSync(f, 'Auto-commit is off. Delete this file, or toggle it on in Settings, to resume.\n'); } } catch (e) { return json(res, 200, { ok: false, error: String(e.message || e) }); } return json(res, 200, { ok: true, on: !!(b && b.on) }); }
