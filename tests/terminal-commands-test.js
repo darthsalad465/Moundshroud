@@ -133,7 +133,7 @@ async function run(ok) {
     bash.run('cat missing |& wc -l') === '1' &&
     bash.run('cat missing > "out file" 2>&1') === '' && bash.run('cat "out file"').includes('No such file') &&
     bash.run('cat missing 2>&1 > "out file"').includes('No such file') && bash.run('cat "out file"') === '' &&
-    bash.run('cd projects > no-such-directory/out 2>/dev/null').includes('No such file') && bash.run('pwd') === '/home/dev');
+    bash.run('cd projects > no-such-directory/out 2>/dev/null').includes('No such file') && bash.run('pwd') === '/home/moundshroud');
   ok('bash: echo, printf, redirection and cat preserve input bytes for wc and checksum commands',
     bash.run('printf "one\\ntwo" | wc -l') === '1' &&
     bash.run('echo hi | sha256sum') === '98ea6e4f216f2fb4b69fff9b3a44842c38686ca685f3f55dc48c5d3fb1107be4  -' &&
@@ -144,8 +144,8 @@ async function run(ok) {
     bash.run('grep -c DOES_NOT_MATCH notes.txt || echo no-match') === '0\nno-match' &&
     bash.run('grep -q todo notes.txt && [ 3 -lt 4 ] && echo yes') === 'yes' &&
     bash.run('test -f nonexistent; echo "$?"') === '1' &&
-    bash.run('cd projects | cat; pwd') === '/home/dev' &&
-    bash.run('echo "$(cd projects && pwd)"; pwd') === '/home/dev/projects\n/home/dev');
+    bash.run('cd projects | cat; pwd') === '/home/moundshroud' &&
+    bash.run('echo "$(cd projects && pwd)"; pwd') === '/home/moundshroud/projects\n/home/moundshroud');
   bash.run('reset');
   ok('bash: symbolic and numeric chmod update stat, ls, and owner read access',
     bash.run('chmod 024 notes.txt') === '' &&
@@ -199,7 +199,7 @@ async function run(ok) {
     bash.run('echo realism-check');
     const again = bash.run('!!'), prefix = bash.run('!echo'), missingEvent = bash.run('!nosuchcommand');
     const listing = bash.run('ls -la').split('\n');
-    const winTree = byId('cmd').run('tree /f C:\\Users\\dev'), psTree = byId('powershell').run('tree');
+    const winTree = byId('cmd').run('tree /f C:\\Users\\moundshroud'), psTree = byId('powershell').run('tree');
     const checks = [
       ['!!', again === 'echo realism-check\nrealism-check'],
       ['!prefix', prefix === 'echo realism-check\nrealism-check'],
@@ -208,7 +208,7 @@ async function run(ok) {
       ['ls -la dots', / \.$/.test(listing[1]) && / \.\.$/.test(listing[2]) && !listing.some(row => /\/$/.test(row))],
       ['no hint in errors', bash.run('cat nothing-here.txt') === 'cat: nothing-here.txt: No such file or directory'],
       ['base64 invalid', bash.run('echo "not base64!" | base64 -d') === 'base64: invalid input'],
-      ['etc', bash.run('cat /etc/hostname') === 'dev-box' && bash.run('grep ^dev: /etc/passwd').startsWith('dev:x:1000')],
+      ['etc', bash.run('cat /etc/hostname') === 'dev-box' && bash.run('grep ^moundshroud: /etc/passwd').startsWith('moundshroud:x:1000')],
       ['tree.com', /notes\.txt/.test(winTree) && !/notes\.txt/.test(psTree) && /Documents/.test(psTree)]
     ];
     ok('terminal realism: history expansion, type, ls -la, GNU error text, /etc files and tree.com behave like real shells',
@@ -221,16 +221,16 @@ async function run(ok) {
     const first = SC.randomize('bash', 42), same = SC.randomize('bash', 42), other = SC.randomize('bash', 43);
     const parsed = SC.parse(SC.serialize(first.files)).files;
     const sandbox = byId('bash'), tree = sandbox.snapshot().fs;
-    TP.mcodeNote('test:scenario', 'sandbox', 'easy').mount(tree, ['home', 'dev']);
-    const applied = SC.apply(tree, ['home', 'dev'], false, parsed);
+    TP.mcodeNote('test:scenario', 'sandbox', 'easy').mount(tree, ['home', 'moundshroud']);
+    const applied = SC.apply(tree, ['home', 'moundshroud'], false, parsed);
     sandbox.run('cd ~');
     const logs = sandbox.run('find . -name "*.log"'), recursive = sandbox.run('ls -R');
-    const readBack = SC.read(tree, ['home', 'dev'], false);
+    const readBack = SC.read(tree, ['home', 'moundshroud'], false);
     const savedName = SC.save('test scenario', 'bash', parsed), listed = SC.list()[0]?.name === 'test scenario';
     SC.remove('test scenario');
     const win = SC.randomize('cmd', 7), cmdTree = byId('cmd').snapshot().tree;
-    SC.apply(cmdTree, ['C:', 'Users', 'dev'], true, win.files);
-    byId('cmd').run('cd C:\\Users\\dev');
+    SC.apply(cmdTree, ['C:', 'Users', 'moundshroud'], true, win.files);
+    byId('cmd').run('cd C:\\Users\\moundshroud');
     const checks = [
       ['seeded', JSON.stringify(first) === JSON.stringify(same) && JSON.stringify(first.files) !== JSON.stringify(other.files)],
       ['round trip', JSON.stringify(parsed) === JSON.stringify(first.files)],
@@ -239,7 +239,7 @@ async function run(ok) {
       ['read back', JSON.stringify(Object.entries(readBack).sort()) === JSON.stringify(Object.entries(parsed).sort()), Object.keys(readBack).filter(k => readBack[k] !== parsed[k])],
       ['saved', savedName === 'test scenario' && listed && !SC.get('test scenario')],
       ['secret paths refused', Object.keys(SC.parse('=== .archive/mcode.txt\nx\n=== ok.txt\ny').files).join() === 'ok.txt'],
-      ['windows', /Projects/.test(byId('cmd').run('dir /b')) && typeof cmdTree['C:'].Users.dev.Scripts['deploy.ps1'] === 'string']
+      ['windows', /Projects/.test(byId('cmd').run('dir /b')) && typeof cmdTree['C:'].Users.moundshroud.Scripts['deploy.ps1'] === 'string']
     ];
     ok('sandbox scenarios: seeded random disks, editable text, saved scenarios and the hidden note survive on bash and cmd',
       checks.every(x => x[1]), checks.filter(x => !x[1]).map(x => x[0] + ' ' + JSON.stringify(x[2] || '')));
@@ -290,7 +290,7 @@ async function run(ok) {
     py.run('chr(65)') === "'A'" &&
     (py.run('import base64'), py.run('base64.b64encode("hi")') === "'aGk='") &&
     (py.run('import hashlib'), py.run('len(hashlib.sha256("hi").hexdigest())') === '64') &&
-    (py.run('import os'), py.run('os.getcwd()') === "'/home/dev'"));
+    (py.run('import os'), py.run('os.getcwd()') === "'/home/moundshroud'"));
 
   // Node.js REPL deep verification
   const nodeSh = byId('node');
@@ -507,15 +507,15 @@ async function run(ok) {
   cmd.run('reset');
   ok('cd edge cases: Bash/PowerShell/CMD handle files vs dirs, trailing slashes, case-insensitive Windows paths, ~, -, and ..',
     /Not a directory/i.test(bash.run('cd notes.txt')) &&
-    bash.run('cd projects/') === '' && bash.run('pwd') === '/home/dev/projects' &&
-    bash.run('cd -') === '/home/dev' &&
+    bash.run('cd projects/') === '' && bash.run('pwd') === '/home/moundshroud/projects' &&
+    bash.run('cd -') === '/home/moundshroud' &&
     /is a file, not a directory/i.test(ps.run('Set-Location notes.txt')) &&
-    ps.run('cd scripts') === '' && ps.run('Get-Location').includes('C:\\Users\\dev\\Scripts') &&
-    ps.run('cd C:\\Users\\dev\\Documents\\') === '' && ps.run('Get-Location').includes('Documents') &&
-    ps.run('cd C:\\Users\\dev\\..') === '' && ps.run('Get-Location').includes('C:\\Users') &&
+    ps.run('cd scripts') === '' && ps.run('Get-Location').includes('C:\\Users\\moundshroud\\Scripts') &&
+    ps.run('cd C:\\Users\\moundshroud\\Documents\\') === '' && ps.run('Get-Location').includes('Documents') &&
+    ps.run('cd C:\\Users\\moundshroud\\..') === '' && ps.run('Get-Location').includes('C:\\Users') &&
     /directory name is invalid/i.test(cmd.run('cd notes.txt')) &&
-    cmd.run('cd scripts') === '' && cmd.run('cd').includes('C:\\Users\\dev\\Scripts') &&
-    cmd.run('cd c:\\users\\dev\\documents\\') === '' && cmd.run('cd').includes('Documents'));
+    cmd.run('cd scripts') === '' && cmd.run('cd').includes('C:\\Users\\moundshroud\\Scripts') &&
+    cmd.run('cd c:\\users\\moundshroud\\documents\\') === '' && cmd.run('cd').includes('Documents'));
 
   const psLab = TL.makeRoom('powershell', 1, 7);
   const cmdLab = TL.makeRoom('cmd', 1, 7);
@@ -1022,7 +1022,7 @@ async function run(ok) {
   const locked = () => !nodes.get('tpgprompt').textContent.startsWith('mcode(');
   enter('mcode');
   const bareIsLocked = locked() && printed().includes('mcode: locked');
-  enter('cd /home/dev');
+  enter('cd /home/moundshroud');
   // The note is a real file in the shell's disk, always inside a hidden folder: plain ls and tree never show it,
   // and ls -la, full paths, ../ paths, find and grep all agree about it.
   enter('ls');
@@ -1030,15 +1030,15 @@ async function run(ok) {
   const noListing = !printed().includes('mcode.txt') && !printed().includes('.archive');
   enter('ls -la');
   enter('ls -la .archive');
-  const showsWhenAsked = / \.archive\n/.test(printed()) && /----------\s+1 dev dev\s+\d+ Feb 12 06:20 mcode\.txt/.test(printed());
+  const showsWhenAsked = / \.archive\n/.test(printed()) && /----------\s+1 moundshroud moundshroud\s+\d+ Feb 12 06:20 mcode\.txt/.test(printed());
   enter('cat .archive/mcode.txt');
   const permissionIsRequired = printed().includes('cat: .archive/mcode.txt: Permission denied');
   enter('cd projects');
   enter('chmod u+r ../.archive/mcode.txt');
-  enter('grep -c PAYLOAD /home/dev/.archive/mcode.txt');
-  const samePathEverywhere = /grep -c PAYLOAD \/home\/dev\/\.archive\/mcode\.txt<\/span>\n<span[^>]*>1<\/span>/.test(printed());
+  enter('grep -c PAYLOAD /home/moundshroud/.archive/mcode.txt');
+  const samePathEverywhere = /grep -c PAYLOAD \/home\/moundshroud\/\.archive\/mcode\.txt<\/span>\n<span[^>]*>1<\/span>/.test(printed());
   enter('find ~ -name mcode.txt');
-  const foundByFind = printed().includes('/home/dev/.archive/mcode.txt');
+  const foundByFind = printed().includes('/home/moundshroud/.archive/mcode.txt');
   enter('cd ~/.archive');
   enter('cat mcode.txt');
   const payload = printed().match(/PAYLOAD\n([A-Za-z0-9+/=]+)\n/)?.[1];
@@ -1140,7 +1140,7 @@ async function run(ok) {
       // The note is a real file in shells with a disk: go to where it lives (home, or the room root), then list it the
       // way that shell lists files (tree.com needs /F to show files). Shells without a disk keep their own note listing.
       const windows = id === 'powershell' || id === 'cmd', disk = windows || id === 'bash';
-      if (disk) enter(mode === 'sandbox' ? (id === 'cmd' ? 'cd C:\\Users\\dev' : 'cd ~') : (windows ? 'cd \\' : 'cd /'));
+      if (disk) enter(mode === 'sandbox' ? (id === 'cmd' ? 'cd C:\\Users\\moundshroud' : 'cd ~') : (windows ? 'cd \\' : 'cd /'));
       // A plain listing never shows the hidden note; the shell's own "show hidden" listing does.
       const plain = windows ? 'tree /f' : 'tree';
       const listing = id === 'powershell' ? 'Get-ChildItem -Recurse -Force' : id === 'cmd' ? 'dir /a /s /b' : 'tree -a';
@@ -1241,7 +1241,7 @@ async function run(ok) {
   enter('job leave');
   const coachTitle = () => nodes.get('tpgcoachlabel').textContent;
   const coachText = () => nodes.get('tpgcoachbody').innerHTML;
-  enter('cd /home/dev');
+  enter('cd /home/moundshroud');
   enter('cat var/log/ops.log | grep -i -n "prod, verified"');
   const explainsMissingInput = coachTitle() === 'Path could not be opened' && coachText().includes('cat (1)') &&
     coachText().includes('grep (1)') && coachText().includes('/var/log/ops.log') &&
@@ -1452,7 +1452,7 @@ async function run(ok) {
       legacy.run('echo player-note > mcode.txt');
       TP.mcodeNote('lab:bash', room.seedCode, room.difficulty, depth).mount(room.snapshot().tree);
       legacy.save();
-      legacyNoteWasSaved = JSON.stringify(JSON.parse(storage.get('tplab_bash')).workspace).includes('Maintenance note');
+      legacyNoteWasSaved = JSON.stringify(JSON.parse(storage.get('tplab_bash')).workspace).includes('PAYLOAD');
     }
     storage.delete('tpg_terminal_view_lab:bash');
     const fresh = reloadPlayground();
@@ -1460,7 +1460,7 @@ async function run(ok) {
     click({ mode: 'lab' });
     click({ shell: 'bash' });
     enter('tree -a');
-    const generatedNote = depth === 4 ? JSON.stringify(JSON.parse(storage.get('tplab_bash')).workspace).includes('Maintenance note') :
+    const generatedNote = depth === 4 ? JSON.stringify(JSON.parse(storage.get('tplab_bash')).workspace).includes('PAYLOAD') :
       printed().includes('.archive') && /[├└]── mcode\.txt/.test(printed());
     const keptPlayerNote = depth !== 4 || JSON.stringify(JSON.parse(storage.get('tplab_bash')).workspace).includes('player-note');
     if (nodes.get('tpgmcodectl').innerHTML.includes('aria-checked="false"')) click({ act: 'mcodeswitch' });

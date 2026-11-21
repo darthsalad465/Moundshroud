@@ -628,7 +628,7 @@
     cd: { s: 'change the working directory', syn: 'cd [dir|~|-]',
       d: 'Move to another directory. With no argument, go to the home directory.',
       o: [['~', 'the home directory'], ['-', 'the previous directory (and print it)'], ['..', 'the parent directory']],
-      x: [['cd /home/dev', 'go to an absolute path'], ['cd ..', 'up one level'], ['cd -', 'back to where you were'], ['cd', 'home']],
+      x: [['cd /home/moundshroud', 'go to an absolute path'], ['cd ..', 'up one level'], ['cd -', 'back to where you were'], ['cd', 'home']],
       see: ['pwd', 'ls', 'pushd'] },
     pwd: { s: 'print the working directory', syn: 'pwd',
       d: 'Print the full path of the current directory.',
@@ -684,10 +684,10 @@
       see: ['cp', 'ls'] },
     chown: { s: 'change file owner (simulated)', syn: 'chown <owner>[:group] <file>',
       d: 'Change a file owner. The sandbox is single-user, so this reports success without altering ownership.',
-      o: [], x: [['chown dev notes.txt', 'set the owner (no-op here)']], see: ['chgrp', 'chmod', 'id'] },
+      o: [], x: [['chown moundshroud notes.txt', 'set the owner (no-op here)']], see: ['chgrp', 'chmod', 'id'] },
     chgrp: { s: 'change file group (simulated)', syn: 'chgrp <group> <file>',
       d: 'Change a file group. Simulated: it succeeds without changing anything.',
-      o: [], x: [['chgrp dev notes.txt', 'set the group (no-op here)']], see: ['chown', 'chmod'] },
+      o: [], x: [['chgrp moundshroud notes.txt', 'set the group (no-op here)']], see: ['chown', 'chmod'] },
     umask: { s: 'show the default permission mask', syn: 'umask',
       d: 'Print the file-creation mask. Fixed at 0022 in the sandbox.',
       o: [], x: [['umask', 'show 0022']], see: ['chmod', 'stat'] },
@@ -886,14 +886,14 @@
       d: 'Print the time, uptime, user count, and load averages.',
       o: [], x: [['uptime', 'uptime and load']], see: ['top', 'w'] },
     whoami: { s: 'print the current user', syn: 'whoami',
-      d: 'Print the logged-in user name (dev).',
-      o: [], x: [['whoami', 'prints dev']], see: ['id', 'who'] },
+      d: 'Print the logged-in user name (moundshroud).',
+      o: [], x: [['whoami', 'prints moundshroud']], see: ['id', 'who'] },
     id: { s: 'show user and group IDs', syn: 'id',
       d: 'Print the uid, gid, and group memberships of the current user.',
       o: [], x: [['id', 'uid, gid, groups']], see: ['whoami', 'groups'] },
     groups: { s: 'list your groups', syn: 'groups',
       d: 'Print the groups the current user belongs to.',
-      o: [], x: [['groups', 'dev sudo docker']], see: ['id', 'whoami'] },
+      o: [], x: [['groups', 'moundshroud sudo docker']], see: ['id', 'whoami'] },
     who: { s: 'list logged-in users', syn: 'who',
       d: 'Print who is logged in and from where.',
       o: [], x: [['who', 'the login session']], see: ['w', 'last', 'users'] },
@@ -905,7 +905,7 @@
       o: [], x: [['last', 'login history']], see: ['who', 'lastb'] },
     users: { s: 'list logged-in user names', syn: 'users',
       d: 'Print the names of logged-in users on one line.',
-      o: [], x: [['users', 'prints dev']], see: ['who', 'whoami'] },
+      o: [], x: [['users', 'prints moundshroud']], see: ['who', 'whoami'] },
     env: { s: 'print environment variables', syn: 'env',
       d: 'Print every exported environment variable as NAME=value.',
       o: [], x: [['env', 'all exported variables'], ['env | grep PATH', 'find one variable']],
@@ -975,10 +975,10 @@
       see: ['echo'] },
     basename: { s: 'strip the directory from a path', syn: 'basename <path>',
       d: 'Print just the final name of a path.',
-      o: [], x: [['basename /home/dev/notes.txt', 'notes.txt']], see: ['dirname', 'realpath'] },
+      o: [], x: [['basename /home/moundshroud/notes.txt', 'notes.txt']], see: ['dirname', 'realpath'] },
     dirname: { s: 'strip the name from a path', syn: 'dirname <path>',
       d: 'Print the directory part of a path.',
-      o: [], x: [['dirname /home/dev/notes.txt', '/home/dev']], see: ['basename'] },
+      o: [], x: [['dirname /home/moundshroud/notes.txt', '/home/moundshroud']], see: ['basename'] },
     mktemp: { s: 'make a temporary file', syn: 'mktemp [-d]',
       d: 'Create a uniquely named temp file under /tmp and print its path.',
       o: [['-d', 'make a temporary directory instead of a file']],
@@ -1023,13 +1023,13 @@
       see: ['traceroute', 'nc'] },
     ssh: { s: 'open a remote shell (simulated)', syn: 'ssh <user@host>',
       d: 'Show the host-key prompt and connection banner. No real session opens in the sandbox.',
-      o: [], x: [['ssh dev@10.0.0.5', 'connect to a host']], see: ['scp', 'nc'] },
+      o: [], x: [['ssh moundshroud@10.0.0.5', 'connect to a host']], see: ['scp', 'nc'] },
     scp: { s: 'copy a file over SSH (simulated)', syn: 'scp <src> <dst>',
       d: 'Report a file transfer between a local and remote path. rsync behaves the same here.',
-      o: [], x: [['scp notes.txt dev@10.0.0.5:/tmp/', 'upload a file']], see: ['rsync', 'ssh'] },
+      o: [], x: [['scp notes.txt moundshroud@10.0.0.5:/tmp/', 'upload a file']], see: ['rsync', 'ssh'] },
     rsync: { s: 'sync files (simulated)', syn: 'rsync <src> <dst>',
       d: 'Report a transfer between two paths. A thin wrapper over scp here.',
-      o: [], x: [['rsync site/ dev@10.0.0.5:/var/www/', 'sync a folder']], see: ['scp'] },
+      o: [], x: [['rsync site/ moundshroud@10.0.0.5:/var/www/', 'sync a folder']], see: ['scp'] },
     ftp: { s: 'connect to an FTP server (simulated)', syn: 'ftp <host>',
       d: 'Print a connection banner for an FTP host.',
       o: [], x: [['ftp 10.0.0.5', 'connect']], see: ['scp'] },
@@ -1166,7 +1166,7 @@
     'test-path': { s: 'check if a path exists', syn: 'Test-Path <path>', d: 'Return True or False for whether a path exists.', o: [], x: [['Test-Path notes.txt', 'True or False']], see: ['Resolve-Path'] },
     'resolve-path': { s: 'resolve a full path', syn: 'Resolve-Path <path>', d: 'Expand a path to its full form. Alias: rvpa.', o: [], x: [['Resolve-Path ~', 'the home path']], see: ['Split-Path', 'Join-Path'] },
     'split-path': { s: 'split a path', syn: 'Split-Path <path> [-Leaf]', d: 'Return the parent of a path, or the final name with -Leaf.', o: [['-Leaf', 'return just the final name']], x: [['Split-Path C:\\a\\b.txt', 'the parent folder'], ['Split-Path C:\\a\\b.txt -Leaf', 'b.txt']], see: ['Join-Path'] },
-    'join-path': { s: 'join path segments', syn: 'Join-Path <a> <b>', d: 'Join parts into one path with backslashes.', o: [], x: [['Join-Path C:\\Users dev', 'C:\\Users\\dev']], see: ['Split-Path'] },
+    'join-path': { s: 'join path segments', syn: 'Join-Path <a> <b>', d: 'Join parts into one path with backslashes.', o: [], x: [['Join-Path C:\\Users moundshroud', 'C:\\Users\\moundshroud']], see: ['Split-Path'] },
     'select-string': { s: 'search text with regex', syn: 'Select-String <pattern> <path>', d: 'Find matching lines in a file or pipeline. Alias: sls. The bash analogue is grep.', o: [['-Pattern', 'the regex to match'], ['-Path', 'the file to search']], x: [['Select-String error notes.txt', 'lines with error'], ['Get-Content notes.txt | Select-String warn', 'filter a pipeline']], see: ['Get-Content'] },
     'get-filehash': { s: 'hash a file', syn: 'Get-FileHash <path>', d: 'Compute a SHA256 hash of a file.', o: [], x: [['Get-FileHash notes.txt', 'the SHA256 hash']], see: ['Compress-Archive'] },
     'compress-archive': { s: 'zip files', syn: 'Compress-Archive <src> <dest.zip>', d: 'Create a zip archive from a path.', o: [], x: [['Compress-Archive logs out.zip', 'zip a folder']], see: ['Expand-Archive'] },
@@ -1276,7 +1276,7 @@
     date: { s: 'show the date', syn: 'date', d: 'Print the current date.', o: [], x: [['date', 'the date']], see: ['time'] },
     time: { s: 'show the time', syn: 'time', d: 'Print the current time.', o: [], x: [['time', 'the time']], see: ['date'] },
     hostname: { s: 'show the host name', syn: 'hostname', d: 'Print the computer name.', o: [], x: [['hostname', 'DEV-BOX']], see: ['whoami'] },
-    whoami: { s: 'show the current user', syn: 'whoami', d: 'Print domain\\user for the current account.', o: [], x: [['whoami', 'dev-box\\dev']], see: ['hostname'] },
+    whoami: { s: 'show the current user', syn: 'whoami', d: 'Print domain\\user for the current account.', o: [], x: [['whoami', 'dev-box\\moundshroud']], see: ['hostname'] },
     where: { s: 'find a program on the path', syn: 'where <name>', d: 'Print the full path of a command.', o: [], x: [['where ping', 'its path']], see: ['path'] },
     systeminfo: { s: 'show system information', syn: 'systeminfo', d: 'Print OS, build, memory, and processor details.', o: [], x: [['systeminfo', 'system summary']], see: ['ver', 'wmic'] },
     vol: { s: 'show the volume label', syn: 'vol', d: 'Print the drive label and serial number.', o: [], x: [['vol', 'the volume info']], see: ['label'] },
@@ -1304,7 +1304,7 @@
     getmac: { s: 'show MAC addresses', syn: 'getmac', d: 'Print the adapter physical (MAC) addresses.', o: [], x: [['getmac', 'MAC addresses']], see: ['ipconfig'] },
     netsh: { s: 'network shell', syn: 'netsh <context ...>', d: 'Run a netsh command (simulated interface summary).', o: [], x: [['netsh interface ip show config', 'IP config']], see: ['ipconfig'] },
     curl: { s: 'fetch a URL', syn: 'curl <url>', d: 'Make an HTTP request and print a JSON response.', o: [], x: [['curl https://api.internal/health', 'a JSON status']], see: ['ssh'] },
-    ssh: { s: 'open a remote shell (simulated)', syn: 'ssh <user@host>', d: 'Print a connection banner for SSH.', o: [], x: [['ssh dev@10.0.0.5', 'connect']], see: ['ftp', 'telnet'] },
+    ssh: { s: 'open a remote shell (simulated)', syn: 'ssh <user@host>', d: 'Print a connection banner for SSH.', o: [], x: [['ssh moundshroud@10.0.0.5', 'connect']], see: ['ftp', 'telnet'] },
     ftp: { s: 'connect to FTP (simulated)', syn: 'ftp <host>', d: 'Print an FTP connection banner.', o: [], x: [['ftp 10.0.0.5', 'connect']], see: ['ssh'] },
     telnet: { s: 'connect with telnet (simulated)', syn: 'telnet <host>', d: 'Print a telnet connection banner.', o: [], x: [['telnet 10.0.0.5', 'connect']], see: ['ssh'] },
     winget: { s: 'package manager (simulated)', syn: 'winget <args>', d: 'Print a Windows Package Manager banner.', o: [], x: [['winget list', 'the banner']], see: [] },
@@ -1580,11 +1580,11 @@
     nmcli: nwB('show network manager state', 'nmcli', 'List devices and their connections.', [['nmcli', 'devices']], [], ['ifconfig']),
     tcpdump: nwB('capture packets', 'tcpdump', 'Print captured packet summaries. tshark is the same here.', [['tcpdump', 'captured packets']], [], ['tshark']),
     tshark: nwB('capture packets', 'tshark', 'Print captured packets (same output as tcpdump here).', [['tshark', 'captured packets']], [], ['tcpdump']),
-    ssh: nwB('open a remote shell (simulated)', 'ssh <user@host>', 'Show the SSH host-key prompt and banner.', [['ssh dev@10.0.0.5', 'connect']], [], ['scp', 'nc']),
-    scp: nwB('copy over SSH (simulated)', 'scp <src> <dst>', 'Report a secure file copy.', [['scp notes.txt dev@10.0.0.5:/tmp', 'upload']], [], ['sftp', 'rsync']),
+    ssh: nwB('open a remote shell (simulated)', 'ssh <user@host>', 'Show the SSH host-key prompt and banner.', [['ssh moundshroud@10.0.0.5', 'connect']], [], ['scp', 'nc']),
+    scp: nwB('copy over SSH (simulated)', 'scp <src> <dst>', 'Report a secure file copy.', [['scp notes.txt moundshroud@10.0.0.5:/tmp', 'upload']], [], ['sftp', 'rsync']),
     sftp: nwB('SSH file transfer (simulated)', 'sftp <host>', 'Open an SFTP session (simulated).', [['sftp 10.0.0.5', 'connect']], [], ['scp']),
     ftp: nwB('connect to FTP (simulated)', 'ftp <host>', 'Open an FTP session (simulated).', [['ftp 10.0.0.5', 'connect']], [], ['sftp']),
-    rsync: nwB('sync files (simulated)', 'rsync <src> <dst>', 'Report a file sync.', [['rsync a/ dev@10.0.0.5:/b', 'sync a folder']], [], ['scp']),
+    rsync: nwB('sync files (simulated)', 'rsync <src> <dst>', 'Report a file sync.', [['rsync a/ moundshroud@10.0.0.5:/b', 'sync a folder']], [], ['scp']),
     nc: nwB('test a TCP port', 'nc <host> <port>', 'Report whether a TCP port accepts a connection. ncat, netcat, socat and telnet are the same here.', [['nc 10.0.0.5 80', 'port 80 open']], [], ['ncat', 'socat', 'telnet']),
     ncat: nwB('test a TCP port', 'ncat <host> <port>', 'Test a socket (same as nc here).', [['ncat 10.0.0.5 80', 'port open']], [], ['nc']),
     socat: nwB('relay sockets (simulated)', 'socat <host> <port>', 'Test a socket (same output as nc here).', [['socat 10.0.0.5 80', 'port open']], [], ['nc']),
@@ -1862,6 +1862,36 @@
   const permOf = n => Unix.permissions(n, isDir(n));
   G.helpers = { F, isDir, textOf, modeOf, permOf };
 
+  /* Every sandbox disk gets the deep lore layer too: essays, app notes, embarrassing secrets, junk and cache.
+     The number of files comes from the level, the actual content comes from the seed, so bash, PowerShell and cmd
+     never hold the same paperwork. Existing sandbox files always win; the lore only fills gaps. */
+  G.mergeLoreInto = function (tree, homeParts, win, seed) {
+    const L = window.TerminalLore;
+    if (!L || !L.deep || typeof L.disk !== 'function') return tree;
+    try {
+      const disk = L.disk({ seed: (seed || 0x5eed1e) >>> 0, shell: win ? 'cmd' : 'bash', difficulty: 'normal', caseName: 'sandbox' });
+      const files = (disk && disk.files) || {};
+      let at = tree;
+      for (const part of homeParts) {
+        if (!at[part] || typeof at[part] === 'string') at[part] = {};
+        at = at[part];
+      }
+      for (const rel of Object.keys(files)) {
+        const parts = String(rel).split('/');
+        let node = at, broken = false;
+        for (const part of parts.slice(0, -1)) {
+          if (node[part] === undefined) node[part] = {};
+          if (typeof node[part] === 'string') { broken = true; break; }
+          node = node[part];
+        }
+        if (broken) continue;
+        const leaf = parts[parts.length - 1];
+        if (node[leaf] === undefined) node[leaf] = win ? String(files[rel]) : F(files[rel]);
+      }
+    } catch (e) { if (window.console) console.warn('lore merge:', e); }
+    return tree;
+  };
+
   // A discovery file mounted by the Playground over each simulated shell.
   const discoveryKey = 'tpg_mcode_discovery';
   const savedDiscovery = G.readSave(discoveryKey);
@@ -1903,9 +1933,15 @@
     // Deep floors keep gaining steps even after room difficulty caps at Insane.
     const id = challenge + ':' + rank + (extra ? ':depth-' + labyrinthDepth : '');
     const hash = Array.from(passphrase + ':' + scope + ':' + id).reduce((sum, char) => Math.imul(sum ^ char.charCodeAt(0), 16777619), 2166136261);
-    const marker = index => ((hash >>> (index * 4)) & 15).toString(16);
+    const h32 = hash >>> 0;
+    const marker = index => ((h32 >>> (index * 4)) & 15).toString(16);
     // The note always sits under at least one hidden folder, so plain ls, dir and tree never show it; -a, /a or -Force do.
-    const folders = discoveryFolders.slice(0, Math.max(1, rank)).concat(deepNoteFolders.slice(0, extra).map((name, index) => '.' + name + '-' + marker(index)));
+    /* the first three folders are fixed so every difficulty has a predictable trail; beyond that the names are picked
+       per note, so two Labyrinth floors do not carry the same shelves */
+    const folderPool = ['.index', '.spare', '.attic', '.cellar', '.spool', '.notes', '.hold', '.aside', '.drawer', '.kept', '.basement', '.maildrop', '.shelf', '.cache', '.vault', '.drop', '.slag', '.pit', '.coffer', '.blind'];
+    const order2 = folderPool.map((name, index) => [((h32 >>> (index % 30)) + index * 2654435761) >>> 0, name]).sort((a, b) => a[0] - b[0]).map(x => x[1]);
+    const core = discoveryFolders.slice(0, Math.max(1, Math.min(rank, discoveryFolders.length)));
+    const folders = core.concat(order2.filter(name => !core.includes(name)).slice(0, Math.max(0, rank - core.length))).concat(deepNoteFolders.slice(0, extra).map((name, index) => '.' + name + '-' + marker(index)));
     const decoy = level => level < extra ? '.closed-' + marker(level) : '';
     const parts = [...folders, 'mcode.txt'];
     const filename = parts.join('/');
@@ -1917,7 +1953,7 @@
       discoveryCache.set(scope, state);
     }
     const save = () => G.writeSave(storeKey, state);
-    const key = 'lantern-' + (hash >>> 0).toString(16).padStart(10, '0');
+    const key = 'lantern-' + (h32 >>> 0).toString(16).padStart(10, '0');
     const operators = Array.from({ length: rank + 1 + extra }, (_, index) => decoders[index % decoders.length]);
     const layers = [key];
     for (const operator of operators) {
@@ -1934,7 +1970,47 @@
         'For practice, decode base64 aGk= prints hi.\n' :
       'Decode from the outside in: ' + order.join(' → ') + '.\n' +
         'Start with this command:\n' + 'decode ' + order[0] + ' ' + encoded + '\n';
-    const note = 'Maintenance note\n\nPAYLOAD\n' + encoded + '\n\n' + instructions +
+    /* The note is not always a maintenance note. What kind of document hid the payload is chosen from the same hash
+       that picks the passphrase, so every shell, puzzle and floor gets a different kind of paper with different
+       juicy detail on it, while the PAYLOAD block itself stays exactly where the decoder workflow expects it. */
+    const C = window.TerminalLoreContent || {};
+    /* a second, differently-mixed hash so the document style, the prose and the folder names do not all move together */
+    const mix = Array.from(passphrase + ':' + scope + ':' + id).reduce((sum, char) => Math.imul(sum ^ char.charCodeAt(0), 2654435761) >>> 0, 0x811c9dc5);
+    const bankPick = (list, fallback, salt) => Array.isArray(list) && list.length ? list[(mix + salt * 7919) % list.length] : fallback;
+    const secretLine = () => bankPick(C.SECRETS, 'Nobody was supposed to read this.', 3);
+    const appLine = () => bankPick(C.APP_NOTES, 'The app notes live in the repo, not in a sandbox.', 5);
+    const chatLine = () => bankPick(C.CHAT, 'did you see the thing on the shared drive', 7);
+    const jokeLine = () => bankPick(C.JOKES, 'This is not a password, it is a personality test.', 9);
+    const noteLead = () => bankPick(C.NOTES, 'Maintenance note', 11);
+    const dt = () => '2026-0' + (1 + (mix % 9)) + '-' + String(10 + (h32 % 18)).padStart(2, '0');
+    const who = () => ['M. Halvorsen', 'B. Okafor', 'I. Kowalski', 'R. Duarte', 'N. Petrov', 'T. Eklund'][(mix >>> 3) % 6];
+    const purposes = [
+      'the account with the embarrassing purchase history',
+      'the folder of photos from the leaving do',
+      'the spreadsheet of who applied for what',
+      'the shared drive of old invoices',
+      'the mailbox nobody admits reading',
+      'the draft resignation letter that was never sent',
+      'the folder marked do not open at work',
+      'the backup of the message I should have deleted',
+      'the notes app where the real numbers live'
+    ];
+    const purpose = purposes[mix % purposes.length];
+    const template = (Math.imul(mix ^ (mix >>> 13), 2246822519) >>> 0) % 10;
+    const lead = [
+      () => [noteLead(), '', secretLine()],
+      () => ['IT ticket #' + (1000 + (h32 % 9000)), 'Requested by: ' + who(), 'Subject: ' + ['password reset', 'access to the shared drive', 'the archive is locked again', 'please stop rotating this'][(h32 >>> 6) % 4], '', secretLine()],
+      () => ['# passwords I actually use, most important last', 'shared drive: ' + ['TheMound', 'PrettyFlyForAWiFi', 'NotTheDogName'][(h32 >>> 2) % 3] + (10 + (h32 % 89)), 'wifi guest: visitor' + (1000 + (h32 % 8999)), 'old vpn: ' + ['Summer', 'Winter', 'Dog'][(h32 >>> 8) % 3] + (1000 + (h32 % 8999)) + '!', '', secretLine()],
+      () => [dt(), 'Dear diary, as if anyone found this', '', secretLine(), '', '— ' + who()],
+      () => ['HR — CONFIDENTIAL', 'Case HR-' + (2018 + (h32 % 9)) + '-' + String(1000 + (h32 % 8999)), '', secretLine()],
+      () => ['# chat export · ' + dt(), '', '[' + String(9 + (h32 % 12)).padStart(2, '0') + ':' + String(h32 % 60).padStart(2, '0') + '] ' + who().split(' ')[0] + ': ' + chatLine(), '[' + String(9 + (h32 % 12)).padStart(2, '0') + ':' + String((h32 >>> 3) % 60).padStart(2, '0') + '] ' + who().split(' ')[0] + ': ' + secretLine()],
+      () => ['Moundshroud changelog — uncommitted fragment', '', '- ' + appLine(), '- ' + jokeLine()],
+      () => ['TODO (do not sync this one)', '', '- [ ] ' + appLine(), '- [ ] ' + secretLine(), '- [ ] delete this file'],
+      () => ['Note to self — ' + dt(), '', secretLine(), '', '(and the thing under the header, which I keep forgetting)'],
+      () => ['DEVICE INTAKE — simulated machine', 'Owner: ' + who(), 'Seized for practice, not evidence', '', 'Folders of interest: ' + ['.archive', '.index', '.spare', '.attic'][(h32 >>> 9) % 4] + ', Documents, Chat', '', secretLine()]
+    ][template]();
+    const note = lead.join('\n') + '\n\nPAYLOAD\n' + encoded + '\n\n' + instructions +
+      '\nThis passphrase opens ' + purpose + '. It is fiction, like everything else on this disk.\n' +
       (order.length > 1 ? 'Use the last line of output as the input for the next decode command.\n' : '') +
       'When you have the passphrase, type mcode followed by it.';
     const windows = /^[a-z]:/i.test(workspace.root || '');
@@ -2125,7 +2201,7 @@
         }
         // A note left in plain sight by an older version (home/mcode.txt) is removed; the real one lives in a hidden folder.
         const stray = child(dir, 'mcode.txt');
-        if (folders.length && Object.hasOwn(dir, stray) && !isDir(dir[stray]) && textOf(dir[stray]).startsWith('Maintenance note')) delete dir[stray];
+        if (folders.length && Object.hasOwn(dir, stray) && !isDir(dir[stray]) && textOf(dir[stray]).includes('PAYLOAD')) delete dir[stray];
         for (let level = 0; level < folders.length; level++) {
           const closed = decoy(level);
           if (closed && !isDir(dir[child(dir, closed)])) dir[closed] = {};
@@ -2275,11 +2351,11 @@
 
   /* ================================================================ BASH / LINUX */
   G.makeBash = function () {
-    const HOME = ['home', 'dev'];
+    const HOME = ['home', 'moundshroud'];
     let fs, cwd, hist, env, lastStatus, pipefail, functions, positional, exported, flow, functionDepth, loopDepth, steps, argv0, shellChild;
-    const seed = () => ({
+    const seedBase = () => ({
       home: {
-        dev: {
+        moundshroud: {
           'README.md': F('# dev-box\n\nA disposable Linux box for practising the shell.\nEverything here is simulated. "reset" starts over.\n'),
           'notes.txt': F('todo\n- rotate the staging key\n- read /var/log/auth.log\n- ship the weekly report\n'),
           projects: {
@@ -2297,7 +2373,7 @@
             'config.json': F('{\n  "host": "10.0.0.5",\n  "port": 8080,\n  "debug": false,\n  "db": "postgres://app@db:5432/app"\n}')
           },
           scripts: {
-            'backup.sh': F('#!/bin/sh\ntar -czf /tmp/backup.tgz /home/dev/projects\necho "backup written"\n', '755')
+            'backup.sh': F('#!/bin/sh\ntar -czf /tmp/backup.tgz /home/moundshroud/projects\necho "backup written"\n', '755')
           },
           docs: {
             'cheatsheet.md': F('# cheatsheet\n\ngrep -rin "error" .\nfind . -name "*.log"\ncat projects/api.log | sort | uniq -c | sort -rn\n')
@@ -2307,8 +2383,8 @@
       etc: {
         hosts: F('127.0.0.1 localhost\n10.0.0.5 dev-box\n10.0.0.9 gateway\n10.0.0.20 build-runner'),
         hostname: F('dev-box\n'),
-        passwd: F('root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\nsshd:x:110:65534::/run/sshd:/usr/sbin/nologin\ndev:x:1000:1000:dev:/home/dev:/bin/bash\n'),
-        group: F('root:x:0:\nsudo:x:27:dev\ndocker:x:999:dev\ndev:x:1000:\n'),
+        passwd: F('root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\nsshd:x:110:65534::/run/sshd:/usr/sbin/nologin\nmoundshroud:x:1000:1000:moundshroud:/home/moundshroud:/bin/bash\n'),
+        group: F('root:x:0:\nsudo:x:27:moundshroud\ndocker:x:999:moundshroud\nmoundshroud:x:1000:\n'),
         shells: F('/bin/sh\n/bin/bash\n/usr/bin/bash\n'),
         'os-release': F('NAME="Ubuntu"\nVERSION="22.04.4 LTS (Jammy Jellyfish)"\nID=ubuntu\nPRETTY_NAME="Ubuntu 22.04.4 LTS"')
       },
@@ -2316,7 +2392,7 @@
         log: {
           'app.log': F('Feb 12 06:02:11 dev-box app[812]: listening on :8080\nFeb 12 06:09:19 dev-box app[812]: upstream timeout /v1/pay\nFeb 12 06:12:00 dev-box app[812]: GET /v1/orders 200\n'),
           'auth.log': F([
-            'Feb 12 06:01:55 dev-box sshd[1102]: Accepted publickey for dev from 10.0.0.9 port 51222',
+            'Feb 12 06:01:55 dev-box sshd[1102]: Accepted publickey for moundshroud from 10.0.0.9 port 51222',
             'Feb 12 06:14:02 dev-box sshd[1180]: Failed password for root from 10.0.0.66 port 44120',
             'Feb 12 06:14:03 dev-box sshd[1180]: Failed password for root from 10.0.0.66 port 44121',
             'Feb 12 06:14:04 dev-box sshd[1180]: Failed password for admin from 10.0.0.66 port 44122',
@@ -2327,11 +2403,12 @@
       tmp: {},
       usr: { bin: { app: F('# ELF 64-bit LSB pie executable, x86-64', '755') } }
     });
+    const seed = () => G.mergeLoreInto(seedBase(), ['home', 'moundshroud'], false, 0xba5eba11);
     const reset = () => {
       lanReset();      // back on dev-box, and every office PC gets its first disk again
       fs = seed(); cwd = HOME.slice(); hist = [];
       lastStatus = 0; pipefail = false;
-      env = { USER: 'dev', SHELL: '/bin/bash', HOME: '/home/dev', PWD: '/home/dev', EDITOR: 'nano', TERM: 'xterm-256color', LANG: 'en_GB.UTF-8' };
+      env = { USER: 'moundshroud', SHELL: '/bin/bash', HOME: '/home/moundshroud', PWD: '/home/moundshroud', EDITOR: 'nano', TERM: 'xterm-256color', LANG: 'en_GB.UTF-8' };
       functions = new Map(); positional = []; exported = new Set(Object.keys(env)); flow = ''; functionDepth = 0; loopDepth = 0; argv0 = 'bash'; shellChild = 0;
     };
     reset();
@@ -2392,6 +2469,21 @@
     const failure = (stderr, status = 1) => ({ stderr, status });
     const commandResult = result => ({ stdout: result.err ? '' : result.out, stderr: result.err ? result.out : '', status: result.err ? 1 : 0 });
     if (typeof TerminalOpsTraining !== 'undefined') Object.assign(C, TerminalOpsTraining.asCommands(commandResult));
+    /* the rest of the everyday shell that this engine never had (lsblk, lsof, watch, dd, git, jq, ssh-keygen, …) */
+    if (window.TerminalSharedCommands) {
+      window.TerminalSharedCommands.install(C, {
+        shell: 'bash', host: 'dev-box', user: 'moundshroud',
+        read,
+        write: (p, txt) => {
+          const parts = resolve(p);
+          let n = fs;
+          for (let i = 0; i < parts.length - 1; i++) { if (!isDir(n[parts[i]])) n[parts[i]] = {}; n = n[parts[i]]; }
+          n[parts[parts.length - 1]] = F(String(txt));
+        },
+        remove: p => { const parts = resolve(p); const parent = parts.length ? walk(parts.slice(0, -1)) : undefined; if (isDir(parent)) delete parent[parts[parts.length - 1]]; },
+        list: p => { const n = walk(resolve(p)); if (n === undefined || !isDir(n)) return { err: true, names: [] }; return { names: Object.keys(n).filter(k => k[0] !== '.').sort() }; }
+      });
+    }
 
     let prevCwd = null;
     C.pwd = () => path();
@@ -2436,7 +2528,7 @@
         return ns;
       };
       const nameCell = (node, k) => (flags.includes('i') ? inode(k) + ' ' : '') + k + (isDir(node[k]) ? '/' : tag(node[k]) ? '' : '');
-      const row = (c, name) => (flags.includes('i') ? String(inode(name)).padStart(6) + ' ' : '') + permOf(c) + ' ' + String(links(c)).padStart(2) + ' dev dev ' +
+      const row = (c, name) => (flags.includes('i') ? String(inode(name)).padStart(6) + ' ' : '') + permOf(c) + ' ' + String(links(c)).padStart(2) + ' moundshroud moundshroud ' +
         (flags.includes('h') ? human(bytes(c)) : String(bytes(c))).padStart(5) + ' Feb 12 06:20 ' + name + tag(c);
       // ls -R: each folder as its own "path:" section, depth first, like GNU ls.
       if (flags.includes('R')) {
@@ -2795,12 +2887,12 @@
       '   1102 pts/0    00:00:00 bash',
       '   1210 pts/0    00:00:00 ps'
     ].join('\n');
-    C.df = () => 'Filesystem      Size  Used Avail Use% Mounted on\n/dev/vda1        40G  8.2G   30G  22% /\ntmpfs           2.0G     0  2.0G   0% /dev/shm';
-    C.du = () => '184K\t/home/dev/projects\n8.0K\t/home/dev/docs\n4.0K\t/home/dev/notes.txt';
+    C.df = () => 'Filesystem      Size  Used Avail Use% Mounted on\ndev/vda1        40G  8.2G   30G  22% /\ntmpfs           2.0G     0  2.0G   0% dev/shm';
+    C.du = () => '184K\t/home/moundshroud/projects\n8.0K\t/home/moundshroud/docs\n4.0K\t/home/moundshroud/notes.txt';
     C.free = () => '               total        used        free      shared  buff/cache   available\nMem:           3.9Gi       1.2Gi       1.9Gi        12Mi       821Mi       2.4Gi\nSwap:          2.0Gi          0B       2.0Gi';
     C.uname = a => a.includes('-a') ? 'Linux dev-box 5.15.0-91-generic #101-Ubuntu SMP x86_64 GNU/Linux' : 'Linux';
-    C.whoami = () => 'dev';
-    C.id = () => 'uid=1000(dev) gid=1000(dev) groups=1000(dev),27(sudo),999(docker)';
+    C.whoami = () => 'moundshroud';
+    C.id = () => 'uid=1000(moundshroud) gid=1000(moundshroud) groups=1000(moundshroud),27(sudo),999(docker)';
     C.date = () => 'Thu Feb 12 06:58:12 UTC 2026';
     C.uptime = () => ' 06:58:12 up 3 days,  4:12,  1 user,  load average: 0.14, 0.09, 0.06';
     C.history = () => hist.map((h, i) => String(i + 1).padStart(4) + '  ' + h).join('\n');
@@ -2820,7 +2912,7 @@
     C.man = a => G.formatHelp('bash', a);
     C.tar = a => {
       const file = a[a.indexOf('-f') >= 0 ? a[a.indexOf('-f') + 1] : a.find(x => !x.startsWith('-') && !/^[a-z]+$/.test(x)) || 'archive.tgz'];
-      if (a.join(' ').includes('-t')) return 'drwxr-xr-x dev/dev 0 2026-02-12 06:20 projects/\n-rw-r--r-- dev/dev 812 2026-02-12 06:20 projects/api.log';
+      if (a.join(' ').includes('-t')) return 'drwxr-xr-x moundshroud/moundshroud 0 2026-02-12 06:20 projects/\n-rw-r--r-- moundshroud/moundshroud 812 2026-02-12 06:20 projects/api.log';
       if (a.some(x => x.includes('x'))) return '';
       const target = a.filter(x => !x.startsWith('-') && x !== file)[0] || '.';
       const n = walk(resolve(target));
@@ -2840,22 +2932,29 @@
       if (!url) return 'curl: try \'curl https://example.internal\'';
       if (/api|health/.test(url)) return '{"status":"ok","service":"api","version":"1.4.2","uptime":918244}';
       if (/example/.test(url)) return '<!doctype html>\n<html><head><title>Example Domain</title></head><body><h1>Example Domain</h1></body></html>';
+      /* a local or numeric host always answers: the real loopback in this sandbox is dev-box itself */
+      if (/^(?:https?:\/\/)?(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\d+\.\d+\.\d+\.\d+)/i.test(url)) {
+        return '<!doctype html>\n<html><head><title>dev-box</title></head><body><h1>dev-box</h1><p>200 OK — simulated local server.</p></body></html>';
+      }
       return 'curl: (6) Could not resolve host: ' + url.replace(/^https?:\/\//, '').split('/')[0];
     };
     C.ping = a => {
-      const host = a.find(x => !x.startsWith('-')) || 'localhost';
-      return ['PING ' + host + ' (10.0.0.5) 56(84) bytes of data.',
-        '64 bytes from ' + host + ' (10.0.0.5): icmp_seq=1 ttl=64 time=0.041 ms',
-        '64 bytes from ' + host + ' (10.0.0.5): icmp_seq=2 ttl=64 time=0.052 ms',
-        '64 bytes from ' + host + ' (10.0.0.5): icmp_seq=3 ttl=64 time=0.048 ms',
-        '64 bytes from ' + host + ' (10.0.0.5): icmp_seq=4 ttl=64 time=0.050 ms',
-        '',
-        '--- ' + host + ' ping statistics ---',
-        '4 packets transmitted, 4 received, 0% packet loss, time 3004ms',
-        'rtt min/avg/max/mdev = 0.041/0.047/0.052/0.004 ms'].join('\n');
+      /* -c N sets the packet count; its value is not a hostname */
+      let host = 'localhost';
+      let count = 4;
+      for (let i = 0; i < a.length; i++) {
+        if (a[i] === '-c') { count = Math.max(1, Math.min(9, parseInt(a[i + 1], 10) || 4)); i++; continue; }
+        if (!a[i].startsWith('-') && !/^\d+$/.test(a[i])) { host = a[i]; break; }
+      }
+      const rows = ['PING ' + host + ' (10.0.0.5) 56(84) bytes of data.'];
+      const times = ['0.041', '0.052', '0.048', '0.050'];
+      for (let i = 1; i <= count; i++) rows.push('64 bytes from ' + host + ' (10.0.0.5): icmp_seq=' + i + ' ttl=64 time=' + times[(i - 1) % times.length] + ' ms');
+      rows.push('', '--- ' + host + ' ping statistics ---', count + ' packets transmitted, ' + count + ' received, 0% packet loss, time ' + (count * 751) + 'ms',
+        'rtt min/avg/max/mdev = 0.041/0.047/0.052/0.004 ms');
+      return rows.join('\n');
     };
     C.ssh = a => {
-      const arg = a.find(x => !x.startsWith('-')) || 'dev@10.0.0.5';
+      const arg = a.find(x => !x.startsWith('-')) || 'moundshroud@10.0.0.5';
       return 'The authenticity of host \'' + arg.split('@').pop() + '\' can\'t be established.\nED25519 key fingerprint is SHA256:xQ2VJ8k0dW3n1sB6yT7pL9cR4mE2aH5fG8jK0.\nThis key is not known by any other names.\nAre you sure you want to continue connecting (yes/no/[fingerprint])? yes\nWarning: Permanently added \'' + arg.split('@').pop() + '\' (ED25519) to the list of known hosts.\n(playground: no real session is opened)';
     };
     C.nmap = a => {
@@ -2946,7 +3045,7 @@
       const n = walk(resolve(f));
       if (n === undefined) return failure("stat: cannot stat '" + f + "': No such file or directory");
       const sz = isDir(n) ? 4096 : textOf(n).length;
-      return '  File: ' + f + '\n  Size: ' + sz + '\tBlocks: ' + Math.ceil(sz / 512) + '\t' + (isDir(n) ? 'directory' : 'regular file') + '\nAccess: (' + (modeOf(n).padStart(4, '0') + '/' + permOf(n)) + ')  Uid: ( 1000/     dev)   Gid: ( 1000/     dev)\nModify: 2026-02-12 06:20:00.000000000 +0000';
+      return '  File: ' + f + '\n  Size: ' + sz + '\tBlocks: ' + Math.ceil(sz / 512) + '\t' + (isDir(n) ? 'directory' : 'regular file') + '\nAccess: (' + (modeOf(n).padStart(4, '0') + '/' + permOf(n)) + ')  Uid: ( 1000/     moundshroud)   Gid: ( 1000/     moundshroud)\nModify: 2026-02-12 06:20:00.000000000 +0000';
     };
     C.file = a => {
       const f = a.find(x => !x.startsWith('-'));
@@ -3052,12 +3151,12 @@
     C.nproc = () => '4';
     C.lscpu = () => 'Architecture:        x86_64\nCPU(s):              4\nModel name:          Virtual CPU @ 2.80GHz\nThread(s) per core:  1';
     C.lsblk = () => 'NAME   MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS\nvda    253:0    0   40G  0 disk\n└─vda1 253:1    0   40G  0 part /';
-    C.mount = () => '/dev/vda1 on / type ext4 (rw,relatime)\ntmpfs on /dev/shm type tmpfs (rw,nosuid,nodev)';
-    C.who = () => 'dev      pts/0        2026-02-12 06:10 (10.0.0.9)';
+    C.mount = () => 'dev/vda1 on / type ext4 (rw,relatime)\ntmpfs on dev/shm type tmpfs (rw,nosuid,nodev)';
+    C.who = () => 'moundshroud      pts/0        2026-02-12 06:10 (10.0.0.9)';
     C.w = () => C.uptime() + '\nUSER     TTY      FROM             LOGIN@   IDLE   WHAT\ndev      pts/0    10.0.0.9         06:10    0.00s  bash';
-    C.last = () => 'dev      pts/0        10.0.0.9         Thu Feb 12 06:10   still logged in\nreboot   system boot  5.15.0-91-gen    Mon Feb  9 02:46   still running';
-    C.groups = () => 'dev sudo docker';
-    C.users = () => 'dev';
+    C.last = () => 'moundshroud      pts/0        10.0.0.9         Thu Feb 12 06:10   still logged in\nreboot   system boot  5.15.0-91-gen    Mon Feb  9 02:46   still running';
+    C.groups = () => 'moundshroud sudo docker';
+    C.users = () => 'moundshroud';
     C.cal = () => '   February 2026\nSu Mo Tu We Th Fr Sa\n 1  2  3  4  5  6  7\n 8  9 10 11 12 13 14\n15 16 17 18 19 20 21\n22 23 24 25 26 27 28';
     C.sleep = () => '';
     C.true = () => '';
@@ -3188,13 +3287,13 @@
     C.bg = () => 'bash: bg: current: no such job';
     C.fg = () => 'bash: fg: current: no such job';
     C.nohup = a => a.length ? run(a.join(' ')) : 'usage: nohup <command>';
-    C.crontab = a => a.includes('-l') ? '# m h dom mon dow command\n0 3 * * * /home/dev/projects/deploy.sh --health' : 'crontab: use crontab -l to inspect scheduled jobs';
+    C.crontab = a => a.includes('-l') ? '# m h dom mon dow command\n0 3 * * * /home/moundshroud/projects/deploy.sh --health' : 'crontab: use crontab -l to inspect scheduled jobs';
     C.systemctl = a => a[0] === 'status' ? '● ' + (a[1] || 'ssh') + '.service - Active: active (running) since Mon 2026-02-09' : 'UNIT            LOAD   ACTIVE SUB     DESCRIPTION\nssh.service     loaded active running OpenBSD Secure Shell\nnginx.service   loaded active running A high performance web server\ndocker.service  loaded active running Docker Application Container Engine';
     C.service = a => C.systemctl(['status', a[0] || 'ssh']);
     C.journalctl = () => read('/var/log/auth.log').text || '';
     C.dmesg = () => '[    0.000000] Linux version 5.15.0-91-generic (dev-box)\n[    1.412000] eth0: link up 1000Mbps full-duplex\n[    2.104000] EXT4-fs (vda1): mounted filesystem';
-    C.sudo = a => a.includes('-l') ? 'User dev may run the following commands on dev-box:\n    (ALL : ALL) NOPASSWD: /usr/bin/systemctl' : (a.length ? run(a.join(' ')) : 'usage: sudo <command>');
-    C.su = () => 'su: simulated sandbox — staying as dev';
+    C.sudo = a => a.includes('-l') ? 'User moundshroud may run the following commands on dev-box:\n    (ALL : ALL) NOPASSWD: /usr/bin/systemctl' : (a.length ? run(a.join(' ')) : 'usage: sudo <command>');
+    C.su = () => 'su: simulated sandbox — staying as moundshroud';
     C.passwd = () => 'passwd: simulated sandbox — password unchanged';
     C.useradd = a => a[0] ? '(simulated user ' + a[0] + ' added)' : 'usage: useradd <name>';
     C.usermod = () => '(simulated usermod applied)';
@@ -3808,8 +3907,8 @@
     function lanReset() {
       lanDisks = Object.fromEntries(Object.entries(lanSeed()).filter(([, h]) => h.fs).map(([ip, h]) => [ip, h.fs]));
       lanKnown = []; sessions = []; pendingAuth = null;
-      here = { user: 'dev', host: 'dev-box', ip: '192.168.56.40' };
-      HOME.splice(0, HOME.length, 'home', 'dev');
+      here = { user: 'moundshroud', host: 'dev-box', ip: '192.168.56.40' };
+      HOME.splice(0, HOME.length, 'home', 'moundshroud');
     }
     const findHost = name => {
       const n = String(name || '').toLowerCase().replace(/\.(lan|local)$/, '');
@@ -3980,7 +4079,7 @@
     C.wget = C.curl;
     C.whoami = () => here.user;
     C.hostname = () => here.host;
-    C.id = a => here.user === 'dev' ? idLocal(a) : 'uid=1000(' + here.user + ') gid=1000(' + here.user + ') groups=1000(' + here.user + ')';
+    C.id = a => here.user === 'moundshroud' ? idLocal(a) : 'uid=1000(' + here.user + ') gid=1000(' + here.user + ') groups=1000(' + here.user + ')';
     C.uname = a => String(unameLocal(a)).replace('dev-box', here.host);
     C.exit = args => (!shellChild && sessions.length ? logout() : exitLocal(args));
     C.logout = C.exit;
@@ -4020,7 +4119,7 @@
         return (path() === '/' ? '' : path()) + '/' + safe;
       },
       cwdPath: path,
-      rootPath: '/home/dev',
+      rootPath: '/home/moundshroud',
       run,
       snapshot: () => {
         // saved from dev-box's point of view: a session on another PC ends when the page closes, like a real ssh session
@@ -4038,7 +4137,7 @@
         if (Array.isArray(saved.lanKnown)) lanKnown = saved.lanKnown.slice();
         ({ fs, cwd, prevCwd, env, aliases, lastStatus, pipefail, positional, argv0, hist } = saved);
         const home = walk(HOME);
-        if (isDir(home) && home['.field-note'] && textOf(home['.field-note']).startsWith('Maintenance note\n\nTwo simple layers')) delete home['.field-note'];
+        if (isDir(home) && home['.field-note'] && textOf(home['.field-note']).includes('PAYLOAD')) delete home['.field-note'];
         functions = new Map(saved.functions);
         exported = new Set(saved.exported);
         Unix.restoreModes(fs, saved.modes);

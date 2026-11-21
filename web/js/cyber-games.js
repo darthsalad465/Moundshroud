@@ -1927,12 +1927,12 @@
       };
     }
     if (tactic === 2) return {
-      from: person + ' (CEO) <' + person.toLowerCase().replace(/[^a-z]/g, '') + '.exec' + rndRange(10, 99) + '@gmail.com>',
+      from: person + ' (CEO, invented) <' + person.toLowerCase().replace(/[^a-z]/g, '') + '.exec' + rndRange(10, 99) + '@mail.example>',
       subj: 'Quick favor — confidential',
       body: 'I\'m stuck in a board meeting and cannot take calls. Please purchase ' + rndRange(3, 6) + ' Apple/Amazon gift cards ($100 each) for a client bonus and email me photos of the codes ASAP. Keep this quiet.',
       link: null, phish: 1, diff: 1,
-      hdr: { rp: 'exec.urgent@gmail.com', spf: 'PASS (personal gmail)', dkim: 'PASS (gmail.com)' },
-      why: ['Executive impersonation sent from a free @gmail.com address instead of company mail', 'Demands gift card codes + secrecy + "do not call" to stop you verifying']
+      hdr: { rp: 'exec.urgent@mail.example', spf: 'PASS (personal webmail)', dkim: 'PASS (mail.example)' },
+      why: ['Executive impersonation sent from a free webmail address instead of company mail', 'Demands gift card codes + secrecy + "do not call" to stop you verifying']
     };
     if (tactic === 3) return {
       from: brand.name + ' <support@' + brand.dom + '>',

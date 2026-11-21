@@ -376,7 +376,10 @@
       const flags = a.filter(x => x.startsWith('-') || (isWin && x.startsWith('/'))).join(' ').toLowerCase();
       const filterIdx = a.findIndex(x => /^-filter$/i.test(x));
       const filter = filterIdx >= 0 ? a[filterIdx + 1] : null;
-      const t = a.find((x, i) => !x.startsWith('-') && !(isWin && x.startsWith('/')) && (filterIdx < 0 || i !== filterIdx + 1)) || '.';
+      const targets = a.filter((x, i) => !x.startsWith('-') && !(isWin && x.startsWith('/')) && (filterIdx < 0 || i !== filterIdx + 1));
+      /* ls a b c lists every path, not just the first */
+      if (targets.length > 1) return targets.map(t => C.ls(a.filter(x => !targets.includes(x)).concat([t]))).join('\n');
+      const t = targets[0] || '.';
       const n = walkN(resolve(t));
       if (n === undefined) return "ls: cannot access '" + t + "': No such file or directory";
       if (!isDir(n)) return flags.includes('l') && !isWin ? Unix.permissions(n) + ' 1 solver solver ' + textOf(n).length + ' ' + t : t;
@@ -669,14 +672,55 @@
     C['write-output'] = C.echo; C['write-host'] = C.echo;
     C.printf = a => { let fmt = String(a[0] || '').replace(/\\n/g, '\n').replace(/\\t/g, '\t'), idx = 1; return fmt.replace(/%[sdif]/g, () => String(a[idx++] ?? '')); };
     C.strings = (a, s) => { const r = srcOf(a.filter(x => !x.startsWith('-')), s); return r.err ? 'strings: ' + r.err : (r.text.match(/[\x20-\x7e]{4,}/g) || []).join('\n'); };
-    C.sed = (a, s) => { const sc = a.find(x => !x.startsWith('-')) || '', m = sc.match(/^s(.)(.*?)\1(.*?)\1([gi]*)$/); if (!m) return 'sed: try s/old/new/g'; const r = srcOf(a.filter(x => x !== sc && !x.startsWith('-')), s); return r.err ? 'sed: ' + r.err : r.text.split('\n').map(l => l.replace(new RegExp(m[2], (m[4].includes('g') ? 'g' : '') + (m[4].includes('i') ? 'i' : '')), m[3])).join('\n'); };
+    C.sed = (a, s) => {
+      const sc = a.find(x => !x.startsWith('-')) || '', m = sc.match(/^s(.)(.*?)\1(.*?)\1([gi]*)$/);
+      if (!m) return 'sed: try s/old/new/g';
+      const inPlace = a.some(x => /^-i/.test(x));
+      const files = a.filter(x => x !== sc && !x.startsWith('-'));
+      const r = srcOf(files, s);
+      if (r.err) return 'sed: ' + r.err;
+      const out = r.text.split('\n').map(l => l.replace(new RegExp(m[2], (m[4].includes('g') ? 'g' : '') + (m[4].includes('i') ? 'i' : '')), m[3])).join('\n');
+      if (inPlace && files.length) { for (const f of files) writeF(f, out, false); return ''; }
+      return out;
+    };
     C.awk = (a, s) => { let sep = ' ', prog = '', files = []; for (let i = 0; i < a.length; i++) { if (a[i] === '-F') sep = a[++i] || ' '; else if (/^-F./.test(a[i])) sep = a[i].slice(2); else if (!prog && a[i].includes('{')) prog = a[i]; else if (!a[i].startsWith('-')) files.push(a[i]); } const m = prog.match(/\{[\s]*print\s+([^}]+)\}/); if (!m) return 'awk: try {print $1}'; const flds = m[1].split(',').map(x => x.trim()), r = srcOf(files, s); return r.err ? 'awk: ' + r.err : r.text.split('\n').map(l => { const p = sep === ' ' ? l.trim().split(/\s+/) : l.split(sep); return flds.map(f => f === '$0' ? l : /^\$\d+$/.test(f) ? (p[+f.slice(1) - 1] || '') : f.replace(/^"|"$/g, '')).join(' '); }).join('\n'); };
     C.tee = (a, s) => { const f = a.find(x => !x.startsWith('-')); if (f && s != null) writeF(f, s, a.includes('-a')); return s == null ? '' : s; };
     C.touch = a => { for (const f of a.filter(x => !x.startsWith('-'))) if (walkN(resolve(f)) === undefined) writeF(f, '', false); return ''; };
     C.mkdir = a => { for (const f of a.filter(x => !x.startsWith('-'))) { const parts = resolve(f); let n = tree; for (const p of parts) { if (!isDir(n[p])) n[p] = {}; n = n[p]; } } return ''; };
     C.rm = a => { for (const f of a.filter(x => !x.startsWith('-'))) { const parts = resolve(f), par = walkN(parts.slice(0, -1)); if (isDir(par)) delete par[parts[parts.length - 1]]; } return ''; };
-    C.cp = a => { const f = a.filter(x => !x.startsWith('-')); const r = read(f[0] || ''); if (r.err) return 'cp: ' + r.err; writeF(f[1] || '', r.text, false); return ''; };
-    C.mv = a => { const f = a.filter(x => !x.startsWith('-')); const r = read(f[0] || ''); if (r.err) return 'mv: ' + r.err; writeF(f[1] || '', r.text, false); C.rm([f[0]]); return ''; };
+    /* cp/mv work on folders too (cp needs -r, as the real one does) */
+    const copyNode = node => isDir(node)
+      ? Object.fromEntries(Object.entries(node).map(([k, v]) => [k, copyNode(v)]))
+      : F(textOf(node), Unix.octal(Unix.mode(node)));
+    const copyInto = (src, dst) => {
+      const from = walkN(resolve(src)), toDir = walkN(resolve(dst));
+      if (from === undefined) return 'No such file or directory';
+      if (isDir(from)) {
+        if (isDir(toDir)) { toDir[src.split('/').pop()] = copyNode(from); return ''; }
+        const parts = resolve(dst); const parent = walkN(parts.slice(0, -1));
+        if (!isDir(parent)) return 'No such file or directory';
+        parent[parts[parts.length - 1]] = copyNode(from); return '';
+      }
+      writeF(dst, textOf(from), false); return '';
+    };
+    C.cp = a => {
+      const f = a.filter(x => !x.startsWith('-'));
+      if (!f.length) return 'cp: missing file operand';
+      if (!f[1]) return 'cp: missing destination file operand';
+      const from = walkN(resolve(f[0]));
+      if (from === undefined) return 'cp: cannot stat \'' + f[0] + '\': No such file or directory';
+      if (isDir(from) && !a.some(x => /-[rRa]|--recursive/.test(x))) return 'cp: -r not specified; omitting directory \'' + f[0] + '\'';
+      const err = copyInto(f[0], f[1]); return err ? 'cp: ' + err : '';
+    };
+    C.mv = a => {
+      const f = a.filter(x => !x.startsWith('-'));
+      if (!f.length) return 'mv: missing file operand';
+      if (!f[1]) return 'mv: missing destination file operand';
+      const from = walkN(resolve(f[0]));
+      if (from === undefined) return 'mv: cannot stat \'' + f[0] + '\': No such file or directory';
+      const err = copyInto(f[0], f[1]); if (err) return 'mv: ' + err;
+      C.rm([f[0]]); return '';
+    };
     C.diff = a => { const f = a.filter(x => !x.startsWith('-')); const r1 = read(f[0] || ''), r2 = read(f[1] || ''); if (r1.err || r2.err) return 'diff: ' + (r1.err || r2.err); return r1.text === r2.text ? '' : '--- ' + f[0] + '\n+++ ' + f[1] + '\n-' + r1.text + '\n+' + r2.text; };
     C.whoami = () => isWin ? 'PUZZLE\\solver' : 'solver';
     C.hostname = () => 'puzzle-lab';
@@ -698,7 +742,7 @@
         let redirect = null;
         const rm = chain.match(/(>>?)\s*(\S+)\s*$/);
         if (rm) { redirect = { append: rm[1] === '>>', file: rm[2] }; chain = chain.slice(0, rm.index).trim(); }
-        let stdin = null, out = '';
+        let stdin = null, out = '', diag = '';
         for (let seg of splitTop(chain, ['|'])) {
           const inM = seg.match(/\s<\s*(\S+)/);
           if (inM) { const rf = read(inM[1]); if (rf.err) { out = 'puzzle: ' + rf.err; break; } stdin = rf.text; seg = seg.replace(inM[0], ' ').trim(); }
@@ -709,10 +753,12 @@
           if (!fn) { out = 'puzzle: ' + head + ': command not found (try help)'; break; }
           try { out = String(fn(words, stdin, isWin ? undefined : error => outs.push(error)) ?? ''); }
           catch (e) { out = head + ': ' + (e && e.message || e); }
+          /* usage text is a diagnostic, not data: a real shell sends it to stderr, so it must not be piped onwards */
+          if (/^usage: /.test(out)) { diag = out; out = ''; }
           stdin = out;
         }
         if (redirect) { writeF(redirect.file, out, redirect.append); out = ''; }
-        if (out !== '') outs.push(out);
+        if (out !== '') outs.push(out); else if (diag) outs.push(diag);
       }
       return outs.join('\n');
     };
@@ -722,6 +768,29 @@
       : shell === 'cmd'
         ? [['dir /a', 'list hidden items'], ['dir /s /b', 'recursive list'], ['type <file>', 'read file'], ['findstr <pat> <file>', 'search text'], ['base64 -d', 'decode Base64'], ['xxd -r', 'decode Hex'], ['rot13', 'ROT13 decode'], ['rev', 'reverse text']]
         : [['ls -la', 'list hidden files'], ['chmod u+r <file>', 'add owner read permission'], ['find . -name "*"', 'find all files'], ['tree -a', 'full hidden tree'], ['grep -rn <text> .', 'recursive search'], ['cut -d, -f5', 'extract CSV field'], ['tr -d "\\n"', 'join lines'], ['base64 -d', 'decode Base64'], ['xxd -r', 'decode Hex'], ['rot13', 'ROT13 decode'], ['rev', 'reverse text']];
+
+    /* commands the room engine never implemented used to answer "command not found"; the shared kit fills every one
+       of them against this room's own tree, so puzzle rooms, the app shell and the labyrinth speak the same shell */
+    if (window.TerminalSharedCommands) {
+      window.TerminalSharedCommands.install(C, {
+        shell: isWin ? shell : 'bash',
+        host: isWin ? 'PUZZLE-LAB' : 'puzzle-lab',
+        user: 'solver',
+        machine: spec.machine || null,
+        read,
+        write: writeF,
+        remove: p => {
+          const parts = resolve(p);
+          const parent = parts.length ? walkN(parts.slice(0, -1)) : undefined;
+          if (isDir(parent)) delete parent[parts[parts.length - 1]];
+        },
+        list: p => {
+          const n = walkN(resolve(p));
+          if (n === undefined || !isDir(n)) return { err: true, names: [] };
+          return { names: Object.keys(n).filter(k => k[0] !== '.').sort() };
+        }
+      });
+    }
 
     return {
       id: spec.id || ('puz-' + Date.now()),
@@ -743,6 +812,20 @@
       rootPath: isWin ? 'C:/puzzle' : '/',
       run,
       createRuntime: () => buildCustomFileRoom(spec),
+      /* merge files that appeared or changed on the real disk into this room (the app shell uses this so a file
+         created anywhere in the app shows up in an already-open shell); removed paths are dropped from the tree */
+      applyFiles: (map, removed) => {
+        for (const [p, text] of Object.entries(map || {})) {
+          const clean = String(p || '').replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/{2,}/g, '/');
+          if (!clean || clean.split('/').some(part => part === '..' || part === '.')) continue;
+          try { put(tree, clean, String(text == null ? '' : text)); } catch (e) { /* a refused path simply does not appear */ }
+        }
+        for (const p of removed || []) {
+          const parts = resolve('/' + String(p || '').replace(/^\/+/, ''));
+          const parent = parts.length ? walkN(parts.slice(0, -1)) : undefined;
+          if (isDir(parent)) delete parent[parts[parts.length - 1]];
+        }
+      },
       snapshot: () => ({ tree, cwd, prevCwd, modes: Unix.saveModes(tree, isDir) }),
       restore: state => {
         TP.replaceSavedObject(tree, state.tree);
@@ -1103,34 +1186,86 @@
     const layerCount = deepen({ easy: 1, medium: 1, hard: 3, insane: 4 }[diff] || 2);
     const chain = encodeChain(ans, pickLayers(r, layerCount));
 
-    const tag = pick(r, ['ALERT', 'CRITICAL', 'SEALED', 'OVERRIDE']);
-    const env = pick(r, ['prod', 'vault-prod', 'core']);
-    const svc = pick(r, ['auth', 'relay', 'vault', 'kms', 'edge']);
+    const tag = pick(r, ['ALERT', 'CRITICAL', 'SEALED', 'OVERRIDE', 'FATAL', 'BREACH', 'ESCALATION', 'QUARANTINE', 'PAGED', 'CONTAINED']);
+    const env = pick(r, ['prod', 'vault-prod', 'core', 'prod-eu', 'prod-us', 'ring-0', 'vault', 'secure', 'dmz']);
+    const svc = pick(r, ['auth', 'relay', 'vault', 'kms', 'edge', 'gateway', 'orchestrator', 'scheduler', 'indexer', 'policy', 'broker', 'ledger']);
     const totalRows = 10 + tierNum * 9;
     const winIdx = 3 + r(totalRows - 5);
-    const rows = ['timestamp,level,env,service,status,payload'];
-    for (let i = 0; i < totalRows; i++) {
-      if (i === winIdx) {
-        rows.push('2026-02-12T06:' + String(10 + (i % 50)).padStart(2, '0') + ':00Z,' + tag + ',' + env + ',' + svc + ',ACTIVE,' + chain.encoded);
-      } else {
-        const trap = i % 4;
-        const lvl = trap === 0 ? tag : pick(r, ['INFO', 'DEBUG', 'OK', 'WARN']);
-        const e2 = trap === 1 ? env : pick(r, ['staging', 'dev', 'qa']);
-        const s2 = trap === 2 ? svc : pick(r, ['auth', 'relay', 'vault', 'worker', 'api']);
-        const st2 = (lvl === tag && e2 === env && s2 === svc) ? 'REVOKED' : pick(r, ['ACTIVE', 'REVOKED', 'EXPIRED']);
-        rows.push('2026-02-12T06:' + String(10 + (i % 50)).padStart(2, '0') + ':00Z,' + lvl + ',' + e2 + ',' + s2 + ',' + st2 + ',' + encodeChain(L.newToken(r), pickLayers(r, layerCount)).encoded);
+
+    /* The schema rotates: six to nine columns in a shuffled order, so the interesting one is not always last and
+       the column number in the instructions is different every time. The column is always named as well as numbered. */
+    // comma only: a colon separator collides with the timestamps, which is a real lesson but an unfair one
+    const sep = ',';
+    const sepName = 'comma';
+    const payloadName = pick(r, ['payload', 'token', 'blob', 'seal', 'cipher', 'envelope', 'ticket', 'nonce', 'wrapped_key', 'artifact']);
+    // the table itself grows and shrinks: six to ten columns, so the number in the instructions is never the same twice
+    const middle = shuffle(['level', 'env', 'service', 'status', 'region', 'attempt', 'duration_ms', 'cluster', 'node', 'tenant', 'trace', 'zone', 'queue', 'shard', 'retries', 'actor'].slice(0, 4 + r(8)), r);
+    const cols = ['timestamp'].concat(middle);
+    cols.splice(1 + r(cols.length), 0, payloadName);
+    const colIdx = name => cols.indexOf(name) + 1;
+    const payloadCol = colIdx(payloadName);
+    const filterNames = ['level', 'env', 'service', 'status'].slice(0, 2 + r(3));
+    const filters = filterNames.map(name => ({ name, value: name === 'level' ? tag : name === 'env' ? env : name === 'service' ? svc : 'ACTIVE' }));
+    const other = (name) => name === 'level' ? pick(r, ['INFO', 'DEBUG', 'OK', 'WARN', 'NOTICE', 'TRACE'])
+      : name === 'env' ? pick(r, ['staging', 'dev', 'qa', 'sandbox', 'preview', 'lab'])
+      : name === 'service' ? pick(r, ['auth', 'relay', 'vault', 'worker', 'api', 'gateway', 'proxy', 'cache', 'indexer'].filter(x => x !== svc))
+      : name === 'actor' ? pick(r, ['system:agent', 'ops:nightshift', 'service:sync', 'user:unknown', 'ci:pipeline'])
+      : pick(r, ['REVOKED', 'EXPIRED', 'STALE', 'DRAINING', 'PAUSED', 'DEFERRED']);
+    const rowOf = (win, i) => {
+      const vals = {
+        timestamp: '2026-02-12T06:' + String(10 + (i % 50)).padStart(2, '0') + ':00Z',
+        level: tag, env: env, service: svc, status: 'ACTIVE',
+        region: pick(r, ['eu-1', 'eu-2', 'us-east', 'ap-south', 'eu-west-3', 'us-west-1', 'sa-east', 'af-south', 'me-central']),
+        attempt: String(1 + r(4)),
+        duration_ms: String(8 + r(1400)),
+        cluster: pick(r, ['prod-a', 'prod-b', 'vault-1', 'edge-7', 'core-2', 'ring0-node']),
+        node: 'node-' + (1 + r(60)),
+        tenant: pick(r, ['acme', 'northwind', 'globex', 'initech', 'umbrella', 'soylent']),
+        trace: r(2) ? 'tr-' + L.newToken(r).slice(0, 12) : 'tr-missing-' + (1 + r(9)),
+        zone: pick(r, ['z-a', 'z-b', 'z-c', 'z-dmz']),
+        queue: pick(r, ['ingest', 'retry', 'dead-letter', 'audit', 'sync']),
+        shard: 'shard-' + r(16),
+        retries: String(r(4)),
+        actor: pick(r, ['system:agent', 'ops:nightshift', 'service:sync', 'user:unknown', 'ci:pipeline'])
+      };
+      vals[payloadName] = win ? chain.encoded : encodeChain(L.newToken(r), pickLayers(r, layerCount)).encoded;
+      /* a decoy row matches one filter and misses the rest, so only the winning row survives every grep */
+      if (!win) {
+        const keep = i % filters.length;
+        filters.forEach((f, k) => { if (k !== keep) vals[f.name] = other(f.name); });
       }
-    }
+      return cols.map(name => vals[name]).join(sep);
+    };
+    const rows = [cols.join(sep)];
+    for (let i = 0; i < totalRows; i++) rows.push(rowOf(i === winIdx, i));
     put(tree, 'logs/stream.csv', rows.join('\n'));
+    const manyR = (n, f) => Array.from({ length: Math.max(0, n) }, (_, i) => f(i));
+    /* the surrounding mess: a couple of neighbouring exports, chosen by the seed, so every pipeline room explores differently */
+    const sides = shuffle([
+      () => ['logs/proxy.csv', ['timestamp,client,port,status,bytes'].concat(manyR(8 + r(20), () => [('2026-02-12T06:' + String(10 + r(50)).padStart(2, '0') + ':00Z'), '10.0.0.' + (2 + r(240)), String(1024 + r(60000)), pick(r, ['200', '204', '302', '404', '500']), String(120 + r(90000))].join(','))).join('\n')],
+      () => ['logs/metrics.json', '{\n  "window": "60s",\n  "series": [' + manyR(r(2) ? 3 : 5, () => '{"name": "' + pick(r, ['cpu', 'mem', 'io', 'latency', 'errors', 'queue_depth']) + '", "value": ' + (1 + r(999)) + '}').join(', ') + ']\n}'],
+      () => ['logs/notes.txt', manyR(3 + r(5), () => '- ' + pick(r, ['rotation at 06:00', 'collector restarted during the window', 'proxy logs are one minute behind', 'do not trust duration_ms for retries', 'archive lives on the cold host', 'field order changed after the upgrade'])).join('\n')],
+      () => ['logs/incident-' + (100 + r(900)) + '.txt', ['INC-' + (1000 + r(9000)), 'Opened: 2026-02-12 06:' + String(10 + r(50)).padStart(2, '0'), 'Severity: ' + pick(r, ['low', 'medium', 'high', 'critical']), '', pick(r, ['Nobody can reproduce it.', 'Only happens during the nightly run.', 'Closed as expected behaviour.', 'Reopened twice already.'])].join('\n')],
+      () => ['var/log/' + pick(r, ['syslog', 'kern.log', 'daemon.log', 'messages']), manyR(6 + r(12), () => 'Feb 12 06:' + String(10 + r(50)).padStart(2, '0') + ':' + String(r(60)).padStart(2, '0') + ' host ' + pick(r, ['systemd[1]', 'agentd', 'cron', 'sshd']) + ': ' + pick(r, ['session opened', 'session closed', 'rotated log', 'timer fired', 'connection accepted', 'connection reset'])).join('\n')],
+      () => ['etc/' + pick(r, ['agents.conf', 'collector.ini', 'routes.cfg']), manyR(4 + r(4), () => pick(r, ['interval = ', 'retries = ', 'host = ', 'mode = ', 'timeout = ']) + pick(r, ['30s', '5', '10.0.0.' + (2 + r(240)), 'strict', 'none', 'auto'])).join('\n')]
+    ], r).slice(0, 2);
+    for (const side of sides) { const [rel, text] = side(); put(tree, rel, text); }
+    const filterList = filters.map(f => f.name + '=' + f.value).join(', ');
+    const grepChain = 'grep ' + filters[0].value + ' logs/stream.csv' + filters.slice(1).map(f => ' | grep ' + f.value).join('');
+    const cutSpec = 'cut -d' + sep + ' -f' + payloadCol;
+    const spec = 'column ' + payloadCol + ' (' + payloadName + ')';
     if (tierNum >= 4) {
-      put(tree, 'etc/.filter.b64', b64e('level=' + tag + '\nenv=' + env + '\nservice=' + svc + '\nstatus=ACTIVE\ndecode=' + chain.decodePipe));
-      put(tree, 'README.txt', 'INSANE PIPELINE GAUNTLET\n1. Find and Base64-decode the hidden filter spec under etc/ (ls -la etc).\n2. Filter logs/stream.csv for ALL 4 fields (level, env, service, status=ACTIVE), extract column 6, and peel all 4 layers.');
+      put(tree, 'etc/.filter.b64', b64e(filters.map(f => f.name + '=' + f.value).join('\n') + '\nseparator=' + sepName + '\ncolumn=' + payloadCol + '\nname=' + payloadName + '\ndecode=' + chain.decodePipe));
+      put(tree, 'README.txt', 'INSANE PIPELINE GAUNTLET\n1. Find and Base64-decode the hidden filter spec under etc/ (ls -la etc).\n2. Filter logs/stream.csv for ALL ' + filters.length + ' filters (' + filterList + ').\n3. The field you want is ' + spec + ' in a ' + sepName + '-separated table, and the layer stack is ' + layerCount + ' deep.');
     } else {
-      put(tree, 'README.txt', 'Pipeline challenge (' + dObj.label + ')\nFilter logs/stream.csv for level=' + tag + ', env=' + env + ', service=' + svc + ', status=ACTIVE.\nExtract column 6 and decode via: ' + chain.decodePipe);
+      put(tree, 'README.txt', 'Pipeline challenge (' + dObj.label + ')\nFilter logs/stream.csv for ' + filterList + '.\nExtract ' + spec + ' — columns are ' + sepName + '-separated — and decode via: ' + chain.decodePipe);
+      if (tierNum >= 3) put(tree, 'logs/schema.txt', 'columns: ' + cols.map((name, i) => (i + 1) + '=' + name).join(' ') + '\nseparator: ' + sepName + '\n');
     }
 
-    const finalCmd = 'grep ' + tag + ' logs/stream.csv | grep ' + env + ' | grep ' + svc + ' | grep ACTIVE | cut -d, -f6 | ' + chain.decodePipe;
-    const walkthrough = tierNum >= 4 ? ['ls -la etc', 'cat etc/.filter.b64 | base64 -d', finalCmd] : [finalCmd];
+    const finalCmd = grepChain + ' | ' + cutSpec + ' | ' + chain.decodePipe;
+    const scouting = tierNum >= 4 ? ['ls -la etc', 'cat etc/.filter.b64 | base64 -d'] : tierNum >= 3 ? ['cat logs/schema.txt'] : [];
+    // the solving command both opens and closes the walkthrough, so any runner (first, or last) recovers the answer
+    const walkthrough = [finalCmd].concat(scouting).concat(scouting.length ? [finalCmd] : []);
 
     return buildCustomFileRoom({
       id: 'gen-pipe-' + seed,
@@ -1139,10 +1274,8 @@
       category: 'pipeline',
       stages: tierNum >= 4 ? 4 : tierNum >= 3 ? 3 : 2,
       title: dObj.label + ' · Telemetry Pipeline (' + layerCount + ' Layer' + (layerCount > 1 ? 's' : '') + ')',
-      brief: tierNum >= 4
-        ? 'Decode hidden etc/.filter.b64 to discover the exact 4 CSV filters, isolate the sole matching row in logs/stream.csv (' + totalRows + ' rows with traps), extract field 6, and peel 4 stacked layers.'
-        : 'logs/stream.csv (' + totalRows + ' rows) contains traps. Isolate ' + tag + ' + ' + env + ' + ' + svc + ' + ACTIVE, extract field 6, and peel ' + layerCount + ' layer(s) (' + chain.decodePipe + ').',
-      hint: walkthrough.join('  →  '),
+      brief: 'logs/stream.csv (' + totalRows + ' rows of ' + sepName + '-separated fields, with traps) hides one row where ' + filterList + ' all match. Extract ' + spec + ' from that row and peel ' + layerCount + ' layer(s) (' + chain.decodePipe + ').' + (tierNum >= 4 ? ' The filter spec and the column number are Base64 in etc/.' : ''),
+      hint: scouting.concat([finalCmd]).join('  →  '),
       walkthrough,
       answer: ans,
       files: treeToFlat(tree)

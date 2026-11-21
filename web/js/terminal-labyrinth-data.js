@@ -411,9 +411,13 @@
     C.sed = (a, s) => {
       const sc = a.find(x => !x.startsWith('-')) || '', m = sc.match(/^s(.)(.*?)\1(.*?)\1([gi]*)$/);
       if (!m) return 'sed: try s/old/new/g';
-      const r = srcOf(a.filter(x => x !== sc && !x.startsWith('-')), s);
+      const inPlace = a.some(x => /^-i/.test(x));
+      const files = a.filter(x => x !== sc && !x.startsWith('-'));
+      const r = srcOf(files, s);
       if (r.err) return 'sed: ' + r.err;
-      return r.text.split('\n').map(l => l.replace(new RegExp(m[2], (m[4].includes('g') ? 'g' : '') + (m[4].includes('i') ? 'i' : '')), m[3])).join('\n');
+      const out = r.text.split('\n').map(l => l.replace(new RegExp(m[2], (m[4].includes('g') ? 'g' : '') + (m[4].includes('i') ? 'i' : '')), m[3])).join('\n');
+      if (inPlace && files.length) { for (const f of files) writeFile(f, out, false); return ''; }
+      return out;
     };
     C.awk = (a, s) => {
       let sep = ' ', prog = '', files = [];
@@ -474,6 +478,16 @@
     C.sleep = () => '';
     C.clear = () => '';
     C.cls = () => '';
+    /* fill in the rest of the real shell (network, processes, archives, editors, hashing) with the shared kit */
+    if (window.TerminalSharedCommands) {
+      window.TerminalSharedCommands.install(C, {
+        shell: 'bash', host: 'labyrinth', user: 'explorer',
+        read,
+        write: (p, t) => writeFile(p, t),
+        remove: p => { const parts = resolve(p); const parent = parts.length ? walk(tree, parts.slice(0, -1)) : undefined; if (isDir(parent)) delete parent[parts[parts.length - 1]]; },
+        list: p => { const n = walk(tree, resolve(p)); if (n === undefined || !isDir(n)) return { err: true, names: [] }; return { names: Object.keys(n).filter(k => k[0] !== '.').sort() }; }
+      });
+    }
     C.help = a => {
       const TP = window.TerminalPlayground;
       if (TP && TP.formatHelp) return TP.formatHelp('bash', a);
@@ -765,6 +779,19 @@
     if (t >= 2) {
       put(tree, 'attic/old-' + (1 + r(9)) + '.key', L.newToken(r));
       put(tree, 'attic/readme.txt', 'superseded');
+    }
+    /* clutter: what a node is full of depends on the seed, not on the depth (more at deeper tiers) */
+    {
+      const clutter = [
+        () => ['var/log/' + pick(r, ['app', 'sync', 'worker', 'cron', 'relay', 'index']) + '-' + (1 + r(12)) + '.log', Array.from({ length: 4 + r(6) }, () => '2026-02-' + String(10 + r(10)) + ' 0' + (1 + r(8)) + ':' + String(r(60)).padStart(2, '0') + ' ' + pick(r, ['info', 'warn', 'debug']) + ' ' + pick(r, ['flush ok', 'cache miss', 'retry scheduled', 'queue drained', 'tick', 'watcher restart', 'lock held', 'peer gone']) + ' pid=' + (100 + r(9000))).join('\n')],
+        () => ['tmp/' + pick(r, ['cache', 'session', 'spool', 'work']) + '-' + r(16777215).toString(16) + '.tmp', 'temporary file\npid=' + (100 + r(9000)) + '\nopened=' + (1 + r(23)) + ':' + String(r(60)).padStart(2, '0') + '\nstale=' + pick(r, ['yes', 'no', 'unknown'])],
+        () => ['docs/' + pick(r, ['runbook', 'handover', 'ticket', 'policy', 'faq', 'changelog']) + '-' + (1 + r(30)) + '.txt', [pick(r, ['Runbook', 'Handover', 'Ticket', 'Policy', 'FAQ', 'Changelog']) + ' ' + (1 + r(40)), 'Owner: ' + pick(r, ['ops', 'platform', 'security', 'a contractor']), '', pick(r, ['Steps are out of date.', 'Nobody has read this since the migration.', 'Follow this exactly; it almost works.', 'If this fails, escalate and hope.', 'Superseded, but still linked from the wiki.'])].join('\n')],
+        () => ['backup/' + pick(r, ['snapshot', 'export', 'archive', 'copy']) + '-' + (100 + r(900)) + '.idx', 'entries: ' + (10 + r(5000)) + '\nbytes: ' + (1 + r(900)) + 'MB\nstatus: ' + pick(r, ['complete', 'interrupted', 'verified', 'never checked'])],
+        () => ['etc/' + pick(r, ['agents', 'collector', 'routes', 'limits']) + '.conf', Array.from({ length: 3 + r(4) }, () => pick(r, ['interval=', 'retries=', 'mode=', 'timeout=', 'host=']) + pick(r, ['30s', '5', 'auto', 'strict', '10.0.0.' + (2 + r(200))])).join('\n')],
+        () => ['notes/' + pick(r, ['todo', 'scratch', 'ideas', 'questions']) + '-' + (1 + r(9)) + '.txt', Array.from({ length: 3 + r(5) }, () => '- ' + pick(r, ['ask about the key rotation', 'this node keeps dropping', 'check who owns the box', 'do not restart on a Friday', 'the docs are wrong again', 'log rotation is off', 'replace the drive', 'find the missing shard'])).join('\n')]
+      ];
+      const n = 3 + t * 2 + r(4);
+      for (let i = 0; i < n; i++) { const [rel, text] = pick(r, clutter)(); put(tree, rel, text); }
     }
 
     const bash = bashCommands(tree, cwd);

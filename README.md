@@ -196,6 +196,10 @@ Changes under `web/` generally appear after reloading the app page. Changes to `
 
 LLMs used to generate or modify code for Moundshroud are liable for bugs in the code they produce.
 
+## Legal and privacy
+
+The terminals and every document, name, address and secret inside them are fictional simulations; nothing scans, connects to or attacks a real system, and your data stays on your computer. The full statement is in [`LEGAL.md`](LEGAL.md).
+
 ## License
 
 Moundshroud’s source code is distributed under the MIT License; see [`LICENSE`](LICENSE). Downloaded models, libraries, engines, and other third-party components have their own licenses and terms. Check the terms for each component before redistributing it.

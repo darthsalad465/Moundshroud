@@ -1064,6 +1064,7 @@ if (url === '/api/chat' && req.method === 'POST') {
     if (url === '/api/app/list') return json(res, 200, { files: appfiles.list(q.get('dir') || '') });
     /* ---- editing the app's own files from inside it: every save keeps the old version (lib/appedit.js) ---- */
     if (url === '/api/appedit/list') return json(res, 200, appedit.list(q.get('dir') || ''));
+    if (url === '/api/appedit/shell') return json(res, 200, appedit.shell({ meta: q.get('meta') === '1' }));
     if (url === '/api/appedit/edited') return json(res, 200, { edited: appedit.edited() });
     if (url === '/api/appedit/read' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, appedit.read(String(b.path || ''))); }
     if (url === '/api/appedit/check' && req.method === 'POST') { const b = await jbody(req, 2e6); return json(res, 200, appedit.check(String(b.path || ''), b.text)); }

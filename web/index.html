@@ -130,6 +130,7 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
   <button class="ib" id="gs" title="Search everything, or run a command (Ctrl+K)">&#128269;</button>
   <select id="model" title="Model"></select>
   <button class="ib" id="newc" title="New chat (Ctrl+N)">&#9998; New</button>
+  <button class="ib" id="appsh" type="button" title="App shell — a bash shell over this app, sandboxed to your browser">&#128026;</button>
   <button class="ib" id="cog" title="Settings">&#9881;</button>
 </header>
 <nav id="nav"></nav>
@@ -405,6 +406,7 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
 <script defer src="/web/js/play-swindle.js"></script>
 <script defer src="/web/js/play-help.js"></script>
 <script defer src="/web/js/terminal-unix.js"></script>
+<script defer src="/web/js/terminal-commands-shared.js"></script>
 <script defer src="/web/js/cyber-games.js"></script>
 <script defer src="/web/js/cyber-website-lab.js"></script>
 <script defer src="/web/js/cyber-academy.js"></script>
@@ -423,6 +425,8 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
 <script defer src="/web/js/terminal-playground-curios.js"></script>
 <script defer src="/web/js/terminal-playground-jobs.js"></script>
 <script defer src="/web/js/terminal-lore.js"></script>
+<script defer src="/web/js/terminal-lore-content.js"></script>
+<script defer src="/web/js/terminal-lore-deep.js"></script>
 <script defer src="/web/js/terminal-scenarios.js"></script>
 <script defer src="/web/js/mcode-custom.js"></script>
 <script defer src="/web/js/mcode-swarm.js"></script>
@@ -601,6 +605,7 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
 <script defer src="/web/js/updates.js"></script>
 <script defer src="/web/js/walk.js"></script>
 <script defer src="/web/js/appedit.js"></script>
+<script defer src="/web/js/app-shell.js"></script>
 <script>/* the splash plays its awakening choreography, then parts as the workspace cascades into place underneath */
 (function(){var t0=Date.now(),b0=document.getElementById('boot');if(b0){window.OA_BOOT_HTML=b0.innerHTML;b0.onclick=function(){off(true)};}
 function enter(){var d=document.documentElement;d.classList.remove('boot-enter');void d.offsetWidth;d.classList.add('boot-enter');setTimeout(function(){d.classList.remove('boot-enter')},1400);}

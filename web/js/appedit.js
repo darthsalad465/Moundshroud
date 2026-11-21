@@ -19,6 +19,7 @@
   function shell() {
     root.innerHTML =
       '<div class="rd-top"><h2>✏️ Edit the app</h2><div class="sp" style="flex:1"></div>' +
+      '<button class="ib" id="aeshell" title="A full bash shell whose only disk is this app">⌨ Terminal</button>' +
       '<button class="ib" id="aeeverywhere" title="Find a word anywhere in the app">🔎 Find in every file</button>' +
       '<button class="ib" id="aechanged" title="Files you have changed here, with a way back">✏️ Files you changed</button>' +
       '<button class="ib" id="aereload" title="Reload the page (picks up anything changed under web)">⟳ Reload the page</button></div>' +
@@ -35,6 +36,7 @@
     $('#aeq').addEventListener('input', e => { search = e.target.value.trim().toLowerCase(); drawFiles(); });
     $('#aechanged').onclick = changedFiles;
     $('#aereload').onclick = async () => { if (anyDirty() && !(await A.confirm('Discard the unsaved changes and reload the page?'))) return; location.reload(); };
+    $('#aeshell').onclick = () => window.AppShell ? window.AppShell.open() : A.toast('The shell is still loading. Try again in a moment.', 4000);
     $('#aeeverywhere').onclick = findEverywhere;
     $('#aesave').onclick = save;
     $('#aecheck').onclick = checkNow;

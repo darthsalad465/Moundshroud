@@ -490,10 +490,11 @@
       const sel = (id, list, extra) => '<select id="' + id + '" style="width:100%;font-size:12px;padding:3px">' + extra + list.map(x => '<option value="' + x.id + '">' + esc(x.label) + '</option>').join('') + '</select>';
       return '<div style="margin-top:4px">' +
         row('Theme — who owns the disk', sel('tpgtheme', L.OPTIONS.themes, '<option value="">🎲 Random</option>')) +
+        row('How much of a life is on the disk', sel('tpgdepth', (L.OPTIONS.difficulty || []), '<option value="">🎲 Seeded</option>')) +
         row('Organisation (blank = invented)', '<input id="tpgorg" placeholder="e.g. Ministry of Water and Grid" style="width:100%;box-sizing:border-box;font-size:12px">') +
         '<div class="row" style="gap:6px;margin-top:6px"><div style="flex:1">' + row('Seed (same seed = same case)', '<input id="tpgseed" placeholder="random" style="width:100%;box-sizing:border-box;font-size:12px">') + '</div>' +
         '<div style="flex:1">' + row('Juicy documents (0–14)', '<input id="tpgsecrets" type="number" min="0" max="14" value="5" style="width:100%;box-sizing:border-box;font-size:12px">') + '</div></div>' +
-        '<div class="row" style="gap:6px"><div style="flex:1">' + row('Decoy files (0–12)', '<input id="tpgextra" type="number" min="0" max="12" value="4" style="width:100%;box-sizing:border-box;font-size:12px">') + '</div>' +
+        '<div class="row" style="gap:6px"><div style="flex:1">' + row('Decoy files (0–400)', '<input id="tpgextra" type="number" min="0" max="400" value="4" style="width:100%;box-sizing:border-box;font-size:12px">') + '</div>' +
         '<div style="flex:1">' + row('Clutter', sel('tpgnoise', L.OPTIONS.noise)) + '</div></div>' +
         row('Which secrets may appear', '<div id="tpgcats" class="small" style="max-height:132px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:5px;line-height:1.7">' +
           L.OPTIONS.secrets.map(s => '<label style="display:inline-flex;gap:3px;align-items:center;width:49%" title="juice ' + s.juice + '/3"><input type="checkbox" data-lcat="' + s.id + '"> ' + s.icon + ' ' + esc(s.label) + '</label>').join('') + '</div>') +
@@ -544,7 +545,7 @@
       if (shell.jobs?.().active) return 'Leave the practice job first (job leave), then load a scenario.';
       const target = discoveryTree();
       if (!target || !TP.scenarios.apply(target.tree, target.home, target.win, files)) return 'This shell has no disk to change.';
-      try { shell.run(S.shell === 'cmd' ? 'cd C:\\Users\\dev' : 'cd ~'); } catch (e) { }
+      try { shell.run(S.shell === 'cmd' ? 'cd C:\\Users\\moundshroud' : 'cd ~'); } catch (e) { }
       shell.saveWorkspace?.();
       const count = Object.values(files).filter(text => text != null).length;
       curLog().push({ k: 'dim', t: 'Scenario loaded: ' + label + ' · ' + count + ' file' + (count === 1 ? '' : 's') + '. Try ' + (S.shell === 'bash' ? 'ls -R' : 'dir') + ' to look around.' });
@@ -563,7 +564,7 @@
       let extra = v('tpgextra') === '' ? 4 : Number(v('tpgextra')) || 0;
       if (noise === 'lots') extra = Math.max(extra, 9);
       if (noise === 'none') extra = 0;
-      return { theme: v('tpgtheme'), org: v('tpgorg').trim(), seed: Number(v('tpgseed')) || 0, secrets: v('tpgsecrets') === '' ? 4 : Number(v('tpgsecrets')) || 0, extra, noise, mcode: !!($('tpgmcode') && $('tpgmcode').checked), categories: cats };
+      return { theme: v('tpgtheme'), org: v('tpgorg').trim(), seed: Number(v('tpgseed')) || 0, secrets: v('tpgsecrets') === '' ? 4 : Number(v('tpgsecrets')) || 0, extra, noise, difficulty: v('tpgdepth'), mcode: !!($('tpgmcode') && $('tpgmcode').checked), categories: cats };
     }
     function caseSummary(sc) {
       const s = (sc.lore && sc.lore.secrets) || [];
@@ -1115,7 +1116,7 @@
           if (id !== 'bash' && !win) return null;
           const shell = byId(id), snap = (shell?.workspace?.() || shell)?.snapshot?.();
           const tree = snap?.fs || snap?.tree;
-          return tree ? { tree, home: id === 'bash' ? ['home', 'dev'] : ['C:', 'Users', 'dev'], win } : null;
+          return tree ? { tree, home: id === 'bash' ? ['home', 'moundshroud'] : ['C:', 'Users', 'moundshroud'], win } : null;
         }
         const snap = S.mode === 'lab' ? labSession(id)?.room?.()?.snapshot?.() : puzSession(id)?.snapshot?.()?.workspace;
         return snap?.tree && typeof snap.tree === 'object' ? { tree: snap.tree, home: [], win } : null;

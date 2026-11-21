@@ -642,10 +642,10 @@
       syntax: 'urgent favour · keep this quiet · buy gift cards · do not call',
       steps: [
         phishStep({
-          from: 'Sarah Chen (CEO) <sarah.chen.exec42@gmail.com>', subj: 'Quick favour — confidential',
+          from: 'Sarah Chen (CEO, invented) <sarah.chen.exec42@mail.example>', subj: 'Quick favour — confidential',
           body: "I'm stuck in a board meeting and cannot take calls. Please purchase 4 Apple/Amazon gift cards ($100 each) for a client bonus and email me photos of the codes ASAP. Keep this quiet.",
           link: null, phish: 1,
-          hdr: { rp: 'exec.urgent@gmail.com', spf: 'PASS (personal gmail)', dkim: 'PASS (gmail.com)' },
+          hdr: { rp: 'exec.urgent@mail.example', spf: 'PASS (personal webmail)', dkim: 'PASS (mail.example)' },
           why: ['The CEO would not use a personal gmail.com address for company business', 'Gift card codes are untraceable cash', '"Do not call" and "keep this quiet" exist to stop you verifying']
         }),
         phishStep({

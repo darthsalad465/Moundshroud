@@ -47,10 +47,10 @@
     return [line(cols, true), line(cols.map(c => '-'.repeat(c.length)), true)]
       .concat(objs.map(o => line(cols.map(c => o[c] == null ? '' : o[c]), true))).join('\n');
   };
-  const winTree = () => ({
+  const winTreeBase = () => ({
     'C:': {
       Users: {
-        dev: {
+        moundshroud: {
           'notes.txt': 'meeting notes\n- patch window Thursday\n- rotate the service account\n',
           'profile.ps1': '# profile\nSet-Alias ll Get-ChildItem\n',
           Desktop: { 'todo.txt': 'ship the report\n', 'screenshot.png': '(png)' },
@@ -64,11 +64,13 @@
       Backup: {}
     }
   });
+  /* the deep lore layer, merged into the Windows profile so PowerShell and cmd get essays, app notes and secrets too */
+  const winTree = () => G.mergeLoreInto(winTreeBase(), ['C:', 'Users', 'moundshroud'], true, 0x77c0de);
 
   /* ================================================================ POWERSHELL */
   G.makePowershell = function () {
     let tree = winTree();
-    let cwd = ['C:', 'Users', 'dev'];
+    let cwd = ['C:', 'Users', 'moundshroud'];
     const hist = [];
     const seedProc = () => [
       { Id: 412, ProcessName: 'explorer', CPU: 1.2, WS: 88210432 },
@@ -87,8 +89,8 @@
     const resolve = p => {
       if (!p) return cwd.slice();
       let raw = String(p).trim().replace(/\//g, '\\');
-      if (raw === '~') return ['C:', 'Users', 'dev'];
-      if (raw.startsWith('~\\')) raw = 'C:\\Users\\dev\\' + raw.slice(2);
+      if (raw === '~') return ['C:', 'Users', 'moundshroud'];
+      if (raw.startsWith('~\\')) raw = 'C:\\Users\\moundshroud\\' + raw.slice(2);
       const isAbs = /^[A-Za-z]:/.test(raw) || raw.startsWith('\\');
       const parts = isAbs ? ['C:'] : cwd.slice();
       const rest = raw.replace(/^[A-Za-z]:\\?/, '').replace(/^\\+/, '');
@@ -162,7 +164,7 @@
       exit: 'exit-sandbox', quit: 'exit-sandbox'
     };
     const dirStack = [];
-    const psVars = { HOME: 'C:\\Users\\dev', PWD: 'C:\\Users\\dev', PSVersionTable: 'PSVersion 7.4.2 (Desktop/Core Sandbox)' };
+    const psVars = { HOME: 'C:\\Users\\moundshroud', PWD: 'C:\\Users\\moundshroud', PSVersionTable: 'PSVersion 7.4.2 (Desktop/Core Sandbox)' };
     let execPolicy = 'RemoteSigned';
     const psHash = s => {
       let h = 0x811c9dc5, out = '';
@@ -194,7 +196,7 @@
         const fi = a.findIndex(x => /^-filter$/i.test(x));
         const filter = fi >= 0 ? a[fi + 1] : null;
         const p = a.find((x, i) => !x.startsWith('-') && (fi < 0 || i !== fi + 1)) || showPath();
-        if (/^env:/i.test(p)) return Object.entries({ USERNAME: 'dev', COMPUTERNAME: 'DEV-BOX', OS: 'Windows_NT', HOMEPATH: '\\Users\\dev', Path: 'C:\\Windows\\System32' }).map(([Name, Value]) => ({ Name, Value }));
+        if (/^env:/i.test(p)) return Object.entries({ USERNAME: 'moundshroud', COMPUTERNAME: 'DEV-BOX', OS: 'Windows_NT', HOMEPATH: '\\Users\\moundshroud', Path: 'C:\\Windows\\System32' }).map(([Name, Value]) => ({ Name, Value }));
         const n = walk(resolve(p));
         if (n === undefined) return 'Get-ChildItem : Cannot find path \'' + p + '\'.';
         if (typeof n === 'string') return [fileRow(p.split('\\').pop(), n, p)];
@@ -336,9 +338,9 @@
       'get-eventlog': () => [{ Index: 4102, Time: 'Feb 12 06:14', EntryType: 'FailureAudit', Source: 'Security', Message: 'An account failed to log on (4625)' }, { Index: 4103, Time: 'Feb 12 06:18', EntryType: 'Information', Source: 'Service Control Manager', Message: 'WinDefend running' }],
       'get-winevent': () => commands['get-eventlog'](),
       'get-scheduledtask': () => [{ TaskPath: '\\', TaskName: 'NightlyBackup', State: 'Ready' }, { TaskPath: '\\Microsoft\\', TaskName: 'DefenderScan', State: 'Ready' }],
-      'get-localuser': () => [{ Name: 'Administrator', Enabled: false, Description: 'Built-in account' }, { Name: 'dev', Enabled: true, Description: 'Local developer account' }],
+      'get-localuser': () => [{ Name: 'Administrator', Enabled: false, Description: 'Built-in account' }, { Name: 'moundshroud', Enabled: true, Description: 'Local developer account' }],
       'get-localgroup': () => [{ Name: 'Administrators', Description: 'Full system access' }, { Name: 'Users', Description: 'Standard users' }],
-      'get-acl': (a) => [{ Path: a[0] || showPath(), Owner: 'DEV-BOX\\dev', Access: 'NT AUTHORITY\\SYSTEM Allow FullControl' }],
+      'get-acl': (a) => [{ Path: a[0] || showPath(), Owner: 'DEV-BOX\\moundshroud', Access: 'NT AUTHORITY\\SYSTEM Allow FullControl' }],
       'get-hotfix': () => [{ Source: 'DEV-BOX', Description: 'Security Update', HotFixID: 'KB5034765', InstalledOn: '2026-02-10' }],
       'get-ciminstance': (a) => [{ CSName: 'DEV-BOX', Caption: 'Microsoft Windows 11 Pro', Version: '10.0.22631', Class: a.find(x => !x.startsWith('-')) || 'Win32_OperatingSystem' }],
       'get-command': (a) => {
@@ -351,7 +353,7 @@
         const n = (a.find(x => !x.startsWith('-')) || 'Get-Help').toLowerCase();
         return ['NAME', '    ' + n, '', 'SYNOPSIS', '    Simulated help for ' + n + ' in the terminal playground.', '',
           'DESCRIPTION', '    This cmdlet is part of the sandbox. Nothing here touches the real machine.', '',
-          'EXAMPLES', '    PS C:\\Users\\dev> ' + n].join('\n');
+          'EXAMPLES', '    PS C:\\Users\\moundshroud> ' + n].join('\n');
       },
       'write-output': (a) => a.join(' '),
       'write-host': (a) => a.filter(x => !/^-foregroundcolor|-backgroundcolor/i.test(x)).join(' '),
@@ -389,7 +391,7 @@
       },
       'invoke-restmethod': () => [{ status: 'ok', service: 'api', version: '1.4.2' }],
       'get-computerinfo': () => ['WindowsProductName     : Windows 11 Pro', 'WindowsVersion         : 10.0.22631', 'CsName                 : DEV-BOX', 'CsNumberOfLogicalProcessors : 8', 'CsTotalPhysicalMemory  : 17179869184', 'OsArchitecture         : 64-bit'].join('\n'),
-      'whoami': () => 'dev-box\\dev',
+      'whoami': () => 'dev-box\\moundshroud',
       'hostname': () => 'DEV-BOX',
       'ipconfig': () => commands['get-netipconfiguration'](),
       'netstat': () => commands['get-nettcpconnection'](),
@@ -397,7 +399,7 @@
       'tracert': (a) => 'Tracing route to ' + (a[0] || '10.0.0.5') + '\n  1   <1 ms   10.0.0.9\n  2    1 ms   ' + (a[0] || '10.0.0.5'),
       'clear-host': () => '',
       'exit-sandbox': () => '(sandbox stays open — use Reset to restore)',
-      'reset': () => { tree = winTree(); cwd = ['C:', 'Users', 'dev']; proc = seedProc(); services = seedServices(); return 'PowerShell sandbox reset'; },
+      'reset': () => { tree = winTree(); cwd = ['C:', 'Users', 'moundshroud']; proc = seedProc(); services = seedServices(); return 'PowerShell sandbox reset'; },
       'help': (a) => G.formatHelp('powershell', a)
     };
 
@@ -523,7 +525,7 @@
       about: 'A PowerShell prompt on a simulated Windows box. Objects flow through the pipeline, so Select-Object, Sort-Object and Measure-Object do real work on real result sets.',
       prompt: () => 'PS ' + showPath() + '> ',
       cwdPath: showPath,
-      rootPath: 'C:/Users/dev',
+      rootPath: 'C:/Users/moundshroud',
       run,
       snapshot: () => ({ tree, cwd, proc, services, aliases, psVars, dirStack, execPolicy, hist: hist.slice(-250) }),
       restore: saved => {
@@ -541,8 +543,8 @@
         ['Set-Location Scripts', 'change directory'],
         ['Get-Content notes.txt', 'read a file'],
         ['Get-Content runbook.txt | Measure-Object', 'count the lines of a file'],
-        ['Set-Content C:\\Users\\dev\\todo.txt "patch Thursday"', 'write a file'],
-        ['New-Item -ItemType Directory C:\\Users\\dev\\lab', 'create a directory'],
+        ['Set-Content C:\\Users\\moundshroud\\todo.txt "patch Thursday"', 'write a file'],
+        ['New-Item -ItemType Directory C:\\Users\\moundshroud\\lab', 'create a directory'],
         ['Test-Path notes.txt', 'check whether a path exists'],
         ['Copy-Item notes.txt notes.bak', 'copy a file'],
         ['Move-Item notes.bak archive.txt', 'move or rename a file'],
@@ -567,7 +569,7 @@
   /* ================================================================ CMD */
   G.makeCmd = function () {
     let tree = winTree();
-    let cwd = ['C:', 'Users', 'dev'];
+    let cwd = ['C:', 'Users', 'moundshroud'];
     const resolve = p => {
       if (!p) return cwd.slice();
       let raw = String(p).trim().replace(/\//g, '\\');
@@ -642,7 +644,7 @@
     C.type = a => { const t = read(a[0] || ''); return t == null ? 'The system cannot find the file specified.' : t; };
     C.echo = a => a.join(' ');
     C.set = a => {
-      if (!a.length) return ['ALLUSERSPROFILE=C:\\ProgramData', 'COMPUTERNAME=DEV-BOX', 'HOMEPATH=\\Users\\dev', 'OS=Windows_NT', 'PROCESSOR_ARCHITECTURE=AMD64', 'USERNAME=dev'].join('\n');
+      if (!a.length) return ['ALLUSERSPROFILE=C:\\ProgramData', 'COMPUTERNAME=DEV-BOX', 'HOMEPATH=\\Users\\moundshroud', 'OS=Windows_NT', 'PROCESSOR_ARCHITECTURE=AMD64', 'USERNAME=moundshroud'].join('\n');
       return '';
     };
     C.mkdir = a => { const parts = resolve(a[0] || ''); if (!parts.length) return 'The syntax of the command is incorrect.'; let n = tree; for (let i = 0; i < parts.length - 1; i++) { if (!n[parts[i]]) n[parts[i]] = {}; n = n[parts[i]]; } n[parts[parts.length - 1]] = {}; return ''; };
@@ -657,7 +659,7 @@
     C.erase = C.del;
     C.xcopy = C.copy;
     C.robocopy = a => 'ROBOCOPY     :: Robust File Copy for Windows (sandbox)\n  Copied ' + (a[0] || '.') + ' -> ' + (a[1] || 'dest');
-    const cmdEnv = { ALLUSERSPROFILE: 'C:\\ProgramData', COMPUTERNAME: 'DEV-BOX', HOMEPATH: '\\Users\\dev', OS: 'Windows_NT', PATH: 'C:\\Windows\\System32;C:\\Windows', PROCESSOR_ARCHITECTURE: 'AMD64', USERNAME: 'dev' };
+    const cmdEnv = { ALLUSERSPROFILE: 'C:\\ProgramData', COMPUTERNAME: 'DEV-BOX', HOMEPATH: '\\Users\\moundshroud', OS: 'Windows_NT', PATH: 'C:\\Windows\\System32;C:\\Windows', PROCESSOR_ARCHITECTURE: 'AMD64', USERNAME: 'moundshroud' };
     const cmdStack = [];
     const cmdWrite = (p, text, append) => {
       const parts = resolve(p);
@@ -729,7 +731,7 @@
     };
     C.systeminfo = () => ['Host Name:                 DEV-BOX', 'OS Name:                   Microsoft Windows 11 Pro', 'OS Version:                10.0.22631 N/A Build 22631',
       'System Manufacturer:       QEMU', 'Processor(s):              1 processor(s) installed', 'Total Physical Memory:     16,384 MB', 'Available Physical Memory: 9,840 MB'].join('\n');
-    C.whoami = () => 'dev-box\\dev';
+    C.whoami = () => 'dev-box\\moundshroud';
     C.where = a => a.map(x => 'C:\\Windows\\System32\\' + x + '.exe').join('\n');
     C.sort = (a, stdin) => {
       const rev = a.some(x => /^\/r$/i.test(x));
@@ -763,7 +765,7 @@
     C.assoc = () => '.txt=txtfile\n.ps1=Microsoft.PowerShellScript.1\n.bat=batfile\n.exe=exefile';
     C.ftype = () => 'txtfile=%SystemRoot%\\system32\\NOTEPAD.EXE %1\nbatfile="%1" %*';
     C.mklink = a => 'symbolic link created for ' + (a[0] || 'link') + ' <<===>> ' + (a[1] || 'target');
-    C.subst = () => 'Z:\\: => C:\\Users\\dev';
+    C.subst = () => 'Z:\\: => C:\\Users\\moundshroud';
     C.fsutil = () => 'NTFS Volume Serial Number : 0x7c2a91f4\nTotal # of bytes          : 42,949,672,960';
     C.chkdsk = () => 'The type of the file system is NTFS.\nWindows has scanned the file system and found no problems.';
     C.diskpart = () => 'Microsoft DiskPart version 10.0.22631 (sandbox — read-only)\n  Disk 0    Online    40 GB';
@@ -788,17 +790,17 @@
     C.reg = a => 'HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\n    ProductName    REG_SZ    Windows 11 Pro\n    CurrentBuild   REG_SZ    22631';
     C.net = a => {
       const sub = (a[0] || '').toLowerCase();
-      if (sub === 'user') return 'User accounts for \\\\DEV-BOX\n-------------------------------------------------------------------------------\nAdministrator            dev                      Guest\nThe command completed successfully.';
+      if (sub === 'user') return 'User accounts for \\\\DEV-BOX\n-------------------------------------------------------------------------------\nAdministrator            moundshroud                      Guest\nThe command completed successfully.';
       if (sub === 'localgroup') return 'Aliases for \\\\DEV-BOX\n-------------------------------------------------------------------------------\n*Administrators\n*Remote Desktop Users\n*Users';
       if (sub === 'start') return 'These Windows services are started:\n   DHCP Client\n   DNS Client\n   Microsoft Defender Antivirus Service';
       if (sub === 'share') return 'Share name   Resource                        Remark\nC$           C:\\                             Default share\nIPC$                                         Remote IPC';
       return 'The syntax of this command is: NET [ USER | LOCALGROUP | START | STOP | SHARE | VIEW ]';
     };
     C.netsh = a => 'netsh (' + (a.join(' ') || 'interface ip show config') + '): Ethernet0 IP 10.0.0.5/24 Gateway 10.0.0.9';
-    C.gpresult = () => 'RSOP data for DEV-BOX\\dev on DEV-BOX : Logging Mode\n  Applied Group Policy Objects: Local Group Policy';
-    C.icacls = a => (a[0] || 'notes.txt') + ' DEV-BOX\\dev:(F)\n          NT AUTHORITY\\SYSTEM:(F)\nSuccessfully processed 1 files.';
+    C.gpresult = () => 'RSOP data for DEV-BOX\\moundshroud on DEV-BOX : Logging Mode\n  Applied Group Policy Objects: Local Group Policy';
+    C.icacls = a => (a[0] || 'notes.txt') + ' DEV-BOX\\moundshroud:(F)\n          NT AUTHORITY\\SYSTEM:(F)\nSuccessfully processed 1 files.';
     C.cacls = C.icacls;
-    C.takeown = a => 'SUCCESS: The file (or folder): "' + (a[a.length - 1] || 'notes.txt') + '" now owned by user "DEV-BOX\\dev".';
+    C.takeown = a => 'SUCCESS: The file (or folder): "' + (a[a.length - 1] || 'notes.txt') + '" now owned by user "DEV-BOX\\moundshroud".';
     C.cipher = () => ' Listing ' + showPath() + '\\\nU notes.txt\nU profile.ps1';
     C.driverquery = () => 'Module Name  Display Name           Driver Type   Link Date\n============ ====================== ============= ==========\nntfs         NTFS                   File System   2026-01-14\ntcpip        TCP/IP Protocol Driver Kernel        2026-01-14';
     C.powercfg = () => 'Existing Power Schemes (* Active)\nGUID: 381b4222-f694-41f0-9685-ff5bb260df2e  (Balanced) *';
@@ -816,14 +818,14 @@
     C.telnet = a => 'Connecting To ' + (a[0] || '10.0.0.5') + '... (simulated)';
     C.ftp = a => 'Connected to ' + (a[0] || '10.0.0.5') + '. (simulated)';
     C.curl = a => '{"status":"ok","service":"api","url":"' + (a.find(x => !x.startsWith('-')) || 'https://api.internal/health') + '"}';
-    C.ssh = a => 'Connected to ' + (a[0] || 'dev@10.0.0.5') + ' (simulated SSH).';
+    C.ssh = a => 'Connected to ' + (a[0] || 'moundshroud@10.0.0.5') + ' (simulated SSH).';
     C.winget = a => 'Windows Package Manager v1.7 (sandbox) — ' + (a.join(' ') || 'list');
     C.cmd = () => C.ver();
     C.exit = () => '(sandbox stays open — use reset to restore)';
     C.clear = () => '';
     C.cls = () => '';
     C.help = a => G.formatHelp('cmd', a);
-    C.reset = () => { tree = winTree(); cwd = ['C:', 'Users', 'dev']; return 'cmd sandbox reset'; };
+    C.reset = () => { tree = winTree(); cwd = ['C:', 'Users', 'moundshroud']; return 'cmd sandbox reset'; };
 
     function run(line) {
       const raw = String(line == null ? '' : line).trim();
@@ -853,7 +855,7 @@
       about: 'The old Windows command prompt on a simulated disk: dir, type, findstr, tasklist, netstat and the rest of the batch-era toolbox.',
       prompt: () => showPath() + '>',
       cwdPath: showPath,
-      rootPath: 'C:/Users/dev',
+      rootPath: 'C:/Users/moundshroud',
       run,
       snapshot: () => ({ tree, cwd, cmdEnv, cmdStack }),
       restore: saved => {
@@ -871,8 +873,8 @@
         ['move notes.bak archive.txt', 'move or rename'],
         ['ren archive.txt hero.txt', 'rename a file'],
         ['del hero.txt', 'delete a file'],
-        ['mkdir C:\\Users\\dev\\lab', 'create a directory'],
-        ['rmdir C:\\Users\\dev\\lab', 'remove a directory'],
+        ['mkdir C:\\Users\\moundshroud\\lab', 'create a directory'],
+        ['rmdir C:\\Users\\moundshroud\\lab', 'remove a directory'],
         ['tree', 'draw the directory tree'],
         ['find "patch" notes.txt', 'search inside a file'],
         ['findstr ship todo.txt', 'regex search a file'],
@@ -922,7 +924,7 @@
     const MODS = {
       math: { pi: Math.PI, e: Math.E, tau: Math.PI * 2, inf: Infinity, nan: NaN, sqrt: Math.sqrt, floor: Math.floor, ceil: Math.ceil, pow: Math.pow, log: Math.log, log2: Math.log2, log10: Math.log10, exp: Math.exp, sin: Math.sin, cos: Math.cos, tan: Math.tan, fabs: Math.abs, factorial: n => { let r = 1; for (let i = 2; i <= n; i++) r *= i; return r; }, gcd: (a, b) => { a = Math.abs(a); b = Math.abs(b); while (b) [a, b] = [b, a % b]; return a; } },
       json: { dumps: (x, indent) => JSON.stringify(x, null, indent), loads: s => JSON.parse(s) },
-      os: { name: 'posix', getcwd: () => '/home/dev', listdir: () => ['README.md', 'notes.txt', 'projects'], environ: { USER: 'dev', HOME: '/home/dev', SHELL: '/bin/bash' }, path: { join: (...a) => a.join('/'), basename: p => String(p).split('/').pop(), dirname: p => String(p).split('/').slice(0, -1).join('/') || '/', exists: () => true } },
+      os: { name: 'posix', getcwd: () => '/home/moundshroud', listdir: () => ['README.md', 'notes.txt', 'projects'], environ: { USER: 'moundshroud', HOME: '/home/moundshroud', SHELL: '/bin/bash' }, path: { join: (...a) => a.join('/'), basename: p => String(p).split('/').pop(), dirname: p => String(p).split('/').slice(0, -1).join('/') || '/', exists: () => true } },
       sys: { version: '3.12.2 (sandbox)', platform: 'linux', argv: ['python3'], maxsize: 9007199254740991 },
       re: { search: (p, s) => { const m = new RegExp(p).exec(s); return m ? m[0] : null; }, findall: (p, s) => String(s).match(new RegExp(p, 'g')) || [], sub: (p, r, s) => String(s).replace(new RegExp(p, 'g'), r), split: (p, s) => String(s).split(new RegExp(p)) },
       random: { random: () => Math.random(), randint: (a, b) => Math.floor(Math.random() * (b - a + 1)) + a, choice: a => a[Math.floor(Math.random() * a.length)], shuffle: a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; } },
@@ -1212,10 +1214,10 @@
       while (out.length < len) { h = (Math.imul(h ^ (h >>> 15), 0x2c1b3c6d) + 0x297a2d39) >>> 0; out += h.toString(16).padStart(8, '0'); }
       return out.slice(0, len);
     };
-    const procObj = { platform: 'win32', arch: 'x64', pid: 4210, version: 'v20.11.0', versions: { node: '20.11.0', v8: '11.3.244' }, argv: ['node'], env: { USERNAME: 'dev', COMPUTERNAME: 'DEV-BOX', NODE_ENV: 'development' }, cwd: () => 'C:\\Users\\dev', hrtime: () => [0, 12000], memoryUsage: () => ({ rss: 42106880, heapUsed: 12451840 }), exit: code => '(sandbox process.exit(' + (code || 0) + ') intercepted — host unaffected)' };
+    const procObj = { platform: 'win32', arch: 'x64', pid: 4210, version: 'v20.11.0', versions: { node: '20.11.0', v8: '11.3.244' }, argv: ['node'], env: { USERNAME: 'moundshroud', COMPUTERNAME: 'DEV-BOX', NODE_ENV: 'development' }, cwd: () => 'C:\\Users\\moundshroud', hrtime: () => [0, 12000], memoryUsage: () => ({ rss: 42106880, heapUsed: 12451840 }), exit: code => '(sandbox process.exit(' + (code || 0) + ') intercepted — host unaffected)' };
     const req = m => {
       const k = String(m || '').replace(/^node:/, '');
-      if (k === 'os') return { platform: () => 'win32', arch: () => 'x64', cpus: () => [{ model: 'Virtual CPU' }, { model: 'Virtual CPU' }], hostname: () => 'dev-box', homedir: () => 'C:\\Users\\dev', tmpdir: () => 'C:\\Temp', totalmem: () => 17179869184, freemem: () => 9840000000, EOL: '\r\n' };
+      if (k === 'os') return { platform: () => 'win32', arch: () => 'x64', cpus: () => [{ model: 'Virtual CPU' }, { model: 'Virtual CPU' }], hostname: () => 'dev-box', homedir: () => 'C:\\Users\\moundshroud', tmpdir: () => 'C:\\Temp', totalmem: () => 17179869184, freemem: () => 9840000000, EOL: '\r\n' };
       if (k === 'path') return { join: (...a) => a.join('/').replace(/\/+/g, '/'), resolve: (...a) => '/' + a.join('/').replace(/^\/+/, ''), basename: p => String(p).split(/[\\/]/).pop(), dirname: p => String(p).split(/[\\/]/).slice(0, -1).join('/') || '.', extname: p => { const b = String(p).split(/[\\/]/).pop(); const i = b.lastIndexOf('.'); return i > 0 ? b.slice(i) : ''; }, sep: '/' };
       if (k === 'crypto') return {
         randomUUID: () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16); }),
@@ -1269,7 +1271,7 @@
       const safeExpr = String(expr).replace(/\b(while\s*\([^)]*\)|for\s*\([^)]*\))\s*\{/g, '$1 { if (++__steps > 50000) throw new Error("Sandbox execution limit exceeded (infinite loop blocked)"); ');
       const body = '"use strict"; let __steps = 0; ' + (isStmt ? safeExpr : 'return (' + safeExpr + '\n);');
       const fn = new Function(...bKeys, ...names, 'console', 'JSON', 'Math', 'Date', 'Buffer', 'require', 'process', 'setTimeout', '__dirname', '__filename', body);
-      return fn(...bKeys.map(k => blocked[k]), ...names.map(n => vars[n]), fakeConsole, JSON, Math, Date, FakeBuffer, req, procObj, fn2 => (typeof fn2 === 'function' ? fn2() : undefined), 'C:\\Users\\dev', 'C:\\Users\\dev\\repl.js');
+      return fn(...bKeys.map(k => blocked[k]), ...names.map(n => vars[n]), fakeConsole, JSON, Math, Date, FakeBuffer, req, procObj, fn2 => (typeof fn2 === 'function' ? fn2() : undefined), 'C:\\Users\\moundshroud', 'C:\\Users\\moundshroud\\repl.js');
     };
 
     function run(line) {

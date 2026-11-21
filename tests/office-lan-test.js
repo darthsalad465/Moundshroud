@@ -33,7 +33,7 @@ module.exports = async function (ok) {
   ok('lan: the right password logs in to the kiosk', /Welcome to Ubuntu/.test(welcome) && /^guest@kiosk-3:~\$ $/.test(sh.prompt()) && !sh.secret());
   ok('lan: commands run on the kiosk\'s own disk', say('whoami') === 'guest' && say('hostname') === 'kiosk-3' && /Spring2026!/.test(say('cat Desktop/it-ticket.txt')));
   ok('lan: the login is written to the kiosk\'s auth.log', /Accepted password for guest/.test(say('tail -1 /var/log/auth.log')));
-  ok('lan: exit comes back to dev-box', /Connection to kiosk-3 closed/.test(say('exit')) && /^dev@dev-box:~\$ $/.test(sh.prompt()) && say('whoami') === 'dev');
+  ok('lan: exit comes back to dev-box', /Connection to kiosk-3 closed/.test(say('exit')) && /^moundshroud@dev-box:~\$ $/.test(sh.prompt()) && say('whoami') === 'moundshroud');
 
   say('echo "left by dev" > gift.txt');
   say('scp gift.txt maria@ws-maria:Desktop/');
@@ -51,7 +51,7 @@ module.exports = async function (ok) {
   const again = ctx.TerminalPlayground.makeBash();
   again.restore(saved);
   ok('lan: the office PCs keep their files after a save and reload', (again.run('ssh maria@ws-maria'), again.run('Spring2026!'), String(again.run('cat Desktop/gift.txt')) === 'left by dev'));
-  ok('lan: a file dragged in from this PC lands in the current folder', sh.importFile('from-pc.txt', 'hello from my PC') === '/home/dev/from-pc.txt' && say('cat from-pc.txt') === 'hello from my PC');
+  ok('lan: a file dragged in from this PC lands in the current folder', sh.importFile('from-pc.txt', 'hello from my PC') === '/home/moundshroud/from-pc.txt' && say('cat from-pc.txt') === 'hello from my PC');
   say('reset');
   ok('lan: reset gives every PC its first disk back', (say('scp maria@ws-maria:Desktop/gift.txt /tmp/'), /No such file/.test(say('Spring2026!'))));
 };
