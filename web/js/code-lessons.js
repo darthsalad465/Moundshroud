@@ -21,6 +21,10 @@
     '.cl-lang{cursor:pointer;margin:0}.cl-lang:hover{border-color:var(--acc)}.cl-bar{height:7px;border-radius:5px;background:var(--line);overflow:hidden;margin:8px 0 2px}.cl-bar>div{height:100%;background:var(--acc)}' +
     '.cl-ed{width:100%;box-sizing:border-box;min-height:180px;font:13px/1.5 Consolas,"Cascadia Mono",monospace;tab-size:4;white-space:pre;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--fg,inherit);resize:vertical}' +
     '.cl-pre{font:13px/1.5 Consolas,"Cascadia Mono",monospace;white-space:pre-wrap;word-break:break-word;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px;margin:8px 0;overflow-x:auto}' +
+    '.cl-figs{display:grid;gap:10px;margin:8px 0}' +
+    '.cl-fig{margin:0;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px;text-align:center}' +
+    '.cl-fig img{max-width:100%;height:auto;border-radius:6px;background:#fff;cursor:zoom-in}' +
+    '.cl-fig figcaption{margin-top:4px}' +
     '.cl-pre .ln{display:inline-block;width:2.2em;color:var(--mute);user-select:none}.cl-pre .bug{background:color-mix(in srgb,var(--bad,#c33) 22%,transparent)}.cl-pre input{font:inherit;width:7em;padding:1px 4px;border-radius:4px;border:1px solid var(--acc);background:var(--bg);color:inherit}' +
     '.cl-row{cursor:pointer;display:flex;gap:10px;align-items:center;padding:9px 10px;border-radius:8px;border-bottom:1px solid var(--line)}.cl-row:hover{background:var(--panel2)}.cl-fb{margin-top:10px;padding:10px;border-radius:8px}.cl-ok{background:color-mix(in srgb,var(--ok,#3a3) 18%,transparent)}.cl-no{background:color-mix(in srgb,var(--bad,#c33) 16%,transparent)}' +
     '.cl-prev{width:100%;height:220px;border:1px solid var(--line);border-radius:8px;background:#fff}.cl-opt{display:block;width:100%;text-align:left;margin:6px 0;padding:10px 12px}' +
@@ -112,7 +116,7 @@
   function blanksHtml(code) { let n = 0; return '<div class="cl-pre">' + String(code).split('___').map(esc).reduce((a, part, i) => a + (i ? '<input data-blank="' + (n++) + '" spellcheck="false" autocomplete="off" aria-label="blank ' + n + '">' : '') + part, '') + '</div>'; }
   function exBody(l, help) {
     const ex = l.ex, hs = help ? '<button class="ib" data-cl="hint">💡 Hint</button><button class="ib" data-cl="show">Show the answer</button>' : '';
-    if (ex.k === 'run') return '<textarea class="cl-ed" id="clcode" data-lang="' + ceLang(l.lang) + '" spellcheck="false">' + esc(ex.code) + '</textarea>' + keysTip('runs and checks') + '<div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap"><button class="pri" data-cl="run">▶ Run and check</button><button class="ib" data-cl="reset">Start over</button>' + hs + (l.lang === 'python' ? '<span class="small mute">Python takes a few seconds to start the first time.</span>' : '') + '</div><div class="small mute" style="margin-top:8px">Output</div><pre class="cl-pre" id="clout" style="min-height:2.5em"></pre>';
+    if (ex.k === 'run') return '<textarea class="cl-ed" id="clcode" data-lang="' + ceLang(l.lang) + '" spellcheck="false">' + esc(ex.code) + '</textarea>' + keysTip('runs and checks') + '<div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap"><button class="pri" data-cl="run">▶ Run and check</button><button class="ib" data-cl="reset">Start over</button>' + hs + (l.lang === 'python' ? '<span class="small mute">Python takes a few seconds to start the first time.</span>' : '') + '</div><div class="small mute" style="margin-top:8px">Output</div><pre class="cl-pre" id="clout" style="min-height:2.5em"></pre><div class="cl-figs" id="clfig"></div>';
     if (ex.k === 'html') return '<textarea class="cl-ed" id="clcode" data-lang="html" spellcheck="false">' + esc(ex.code) + '</textarea>' + keysTip('checks') + '<div class="small mute" style="margin:8px 0 4px">Live preview</div><iframe class="cl-prev" id="clprev" sandbox="" title="Preview"></iframe><div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap"><button class="pri" data-cl="check">✓ Check</button><button class="ib" data-cl="reset">Start over</button>' + hs + '</div>';
     if (ex.k === 'predict') return '<b>' + esc(ex.q || 'What does this print?') + '</b>' + codeWithLines(ex.code) + '<div class="row" style="gap:8px;flex-wrap:wrap"><textarea id="clans" class="cl-ans" rows="1" spellcheck="false" autocomplete="off" placeholder="Type the output (Enter makes a new line)"></textarea><button class="pri" data-cl="check">✓ Check</button>' + hs + '</div><div class="small mute cl-keys"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> checks · <kbd>Enter</kbd> new line</div>';
     if (ex.k === 'fix') return '<b>Line ' + ex.line + ' has a bug. Type the corrected line.</b>' + codeWithLines(ex.code, ex.line) + '<div class="row" style="gap:8px;flex-wrap:wrap"><textarea id="clans" class="cl-ans" rows="1" spellcheck="false" autocomplete="off">' + esc(ex.code.split('\n')[ex.line - 1].trim()) + '</textarea><button class="pri" data-cl="check">✓ Check</button>' + hs + '</div>' + keysTip('checks');
@@ -217,6 +221,24 @@
   }
   /* Python and JavaScript questions are proved by running them in the sandbox: "what does it print" takes the real output as the answer,
      a quiz with code must have the real output as its right option, and a filled-in blank must run without an error. Anything else is dropped. */
+  /* Pictures a program made (pygame frames, turtle drawings, matplotlib charts) are part of its output, so every run
+     shows them under the text. Click one to see it full size. */
+  function showFigures(host, figs) {
+    if (!host) return;
+    const list = (figs || []).filter(Boolean);
+    host.innerHTML = list.length ? list.map((b64, i) => '<figure class="cl-fig"><img src="data:image/png;base64,' + b64 + '" alt="Picture ' + (i + 1) + ' drawn by the program" loading="lazy"><figcaption class="small mute">Picture ' + (i + 1) + (list.length > 1 ? ' of ' + list.length : '') + ' · click to enlarge</figcaption></figure>').join('') : '';
+    host.querySelectorAll('img').forEach(img => { img.onclick = () => enlargFigure(img.src); });
+  }
+  function enlargFigure(src) {
+    const old = document.getElementById('clbig'); if (old) old.remove();
+    const box = document.createElement('div');
+    box.id = 'clbig';
+    box.style.cssText = 'position:fixed;inset:0;background:rgba(4,7,12,.86);display:flex;align-items:center;justify-content:center;z-index:9999;cursor:zoom-out;padding:24px';
+    box.innerHTML = '<img src="' + src + '" style="max-width:100%;max-height:100%;border-radius:10px;background:#fff" alt="Program output">';
+    box.onclick = () => box.remove();
+    document.addEventListener('keydown', function esc(e) { if (e.key === 'Escape') { box.remove(); document.removeEventListener('keydown', esc); } });
+    document.body.appendChild(box);
+  }
   async function verify(lg, item) {
     if (!item || !A.interp || !(lg === 'python' || lg === 'javascript')) return item; const ex = item.ex;
     const runIt = async code => { try { const r = await A.interp.run(RUNS[lg], code); return r && r.ok ? C.normOut(r.stdout || '') : null; } catch (e) { return null; } };
@@ -391,7 +413,7 @@
       '<textarea class="cl-ed" id="clcode" aria-label="Code" data-lang="' + ceLang(plang) + '" spellcheck="false" maxlength="50000" style="min-height:240px" placeholder="Enter ' + esc(x.n) + '">' + esc(typeof code === 'string' ? code : blank) + '</textarea>' + keysTip(html ? 'refreshes the preview' : 'runs') +
       (html ? '' : '<details class="small" id="plinw"' + (inp ? ' open' : '') + ' style="margin-top:6px"><summary class="mute" style="cursor:pointer">Input for the program (what it reads, like typing into a terminal)</summary><textarea class="cl-ans cl-pin" id="plin" aria-label="Program input" spellcheck="false" maxlength="20000" rows="3" style="display:block;width:100%;margin-top:6px" placeholder="Lines the program can read">' + esc(inp) + '</textarea></details>') +
       '<div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap"><button class="pri" data-cl="prun"' + (w.g === 'none' ? ' disabled title="' + esc(x.n) + ' cannot run here"' : '') + '>' + (html ? '↻ Refresh preview' : ch ? '▶ Run and check' : '▶ Run') + '</button><button class="ib" data-cl="pkill" hidden>■ Stop program</button><button class="ib" data-cl="pexp">🧠 Explain</button><button class="ib" data-cl="pstop" hidden>■ Stop explanation</button><button class="ib" data-cl="pex">↺ Example</button><button class="ib" data-cl="pclear">Clear</button></div>' +
-      (html ? '<div class="small mute" style="margin:8px 0 4px">Live preview</div><iframe class="cl-prev" id="clprev" sandbox="" title="Preview"></iframe>' : '<div class="small mute" style="margin-top:8px">Output</div><pre class="cl-pre" id="clout" role="status" style="min-height:2.5em"></pre>') +
+      (html ? '<div class="small mute" style="margin:8px 0 4px">Live preview</div><iframe class="cl-prev" id="clprev" sandbox="" title="Preview"></iframe>' : '<div class="small mute" style="margin-top:8px">Output</div><pre class="cl-pre" id="clout" role="status" style="min-height:2.5em"></pre><div class="cl-figs" id="clfig"></div>') +
       (PL.DOCKER.includes(plang) && w.g !== 'pc' ? '<details class="small mute" id="plruntime"><summary>Docker runtime setup</summary>Install Docker and start it in Linux container mode. From the app folder containing <code>lib</code>, run <code>docker build --platform=linux/amd64 -t moundshroud-code-playground:1 lib/code-playground</code>. After setup, runs work offline.</details>' : '') +
       '<div id="plai" class="cl-ai"></div>' +
       (A.cyberPad ? '<div style="display:grid;gap:8px;margin-top:12px">' +
@@ -466,7 +488,8 @@
     const failure = /^[A-Za-z]*Error:/.test(error) || /^ICL\d/.test(error) ? error : 'Error: ' + error;
     const text = [r.stdout, r.stderr, r.value !== undefined && r.value !== '' ? '→ ' + r.value : '', r.ok ? '' : failure]
       .filter(Boolean).map(part => String(part).replace(/\r?\n$/, '')).join('\n');
-    out.textContent = text || 'Finished with no output.';
+    out.textContent = text || (r.figures && r.figures.length ? 'The program drew ' + r.figures.length + ' picture' + (r.figures.length > 1 ? 's' : '') + ' — shown below.' : 'Finished with no output.');
+    showFigures(H.querySelector('#clfig'), r.figures);
     plast = { lang: lg, code, text: out.textContent };
     if (pmode !== 'sandbox') judge(r, lg);
     if (r.ok) markPlayed();
@@ -551,7 +574,8 @@
     let r; try { r = await A.interp.run(l.lang === 'python' ? 'python' : 'js', ed.value); } catch (e) { r = { ok: false, error: String(e.message || e), stdout: '' }; }
     btn.disabled = false; if (!H.querySelector('#clout') || curL !== l) return;
     const text = (r.stdout || '') + (r.ok ? '' : (r.stdout ? '\n' : '') + 'Error: ' + (r.error || 'it did not run'));
-    out.textContent = text || '(nothing was printed)';
+    out.textContent = text || ((r.figures && r.figures.length) ? 'The program drew a picture — shown below.' : '(nothing was printed)');
+    showFigures(H.querySelector('#clfig'), r.figures);
     if (!r.ok) return view === 'lesson' ? feedback(false, 'The code stopped with an error. Read the last line of the error, fix it and run again.') : (H.querySelector('#clfb').innerHTML = '<span class="small mute">It stopped with an error. Fix it and run again.</span>');
     const c = C.check(l, { code: ed.value, out: r.stdout || '' });
     if (!c.ok && view !== 'lesson') { H.querySelector('#clfb').innerHTML = '<span class="small mute">' + (!c.outOk ? 'The output is not right yet.' : 'Use what the lesson teaches.') + ' Fix it and run again.</span>'; return; }
