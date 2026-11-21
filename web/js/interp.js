@@ -13,7 +13,39 @@
   /* The sandbox ships a few pure-Python packages in web/vendor/python-libs (chess, …). They are written into every
      Python run before the code starts, so a library that works in one sandbox works in all of them: the terminal's
      python3, mcode's CODE blocks, the chat's Run button and the code lessons all share this list. */
-  const BUNDLED = [{ name: 'chess.zip', path: 'python-libs/chess.zip' }];
+  const BUNDLED = [{ name: 'chess.zip', path: 'python-libs/chess.zip' }, { name: 'sandbox-shims.zip', path: 'python-libs/sandbox-shims.zip' }];
+  /* Pictures drawn without a screen: the pygame and turtle shims keep their frames in sandbox_figures, matplotlib keeps
+     its figures, and this collects them all once the program has finished so nothing visual is ever invisible. */
+  const CAPTURE = 'import io, base64\n' +
+    '_o = []\n' +
+    'try:\n' +
+    '    import sys\n' +
+    '    _t = sys.modules.get("turtle")\n' +
+    '    if _t is not None:\n' +
+    '        _t._flush()\n' +
+    'except Exception:\n' +
+    '    pass\n' +
+    'try:\n' +
+    '    import sandbox_figures as _sf\n' +
+    '    _o.extend(_sf.FIGURES)\n' +
+    'except Exception:\n' +
+    '    pass\n' +
+    'try:\n' +
+    '    import matplotlib.pyplot as _plt\n' +
+    '    for _n in _plt.get_fignums():\n' +
+    '        _b = io.BytesIO()\n' +
+    '        _plt.figure(_n).savefig(_b, format="png", dpi=110, bbox_inches="tight")\n' +
+    '        _o.append(base64.b64encode(_b.getvalue()).decode())\n' +
+    '    _plt.close("all")\n' +
+    'except Exception:\n' +
+    '    pass\n' +
+    '_o[-8:]';
+  /* Each run starts with an empty picture list, so only what this program drew is shown. */
+  const CLEAR_FIGS = 'try:\n' +
+    '    import sandbox_figures as _sf\n' +
+    '    _sf.clear()\n' +
+    'except Exception:\n' +
+    '    pass';
   let bundledLibs = null;
   function loadBundled() {
     if (!bundledLibs) {
@@ -42,12 +74,13 @@
       'try{await P.runPython(argv?"import os, sys; os.makedirs(\'/data\', exist_ok=True); os.chdir(\'/data\'); sys.argv = "+JSON.stringify(argv):"import os; os.makedirs(\'/data\', exist_ok=True); os.chdir(\'/data\')");}catch(x){}' +
       '(files||[]).forEach(f=>{try{P.FS.writeFile("/data/"+f.name.replace(/[\\\\/:*?"<>|]/g,"_"),f.text);}catch(x){}});' +
       'for(let a=0;a<2;a++){try{await P.loadPackagesFromImports(code,{messageCallback:()=>{},errorCallback:()=>{}});break;}catch(x){if(a)throw x;}}' +
-      'if(/matplotlib/.test(code)){await P.runPythonAsync("import matplotlib\\nmatplotlib.use(\\"AGG\\")");}' +
+      'if(/matplotlib|pygame|turtle|plt\\./.test(code)){try{await P.loadPackage("matplotlib",{messageCallback:()=>{}});}catch(x){}try{await P.runPythonAsync("import matplotlib\\nmatplotlib.use(\\"AGG\\")");}catch(x){}}' +
+      'try{await P.runPythonAsync(' + JSON.stringify(CLEAR_FIGS) + ');}catch(x){}' +
       'const v=await P.runPythonAsync(code);' +
-      'let figs=[];if(collectFigures&&/matplotlib|plt\\./.test(code)){const r=await P.runPythonAsync("import io,base64\\nimport matplotlib.pyplot as _plt\\n_o=[]\\nfor _n in _plt.get_fignums():\\n    _b=io.BytesIO(); _plt.figure(_n).savefig(_b,format=\\"png\\",dpi=110,bbox_inches=\\"tight\\"); _o.append(base64.b64encode(_b.getvalue()).decode())\\n_plt.close(\\"all\\")\\n_o");figs=r.toJs();r.destroy&&r.destroy();}' +
+      'let figs=[];if(collectFigures){try{const r=await P.runPythonAsync(' + JSON.stringify(CAPTURE) + ');figs=(r&&r.toJs)?r.toJs():[];r&&r.destroy&&r.destroy();}catch(x){}}' +
       'let val=v===undefined||v===null?"":String(v);if(v&&v.destroy)v.destroy();' +
       'res={id,ok:true,stdout:out.join("\\n"),stderr:err.join("\\n"),value:val,figures:figs,ms:Date.now()-t0};' +
-      '}catch(x){res={id,ok:false,stdout:out.join("\\n"),stderr:err.join("\\n"),error:String(x&&x.message||x).split("\\n").slice(-12).join("\\n"),ms:Date.now()-t0};}' +
+      '}catch(x){let ef=[];try{if(collectFigures){const rr=await P.runPythonAsync(' + JSON.stringify(CAPTURE) + ');ef=(rr&&rr.toJs)?rr.toJs():[];rr&&rr.destroy&&rr.destroy();}}catch(y){}res={id,ok:false,stdout:out.join("\\n"),stderr:err.join("\\n"),error:String(x&&x.message||x).split("\\n").slice(-12).join("\\n"),figures:ef,ms:Date.now()-t0};}' +
       'postMessage(res);};ready.then(()=>postMessage({hello:1}),e=>postMessage({hello:0,err:String(e&&e.message||e)}));';
     const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
     let w;
@@ -97,10 +130,21 @@
   }
 
   /* ---------- JavaScript ---------- */
+  /* Drawing in JavaScript: a canvas made with document.createElement('canvas') is a real OffscreenCanvas inside the
+     worker, so ordinary 2D drawing code runs unchanged. Every canvas is turned into a PNG when the program ends, which
+     is how a program that only draws something still has visible output. */
+  const JS_DRAW = 'const __canv=[];' +
+    'const __mk=(w,h)=>{const c=new OffscreenCanvas(Math.max(1,Math.round(+w)||300),Math.max(1,Math.round(+h)||150));__canv.push(c);return c;};' +
+    'const __el=t=>({tagName:String(t||"div").toUpperCase(),style:{},children:[],appendChild(x){this.children.push(x);return x;},append(...x){this.children.push(...x);},setAttribute(){},addEventListener(){},getContext(){return null;},width:0,height:0,textContent:""});' +
+    'self.document={createElement:t=>/canvas/i.test(t)?__mk():(/img/i.test(t)?__el(t):__el(t)),getElementById:()=>null,querySelector:()=>null,querySelectorAll:()=>[],addEventListener(){},removeEventListener(){},body:__el("body"),documentElement:__el("html")};' +
+    'self.alert=()=>{};self.prompt=()=>null;if(!self.window)self.window=self;' +
+    'if(!self.requestAnimationFrame)self.requestAnimationFrame=f=>setTimeout(()=>f(Date.now()),16);' +
+    'const __b64=async b=>{const u=new Uint8Array(await b.arrayBuffer());let s="";for(let i=0;i<u.length;i+=32768)s+=String.fromCharCode.apply(null,u.subarray(i,i+32768));return btoa(s);};' +
+    'const __shots=async()=>{const o=[];for(const c of __canv){try{o.push(await __b64(await c.convertToBlob({type:"image/png"})));}catch(e){}}return o.slice(-4);};';
   function runJS(code, signal) {
-    const src = SEAL + 'self.onmessage=async e=>{const out=[];const fmt=a=>a.map(x=>typeof x==="string"?x:(()=>{try{return JSON.stringify(x);}catch(z){return String(x);}})()).join(" ");const console={log:(...a)=>out.push(fmt(a)),info:(...a)=>out.push(fmt(a)),warn:(...a)=>out.push(fmt(a)),error:(...a)=>out.push(fmt(a)),table:(a)=>out.push(fmt([a]))};const t0=Date.now();' +
-      'try{const v=await (new Function("console",\'"use strict";return (async()=>{\'+e.data.code+\'\\n})()\'))(console);postMessage({ok:true,stdout:out.join("\\n"),value:v===undefined?"":(typeof v==="string"?v:JSON.stringify(v)),figures:[],ms:Date.now()-t0});}' +
-      'catch(x){postMessage({ok:false,stdout:out.join("\\n"),error:String(x&&x.stack||x).split("\\n").slice(0,4).join("\\n"),figures:[],ms:Date.now()-t0});}};';
+    const src = SEAL + JS_DRAW + 'self.onmessage=async e=>{const out=[];const fmt=a=>a.map(x=>typeof x==="string"?x:(()=>{try{return JSON.stringify(x);}catch(z){return String(x);}})()).join(" ");const console={log:(...a)=>out.push(fmt(a)),info:(...a)=>out.push(fmt(a)),warn:(...a)=>out.push(fmt(a)),error:(...a)=>out.push(fmt(a)),table:(a)=>out.push(fmt([a]))};const t0=Date.now();' +
+      'try{const v=await (new Function("console",\'"use strict";return (async()=>{\'+e.data.code+\'\\n})()\'))(console);postMessage({ok:true,stdout:out.join("\\n"),value:v===undefined?"":(typeof v==="string"?v:JSON.stringify(v)),figures:await __shots(),ms:Date.now()-t0});}' +
+      'catch(x){postMessage({ok:false,stdout:out.join("\\n"),error:String(x&&x.stack||x).split("\\n").slice(0,4).join("\\n"),figures:await __shots(),ms:Date.now()-t0});}};';
     return new Promise(done => {
       const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
       let w; try { w = new Worker(url); } catch (e) { return done({ ok: false, error: 'The sandbox could not start.', stdout: '', figures: [] }); } finally { URL.revokeObjectURL(url); }
