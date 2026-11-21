@@ -544,6 +544,18 @@
       return 'No help entry matched "' + topic + '". Type `help` to browse the command reference.';
     }
     const out = [shellId.toUpperCase() + ' SANDBOX COMMAND REFERENCE   (tip: `help <name>` filters by command)'];
+    if (typeof G.helpContext === 'function') {
+      let ctx = null;
+      try { ctx = G.helpContext(shellId); } catch (e) { ctx = null; }
+      if (ctx && (ctx.objective || (ctx.commands && ctx.commands.length))) {
+        out.push('', '── ' + (ctx.heading || 'CURRENT MISSION') + ' ──');
+        if (ctx.objective) for (const line of String(ctx.objective).split('\n')) { if (line.trim()) out.push('  ' + line.trim()); }
+        if (ctx.commands && ctx.commands.length) {
+          out.push('  Commands useful here:');
+          for (const [cmd, desc] of ctx.commands) out.push('    ' + String(cmd).padEnd(34) + '  ' + desc);
+        }
+      }
+    }
     for (const [sec, items] of sections) {
       out.push('', '── ' + sec + ' ──');
       for (const [cmd, desc] of items) out.push('  ' + cmd.padEnd(36) + '  ' + desc);
@@ -935,13 +947,34 @@
     return {
       directory: () => state.cwd,
       leaveDirectory() { delete state.cwd; save(); },
-      verify(candidate) {
+      verify(candidate, remember = true) {
         if (candidate !== key) return false;
-        mcodeUnlocked = true;
-        G.writeSave(discoveryKey, { passphrase, unlocked: true });
+        if (remember) {
+          mcodeUnlocked = true;
+          G.writeSave(discoveryKey, { passphrase, unlocked: true });
+        }
         return true;
       },
       payload,
+      // Remove only the generated note when opening a previously saved shallow Labyrinth room.
+      removeFrom(tree) {
+        let removed = false;
+        const remove = dir => {
+          const item = dir?.['mcode.txt'];
+          if (item != null && !isDir(item) && textOf(item) === note) {
+            delete dir['mcode.txt'];
+            removed = true;
+          }
+        };
+        remove(tree);
+        let dir = tree;
+        for (const part of folders) {
+          dir = dir?.[part];
+          if (!isDir(dir)) return removed;
+        }
+        remove(dir);
+        return removed;
+      },
       // Puts the note into a shell's own file tree (bash, PowerShell, cmd, puzzle and Labyrinth rooms), under home, so
       // every command of that shell sees the same files. An existing note keeps its permission bits.
       mount(tree, home = [], win = false) {

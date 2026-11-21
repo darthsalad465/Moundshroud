@@ -483,15 +483,22 @@ const mmParamCount = v => {
 };
 const CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: data:; worker-src 'self' blob:; frame-src 'self' blob: data: app://moundshroud-lib http://127.0.0.1:" + LIBPORT + " http://localhost:" + LIBPORT + " http://127.0.0.1:" + artexmod.PORT + " http://localhost:" + artexmod.PORT + " http://127.0.0.1:" + juiceshop.FRAME + " http://localhost:" + juiceshop.FRAME + " https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
 const CSP_OFFLINE = CSP.replace(' https://www.youtube-nocookie.com', '');
+const cyberDesktopAssets = require('./lib/cyber-desktop-assets');
 function allowedCaller(req) {
   const h = req.headers, host = String(h.host || '').toLowerCase(), org = h.origin, sfs = h['sec-fetch-site'];
   return SELF.has(host) && (!org || SELF_ORIGIN.has(String(org).toLowerCase())) && (!sfs || sfs === 'same-origin' || sfs === 'none');
 }
 async function handleAppRequest(req, res) {
   const u = new URL(req.url, 'http://127.0.0.1'); const url = u.pathname, q = u.searchParams;
-  if (!allowedCaller(req)) { res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' }); return res.end('Blocked: this request did not come from the Moundshroud window.'); }
+  const host = String(req.headers.host || '').toLowerCase();
+  const guestAsset = req.method === 'GET' && SELF.has(host) && cyberDesktopAssets.asset(url);
+  if (!guestAsset && !allowedCaller(req)) { res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' }); return res.end('Blocked: this request did not come from the Moundshroud window.'); }
   res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Referrer-Policy', 'no-referrer'); res.setHeader('X-Frame-Options', 'SAMEORIGIN'); res.setHeader('Cross-Origin-Resource-Policy', 'same-origin'); res.setHeader('Permissions-Policy', 'geolocation=(), camera=(), usb=(), payment=()'); res.setHeader('Content-Security-Policy', offline.isAppOffline() ? CSP_OFFLINE : CSP);
   try {
+    if (guestAsset) {
+      for (const [name, value] of Object.entries(cyberDesktopAssets.assetHeaders)) res.setHeader(name, value);
+      return serveFile(res, WEB, guestAsset, req);
+    }
     if (url === '/api/code-playground/run' && req.method === 'POST') {
       if (!/^application\/json(?:\s*;|$)/i.test(req.headers['content-type'] || '')) {
         return json(res, 415, { ok: false, error: 'Expected a JSON request.' });
@@ -510,7 +517,12 @@ async function handleAppRequest(req, res) {
     if (url === '/api/code-playground/status' && req.method === 'GET') return json(res, 200, require('./lib/code-playground').status());
     /* ---- pages & static files ---- */
     if (req.method === 'GET' && (url === '/' || url === '/index.html')) return serveFile(res, WEB, 'index.html', req);
-    if (req.method === 'GET' && url.startsWith('/web/')) return serveFile(res, WEB, url.slice(5), req);
+    if (req.method === 'GET' && url.startsWith('/web/')) {
+      if (url === cyberDesktopAssets.terminalPage) {
+        res.setHeader('Content-Security-Policy', cyberDesktopAssets.policy('http://' + host));
+      }
+      return serveFile(res, WEB, url.slice(5), req);
+    }
     if (req.method === 'GET' && url.startsWith('/chessbooks/')) { let rel = ''; try { rel = decodeURIComponent(url.slice(12)); } catch (e) { res.writeHead(400); return res.end('bad path'); } return serveFile(res, CHESSBOOKS, rel, req); }
     if (req.method === 'GET' && url.startsWith('/cyberchef')) {
       let rel = url.slice('/cyberchef'.length).replace(/^\//, '');

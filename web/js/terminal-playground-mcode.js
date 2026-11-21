@@ -72,7 +72,13 @@
   const localName = name => typeof name === 'string' && !!name && !/(?:^free-|^claude-|(?:^|[-:])cloud$|embed)/i.test(name);
   const actionRequest = /^(?:solve|run|execute|inspect|find|check|verify|compare|read|open|decode|calculate|count|look\s+for|look\s+at|work\s+out|list\s+(?:(?:the|all)\s+)*(?:files|folders|directories|tables|rows|commits|containers))(?:\s|$|[.!?])/i;
   const currentObjective = /^solve(?:\s+(?:(?:this|the|current|my)\s+)?(?:puzzle|problem|exercise|challenge|objective|checkpoint|job|room|it|this))?(?:\s+for me)?\s*[.!?]*$/i;
-  const submitRequest = /^(?:submit (?:it|(?:the|your|last) answer)|type (?:it|(?:the|your|last) answer) (?:in|into) the terminal)(?: for me)?[.!?]*$/i;
+  const answerThing = '(?:answer|flag|key|value|result|code|password)';
+  /* Submitting is only ever done when the player asks for it in so many words. */
+  const submitRequest = new RegExp('^(?:submit(?:\\s+(?:it|(?:the|your|last|my|that)\\s+' + answerThing + '))?|' +
+    '(?:enter|send)\\s+(?:it|(?:the|your|last|my|that)\\s+' + answerThing + ')|' +
+    '(?:type|put|write|paste)\\s+(?:it|(?:the\\s+)?' + answerThing + '?)\\s+(?:in|into)\\s+(?:the\\s+)?terminal)(?:\\s+for\\s+me)?[.!?]*$', 'i');
+  /* Asking for help in so many words is an explicit request to work it out in /code. */
+  const helpSolve = /^(?:help(?:\s+me)?(?:\s+to)?\s+(?:solve|work\s+(?:it|this|that|out)|figure\s+(?:it|this|that)\s+out|with\s+(?:it|this|that)(?:\s+(?:puzzle|exercise|challenge|problem|room|job))?)|(?:can|could|would|will)\s+you\s+(?:please\s+)?help(?:\s+me)?(?:\s+to)?\s+(?:solve|with)|give\s+me\s+the\s+answer|what(?:'s|\s+is)\s+the\s+answer|solve\s+it\s+for\s+me)/i;
   const solveAndSubmit = /^solve(?: it|(?: (?:this|the|current|my))?(?: puzzle| problem| exercise| challenge| checkpoint| job))? and submit(?: (?:the|your) answer)?(?: for me)?[.!?]*$/i;
 
   // Reads one model reply: THINK text, a single RUN command, or a final ANSWER.
@@ -141,8 +147,9 @@
     });
   }
 
-  function create({ ai, models, context, recent, write, shell, submitVerified, visible, refresh, sleep, unlocked = () => true,
+  function create({ ai, models, context, recent, write, shell, submitVerified, visible, refresh, save, sleep, unlocked = () => true,
     interp, catalog, swarmStore, whipCursor }) {
+    const commit = () => { try { save?.(); } catch (e) { } };
     let mode = '', theme = 'aurora', accent = '', chosen = '', pending = null, approval = null;
     const SW = window.McodeSwarm;
     const swarm = SW ? SW.createState(swarmStore?.load?.()) : null;
@@ -222,7 +229,6 @@
       if (!service?.stream || !service?.localModel) { say(detail.plan); return; }
       const token = pending = new AbortController();
       hurry = false;
-      say('Working on a reply…');
       try {
         const model = chosen || await service.localModel();
         if (pending !== token) return;
@@ -230,14 +236,44 @@
         const messages = [{ role: 'system', content: instructions + (custom?.preferences() || '') },
           { role: 'user', content: 'Current exercise description:\n' + detail.chat.slice(0, 900) },
           ...history, { role: 'user', content: question.slice(0, 4000) }];
-        const response = await service.stream(messages, null, token.signal, { model, localOnly: true, temp: 0.25 });
+        // The reply is written out as it arrives, like mcode in the Agent tab, so a slow model still shows it talking.
+        const line = say('Working on a reply…');
+        const call = new AbortController();
+        const forward = () => call.abort();
+        token.signal.addEventListener('abort', forward);
+        activeCalls.add(call);
+        turboRules(messages);
+        let timer = null, slow = false, last = 0;
+        if (whip) timer = setTimeout(() => { slow = true; call.abort(); }, WHIP_MS);
+        const onText = all => {
+          if (pending !== token || !line) return;
+          const now = Date.now();
+          if (now - last < (hurry ? 40 : 140)) return;
+          last = now;
+          line.t = 'mcode · ' + (all || '…');
+          refresh?.();
+        };
+        let response;
+        try {
+          response = await service.stream(messages, onText, call.signal, { model, localOnly: true, temp: 0.25 });
+        } catch (error) {
+          if (pending !== token) return;
+          if (line) line.t = 'mcode · ' + (slow ? 'OpenWhip halted the reply (slower than ' + Math.round(WHIP_MS / 1000) + ' s). Ask again, or /whip off.' : 'Local chat failed. ' + detail.plan);
+          refresh?.(); commit();
+          return;
+        } finally {
+          activeCalls.delete(call);
+          if (timer) clearTimeout(timer);
+          token.signal.removeEventListener('abort', forward);
+        }
         if (pending !== token) return;
         if (context().key !== detail.key) return;
         const answer = String(response || '').trim().slice(0, 12000);
-        if (!answer) { say('The local model returned no answer. ' + detail.plan); return; }
+        if (!answer) { if (line) line.t = 'mcode · The local model returned no answer. ' + detail.plan; refresh?.(); commit(); return; }
         turns++;
         history = [...history, { role: 'user', content: question.slice(0, 4000) }, { role: 'assistant', content: answer }].slice(-8);
-        say(answer);
+        /* The whole exchange stays on screen and in the saved transcript after the turn ends. */
+        if (line) { line.t = 'mcode · ' + answer; refresh?.(); commit(); } else { say(answer); commit(); }
       } catch (error) {
         if (pending === token) say('Local chat failed. ' + detail.plan);
       } finally {
@@ -590,12 +626,16 @@
       }
       const capabilityQuestion = /^(?:can|could|would|will) you\b/i.test(text) &&
         /(?:\bin (?:general|code mode)\b|\bat all\b|^solve (?:puzzles|problems)[.!?]*$|^run commands[.!?]*$)/i.test(request);
-      if (mode !== 'code' || capabilityQuestion || !actionRequest.test(request)) { void ask(text); return; }
-      if (!currentObjective.test(request)) { void work(text, false); return; }
+      if (mode !== 'code' || capabilityQuestion) { void ask(text); return; }
+      /* "help me solve this" is an explicit request to work it out; a question about how to solve is chat. */
+      const wantsHelp = helpSolve.test(request) || helpSolve.test(text);
+      if (!actionRequest.test(request) && !wantsHelp) { void ask(text); return; }
       const detail = context();
-      if (detail.done) say(detail.done);
-      else if (detail.task) void work(detail.task, true);
-      else say('There is no active exercise. Tell me what you want me to work on.');
+      if (detail.done) { say(detail.done); return; }
+      const objective = currentObjective.test(request) || wantsHelp;
+      if (detail.task) { void work(objective ? detail.task : text, objective); return; }
+      if (objective) { say('There is no active exercise. Tell me what you want me to work on.'); return; }
+      void work(text, false);
     }
 
     function run(line) {

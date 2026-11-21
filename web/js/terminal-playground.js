@@ -28,6 +28,9 @@
   const terminalSaveKey = key => 'tpg_terminal_view_' + key;
   const puzzleSaveKey = id => 'tpg_active_puzzle_' + id;
   const mcodeSettingKey = 'tpg_mcode_enabled';
+  const labNoteDepth = 5, labCodeDepth = 18;
+  const discoveryNote = (scope, room, fallback = 'sandbox', depth = 0) =>
+    TP.mcodeNote(scope, room?.seedCode || room?.id || room?.title || fallback, room?.difficulty || 'easy', depth);
   let mcodeEnabled = TP?.readSave?.(mcodeSettingKey) !== false;
   const mcodeListeners = new Set();
   const mcodeAvailable = () => mcodeEnabled && TP.mcodeIsUnlocked();
@@ -63,6 +66,7 @@
     const logKey = id => (S.mode === 'lab' ? 'lab:' + id : S.mode === 'puzzle' ? 'puz:' + id : id);
     const harnesses = new Map();
     let mounted = true;
+    let guestMcode = null;
     const manual = TP.manual?.create(el, {
       focusTerminal: () => $('tpgin')?.focus(),
       useExample: command => {
@@ -70,7 +74,7 @@
         if (input) { input.value = command; input.oninput?.(); input.focus(); }
       }
     });
-    const openManual = query => manual?.open(current(), S.mode, palette(), query);
+    const openManual = query => manual?.open(current(), S.mode, palette(), query, buildHelpContext());
 
     function mcodeContext(mode, id) {
       const shell = byId(id), location = 'Terminal Playground / ' + mode + ' / ' + shell.name;
@@ -100,7 +104,9 @@
         harnesses.set(key, TP.mcode.create({
           unlocked: mcodeAvailable,
           ai: () => A.ai,
+          // A host that reaches the model API for an isolated terminal (the Cyber Desktop) provides A.ai.models.
           models: async signal => {
+            if (A.ai?.models) return await A.ai.models(signal);
             const response = await fetch('/api/models', { signal });
             if (!response.ok) throw new Error('Models unavailable');
             const { models = [] } = await response.json();
@@ -110,6 +116,7 @@
           // Sealed Python/JavaScript interpreter (web/js/interp.js): no network, files or page access.
           interp: A.interp ? (lang, code, signal) => A.interp.run(lang, code, { isolated: true, collectFigures: false, signal }).then(A.interp.asText) : null,
           catalog: async signal => {
+            if (A.ai?.catalog) return await A.ai.catalog(signal);
             const response = await fetch('/api/models', { signal });
             if (!response.ok) throw new Error('Models unavailable');
             const { models = [], hardware = null } = await response.json();
@@ -138,6 +145,7 @@
             return after.done || after.key !== current.key || after.identity !== current.identity ? 'submitted' : 'failed';
           },
           refresh: () => { if (visible()) { paintOut(); paintPrompt(); } },
+          save: () => saveView(key),
           write: text => { const entry = { k: 'out', t: text }; S.logs[key].push(entry); saveView(key); if (visible()) { paintOut(); paintPrompt(); } return entry; }
         }));
       }
@@ -151,7 +159,7 @@
         mcodeEnabled + '" aria-label="mcode in Terminal Playground">mcode ' + (mcodeEnabled ? 'on' : 'off') + '</button>' +
         (mcodeEnabled && window.McodeSwarm ? ' <button type="button" class="ib" data-act="mcodeswarm" title="Run several local agents at once, one per role">/swarm</button>' : '') +
         (mcodeEnabled && A.mcodeWhip ? ' <button type="button" class="ib" data-act="mcodewhip" aria-pressed="false" title="Turn your pointer into a whip: crack it over the reply to make mcode go faster (Ctrl+C puts it away)">🪢 /whip</button>' : '') : '';
-      if (!mcodeEnabled) for (const harness of harnesses.values()) harness.close();
+      if (!mcodeAvailable()) for (const harness of harnesses.values()) harness.close();
       paintWhipButton();
       paintPrompt();
     }
@@ -196,7 +204,14 @@
 
     const labSession = id => {
       if (!LAB || !LAB.session) return null;
-      if (!S.lab[id]) S.lab[id] = LAB.session(id);
+      if (!S.lab[id]) {
+        const session = S.lab[id] = LAB.session(id);
+        if (session.depth() < labNoteDepth) {
+          const room = session.room();
+          const tree = room.snapshot?.()?.tree;
+          if (tree && discoveryNote('lab:' + id, room, 'sandbox', room.depth).removeFrom(tree)) session.save();
+        }
+      }
       return S.lab[id];
     };
 
@@ -244,7 +259,7 @@
       const workspace = S.mode === 'lab' ? labSession(id)?.save() :
         S.mode === 'puzzle' ? savePuzzle(id) : current().saveWorkspace?.();
       const screen = saveView(logKey(id));
-      if (A.toast) A.toast(workspace && screen ? 'Progress saved on this device.' : 'Local storage could not save all progress.');
+      if (A.toast) A.toast(workspace && screen ? (api?.temporary ? 'Progress saved for this live session.' : 'Progress saved on this device.') : 'Local storage could not save all progress.');
     }
 
     const current = () => byId(S.shell);
@@ -261,6 +276,8 @@
       }).join('\n');
       out.scrollTop = out.scrollHeight;
     }
+
+    let explained = false;
 
     function paintCoach() {
       const body = $('tpgcoachbody'), label = $('tpgcoachlabel');
@@ -281,12 +298,30 @@
           '</div>' : '');
     }
 
-    function explain(command, out, result, trace) {
-      if (!TP.coach) return;
-      const key = logKey(S.shell);
-      try { coachReports[key] = TP.coach.analyze({ shell: S.shell, mode: S.mode, command, out, trace, ...result }); }
-      catch (e) { delete coachReports[key]; }
+    /* Every command must leave an explanation under the terminal. coachNote writes one directly;
+       explain builds it from the coach and falls back to its own text when the coach cannot. */
+    function coachNote(report) {
+      explained = true;
+      coachReports[logKey(S.shell)] = { status: null, commands: [], manual: '', ...report };
       paintCoach();
+    }
+
+    function explain(command, out, result, trace) {
+      const text = String(out == null ? '' : out).trim();
+      let report = null;
+      try { report = TP.coach ? TP.coach.analyze({ shell: S.shell, mode: S.mode, command, out, trace, ...(result || {}) }) : null; }
+      catch (e) { report = null; }
+      const usable = report && typeof report.title === 'string' && report.title &&
+        Array.isArray(report.why) && report.why.some(Boolean);
+      if (usable) { coachNote(report); return; }
+      const first = text.split('\n').find(line => line.trim()) || text;
+      coachNote({
+        title: text ? 'Command produced output' : 'Command ran without printing text', kind: 'neutral',
+        command: String(command || '').slice(0, 420),
+        why: [text ? 'The terminal printed: ' + first.trim().slice(0, 300) :
+          'The command was handled and printed no text. A quiet command can still change the workspace, so check its effect with a follow-up command.'],
+        next: ['Type help to see the commands this terminal accepts.']
+      });
     }
 
     function currentPrompt() {
@@ -356,6 +391,36 @@
         ], security);
       }
       return current().commands;
+    }
+
+    // Commands relevant to the current mission/puzzle/room, shown at the top of `help`.
+    function helpCmds() {
+      return palette().slice(0, 8).map(c => Array.isArray(c) ? [c[0], c[1]] : [c.ex || '', c.d || '']).filter(c => c[0]);
+    }
+    function buildHelpContext() {
+      try {
+        if (S.mode === 'puzzle') {
+          const s = puzSession(S.shell);
+          if (!s) return null;
+          const pz = s.puzzle;
+          const obj = pz.custom ? 'Solve this custom puzzle, then verify with `solve <answer>`.'
+            : (pz.brief ? pz.brief + '\nVerify with `solve <answer>`.' : (pz.title || 'Solve the puzzle') + ' — verify with `solve <answer>`.');
+          return { heading: 'THIS PUZZLE', commands: helpCmds(),
+            objective: (s.isSolved?.() ? '✓ Solved. `walkthrough` shows the steps, or generate a new puzzle.\n' : '') + obj + '\n`hint` gives a nudge; `walkthrough` reveals the steps.' };
+        }
+        if (S.mode === 'lab') {
+          const s = labSession(S.shell);
+          if (!s) return null;
+          const room = s.room();
+          return { heading: 'THIS LABYRINTH ROOM', commands: helpCmds(),
+            objective: (room.title || 'Room') + (room.brief ? '\n' + room.brief : '') + '\nDescend with `solve <answer>`. `hint` nudges, `map` shows the descent, `depth` shows progress.' };
+        }
+        const job = current().mcodeJob?.();
+        if (job) return { heading: 'THIS JOB', commands: helpCmds(),
+          objective: job.title + '\n' + job.task + (job.solved ? '\n✓ Complete — `job next` for a fresh assignment.' : '\nSubmit with `job submit <answer>`; `job hint` nudges.') };
+        return { heading: 'FREE PLAY', commands: null,
+          objective: 'No active mission. `job start` picks up a practice assignment; `curios` opens the discovery journal; switch to Puzzles or Labyrinth for a challenge.' };
+      } catch (e) { return null; }
     }
 
     function paintPalette() {
@@ -658,7 +723,8 @@
               '</div>' +
             '</div>' +
             (TP.coach ? '<details class="tpg-coach" id="tpgcoach"' + (S.coachOpen ? ' open' : '') + '><summary><strong>Command coach</strong><span id="tpgcoachlabel" aria-live="polite"></span></summary><div id="tpgcoachbody"></div></details>' : '') +
-            '<div class="row" style="gap:6px;flex-wrap:wrap;align-items:center"><button class="ib" data-act="saveprogress">Save progress</button><span class="small mute">Progress also saves automatically on this device.</span><span id="tpgmcodectl"></span></div>' +
+            '<div class="row" style="gap:6px;flex-wrap:wrap;align-items:center"><button class="ib" data-act="saveprogress">Save progress</button><span class="small mute">' +
+              (api?.temporary ? 'Progress clears when this live session ends.' : 'Progress also saves automatically on this device.') + '</span><span id="tpgmcodectl"></span></div>' +
             '<div class="small mute" style="' + mono + '">' + (lab
               ? 'solve &lt;answer&gt; unlocks the next checkpoint · hint · map · ↑ history · Ctrl+L clears'
               : puz
@@ -781,6 +847,7 @@
 
     function switchShell(id) {
       if (!byId(id)) return;
+      if (id !== S.shell) guestMcode = null;
       S.shell = id;
       ls.set('tpg_shell', id);
       S.filter = '';
@@ -792,6 +859,7 @@
 
     function switchMode(mode) {
       if (mode === S.mode) return;
+      guestMcode = null;
       S.mode = mode === 'lab' ? 'lab' : mode === 'puzzle' ? 'puzzle' : 'sandbox';
       ls.set('tpg_mode', S.mode);
       S.filter = '';
@@ -872,35 +940,102 @@
 
     // A solved exercise locks mcode at once and closes every open mcode session, so the prompt is the plain shell again.
     function lockAfterSolve() {
+      guestMcode = null;
       if (!TP.mcodeLock?.()) return;
       for (const harness of harnesses.values()) harness.close();
       refreshMcode();
     }
 
     function exec(line, shellOnly = false) {
+      /* Safety net: no command may leave the coach panel blank. */
+      explained = false;
+      const before = curLog().length;
+      const out = execLine(line, shellOnly);
+      const cmd = String(line == null ? '' : line).trim();
+      if (!cmd || explained) return out;
+      const printed = curLog().slice(before).filter(entry => entry.k !== 'cmd').map(entry => entry.t).join('\n').trim();
+      const text = printed || (typeof out === 'string' ? out.trim() : '');
+      coachNote({
+        title: text ? 'Command handled' : 'Command ran without printing text', kind: 'neutral', command: cmd.slice(0, 420),
+        why: [text ? 'The terminal printed: ' + text.split('\n').find(line => line.trim()).trim().slice(0, 300) :
+          'The command was handled by the terminal and printed no text. Check the prompt for the state it left behind.'],
+        next: ['Type help to see the commands this terminal accepts.']
+      });
+      return out;
+    }
+
+    function execLine(line, shellOnly = false) {
       const sh = current();
+      TP.helpContext = buildHelpContext;   // bind `help`'s mission section to this mount before any command runs
       const cmd = String(line == null ? '' : line).trim();
       if (!cmd) return;
       const log = curLog();
       const key = logKey(S.shell);
       drafts[key] = '';
+      const depth = S.mode === 'lab' ? (labSession(sh.id)?.depth() ?? 0) : Infinity;
+      if (depth < labCodeDepth && /^(?:mcode\s+)?\/code(?:\s|$)/i.test(cmd)) {
+        const output = '/code unlocks at Labyrinth depth ' + labCodeDepth + '.';
+        log.push({ k: 'cmd', t: currentPrompt() + cmd }, { k: 'out', t: output });
+        remember(cmd);
+        paintOut();
+        coachNote({ command: cmd, title: 'This command is locked on this floor', kind: 'neutral',
+          why: [output, 'The Labyrinth reserves the coding agent for deeper floors.'],
+          next: ['Solve more floors to raise your depth. The terminal header shows the current depth.'] });
+        const input = $('tpgin');
+        if (input) input.value = '';
+        return output;
+      }
+      const canDiscoverNote = depth >= labNoteDepth;
       const harness = shellOnly ? null : mcodeSession();
       let harnessCommand = cmd;
       const launch = !harness?.open() && harness && /^mcode(?:\s+([\s\S]+))?$/i.exec(cmd);
       const room = () => S.mode === 'lab' ? labSession(sh.id)?.room() : S.mode === 'puzzle' ? puzSession(sh.id)?.puzzle : null;
       const note = () => {
         const puzzle = room();
-        return TP.mcodeNote(key, puzzle?.seedCode || puzzle?.id || puzzle?.title || 'sandbox', puzzle?.difficulty || 'easy',
-          S.mode === 'lab' ? puzzle?.depth : 0);
+        const job = api?.guestMcode && S.mode === 'sandbox' ? sh.mcodeJob?.() : null;
+        return discoveryNote(key, puzzle, job?.key, S.mode === 'lab' ? puzzle?.depth : 0);
       };
-      if (launch && !mcodeAvailable()) {
-        const discovered = TP.mcodeIsUnlocked();
-        const allowed = !discovered && launch[1] && note().verify(launch[1]);
-        if (!allowed) {
-          log.push({ k: 'cmd', t: currentPrompt() + (launch[1] ? 'mcode [input hidden]' : cmd) },
-            { k: 'out', t: discovered ? 'mcode is off. Use the mcode switch next to Save progress.' : 'mcode: command not found' });
+      if (api?.guestMcode && !shellOnly && !sh.secret?.()) {
+        const context = mcodeContext(S.mode, S.shell);
+        const scope = key + '|' + context.key;
+        if (guestMcode !== scope || /^(?:job\s+(?:leave|next|reset)|new)$/i.test(cmd)) guestMcode = null;
+        const request = /^mcode(?:\s+(\S+))?$/i.exec(cmd);
+        if (request) {
+          const passphrase = request[1];
+          let output = canDiscoverNote ? 'mcode: locked. Look for the hidden mcode.txt note in this workspace.' : 'mcode: command not found';
+          if (context.done) output = 'mcode: locked. This exercise is complete.';
+          else if (canDiscoverNote && (guestMcode === scope || (passphrase && note().verify(passphrase, false)))) {
+            guestMcode = scope;
+            output = S.mode === 'sandbox'
+              ? 'mcode · Read-only support. Try help for this shell, or job hint during an assignment.'
+              : 'mcode · Read-only support. Try hint, then inspect the files, tables, or records named in the brief.';
+          }
+          log.push({ k: 'cmd', t: currentPrompt() + (passphrase ? 'mcode [input hidden]' : 'mcode') }, { k: 'out', t: output });
           remember('mcode');
           paintOut();
+          coachNote({ command: 'mcode', title: passphrase && guestMcode === scope ? 'Unlocked, read-only' : 'mcode stayed closed', kind: 'neutral',
+            why: [output], next: ['Type help in this shell for the commands the exercise accepts.'] });
+          const input = $('tpgin');
+          if (input) input.value = '';
+          return output;
+        }
+      }
+      if (launch && !mcodeAvailable()) {
+        const discovered = TP.mcodeIsUnlocked();
+        const allowed = canDiscoverNote && !discovered && launch[1] && note().verify(launch[1]);
+        if (!allowed) {
+          /* locked: say where the note is, so mcode never looks like a missing program */
+          const locked = S.mode === 'lab' ? (canDiscoverNote ?
+            'mcode: locked. Find this floor’s hidden mcode.txt (tree -a or ls -a), read it and decode its PAYLOAD, then type mcode <passphrase>.' :
+            'mcode: locked until Labyrinth depth ' + labNoteDepth + '. The mcode.txt note appears from depth ' + labNoteDepth + '.') :
+            'mcode: locked. A note is hidden in this workspace: find it with a listing that shows hidden entries, decode its PAYLOAD, then type mcode <passphrase>.';
+          log.push({ k: 'cmd', t: currentPrompt() + (launch[1] ? 'mcode [input hidden]' : cmd) },
+            { k: 'out', t: discovered ? 'mcode is off. Use the mcode switch next to Save progress.' : locked });
+          remember('mcode');
+          paintOut();
+          coachNote({ command: 'mcode', title: discovered ? 'mcode is switched off' : 'mcode is locked here', kind: 'neutral',
+            why: [discovered ? 'The mcode switch next to Save progress is off, so the session did not open.' : locked],
+            next: [discovered ? 'Turn the mcode switch on, then type mcode.' : 'Explore with a full listing (tree -a or ls -a), read the note, decode its PAYLOAD, then run mcode <passphrase>.'] });
           const input = $('tpgin');
           if (input) input.value = '';
           return;
@@ -918,6 +1053,9 @@
         log.push({ k: 'cmd', t: currentPrompt() + cmd });
         remember(cmd);
         paintOut();
+        coachNote({ command: cmd, title: 'Help page opened', kind: 'ok', manual: query.topic || '',
+          why: ['That word is a help topic, so the Playground opened its manual page instead of running it as a command.'],
+          next: ['Close the help page to return to the prompt.'] });
         const input = $('tpgin');
         if (input) input.value = '';
         return;
@@ -927,6 +1065,9 @@
         remember(harnessCommand);
         harness.run(harnessCommand);
         paintOut(); paintPrompt();
+        coachNote({ command: harnessCommand === cmd ? cmd : 'mcode <passphrase>', title: 'Handled by the mcode session', kind: 'ok',
+          why: ['mcode owns the terminal until you type /exit, so this line went to the harness and its answer is written above.'],
+          next: ['Type help inside mcode to list its commands, or /exit to return to the terminal.'] });
         const input = $('tpgin');
         if (input) { input.value = ''; input.focus(); }
         return;
@@ -934,8 +1075,8 @@
       // Shells with a file tree get the note as a real file, so their own ls, cd, cat, find, grep, chmod and stat agree.
       // Shells without files (Python, SQL, git...) keep a small note filesystem of their own for the same commands.
       const files = discoveryTree();
-      if (files) note().mount(files.tree, files.home, files.win);
-      const discovery = shellOnly === 'agent' ? null : files ? note().payload(cmd) :
+      if (canDiscoverNote && files) note().mount(files.tree, files.home, files.win);
+      const discovery = !canDiscoverNote || shellOnly === 'agent' ? null : files ? note().payload(cmd) :
         /^(?:ls|ll|dir|tree|cat|type|more|less|head|tail|grep|wc|find|stat|file|chmod|cd|pwd|decode|base64|hex|xxd|rot13|rev|reverse|echo|printf|get-childitem|get-content|set-location|get-location)(?:\s|$)/i.test(cmd) ? note().command(cmd) : null;
       if (discovery) {
         log.push({ k: 'cmd', t: currentPrompt() + cmd });
@@ -946,6 +1087,43 @@
         const input = $('tpgin');
         if (input) input.value = '';
         return discovery.out;
+      }
+      // Real Python: a `python3` line is read from this shell's virtual disk and run by the bundled interpreter.
+      // Nothing is installed and nothing on the PC is touched.
+      if (S.mode === 'sandbox' && !discovery && TP.python) {
+        const snap = (sh.workspace?.() || sh)?.snapshot?.() || {};
+        const spec = TP.python.parse(cmd, { shell: sh.id, tree: snap.fs || snap.tree, cwd: snap.cwd, home: files?.home });
+        if (spec) {
+          log.push({ k: 'cmd', t: sh.prompt() + cmd });
+          remember(cmd);
+          const input = $('tpgin');
+          if (input) input.value = '';
+          if (spec.text != null) {
+            if (spec.text) log.push({ k: 'out', t: spec.text });
+            explain(cmd, spec.text || '');
+            paintOut(); paintPrompt();
+            return spec.text || '';
+          }
+          const pending = { k: 'dim', t: 'python: starting the bundled interpreter (the first run takes a few seconds)…' };
+          log.push(pending);
+          paintOut(); paintPrompt();
+          explain(cmd, 'The bundled interpreter is starting. Its output appears here when the run finishes.');
+          const pendingKey = key;
+          TP.python.run(spec).then(result => {
+            pending.k = 'out';
+            pending.t = result.text || '(python finished with no output)';
+            saveView(pendingKey);
+            paintOut(); paintPrompt();
+            if (key === logKey(S.shell)) explain(cmd, pending.t);
+          }, e => {
+            pending.k = 'out';
+            pending.t = 'python: ' + (e && e.message || e);
+            saveView(pendingKey);
+            paintOut();
+            if (key === logKey(S.shell)) explain(cmd, pending.t);
+          });
+          return '';
+        }
       }
       const withDiscovery = output => discovery ?
         [/command not found|not recognized|not available/i.test(String(output || '')) ? '' : output, discovery.out].filter(Boolean).join('\n') : output;
@@ -1024,12 +1202,15 @@
     }
 
     function resetShell() {
+      guestMcode = null;
       const key = logKey(S.shell);
+      TP.python?.reset?.();
       drafts[key] = '';
       delete coachReports[key];
       if (S.mode === 'lab') {
         const s = labSession(S.shell);
         if (!s) return;
+        lockAfterSolve();
         const log = curLog();
         log.length = 0;
         const res = s.run('reset');

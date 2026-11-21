@@ -985,7 +985,7 @@ async function run(ok) {
     !nodes.get('tpgprompt').textContent.startsWith('mcode('));
   const locked = () => !nodes.get('tpgprompt').textContent.startsWith('mcode(');
   enter('mcode');
-  const bareIsLocked = locked() && printed().includes('mcode: command not found');
+  const bareIsLocked = locked() && printed().includes('mcode: locked');
   enter('cd /home/dev');
   // The note is a real file in the shell's disk, always inside a hidden folder: plain ls and tree never show it,
   // and ls -la, full paths, ../ paths, find and grep all agree about it.
@@ -1079,7 +1079,7 @@ async function run(ok) {
   // The solve locked mcode at once, so the old answer cannot be submitted to the next checkpoint.
   enter('mcode /submit');
   const labAfterStale = JSON.parse(storage.get('tplab_bash'));
-  const staleRejected = !TP.mcodeIsUnlocked() && printed().includes('mcode: command not found') && labAfterStale.checkpoint === labAfterPlayer.checkpoint &&
+  const staleRejected = !TP.mcodeIsUnlocked() && printed().includes('mcode: locked') && labAfterStale.checkpoint === labAfterPlayer.checkpoint &&
     labAfterStale.depth === labAfterPlayer.depth && labAfterStale.failures === labAfterPlayer.failures;
   unlockAgain();
   ctx.A.ai.stream = chatStream;
@@ -1091,7 +1091,7 @@ async function run(ok) {
     codeRequests.every(r => r.options.localOnly === true) && chatRequests.length === 1,
     { jobWorked, keptJobTranscript, jobSubmitted, labWaited, labSubmitted, staleRejected, tail: printed().slice(-900) });
 
-  let opens = 0, manualOpens = 0, notesFound = 0, pipeDecodes = 0; const noteMisses = [], pipeMisses = [];
+  let opens = 0, manualOpens = 0, pipeDecodes = 0; const noteMisses = [], pipeMisses = [];
   for (const mode of ['sandbox', 'lab', 'puzzle']) {
     click({ mode });
     for (const { id } of TP.shells) {
@@ -1111,7 +1111,9 @@ async function run(ok) {
       enter(plain);
       const hiddenFromPlain = !printed().split(plain + '</span>').at(-1).includes('mcode.txt');
       enter(listing);
-      if (hiddenFromPlain && printed().split(listing + '</span>').at(-1).includes('mcode.txt')) notesFound++; else noteMisses.push(mode + ':' + id + ' ' + printed().slice(-300));
+      const depth = mode === 'lab' ? TL.session(id).depth() : Infinity;
+      const found = printed().split(listing + '</span>').at(-1).includes('mcode.txt');
+      if (!hiddenFromPlain || found !== (depth >= 5)) noteMisses.push(mode + ':' + id + ' ' + printed().slice(-300));
       if (mode === 'sandbox') {
         const note = windows ? '.archive\\mcode.txt' : '.archive/mcode.txt';
         enter('chmod u+r ' + note);
@@ -1127,7 +1129,7 @@ async function run(ok) {
   }
   ok('manual: opens and exits in all 30 shell and mode combinations', manualOpens === 30, manualOpens);
   ok('mcode: opens and exits in all 30 shell and mode combinations', opens === 30, opens);
-  ok('mcode: plain tree hides mcode.txt and each shell hidden listing finds it in all 30 shell and mode combinations', notesFound === 30, noteMisses);
+  ok('mcode: hidden listings find mcode.txt only in eligible workspaces across all shells and modes', !noteMisses.length, noteMisses);
   ok('mcode: pasting the payload into an echo and Base64 pipeline works in every Sandbox shell', pipeDecodes === 10, pipeMisses);
   const layouts = ['easy', 'medium', 'hard', 'insane'].map((difficulty, rank) => {
     const challenge = TP.mcodeNote('test:' + difficulty, 'first', difficulty);
@@ -1403,6 +1405,47 @@ async function run(ok) {
     !restoredSql.run('SELECT name FROM resume_items;').includes('sql resume'),
     workspaceChecks.filter(([, , works]) => !works));
   unmountReload();
+
+  const depthResults = [];
+  let legacyNoteWasSaved = false, relockedOnReset = false;
+  for (const depth of [4, 5, 17, 18]) {
+    storage.set('tplab_bash', JSON.stringify({ seed: 777, depth }));
+    if (depth === 4) {
+      const legacy = TL.session('bash');
+      const room = legacy.room();
+      legacy.run('echo player-note > mcode.txt');
+      TP.mcodeNote('lab:bash', room.seedCode, room.difficulty, depth).mount(room.snapshot().tree);
+      legacy.save();
+      legacyNoteWasSaved = JSON.stringify(JSON.parse(storage.get('tplab_bash')).workspace).includes('Maintenance note');
+    }
+    storage.delete('tpg_terminal_view_lab:bash');
+    const fresh = reloadPlayground();
+    const dispose = fresh.A.play.games.terminal_playground.mount(stage, {});
+    click({ mode: 'lab' });
+    click({ shell: 'bash' });
+    enter('tree -a');
+    const generatedNote = depth === 4 ? JSON.stringify(JSON.parse(storage.get('tplab_bash')).workspace).includes('Maintenance note') :
+      printed().includes('.archive') && /[├└]── mcode\.txt/.test(printed());
+    const keptPlayerNote = depth !== 4 || JSON.stringify(JSON.parse(storage.get('tplab_bash')).workspace).includes('player-note');
+    if (nodes.get('tpgmcodectl').innerHTML.includes('aria-checked="false"')) click({ act: 'mcodeswitch' });
+    enter('mcode /code');
+    const prefixed = depth < 18 ? printed().includes('/code unlocks at Labyrinth depth 18.') :
+      nodes.get('tpgprompt').textContent.startsWith('mcode(code)');
+    enter('mcode /chat');
+    enter('/CODE');
+    const bare = depth < 18 ? printed().split('/CODE</span>').at(-1).includes('/code unlocks at Labyrinth depth 18.') :
+      nodes.get('tpgprompt').textContent.startsWith('mcode(code)');
+    depthResults.push({ depth, generatedNote, keptPlayerNote, prefixed, bare });
+    if (depth === 18) {
+      click({ act: 'labreset' });
+      enter('/code');
+      relockedOnReset = !nodes.get('tpgprompt').textContent.startsWith('mcode(') &&
+        printed().includes('/code unlocks at Labyrinth depth 18.');
+    }
+    dispose();
+  }
+  ok('mcode: Labyrinth gates notes at 5 and /code at 18, including after reset and when reopening an old save', legacyNoteWasSaved && relockedOnReset && depthResults.every(result =>
+    result.generatedNote === (result.depth >= 5) && result.keptPlayerNote && result.prefixed && result.bare), JSON.stringify(depthResults));
   storage.set('tpg_mode', 'sandbox');
   const { EventEmitter } = require('node:events');
   const source = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
