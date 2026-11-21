@@ -165,17 +165,27 @@
     bar.querySelector('#ctai').onclick = () => ask('');
     bar.querySelector('#ctaiq').onkeydown = e => { if (e.key === 'Enter' && e.target.value.trim()) ask(e.target.value.trim()); };
   }
-  let open = '';
+  let open = '', playing = '';
+  const netGames = () => A.cyberNetGames || null;
+  const hasGame = t => !!(netGames() && netGames().has(t.id));
   function render(b) {
     b.innerHTML = '<style>' + CSS + '</style><div class="scroll pad" style="flex:1"><div class="ct-wrap" id="ctw"></div></div>';
     draw(b.querySelector('#ctw'));
   }
   function draw(w) {
+    if (playing) return drawGame(w, playing);
     if (open) return drawTool(w, TOOLS.find(t => t.id === open));
     w.innerHTML = '<h2 style="margin:0 0 4px">🧰 Security Toolkit</h2>' +
       '<div class="ct-intro"><b>Reconnaissance and checking tools, like the ones on Kali Linux, running on this PC.</b><div class="small mute" style="margin-top:4px">Every tool only <b>looks, reads or asks</b>; none attacks or breaks in. Use them to learn, and to test systems you <b>own</b> or have <b>written permission</b> to test. Each tool explains itself. Ask the AI in Chat too: <i>“scan the open ports on localhost”</i> or <i>“check the security headers on my-site.com”</i>.</div></div>' +
-      '<div class="ct-grid">' + TOOLS.map(t => '<div class="ct-card" data-t="' + t.id + '"><div class="ct-ico">' + t.icon + '</div><b>' + esc(t.name) + '</b><div class="small mute">' + esc(t.line) + '</div></div>').join('') + '</div>';
+      (netGames() ? '<div class="ct-intro" style="border-left-color:var(--ok)"><b>🎮 A game for every network tool</b><div class="small mute" style="margin-top:4px">Each of these generates fresh data every round, so it never runs out. Learn what the tool tells you before you use it for real.</div><div class="row" style="gap:6px;flex-wrap:wrap;margin-top:8px">' +
+        TOOLS.filter(hasGame).map(t => '<button class="ib" data-ctg="' + t.id + '">' + t.icon + ' ' + esc(netGames().name(t.id)) + '</button>').join('') + '</div></div>' : '') +
+      '<div class="ct-grid">' + TOOLS.map(t => '<div class="ct-card" data-t="' + t.id + '"><div class="ct-ico">' + t.icon + '</div><b>' + esc(t.name) + (hasGame(t) ? ' <span class="ct-tag ct-ok">🎮</span>' : '') + '</b><div class="small mute">' + esc(t.line) + '</div></div>').join('') + '</div>';
     w.querySelectorAll('[data-t]').forEach(c => c.onclick = () => { open = c.dataset.t; draw(w); });
+    w.querySelectorAll('[data-ctg]').forEach(b => b.onclick = () => { playing = b.dataset.ctg; open = ''; draw(w); });
+  }
+  function drawGame(w, id) {
+    w.innerHTML = '<div id="ctgame"></div>';
+    if (!netGames() || !netGames().render(w.querySelector('#ctgame'), id, () => { playing = ''; draw(w); })) { playing = ''; draw(w); }
   }
   function drawTool(w, t) {
     w.innerHTML = '<button class="ib" id="ctback" style="margin-bottom:10px">← All tools</button>' +
@@ -183,6 +193,7 @@
       '<div class="ct-body">' + (t.warn ? '<div class="ct-warnbox">⚠️ Only use this on systems you <b>own</b> or have <b>written permission</b> to test. Using it on others may be a crime.</div>' : '') +
       t.inputs.map(i => '<label>' + esc(i.label) + '</label>' + (i.area ? '<textarea id="ct-' + i.k + '" placeholder="' + esc(i.ph) + '"></textarea>' : '<input id="ct-' + i.k + '" placeholder="' + esc(i.ph) + '" value="' + esc(i.val || '') + '" spellcheck="false" autocomplete="off">')).join('') +
       '<button class="pri ct-run" id="ctrun">▶ Run' + (t.inputs.length ? '' : ' now') + '</button>' + (t.ex ? ' <button class="ib" id="ctex">Try the example</button>' : '') +
+      (hasGame(t) ? ' <button class="ib" id="ctplay" title="Practice what this tool tells you">🎮 Play the game</button>' : '') +
       '<div class="ct-res" id="ctres"></div></div>' +
       '<div class="ct-tut"><h4>🎓 What it is</h4><p>' + esc(t.why) + '</p><h4>How to use it</h4><p>' + esc(t.how) + '</p></div></div>';
     w.querySelector('#ctback').onclick = () => { open = ''; draw(w); };
@@ -194,6 +205,7 @@
       aiBox(w, t, r);
     };
     w.querySelector('#ctrun').onclick = run;
+    if (w.querySelector('#ctplay')) w.querySelector('#ctplay').onclick = () => { playing = t.id; draw(w); };
     if (w.querySelector('#ctex')) w.querySelector('#ctex').onclick = () => { if (t.inputs[0]) { const el = w.querySelector('#ct-' + t.inputs[0].k); if (el) el.value = t.ex; } run(); };
     if (!t.inputs.length) run();
   }
@@ -204,5 +216,11 @@
     const r = t.get ? await api('/api/cyber/' + t.ep) : await api('/api/cyber/' + t.ep, args || {});
     return r;
   }
-  A.cyberTools = { render, tools: () => TOOLS.map(t => ({ id: t.id, name: t.name, line: t.line })), run: aiRun, open: id => { open = TOOLS.some(t => t.id === id) ? id : ''; if (A.cybertab) A.cybertab.go('kit'); } };
+  A.cyberTools = {
+    render,
+    tools: () => TOOLS.map(t => ({ id: t.id, name: t.name, line: t.line })),
+    run: aiRun,
+    open: id => { playing = ''; open = TOOLS.some(t => t.id === id) ? id : ''; if (A.cybertab) A.cybertab.go('kit'); },
+    play: id => { if (!A.cyberNetGames || !A.cyberNetGames.has(id)) return; playing = id; open = ''; if (A.cybertab) A.cybertab.go('kit'); }
+  };
 })();

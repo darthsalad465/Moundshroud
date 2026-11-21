@@ -2050,10 +2050,23 @@
     });
   }
 
+  /* Every puzzle is a piece of a case: a dossier line from the lore engine, so the room has a story and a
+     plausible owner instead of feeling like the same drill again. Only the briefing changes — the answer stays exact. */
+  function generateCase(opts) {
+    const room = generate(opts);
+    try {
+      const L = window.TerminalLore;
+      if (!room || !L || !L.briefing) return room;
+      const b = L.briefing((room.seed >>> 0) || (opts && opts.seed) || 1, room.category);
+      return Object.assign({}, room, { lore: b, brief: b.icon + ' Case ' + b.caseId + ' · ' + b.org + ' — ' + b.line + '\n\n' + (room.brief || '') });
+    } catch (e) { return room; }
+  }
+
   window.TerminalPuzzles = {
     DIFFS,
     CATEGORIES,
-    generate,
+    generate: generateCase,
+    generateRaw: generate,
     parseSeedCode,
     parseFilesText,
     buildCustom,

@@ -21,6 +21,56 @@
       trace:['The first hit raises run and best to 1.','The miss skips run++. The current run is still 1.','The last hit raises run to 2 even though the longest uninterrupted run was 1.'],
       hint:'Track the current run separately from the best one. Decide what happens to the current run on a miss.'}
   ];
+  /* Endless supply: once the four hand-written tickets are repaired, the workshop keeps generating new ones with the
+     same shape (a story, a broken function, tests, a trace and a hint), so there is always another repair to do. */
+  const hex=k=>Array.from({length:k},()=>'0123456789abcdef'[(Math.random()*16)|0]).join('');
+  const rnd=(a,b)=>a+((Math.random()*(b-a+1))|0);
+  function makeTicket(){
+    const kind=rnd(0,4);
+    if(kind===0){
+      const nums=Array.from({length:rnd(3,5)},()=>rnd(1,99));
+      if(String([...nums].sort())===String([...nums].sort((a,b)=>a-b))) nums.push(rnd(10,19),rnd(3,9)); // keep the bug visible
+      const asc=[...nums].sort((a,b)=>a-b);
+      const small=rnd(2,9), big=rnd(10,90);
+      return {id:'gen-'+hex(5),title:'Fastest first',concept:'Numeric ordering',story:'The lap board lists times from quickest to slowest. This morning the slowest lap was printed at the top.',
+        code:'function repair(times) {\n  return [...times].sort();\n}',
+        tests:[[nums,asc],[[small,1],[1,small]],[[big,small],[small,big]],[[],[]]],
+        trace:['Compare two-digit and one-digit times as text and "10" lands before "2".','Numbers need a comparison function, otherwise sort orders strings.'],
+        hint:'Pass a comparison function that subtracts one time from the other.'};
+    }
+    if(kind===1){
+      const k=rnd(4,9), more=rnd(10,14), sum=x=>(x*(x+1))/2;
+      return {id:'gen-'+hex(5),title:'Short by one',concept:'Loop bounds',story:'A reward counter adds up every level played, but the final level is never counted.',
+        code:'function repair(levels) {\n  let total = 0;\n  for (let i = 1; i < levels; i++) total += i;\n  return total;\n}',
+        tests:[[k,sum(k)],[1,1],[0,0],[more,sum(more)]],
+        trace:['With levels = 3 the loop runs for i = 1 and 2, then stops.','The last level is skipped, so the total is short by that level.'],
+        hint:'Should the loop still run when i equals the number of levels?'};
+    }
+    if(kind===2){
+      const scores=[rnd(1,9),rnd(10,19),rnd(20,29)];
+      const mean=a=>a.reduce((x,y)=>x+y,0)/a.length;
+      return {id:'gen-'+hex(5),title:'Marked too high',concept:'Arithmetic',story:'A quiz page reports each player’s average, but every score comes back a little higher than it should be.',
+        code:'function repair(scores) {\n  return scores.reduce((a, b) => a + b, 0) / scores.length + 1;\n}',
+        tests:[[scores,mean(scores)],[[2,4],3],[[7,7,7],7],[[0,10],5]],
+        trace:['The sum is divided by the number of scores, which is already the average.','The extra + 1 is applied afterwards, so every average is one too high.'],
+        hint:'Look at what happens after the division.'};
+    }
+    if(kind===3){
+      const limit=rnd(5,20);
+      return {id:'gen-'+hex(5),title:'Just over the line',concept:'Boundary conditions',story:'A pass list accepts every score up to and including a cut-off. Anyone exactly on the cut-off is missing.',
+        code:'function repair(values) {\n  return values.filter(v => v < '+limit+');\n}',
+        tests:[[[limit-1,limit,limit+1],[limit-1,limit]],[[limit],[limit]],[[limit+5],[]],[[],[]]],
+        trace:['Filtering with a strict comparison drops values equal to the cut-off.','"Up to and including" means the comparison must not be strict.'],
+        hint:'Change one character so the cut-off itself is kept.'};
+    }
+    const letter=['a','e','s','t'][rnd(0,3)], text=('mississippi'+'banana'+'assets').slice(0,rnd(6,12)), k=rnd(2,3);
+    const count=t=>t.split(letter).length-1;
+    return {id:'gen-'+hex(5),title:'One too many',concept:'Counting',story:'A word game counts how often a letter appears. Every answer is one higher than the real count.',
+      code:'function repair(text) {\n  return text.split("'+letter+'").length;\n}',
+      tests:[[text,count(text)],[letter,1],['xyz',0],['',0]],
+      trace:['Splitting on a letter returns one more piece than there are letters.','The count is the number of pieces minus one.'],
+      hint:'split() always yields one more part than separators. Subtract it.'};
+  }
   const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const show=v=>JSON.stringify(v);
   const done=c=>ls.get('dw_clear_'+c.id,'')==='1';
@@ -44,6 +94,7 @@
       if(rows?.every(r=>r.ok)){
         const next=cases.find(v=>!done(v));
         if(next)out.insertAdjacentHTML('beforeend',`<button class="dw-primary" data-job="next">Next repair · ${next.title} →</button>`);
+        else out.insertAdjacentHTML('beforeend',`<button class="dw-primary" data-job="another">🎲 Another repair ticket →</button><div class="small mute">The workshop makes new tickets forever, so there is always another one.</div>`);
       }
     }
     async function run(){
@@ -75,6 +126,7 @@
       if(action==='run')return void run();
       if(action==='lessons')return A.cybertab.go('code');
       if(action==='next')return pick(cases.find(v=>!done(v))?.id);
+      if(action==='another'){const t=makeTicket();cases.push(t);return pick(t.id);}
       if(action==='trace')trace=(trace+1)%(c.trace.length+1);
       else if(action==='hint')hint=!hint;
       else return;

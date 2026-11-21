@@ -5,6 +5,10 @@
   let canvas = null, ctx = null, style = null, timers = { raf: 0, timeout: 0 };
   let points = [], mouse = null, lastMouse = null, mouseVel = { x: 0, y: 0 }, flashes = [];
   let onCrack = null, target = null, lastCrack = 0, running = false, lastFrame = 0;
+  /* Everything the whip does stays inside one host element (the terminal that turned it on). Without a host it falls
+     back to the whole window, which is what the standalone demos use. */
+  let hostEl = null, hostPosition = '', ratio = 1, view = { left: 0, top: 0, width: 0, height: 0 }, lastSeen = null;
+  const bounds = () => hostEl ? hostEl.getBoundingClientRect() : { left: 0, top: 0, width: innerWidth, height: innerHeight };
 
   const fallbackSound = () => {
     try {
@@ -27,13 +31,16 @@
 
   function resize() {
     if (!canvas) return;
-    const ratio = window.devicePixelRatio || 1;
-    canvas.width = Math.round(innerWidth * ratio); canvas.height = Math.round(innerHeight * ratio);
-    canvas.style.width = innerWidth + 'px'; canvas.style.height = innerHeight + 'px';
-    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ratio = window.devicePixelRatio || 1;
+    const box = bounds();
+    view = { left: box.left, top: box.top, width: box.width, height: box.height };
+    canvas.width = Math.max(1, Math.round(box.width * ratio));
+    canvas.height = Math.max(1, Math.round(box.height * ratio));
+    canvas.style.width = box.width + 'px'; canvas.style.height = box.height + 'px';
   }
 
   const onMove = event => {
+    lastSeen = { x: event.clientX, y: event.clientY };
     const now = performance.now();
     if (!mouse) { mouse = { x: event.clientX, y: event.clientY, t: now }; reset(mouse.x, mouse.y); }
     lastMouse = mouse;
@@ -42,7 +49,8 @@
     mouseVel = { x: (mouse.x - lastMouse.x) / dt, y: (mouse.y - lastMouse.y) / dt };
   };
   // A click lashes the rope: each point is thrown along the hand's motion, more toward the tip.
-  const onDown = () => {
+  const onDown = event => {
+    if (event && typeof event.clientX === 'number') lastSeen = { x: event.clientX, y: event.clientY };
     if (!points.length) return;
     const speed = Math.hypot(mouseVel.x, mouseVel.y);
     const dir = speed > 40 ? { x: mouseVel.x / speed, y: mouseVel.y / speed } : { x: 0.7, y: -0.7 };
@@ -91,7 +99,11 @@
 
   function draw() {
     if (!ctx) return;
-    ctx.clearRect(0, 0, innerWidth, innerHeight);
+    // Pointer physics and the crack test use page coordinates, so the canvas is shifted onto the host instead.
+    const box = bounds();
+    if (box.left !== view.left || box.top !== view.top || box.width !== view.width || box.height !== view.height) resize();
+    ctx.setTransform(ratio, 0, 0, ratio, -view.left * ratio, -view.top * ratio);
+    ctx.clearRect(view.left, view.top, view.width, view.height);
     if (!mouse || !points.length) return;
     // Handle: a leather grip ending at the pointer.
     const hx = mouse.x + 12, hy = mouse.y + 26;
@@ -135,20 +147,32 @@
     target = options.target || null;
     if (running) return;
     running = true;
+    hostEl = options.host || null;
+    hostPosition = '';
+    if (hostEl) {
+      // A host scrolls with the page, so the canvas is laid over its box and only its own pointer events move the whip.
+      if (getComputedStyle(hostEl).position === 'static') { hostPosition = hostEl.style.position; hostEl.style.position = 'relative'; }
+      hostEl.classList.add('mcwhip-host');
+    }
     canvas = document.createElement('canvas');
     canvas.className = 'mcwhip-canvas';
     canvas.setAttribute('aria-hidden', 'true');
-    canvas.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:2147483000';
+    canvas.style.cssText = hostEl
+      ? 'position:absolute;left:0;top:0;pointer-events:none;z-index:2147483000'
+      : 'position:fixed;inset:0;pointer-events:none;z-index:2147483000';
     ctx = canvas.getContext('2d');
-    document.body.appendChild(canvas);
+    (hostEl || document.body).appendChild(canvas);
     style = document.createElement('style');
-    style.textContent = 'html.mcwhip-on, html.mcwhip-on * { cursor: none !important; }';
+    style.textContent = hostEl
+      ? '.mcwhip-host, .mcwhip-host * { cursor: none !important; }'
+      : 'html.mcwhip-on, html.mcwhip-on * { cursor: none !important; }';
     document.head.appendChild(style);
-    document.documentElement.classList.add('mcwhip-on');
+    if (!hostEl) document.documentElement.classList.add('mcwhip-on');
     resize();
+    const surface = hostEl || window;
     addEventListener('resize', resize);
-    addEventListener('pointermove', onMove, true);
-    addEventListener('pointerdown', onDown, true);
+    surface.addEventListener('pointermove', onMove, true);
+    surface.addEventListener('pointerdown', onDown, true);
     mouse = null; points = []; flashes = []; lastFrame = 0;
     // the whip hangs from where the pointer already is (the button just clicked), so it shows at once
     if (lastSeen) { mouse = { x: lastSeen.x, y: lastSeen.y, t: performance.now() }; reset(mouse.x, mouse.y); }
@@ -160,12 +184,17 @@
     if (!running) return;
     running = false;
     cancelAnimationFrame(timers.raf); clearTimeout(timers.timeout);
+    const surface = hostEl || window;
     removeEventListener('resize', resize);
-    removeEventListener('pointermove', onMove, true);
-    removeEventListener('pointerdown', onDown, true);
+    surface.removeEventListener('pointermove', onMove, true);
+    surface.removeEventListener('pointerdown', onDown, true);
     document.documentElement.classList.remove('mcwhip-on');
+    if (hostEl) {
+      hostEl.classList.remove('mcwhip-host');
+      if (hostPosition !== '') { hostEl.style.position = hostPosition; hostPosition = ''; }
+    }
     canvas?.remove(); style?.remove();
-    canvas = ctx = style = null; onCrack = target = null; points = [];
+    canvas = ctx = style = null; onCrack = target = null; points = []; hostEl = null; lastSeen = null;
     dispatchEvent(new CustomEvent('mcodewhip', { detail: false }));
   }
 
@@ -175,10 +204,6 @@
     for (let i = 0; i < frames; i++) step();
     return points.length ? { ...points[points.length - 1] } : null;
   };
-
-  let lastSeen = null;
-  addEventListener('pointermove', event => { lastSeen = { x: event.clientX, y: event.clientY }; }, { capture: true, passive: true });
-  addEventListener('pointerdown', event => { lastSeen = { x: event.clientX, y: event.clientY }; }, { capture: true, passive: true });
 
   window.A = window.A || {};
   A.mcodeWhip = { on, off, active: () => running, simulate, lash: onDown, CRACK_SPEED };

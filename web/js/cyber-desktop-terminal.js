@@ -18,7 +18,8 @@
     previous.onExit?.();
   }
   const assetBase = '/web/cyber-guest/';
-  /* A fresh stamp on every load, so an old cached copy of these modules can never run under the desktop. */
+  /* A fresh stamp on every load, so an old cached copy of these modules can never run under the desktop
+     (a stale script mixed with fresh ones leaves the terminal stuck on "Loading terminal…"). */
   const stamp = '?t=' + Date.now();
   /* mcode needs local models, and this page is an isolated frame that cannot reach /api. The desktop
      asks the model on this frame's behalf over the same private port that carries the terminal saves. */
@@ -129,7 +130,11 @@
             if (event.target.closest('[data-mode]')) queueMicrotask(updateTutorial);
           });
           document.addEventListener('pointerdown', () => port.postMessage({ type: 'activate' }));
-          /* Clicking anywhere in the terminal puts the caret at the prompt, as in a real terminal. Controls keep their own clicks. */
+          /* Tabbing or clicking into the terminal puts the caret at the prompt, as in a real terminal. */
+          window.addEventListener('focus', () => {
+            if (!terminal.contains(document.activeElement) || document.activeElement === document.body) terminal.querySelector('#tpgin')?.focus();
+          });
+          /* Clicking anywhere in the terminal puts the caret at the prompt. Controls keep their own clicks. */
           terminal.addEventListener('pointerdown', event => {
             if (event.target.closest('button, a, input, textarea, select, summary, details, label')) return;
             terminal.querySelector('#tpgin')?.focus();
@@ -175,6 +180,7 @@
           };
           port.postMessage({ type: 'ready' });
         } catch (error) {
+          status.hidden = false;
           status.textContent = 'Terminal could not start. ' + error.message;
         }
       };

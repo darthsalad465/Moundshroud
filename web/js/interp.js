@@ -9,6 +9,24 @@
   const SEAL = 'const __allow=self.__allow||"";const __f=self.fetch;self.fetch=function(u,o){const s=String(u&&u.url||u);if(__allow&&s.indexOf(__allow)===0)return __f.call(self,u,o);return Promise.reject(new Error("The sandbox has no network."));};' +
     '["XMLHttpRequest","WebSocket","EventSource","indexedDB","caches","importScripts","BroadcastChannel","SharedWorker","Worker"].forEach(function(k){try{Object.defineProperty(self,k,{value:undefined,configurable:false,writable:false});}catch(e){try{self[k]=undefined;}catch(x){}}});';
 
+  /* ---------- bundled libraries ---------- */
+  /* The sandbox ships a few pure-Python packages in web/vendor/python-libs (chess, …). They are written into every
+     Python run before the code starts, so a library that works in one sandbox works in all of them: the terminal's
+     python3, mcode's CODE blocks, the chat's Run button and the code lessons all share this list. */
+  const BUNDLED = [{ name: 'chess.zip', path: 'python-libs/chess.zip' }];
+  let bundledLibs = null;
+  function loadBundled() {
+    if (!bundledLibs) {
+      const base = A.interpreterAssets || location.origin + '/web/vendor/';
+      bundledLibs = Promise.all(BUNDLED.map(async lib => {
+        const response = await fetch(base + lib.path);
+        if (!response.ok) throw new Error(lib.name + ' is unavailable');
+        return { name: lib.name, data: new Uint8Array(await response.arrayBuffer()) };
+      })).catch(() => { bundledLibs = null; return []; });
+    }
+    return bundledLibs;
+  }
+
   /* ---------- Python ---------- */
   let py = null;      /* {w, ready: Promise, busy} */
   function pyWorker() {
@@ -23,7 +41,7 @@
       'try{await P.runPython("import sys; [sys.path.insert(0, p) for p in "+JSON.stringify(libs.map(l=>"/libs/"+l.name))+"]");}catch(x){}}' +
       'try{await P.runPython(argv?"import os, sys; os.makedirs(\'/data\', exist_ok=True); os.chdir(\'/data\'); sys.argv = "+JSON.stringify(argv):"import os; os.makedirs(\'/data\', exist_ok=True); os.chdir(\'/data\')");}catch(x){}' +
       '(files||[]).forEach(f=>{try{P.FS.writeFile("/data/"+f.name.replace(/[\\\\/:*?"<>|]/g,"_"),f.text);}catch(x){}});' +
-      'await P.loadPackagesFromImports(code,{messageCallback:()=>{},errorCallback:()=>{}});' +
+      'for(let a=0;a<2;a++){try{await P.loadPackagesFromImports(code,{messageCallback:()=>{},errorCallback:()=>{}});break;}catch(x){if(a)throw x;}}' +
       'if(/matplotlib/.test(code)){await P.runPythonAsync("import matplotlib\\nmatplotlib.use(\\"AGG\\")");}' +
       'const v=await P.runPythonAsync(code);' +
       'let figs=[];if(collectFigures&&/matplotlib|plt\\./.test(code)){const r=await P.runPythonAsync("import io,base64\\nimport matplotlib.pyplot as _plt\\n_o=[]\\nfor _n in _plt.get_fignums():\\n    _b=io.BytesIO(); _plt.figure(_n).savefig(_b,format=\\"png\\",dpi=110,bbox_inches=\\"tight\\"); _o.append(base64.b64encode(_b.getvalue()).decode())\\n_plt.close(\\"all\\")\\n_o");figs=r.toJs();r.destroy&&r.destroy();}' +
@@ -38,7 +56,8 @@
     const ready = new Promise((ok, no) => { readyTimer = setTimeout(() => no(new Error('Python did not start.')), 60000); w.addEventListener('message', function h(e) { if (e.data && 'hello' in e.data) { clearTimeout(readyTimer); w.removeEventListener('message', h); if (e.data.hello) ok(); else no(new Error('Python could not start: ' + e.data.err)); } }); w.addEventListener('error', e => { clearTimeout(readyTimer); no(new Error('Python could not start: ' + (e.message || 'error'))); }, { once: true }); });
     return { w, ready, close: () => { clearTimeout(readyTimer); w.terminate(); } };
   }
-  async function runPython(code, { files, isolated, signal, collectFigures = true } = {}) {
+  async function runPython(code, { files, isolated, signal, collectFigures = true, libs } = {}) {
+    const bundled = libs && libs.length ? libs : await loadBundled();
     if (isolated) {
       const me = pyWorker();
       let abort;
@@ -48,7 +67,7 @@
           if (signal?.aborted) abort();
           else signal?.addEventListener('abort', abort, { once: true });
         })]);
-        return await pythonResult(me, code, files, signal, collectFigures);
+        return await pythonResult(me, code, files, signal, collectFigures, bundled);
       } finally {
         signal?.removeEventListener('abort', abort);
         me.close();
@@ -56,7 +75,7 @@
     }
     if (!py) py = pyWorker();
     await py.ready;
-    return pythonResult(py, code, files, signal, collectFigures);
+    return pythonResult(py, code, files, signal, collectFigures, bundled);
   }
   function pythonResult(me, code, files, signal, collectFigures, libs, argv) {
     const id = Math.random().toString(36).slice(2);
@@ -111,7 +130,7 @@
         const job = chain.then(async () => {
           const w = ensure();
           await w.ready;
-          return pythonResult(w, code, o.files, o.signal, !!o.collectFigures, o.libs, o.argv);
+          return pythonResult(w, code, o.files, o.signal, !!o.collectFigures, o.libs && o.libs.length ? o.libs : await loadBundled(), o.argv);
         }).then(result => {
           if (result && !result.ok && /Stopped after|Run stopped/.test(String(result.error || ''))) api.close();
           return result;

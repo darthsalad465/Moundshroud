@@ -144,11 +144,12 @@ async function run(ok) {
   }
   {
     const r = rig(['RUN: printf "-v" name change', 'RUN: echo change > note.txt',
-      'RUN: cat flag.txt | grep FLAG', 'ANSWER: FLAG-42']);
+      'RUN: cat flag.txt | grep FLAG', 'RUN: job submit FLAG-42', 'ANSWER: FLAG-42']);
     r.h.run('/code solve this puzzle');
     await tick(20);
-    ok('mcode terminal: inspection pipelines run while writes and quoted mutation flags are skipped',
-      r.ran.join() === 'cat flag.txt | grep FLAG' && /Step 1 skipped/.test(r.text()) && /Step 2 skipped/.test(r.text()), r.ran);
+    ok('mcode terminal: /code runs the shell\'s own commands and leaves submission with the player',
+      r.ran.join('|') === 'printf "-v" name change|echo change > note.txt|cat flag.txt | grep FLAG' &&
+      /Step 4 skipped · job submit/.test(r.text()) && /Answer · FLAG-42/.test(r.text()), r.ran.concat(r.text()));
   }
 
   /* /code <task> ends on ANSWER in free play */
@@ -367,6 +368,42 @@ async function run(ok) {
     c.h.run('/whip on');
     c.h.run('/exit');
     ok('mcode whip: leaving mcode puts the whip away', !c.h.whipping() && cursor.crack === null);
+  }
+
+  /* The harness is a text engine: it may only use the callbacks the terminal hands it (write, shell, ai, models,
+     context, submitVerified). Anything else — the page, storage, the network — is outside the sandbox. */
+  {
+    const reached = [];
+    const trap = name => Object.defineProperty(sandbox, name, {
+      configurable: true,
+      get() { reached.push(name); throw new Error('mcode reached outside the sandbox: ' + name); }
+    });
+    const sandbox = { window: { TerminalPlayground: {} }, setTimeout, clearTimeout, AbortController, Date, Promise, JSON, Math, String, Number, Object, Array, Error, RegExp, Map, Set, Uint8Array, TextEncoder, isFinite, parseInt, parseFloat };
+    ['fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource', 'localStorage', 'sessionStorage', 'document', 'Worker', 'indexedDB', 'navigator', 'location', 'open', 'postMessage', 'top', 'parent', 'frames'].forEach(trap);
+    const sealed = vm.createContext(sandbox);
+    for (const name of ['mcode-custom.js', 'mcode-swarm.js', 'terminal-playground-mcode.js']) {
+      const file = path.join(__dirname, '..', 'web', 'js', name);
+      vm.runInContext(fs.readFileSync(file, 'utf8'), sealed, { filename: file });
+    }
+    const M2 = sealed.window.TerminalPlayground.mcode;
+    const out = [], ran = [];
+    let call = 0;
+    const service = { localModel: async () => 'local-test:latest', stream: (messages, onText) => { const reply = ['RUN: ls', 'ANSWER: 42'][call++] || 'ANSWER: 42'; onText?.(reply); return Promise.resolve(reply); } };
+    const h = M2.create({
+      ai: () => service,
+      models: async () => ['local-test:latest'],
+      context: () => ({ key: 'k', environment: 'sandbox', location: 'Terminal Playground / sandbox / Bash', shellName: 'Bash', shellId: 'bash', chat: 'sandbox', plan: 'Plan', task: 'Count the files', submit: 'job submit ' }),
+      recent: () => out.slice(-40),
+      write: text => { const entry = { t: String(text) }; out.push(entry); return entry; },
+      shell: command => { ran.push(command); return 'notes.txt'; },
+      visible: () => true,
+      sleep: async () => { }
+    });
+    h.run('/code count the files');
+    await tick(30);
+    const text2 = out.map(entry => entry.t).join('\n');
+    ok('mcode terminal: the harness only acts through its callbacks, never on the page, storage or network',
+      reached.length === 0 && ran.join() === 'ls' && /Answer · 42/.test(text2), { reached, ran, text2 });
   }
 }
 
