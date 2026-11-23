@@ -473,7 +473,7 @@
       '<div class="portal"><h3>navigation</h3><ul>' +
       '<li>• <a href="/">Main page</a></li><li>• <a href="/recent">Recent changes</a></li>' +
       '<li>• <a href="/random">Random page</a></li><li>• <a href="/rules">Rules of the site</a></li></ul></div>' +
-      '<div class="portal"><h3>search</h3><form id="qbox" action="/" method="get"><input name="q" value="' + esc(o.q || '') + '" placeholder="Search The Hidden Wiki" aria-label="Search The Hidden Wiki"><button>Search</button></form></div>' +
+      '<div class="portal"><h3>search</h3><form id="qbox" action="/" method="get"><input name="q" value="' + esc(o.q || '') + '" placeholder="Search every service, archive and onion" aria-label="Search The Hidden Wiki and every hidden service"><button>Search</button></form></div>' +
       '<div class="portal"><h3>tools</h3><ul>' +
       '<li>• <a href="/links">What links here</a></li><li>• <a href="/recent">Related changes</a></li>' +
       '<li>• <a href="/special">Special pages</a></li><li>• <a href="/print">Printable version</a></li>' +
@@ -502,7 +502,73 @@
     return sections;
   }
 
+  /* Everything on the network that this wiki does not list in its own directory: the government and police portals, the
+     hand-written onions and every address the index has minted. The wiki is the section's front door, so its search box
+     has to answer for all of them and not only for its own rows. */
+  function otherOnions() {
+    try {
+      if (!A.cyberDark || !A.cyberDark.all) return [];
+      const mine = new Set(ENTRIES.map(e => e.host));
+      mine.add(WIKI_HOST);
+      WIKI_ALIASES.forEach(h => mine.add(h));
+      return A.cyberDark.all().filter(s => s && s.host && !mine.has(String(s.host).toLowerCase()));
+    } catch (e) { return []; }
+  }
+
+  function searchBlock(query) {
+    const has = s => String(s || '').toLowerCase().includes(String(query).trim().toLowerCase());
+    const services = ENTRIES.filter(e => e.kind !== 'wiki' && has(e.name + ' ' + e.host + ' ' + e.blurb + ' ' + e.kind + ' ' + e.catTitle));
+    const archives = LEAKS.filter(l => has(l.name + ' ' + l.year + ' ' + l.source + ' ' + l.cats.join(' ') + ' ' + l.note));
+    const others = otherOnions().filter(s => has([s.brand, s.host, s.kind, s.topic, s.tagline,
+      s.gov ? 'government police portal' : '', s.market ? 'market escrow' : ''].join('  ')))
+      .sort((a, b) => String(a.brand).localeCompare(String(b.brand)));
+    const total = services.length + archives.length + others.length;
+    if (!total) return '<div class="note">Nothing on this page, and nothing else on the network, matches “' + esc(query) + '”. Try a category such as <a href="/?q=market">market</a> or <a href="/?q=leak">leak</a>, or read the <a href="/">whole directory</a>.</div>';
+    let h = '<p class="center">' + total + ' result' + (total === 1 ? '' : 's') + ' for <b>“' + esc(query) + '”</b> — ' +
+      services.length + ' in the directory, ' + archives.length + ' leak archive' + (archives.length === 1 ? '' : 's') +
+      ', ' + others.length + ' other onion service' + (others.length === 1 ? '' : 's') + '.</p>';
+    if (services.length) h += '<h2>Services in this directory</h2>' +
+      '<table class="tbl"><tr><th style="width:30%">Service</th><th>Address</th><th style="width:16%">Category</th><th>What it is</th></tr>' +
+      services.map(e => '<tr><td><a href="https://' + esc(e.host) + '/">' + esc(e.name) + '</a></td>' +
+        '<td><span class="u">' + esc(e.host) + '</span></td><td class="d">' + esc(e.catTitle) + ' · ' + esc(e.kind) + '</td>' +
+        '<td class="d">' + esc(e.blurb) + '</td></tr>').join('') + '</table>';
+    if (archives.length) h += '<h2>Leak archives</h2>' +
+      '<table class="tbl"><tr><th style="width:34%">Archive</th><th>Year</th><th>Records</th><th>Source</th></tr>' +
+      archives.map(l => '<tr><td><a href="/leaks/' + l.id + '">' + esc(l.name) + '</a>' +
+        (l.fabricated ? ' <span style="color:#d33;font-size:11px">fabricated</span>' : l.gov ? ' <span style="color:#0b4bbf;font-size:11px">government</span>' : '') +
+        '</td><td>' + l.year + '</td><td>' + num(l.records) + '</td><td class="d">' + esc(l.source) + '</td></tr>').join('') + '</table>';
+    if (others.length) h += '<h2>Elsewhere on the network</h2>' +
+      '<table class="tbl"><tr><th style="width:30%">Service</th><th>Address</th><th style="width:16%">Type</th><th>What it is</th></tr>' +
+      others.slice(0, 60).map(s => '<tr><td><a href="https://' + esc(s.host) + '/">' + esc(s.brand) + '</a>' +
+        (s.gov ? ' <span style="color:#0b4bbf;font-size:11px">government</span>' : '') + '</td>' +
+        '<td><span class="u">' + esc(s.host) + '</span></td><td class="d">' + esc(s.kind || 'service') + '</td>' +
+        '<td class="d">' + esc(String(s.tagline || '').slice(0, 150)) + '</td></tr>').join('') + '</table>' +
+      (others.length > 60 ? '<p class="d">…and ' + (others.length - 60) + ' more. Narrow the search.</p>' : '');
+    return h;
+  }
+
+  /* the addresses the directory does not list: printed, so the front page really carries everything the search covers */
+  function otherBlock() {
+    const all = otherOnions().sort((a, b) => String(a.brand).localeCompare(String(b.brand)));
+    if (!all.length) return '';
+    const show = all.slice(0, 40);
+    return '<h2 id="everything">Everything else on the network</h2>' +
+      '<p>Addresses that answered today and are not in the directory above: the government and police portals, the hand-written services and the pages the index has minted since. Every one of them is in the search box as well.</p>' +
+      '<table class="tbl"><tr><th style="width:32%">Service</th><th>Address</th><th>Type</th><th>What it is</th></tr>' +
+      show.map(s => '<tr><td><a href="https://' + esc(s.host) + '/">' + esc(s.brand) + '</a>' +
+        (s.gov ? ' <span style="color:#0b4bbf;font-size:11px">government</span>' : '') + '</td>' +
+        '<td><span class="u">' + esc(s.host) + '</span></td><td class="d">' + esc(s.kind || 'service') + '</td>' +
+        '<td class="d">' + esc(String(s.tagline || '').slice(0, 140)) + '</td></tr>').join('') + '</table>' +
+      (all.length > show.length ? '<p class="d">…and ' + (all.length - show.length) + ' more. Search for a word, or open <a href="/special">Special pages</a>.</p>' : '');
+  }
+
   function mainPage(query) {
+    if (String(query || '').trim()) {
+      return wikiShell('Search results',
+        '<h1 class="first">Search results</h1>' + searchBlock(query) +
+        '<p style="margin-top:18px"><a href="/">← Main Page</a> · <a href="/leaks">Leak archives</a> · <a href="/categories">Categories</a> · <a href="/special">Special pages</a></p>',
+        { q: query, tab: '/' });
+    }
     return wikiShell('Main Page',
       '<h1 class="first">Main Page</h1>' +
       '<p class="center"><span class="red">Welcome to The Hidden Wiki!</span> Our official Hidden Wiki url in 2023 is: ' +
@@ -532,8 +598,8 @@
       '<li>Report a dead service, a clone, or a page that never finishes loading.</li>' +
       '</ol>' +
       '<h2 id="directory">The directory</h2>' +
-      '<p>Every service below is a page in this simulation. ' + ENTRIES.length + ' services in ' + DIR.length + ' categories; the leak archives carry ' + LEAKS.length + ' catalogued archives — real breaches, declassified government files, and a small shelf of fabrications that are labelled as such.</p>' +
-      directoryHtml(query)
+      '<p>Every service below is a page in this simulation, and the search box answers for the whole network rather than this page alone: ' + ENTRIES.length + ' services in ' + DIR.length + ' categories, ' + otherOnions().length + ' more onion addresses, and the leak archives carry ' + LEAKS.length + ' catalogued archives — real breaches, declassified government files, and a small shelf of fabrications that are labelled as such.</p>' +
+      directoryHtml('') + otherBlock()
     );
   }
 

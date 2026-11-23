@@ -92,8 +92,8 @@
       '<div class="wrap">' + inner + '<footer>Listings are claims, not endorsements. A green probe only means an address answered. ' +
       'This directory is simulated inside the Cyber Desktop; no hidden service was contacted.</footer></div>');
     const note = '<div class="note">Simulated hidden-service index. Every address, vendor and leak below is invented. Nothing here is reachable and nothing leaves this page.</div>' +
-      '<div class="front"><a href="https://' + esc((A.hiddenWiki && A.hiddenWiki.host) || 'hiddenwiki.onion') + '/"><b>The Hidden Wiki →</b></a>' +
-      '<span>the other front door: ' + (A.hiddenWiki ? A.hiddenWiki.count() : '?') + ' services in a directory, with the leak archives under it</span></div>';
+      '<div class="front"><a href="https://' + esc((A.hiddenWiki && A.hiddenWiki.host) || site.host) + '/"><b>The Hidden Wiki →</b></a>' +
+      '<span>the front door of the dark web: ' + (A.hiddenWiki ? A.hiddenWiki.count() : '?') + ' services in a directory, every other onion under it, with the leak archives</span></div>';
     site.render = (path, query) => {
       if (path === '/pgp.txt') return pgpPage(site, 'The Onion Index signing key');
       if (path === '/about') return { status: 200, type: 'text/html', body: shell('<h1>About</h1><p>We list hidden services that answered at least once in the last thirty days. Where an operator publishes a PGP key, the mirror list is checked against it before the entry is kept.</p><p>A probe is a network fact. It says nothing about who runs the service, and clones answer too.</p>') };
@@ -1103,6 +1103,10 @@
     /* the directory is the section's front door, and the one address the Browser's chip opens */
     portalHost: directory.host,
     portalUrl: q => 'https://' + directory.host + '/?q=' + encodeURIComponent(String(q == null ? '' : q)),
+    /* The dark web opens at The Hidden Wiki, not at this index: the wiki is the directory people expect and its search
+       reaches every address listed here too. The index is still a page at its own address, one link from the front door. */
+    get frontHost() { return (A.hiddenWiki && A.hiddenWiki.host) || directory.host; },
+    get frontUrl() { return 'https://' + ((A.hiddenWiki && A.hiddenWiki.host) || directory.host) + '/'; },
     isDark: site => !!(site && site.dark),
     markets: () => sites().filter(s => s.market),
     label: s => s.brand + '  ·  ' + s.host

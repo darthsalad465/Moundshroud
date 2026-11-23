@@ -610,7 +610,7 @@
       case 'fakes': init().then(() => { if (A.cyberWeb && A.cyberWeb.ensure) A.cyberWeb.ensure(); show('https://search.moundshroud.example/', 'Moundshroud Search'); }); break;
       case 'dark': init().then(() => {
         if (A.cyberWeb && A.cyberWeb.ensure) A.cyberWeb.ensure();
-        const portal = A.cyberWeb && A.cyberWeb.darkPortal ? A.cyberWeb.darkPortal : 'https://darknet-index.onion/';
+        const portal = (A.cyberWeb && A.cyberWeb.darkPortal) || ('https://' + ((A.hiddenWiki && A.hiddenWiki.host) || 'darknet-index.onion') + '/');
         /* the chip is the front door of the onion section, so it enters Tor on the way in */
         try { if (A.tor) A.tor.setOn(true); } catch (e) { }
         show(portal, 'Fake dark web');

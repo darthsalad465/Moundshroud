@@ -3847,7 +3847,7 @@
         '<p class="lede">The second, separate section of this simulated internet: ' + darks.length + ' Tor-style hidden services on .onion addresses, each with its own layout and its own backend. Only the services that really are markets sell anything.</p>' +
         '<p><span class="pill">Every address, vendor and leak below is invented inside this page.</span> <span class="pill">Reachable from moundshell with curl, wget and browser.</span></p>' +
         darks.map(card).join('') +
-        '<p><a class="btn" href="https://' + esc(A.cyberDark ? A.cyberDark.portalHost : 'darknet-index.onion') + '/">Open The Onion Index (the dark directory) →</a></p>') };
+        '<p><a class="btn" href="https://' + esc(A.cyberDark ? (A.cyberDark.frontHost || A.cyberDark.portalHost) : 'darknet-index.onion') + '/">Open The Hidden Wiki (the dark directory) →</a></p>') };
     }
     if (path === '/trapped') {
       const per = 25, needTotal = pageNum * per;
@@ -3899,7 +3899,7 @@
           '<div style="display:flex;align-items:center;gap:8px"><span>' + esc(s.icon) + '</span><b>' + esc(s.brand) + '</b></div>' +
           '<span class="badge" style="align-self:flex-start">' + esc(s.kind) + (s.market ? ' · market' : ' · no sales') + '</span>' +
           '<small>' + esc(s.tagline) + '</small><small style="margin-top:auto;opacity:.75">https://' + esc(s.host) + ' →</small></a>').join('') + '</div>' +
-        '<p><a class="btn" href="/dark">All onion services →</a> <a class="btn-ghost" href="https://' + esc(A.cyberDark ? A.cyberDark.portalHost : 'darknet-index.onion') + '/">The Onion Index →</a></p>' +
+        '<p><a class="btn" href="/dark">All onion services →</a> <a class="btn-ghost" href="https://' + esc(A.cyberDark ? (A.cyberDark.frontHost || A.cyberDark.portalHost) : 'darknet-index.onion') + '/">The Hidden Wiki →</a></p>' +
         '<h2>Trending topics (infinite search)</h2><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">' +
         trend.map(t => '<a class="pill" href="/?q=' + encodeURIComponent(t) + '">' + esc(cap(t)) + '</a>').join('') + '</div>' +
         '<h2>Browse by category (' + CATS.length + ' categories — infinite topics in every one)</h2><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px">' +
@@ -3934,7 +3934,9 @@
     isMarket: isMarketSite, onAction, recordAction,
     /* the Fake Dark Web section, separate from the generated internet but resolved by the same commands */
     dark: () => (A.cyberDark ? A.cyberDark.all() : []),
-    darkPortal: 'https://' + (A.cyberDark ? A.cyberDark.portalHost : 'darknet-index.onion') + '/',
+    /* the dark web opens at The Hidden Wiki, whose search reaches every onion in the section; the index it replaced is
+       still there at its own address */
+    get darkPortal() { return 'https://' + (A.cyberDark ? (A.cyberDark.frontHost || A.cyberDark.portalHost) : 'darknet-index.onion') + '/'; },
     isDarkHost: raw => /(?:^|\/\/)(?:[a-z0-9-]+\.)+onion(?:$|[\/:?#])/i.test(String(raw || '')),
     mailHosts: () => MAIL_SITES.map(m => m.host),
     /* the walkthrough reads a target the same way, with the practice bank's payouts switched off for its requests */

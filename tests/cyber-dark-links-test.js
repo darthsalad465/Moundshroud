@@ -231,4 +231,18 @@ module.exports = async function (ok) {
   const indexHome = A.cyberDark.serve(index, '/', new URLSearchParams(''), 'GET');
   ok('dark web: the index links to the Hidden Wiki', /The Hidden Wiki/.test(indexHome.body) && indexHome.body.includes(wiki.host), wiki.host);
   ok('dark web: the Hidden Wiki is in the index and findable by its short name', !!A.cyberDark.find('hiddenwiki.onion') && A.cyberDark.find('hiddenwiki.onion').host === wiki.host);
+
+  /* 13 — the Hidden Wiki is the dark web's front door, and its search answers for the whole network */
+  ok('dark web: the section opens at the Hidden Wiki, not at the old index', A.cyberDark.frontHost === wiki.host && /^https:\/\/zqktlwiu/.test(A.cyberDark.frontUrl), A.cyberDark.frontUrl);
+  const searchOf = q => String(serve(wiki, '/', new URLSearchParams('q=' + encodeURIComponent(q))).body);
+  const byName = searchOf('nightfall');
+  ok('wiki search: a service in the directory is found by name and linked', /Nightfall Market/.test(byName) && byName.includes('https://' + A.hiddenWiki.hostFor('Nightfall Market') + '/'), 'nightfall');
+  const catSite = A.cyberDark.all().filter(s => s.host !== wiki.host && !A.hiddenWiki.entries().some(e => e.host === s.host))[0];
+  ok('wiki search: an onion the directory does not list is found too', !!catSite && searchOf(String(catSite.brand).split(/\s+/)[0]).includes('https://' + catSite.host + '/'), catSite && catSite.brand);
+  const leakSearch = searchOf('equifax');
+  ok('wiki search: a leak archive is found by name and links to its page', /Equifax/.test(leakSearch) && leakSearch.includes('/leaks/equifax'), 'equifax');
+  ok('wiki search: a query with no match says so instead of printing an empty page', /Nothing on this page/.test(searchOf('zzzzzznotathingzzz')));
+  const homePage = String(serve(wiki, '/', new URLSearchParams('')).body);
+  ok('wiki front page: everything outside the directory is listed as well', /Everything else on the network/.test(homePage), 'no other-services section');
+  ok('wiki front page: itself is still the directory, and links still answer', /The directory/.test(homePage) && /href="https:\/\//.test(homePage));
 };
