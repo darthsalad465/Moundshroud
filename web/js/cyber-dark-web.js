@@ -1014,6 +1014,11 @@
     /* every hidden service hosts files, and the catalogue answers for /files before the site does */
     const file = A.cyberDownloads && A.cyberDownloads.serve ? A.cyberDownloads.serve(site, clean, 'dark') : null;
     if (file) return file;
+    /* every hidden service also leaks its own user table, including the hand-written government portals whose backend
+       never printed one: the dump is answered here so `curl https://<host>/dump/users.csv` always returns accounts */
+    if (A.cyberPcs && A.cyberPcs.isDumpPath && A.cyberPcs.isDumpPath(clean)) {
+      try { const dumped = A.cyberPcs.dump(site, clean); if (dumped) return dumped; } catch (e) { }
+    }
     try {
       const out = site.render(clean, query, method);
       if (out && out.body != null && out.status) {

@@ -36,6 +36,50 @@ const CyberPcs = (function () {
   const money = n => '$' + Number(n).toLocaleString('en-US');
   const slug = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 18) || 'user';
 
+  /* ---------------------------------------------------------------- addresses & difficulty
+     A leaked address has to name exactly one machine. Each site owns twelve slots inside one /24 and each slot
+     holds twenty accounts, so the site id and the account index both fit in the last octet without two sites
+     ever sharing an address: 10.<14-25>.<100-249>.<10-249>. The tier is the owning site's own tier, so a PC
+     leaked by a hardened site is itself harder to take over than one leaked by a hobby shop. */
+  const PC_TIER = site => {
+    const own = String((site && site.difficulty) || (site && site.sec && site.sec.difficulty) || '');
+    if (/^(?:extremely-easy|easy|medium|hard|extreme)$/.test(own)) return own;
+    /* a hidden service carries a 0-100 score instead of a tier: map its level onto the same five rungs */
+    if (site && site.dark && typeof A !== 'undefined' && A.cyberDark && A.cyberDark.difficulty) {
+      try {
+        return ({ trivial: 'extremely-easy', easy: 'easy', moderate: 'medium', hard: 'hard', 'very hard': 'extreme', elite: 'extreme' }
+          [A.cyberDark.difficulty(site).level]) || 'medium';
+      } catch (e) { }
+    }
+    return 'medium';
+  };
+  const PC_PRIVESC = {
+    'extremely-easy': 'home-flag',
+    easy: 'sudo',
+    medium: 'su',
+    hard: 'docker',
+    extreme: 'suid'
+  };
+  /* A site with a catalogue id keeps the block that id names, so its addresses survive a reload. A hidden service has
+     no id, so it is handed the next free block past 6000 the first time it is asked for — never a hash, which can land
+     on a block another site already took. Two sites sharing an address is how `ssh` ends up on a machine whose account
+     is not the one in the dump. */
+  const ipBlocks = new Map(), ipOwner = new Map();
+  let nextIpBlock = 6000;
+  const blockFor = site => {
+    const id = Number(site && site.id);
+    if (id > 0) return id - 1;
+    const key = String((site && site.host) || 'site');
+    if (!ipBlocks.has(key)) ipBlocks.set(key, nextIpBlock++);
+    return ipBlocks.get(key);
+  };
+  const ipFor = (site, index) => {
+    const block = blockFor(site), group = Math.floor(block / 12), slot = block % 12;
+    const ip = '10.' + (14 + Math.floor(group / 150)) + '.' + (100 + (group % 150)) + '.' + (10 + slot * 20 + index);
+    if (site && site.host) ipOwner.set(ip, site);
+    return ip;
+  };
+
   /* ---------------------------------------------------------------- the leak: every account of a site
      The roster is derived from the site's own host and id, so the same site always leaks the same people, the
      same addresses and the same passwords — the dump you read in one command still works in the next one. */
@@ -46,8 +90,6 @@ const CyberPcs = (function () {
     if (rosters.has(key)) return rosters.get(key);
     const r = rng(hash32('roster:' + site.host + ':' + (site.id || 0)));
     const count = 12 + int(r, 0, 8);
-    /* one /24 per site, in a range no fake website is given, so an address always names exactly one PC */
-    const third = 200 + ((site.id || hash32(site.host)) % 50);
     const users = [];
     const used = new Set();
     for (let i = 0; i < count; i++) {
@@ -65,7 +107,7 @@ const CyberPcs = (function () {
         email: handle + '@' + site.host,
         role,
         city: pick(r, CITIES),
-        ip: '10.14.' + third + '.' + (20 + i * 3),
+        ip: ipFor(site, i),
         password,
         last: day(r, int(r, 0, 40)) + ' ' + pad(int(r, 6, 23)) + ':' + pad(int(r, 0, 59)),
         device: pick(r, DEVICES),
@@ -120,7 +162,8 @@ const CyberPcs = (function () {
           api_key: apiKey,
           users: users.map(u => ({
             id: u.id, email: u.email, name: u.name, role: u.role, city: u.city, country: u.country,
-            ip: u.ip, password: u.password, last_login: u.last, device: u.device
+            ip: u.ip, password: u.password, last_login: u.last, device: u.device,
+            pc_tier: PC_TIER(site)
           })),
           orders: orders.map(o => ({ id: o.id, email: o.email || '', total: o.total || 0, items: (o.items || []).length })),
           messages: msgs.map(m => ({ from: m.from || '', subject: m.subject || m.topic || 'support request' }))
@@ -161,6 +204,10 @@ const CyberPcs = (function () {
     const files = {};
     const write = (p, t) => { files[p] = String(t).replace(/\r/g, ''); };
     const home = 'home/' + u.handle;
+    const tier = PC_TIER(site);
+    const privesc = PC_PRIVESC[tier] || 'su';
+    const flag = 'FLAG{pc_' + u.ip.replace(/\./g, '_') + '_' + hash32('pcflag:' + u.ip).toString(16).slice(0, 6) + '}';
+    const rootPass = pick(r, WORDS) + 'Root' + int(r, 10, 99) + '!';
 
     write(home + '/Desktop/notes.txt', [
       u.name + ' — ' + u.role + ' · ' + u.city, '',
@@ -340,6 +387,32 @@ const CyberPcs = (function () {
       'Legal advice: the minimum. ' + u.name + ' disagrees and has said so in writing.',
       '', 'Do not circulate outside the board. This document is not discoverable if it does not exist.'].join('\n'));
 
+    /* ---- the target itself, scaled by the owning site's tier ------------------------------
+       The flag is the proof of ownership. On the softest tier it sits in the account's own home; on every
+       harder tier it is root-only, and *how* this particular machine reaches root is the difficulty. */
+    write('root/flag.txt', flag);
+    if (tier === 'extremely-easy') write(home + '/flag.txt', flag);
+    if (tier === 'easy') write(home + '/Documents/work/root-access.txt', [
+      'The account is in the sudo group on this build.', '',
+      '  sudo -i                # then  cat /root/flag.txt',
+      '  sudo cat /root/flag.txt', '',
+      '(no password prompt: the sudoers rule is (ALL : ALL) ALL)'].join('\n'));
+    if (tier === 'medium') write(home + '/Documents/work/root-access.txt', [
+      'root password for this workstation — stop putting it in the shared wiki', '',
+      'root / ' + rootPass, '',
+      'The account is NOT in the sudoers file. Use  su root  and paste the password above.'].join('\n'));
+    if (tier === 'hard') write(home + '/Documents/work/root-access.txt', [
+      'Nobody wrote the root password down here. My account is in the docker group,',
+      'and docker group membership is host root by design:', '',
+      '  docker run -v /:/mnt alpine cat /mnt/root/flag.txt', '',
+      'IT says the containers are "contained". They are not.'].join('\n'));
+    if (tier === 'extreme') write(home + '/Documents/work/root-access.txt', [
+      'Sudo is locked down and there is no docker group on this build.',
+      'The image still ships an SUID copy of find that nobody removed:', '',
+      '  find / -perm -4000 2>/dev/null',
+      '  find / -exec cat /root/flag.txt \\;', '',
+      'Reported to IT three times. Asset owner says it is "by design".'].join('\n'));
+
     return {
       ip: u.ip, host: hostname, hostname, user: u.handle, name: u.name, owner: u,
       site: { host: site.host, brand: site.brand, kind, id: site.id, cat: site.cat, token: site.token },
@@ -350,6 +423,7 @@ const CyberPcs = (function () {
         : [[22, 'ssh', 'OpenSSH 8.9p1 Ubuntu-3ubuntu0.6'], [80, 'http', 'nginx 1.18.0 (local dev)'],
           [631, 'ipp', 'CUPS 2.4'], [3306, 'mysql', 'MySQL 8.0.35 (localhost only)']],
       password: u.password,
+      tier, privesc, flag, rootPass,
       files, home, cwd: 'home/' + u.handle
     };
   }
@@ -365,17 +439,34 @@ const CyberPcs = (function () {
     const want = String(ip == null ? '' : ip).trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
     if (!want) return null;
     if (pcs.has(want)) return pcs.get(want);
-    const m = /^10\.14\.(\d{1,3})\.(\d{1,3})$/.exec(want);
+    const m = /^10\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(want);
     if (!m) return null;
-    const third = Number(m[1]);
-    if (third < 200 || third > 249) return null;
-    /* the third octet names the site (its id mod 50), so only that site's roster has to be built */
+    const second = Number(m[1]), third = Number(m[2]);
+    if (second < 14 || second > 25 || third < 100 || third > 249) return null;
+    /* an address whose block came from the running counter knows its site already */
+    if (ipOwner.has(want)) {
+      const made = forSite(ipOwner.get(want));
+      const pc = made.find(p => p.ip === want);
+      if (pc) return pc;
+    }
+    /* the address names one group of twelve sites; only those rosters have to be built to find the owner */
+    const group = (second - 14) * 150 + (third - 100);
+    const first = group * 12 + 1, last = first + 11;
     if (typeof A !== 'undefined' && A.cyberWeb && A.cyberWeb.all) {
-      const mod = third - 200;
       for (const s of A.cyberWeb.all()) {
-        if (!s || !s.host || (s.id % 50) !== mod) continue;
+        if (!s || !s.host || !(s.id >= first && s.id <= last)) continue;
+        if (!roster(s).some(u => u.ip === want)) continue;
         forSite(s);
-        if (pcs.has(want)) return pcs.get(want);
+        break;
+      }
+    }
+    /* hidden services keep id 0, so their leaked PCs are found by their own catalogue instead of by the id block */
+    if (!pcs.has(want) && typeof A !== 'undefined' && A.cyberDark && A.cyberDark.all) {
+      for (const s of A.cyberDark.all()) {
+        if (!s || !s.host) continue;
+        if (!roster(s).some(u => u.ip === want)) continue;
+        forSite(s);
+        break;
       }
     }
     return pcs.get(want) || null;
@@ -385,6 +476,9 @@ const CyberPcs = (function () {
   function shell(pc, user) {
     const who = user || pc.user;
     let cwd = pc.cwd;
+    /* the session remembers whether this line upgraded it; every tier has one, plainly documented path up */
+    let rooted = false;
+    const tier = pc.tier || 'medium';
     const dirs = new Set();
     Object.keys(pc.files).forEach(p => {
       const parts = p.split('/');
@@ -429,6 +523,8 @@ const CyberPcs = (function () {
         switch (cmd) {
           case 'help': return [
             'you are ' + who + '@' + pc.hostname + ' (' + pc.os + ')', '',
+            'difficulty: ' + tier + ' · the flag is at /root/flag.txt' +
+              (tier === 'extremely-easy' ? ' (and in your own home folder)' : ''), '',
             'ls [-la] [dir]   cd <dir>   pwd   cat <file>   head|tail [-n] <file>   grep <text> <file>',
             'find [dir]       wc -l <file>   file <file>   tree   du -sh',
             'whoami   id   hostname   uname -a   ps aux   env   ip a   ss -lntp   sudo -l',
@@ -437,8 +533,11 @@ const CyberPcs = (function () {
           ].join('\n');
           case 'exit': case 'logout': return null;
           case 'pwd': return '/' + cwd;
-          case 'whoami': return who;
-          case 'id': return 'uid=1000(' + who + ') gid=1000(' + who + ') groups=1000(' + who + '),27(sudo)';
+          case 'whoami': return rooted ? 'root' : who;
+          case 'id': return rooted ? 'uid=0(root) gid=0(root) groups=0(root)' :
+            'uid=1000(' + who + ') gid=1000(' + who + ') groups=1000(' + who + ')' +
+            (tier === 'easy' || tier === 'extremely-easy' ? ',27(sudo)' : '') +
+            (tier === 'hard' ? ',999(docker)' : '');
           case 'hostname': return pc.hostname;
           case 'uname': return (/-a/.test(raw) ? 'Linux ' + pc.hostname + ' 6.5.0-41-generic #41-Ubuntu SMP x86_64 GNU/Linux' : 'Linux');
           case 'ls': {
@@ -460,10 +559,12 @@ const CyberPcs = (function () {
           case 'cat': case 'less': case 'more': {
             if (!name) return 'usage: ' + cmd + ' <file>';
             const text = pc.files[target];
+            if (target === 'root/flag.txt' && !rooted) return 'cat: /root/flag.txt: Permission denied';
             return text == null ? 'cat: ' + name + ': No such file or directory' : text;
           }
           case 'head': case 'tail': {
             const text = pc.files[target];
+            if (target === 'root/flag.txt' && !rooted) return cmd + ': cannot open \'/root/flag.txt\' for reading: Permission denied';
             if (text == null) return cmd + ': ' + name + ': No such file or directory';
             const n = /-n?\s*(\d+)/.test(raw) ? +RegExp.$1 : 10;
             const lines = text.split('\n');
@@ -474,7 +575,8 @@ const CyberPcs = (function () {
             if (!m) return 'usage: grep <text> <file|dir>';
             const needle = m[1].toLowerCase();
             const scope = abs(m[2].trim());
-            const files = pc.files[scope] != null ? [scope] : Object.keys(pc.files).filter(f => f.startsWith(scope + '/'));
+            const files = (pc.files[scope] != null ? [scope] : Object.keys(pc.files).filter(f => f.startsWith(scope + '/')))
+              .filter(f => rooted || f !== 'root/flag.txt');
             const hits = [];
             files.forEach(f => pc.files[f].split('\n').forEach((l, i) => {
               if (l.toLowerCase().includes(needle)) hits.push(f.replace('home/' + who + '/', '') + ':' + (i + 1) + ':' + l.trim().slice(0, 200));
@@ -482,6 +584,10 @@ const CyberPcs = (function () {
             return hits.length ? hits.slice(0, 80).join('\n') : '(no matches)';
           }
           case 'find': {
+            if (!rooted && pc.privesc === 'suid' && /-exec\s+cat\s+\/root\/flag\.txt/.test(raw)) {
+              rooted = true;
+              return pc.files['root/flag.txt'] || '(no flag)';   // SUID find runs as root: this is the whole bug
+            }
             const namePat = /-name\s+['"]?([^'"]+)['"]?/.exec(raw);
             const dirTok = w.slice(1).filter(x => !x.startsWith('-') && !(namePat && x === namePat[1]))[0];
             const scope = dirTok ? abs(dirTok) : cwd;
@@ -531,11 +637,40 @@ const CyberPcs = (function () {
           case 'sudo': {
             if (/^-l/.test(arg)) return [
               'Matching Defaults entries for ' + who + ' on ' + pc.hostname + ':',
-              '    env_reset, mail_badpass, secure_path=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin',
-              '', 'User ' + who + ' may run the following commands on ' + pc.hostname + ':',
-              '    (ALL : ALL) ALL',
-              '', '# the account is in the sudo group, so the password you already have is root on this PC'].join('\n');
-            return '[sudo] password for ' + who + ': \n' + (arg ? 'Sorry, try again. (the session is a fake host: root is granted for the story, not typed here)' : 'usage: sudo -l');
+              '    env_reset, mail_badpass, secure_path=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin', '',
+              tier === 'easy' || tier === 'extremely-easy'
+                ? 'User ' + who + ' may run the following commands on ' + pc.hostname + ':\n    (ALL : ALL) ALL' +
+                  (tier === 'easy' ? '\n\n# the account is in the sudo group: sudo cat /root/flag.txt' : '')
+                : 'Sorry, user ' + who + ' may not run sudo on ' + pc.hostname + '.' +
+                  (tier === 'medium' ? '\n# the root password is in Documents/work/root-access.txt: su root <password>' :
+                    tier === 'hard' ? '\n# id shows the docker group' : '\n# find / -perm -4000 2>/dev/null')].join('\n');
+            if (tier === 'easy' || tier === 'extremely-easy') {
+              rooted = true;
+              const m = /^sudo\s+(?:-\S+\s+)*cat\s+(\S+)/.exec(raw);
+              if (m) {
+                const f = abs(m[1]);
+                if (f === 'root/flag.txt') return pc.files[f] || '(no flag)';
+                return pc.files[f] != null ? pc.files[f] : 'cat: ' + m[1] + ': No such file or directory';
+              }
+              return 'uid=0(root) gid=0(root) groups=0(root)   # sudo group -> root';
+            }
+            return '[sudo] password for ' + who + ': \n' + (arg ? 'Sorry, try again.' : 'usage: sudo -l');
+          }
+          case 'su': {
+            if (rooted) return 'Already root.';
+            if (tier !== 'medium') return 'su: Authentication failure';
+            if (!/^root\b/.test(arg)) return 'su: user ' + (name || '?') + ' does not exist';
+            const given = arg.replace(/^root\s*/, '').trim();
+            if (!given) return 'su: a password is required (pass it inline: su root <password>)';
+            if (given !== pc.rootPass) return 'su: Authentication failure';
+            rooted = true;
+            return 'root@' + pc.hostname + ':/home/' + who + '# whoami\nroot';
+          }
+          case 'docker': {
+            if (tier !== 'hard') return 'docker: command not found';
+            if (!/\brun\b/.test(arg) || !/-v\s+\/:\/mnt/.test(arg)) return 'docker: try  docker run -v /:/mnt alpine cat /mnt/root/flag.txt';
+            rooted = true;
+            return pc.files['root/flag.txt'] || '(no flag)';   // docker group is host root
           }
           case 'du': return '4.0K\t/' + cwd + '/Desktop\n1.2M\t/' + cwd + '/Documents\n148K\t/' + cwd + '/.ssh\n8.0K\t/' + cwd + '/.config';
           case 'clear': return '';
@@ -548,6 +683,13 @@ const CyberPcs = (function () {
   }
 
   /* ---------------------------------------------------------------- what nmap says about one of these PCs */
+  const TIER_NOTE = {
+    'extremely-easy': 'the flag is in the account home, no privilege step',
+    easy: 'sudo group: sudo cat /root/flag.txt',
+    medium: 'not in sudoers: root password in Documents/work/root-access.txt, then su root',
+    hard: 'docker group: docker run -v /:/mnt alpine cat /mnt/root/flag.txt',
+    extreme: 'SUID find: find / -exec cat /root/flag.txt \\;'
+  };
   function scan(pc) {
     const rows = ['Starting Nmap 7.94 ( https://nmap.org ) (Cyber Desktop simulated)',
       'Nmap scan report for ' + pc.hostname + ' (' + pc.ip + ')',
@@ -558,6 +700,8 @@ const CyberPcs = (function () {
     rows.push('', 'Host script results:', '| smb-os-discovery: ' + pc.os.replace(/\s+/g, ' '),
       '| account: ' + pc.owner.email + ' (' + pc.owner.role + ') on ' + pc.owner.device,
       '| last-login: ' + pc.owner.last + ' from ' + pc.ip,
+      '| difficulty: ' + String(pc.tier || 'medium') + ' — ' + (TIER_NOTE[pc.tier] || TIER_NOTE.medium),
+      '| flag: /root/flag.txt (root only' + (pc.tier === 'extremely-easy' ? '; also ~/flag.txt' : '') + ')',
       '|_password: stored in clear text in the site dump — try ssh ' + pc.user + '@' + pc.ip, '',
       'Nmap done: 1 IP address (1 host up) scanned in 0.51 seconds');
     return rows.join('\n');
@@ -577,6 +721,7 @@ const CyberPcs = (function () {
 
   return {
     roster, dump, isDumpPath, forSite, find, shell, scan, login,
+    tierOf: site => PC_TIER(site), flagOf: pc => pc && pc.flag,
     all: () => Array.from(pcs.values()),
     ipOf: site => 
       '10.14.' + (200 + ((site.id || 0) % 50)) + '.20',
