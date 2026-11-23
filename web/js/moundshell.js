@@ -3584,6 +3584,9 @@ DONE      When the range shows every objective ticked: type next to take the nex
     return { note, context };
   }
 
+  /* A message only counts as pointing mcode at the engagement when it names the range, a target or a tool. The range's
+     next-step hint is only handed over then: on every line it turned a passing remark into an order to solve it. */
+  const POINTS_AT_RANGE = /\b(?:range|target|targets|breach|engagement|scan|nmap|gobuster|nikto|whatweb|sqlmap|curl|wget|exploit|enum|loot|flag|objective|attack|penetrat|hint)\b|https?:\/\/|[\w-]+\.(?:com|net|org|io|dev|local)\b/i;
   function buildMcode() {
     const TP = window.TerminalPlayground;
     if (!TP || !TP.mcode || !TP.mcode.create) return null;
@@ -3592,6 +3595,9 @@ DONE      When the range shows every objective ticked: type next to take the nex
       return TP.mcode.create({
         unlocked: () => true,
         maxSteps: Infinity,
+        /* /code works like the Agent tab's coding agent: a plain line is a normal message, and commands only start
+           running once the player has pointed it at something. */
+        assist: true,
         ai: () => service(),
         models: async signal => {
           if (A.ai && A.ai.models) return await A.ai.models(signal);
@@ -3629,11 +3635,11 @@ DONE      When the range shows every objective ticked: type next to take the nex
         }),
         /* What the shell can tell mcode before it plans: the open range's objectives and the exact next step, so a
            turn never starts blind and guesses at commands the range already spells out. */
-        shellState: () => {
+        shellState: request => {
           if (!breach) return '';
           const out = [];
           try { out.push(String(breach.run('status'))); } catch (e) { }
-          try { out.push(String(breach.run('hint'))); } catch (e) { }
+          if (POINTS_AT_RANGE.test(String(request || ''))) { try { out.push(String(breach.run('hint'))); } catch (e) { } }
           return out.filter(Boolean).join('\n\n');
         },
         recent: () => lines.slice(-40).map(line => line.t),
@@ -3649,7 +3655,7 @@ DONE      When the range shows every objective ticked: type next to take the nex
         /* /chat gets a read-only look at this app before it answers; /code already drives this same shell. */
         lookup: appLookup,
         instructions: CHAT_BRIEF,
-        helpExtra: 'In this shell, /chat also searches the app\u2019s own files (read-only) before it answers and names the path it found. /code can work the simulated breach range too: targets lists every target, breach <n> or breach web <n|host> starts one, and status, loot, report and guide all return text.',
+        helpExtra: 'In this shell, /chat also searches the app\u2019s own files (read-only) before it answers and names the path it found. /code is the agent here: a plain line is a normal message and it waits for you, so point it at the target or the file you are working on (\u201cwork the range\u201d, \u201cfix this file\u201d) and watch it start. /code can work the simulated breach range too: targets lists every target, breach <n> or breach web <n|host> starts one, and status, loot, report and guide all return text.',
 
       });
     } catch (e) { return null; }
@@ -3870,7 +3876,7 @@ DONE      When the range shows every objective ticked: type next to take the nex
       ], [['--staged', 'unstage files']], [['git reset --staged', 'unstage everything']], ['reset']),
       harness('/help', '/help', 'Lists every mcode harness command, with what each one does.', [['/help', 'the harness command list']], ['help', '?']),
       harness('/chat', '/chat <question>', 'Talks to the local model and runs nothing. In this shell it also searches the app\u2019s own files (read-only) before it answers and names the path it found.', [['/chat where is the terminal help built?', 'a question about this app or bash']]),
-      harness('/code', '/code <task>', 'Lets mcode work in this shell: it plans, then runs one command at a time against this app\u2019s files and the simulated breach range, and gets each command\u2019s real output back. It can only change the app and the in-page simulation, never the rest of the PC.', [['/code add a keyboard shortcut for the shell', 'a task mcode carries out here'], ['/code work the breach range and list the vulnerabilities you find', 'a simulated engagement on an offline page']]),
+      harness('/code', '/code [task]', 'The agent in this shell. A plain line is a normal message: it answers and waits. Point it at something (a file to fix, a target to work) and it plans, runs one command at a time against this app\u2019s files and the simulated breach range, and gets each command\u2019s real output back. It can only change the app and the in-page simulation, never the rest of the PC.', [['/code add a keyboard shortcut for the shell', 'a task mcode carries out here'], ['/code work the breach range and list the vulnerabilities you find', 'a simulated engagement on an offline page']]),
       harness('/swarm', '/swarm [run|add|set|roles|help]', 'Runs several local agents at once, one per role, each with its own model. /swarm help explains the rest.', [['/swarm', 'open the swarm']]),
       harness('/model', '/model [name|number]', 'Lists the local models or chooses the one the harness uses.', [['/model', 'choose a model']], ['/models']),
       harness('/tool', '/tool', 'Makes or tests a text tool that /code can use.', [['/tool', 'open the tool maker']]),

@@ -1,7 +1,6 @@
-# What is new in this version: one line each. Shown in the app's "Update available" box and on the release page.
-# Lines starting with # are ignored. Replace these lines for each new version.
-True standalone desktop app: runs directly on app://moundshroud/ with zero localhost server, zero open TCP ports, and an off-thread Node backend.
-Built-in Ctrl+Alt+A global hotkey, system tray controls, Start with Windows option, and automatic one-time data migration from previous Edge profiles.
-Instant startup even with multi-gigabyte search indexes (skips unchanged notes on boot instead of rescanning the full FTS5 database).
-35 micro open-source tools integrated across Notes, Search, Money, Sky, Study, Vault, Photos, Calendar, Kitchen, Music, Paint, and Tools › Micro Tools.
-Rebuilt Terminal Hacker game with real Unix-style help, pipes, chaining, tab autocomplete, and fixed commands.
+Moundshroud Code’s /code in moundshell now works like the Agent tab: it answers a plain message and waits, and only starts working once you point it at a target or a file.
+Cyber Desktop: a breach lab, a fake internet with a dark web and leak archive, leaked PCs, and moundshell, the app’s own shell over the simulated range.
+Scratch is rebuilt around drag-and-drop blocks, and every Playground language now has a Coding course.
+The coding sandbox can show graphical program output, and the AI Olympics gains a cybersecurity event.
+ARTEX now installs what it needs and reaches your local Ollama, and Agent conversations always continue with any engine.
+Terminal Playground’s office network, Chat whip and Browser toolbar fixes, plus a dark native title bar so the window buttons never overlap.
