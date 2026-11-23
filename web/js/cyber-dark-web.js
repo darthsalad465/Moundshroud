@@ -77,6 +77,8 @@
       '.empty{border:1px dashed #24402f;padding:14px 16px;margin:14px 0;color:#8fb9a1;font-size:12.5px;}' +
       '.more{display:inline-block;border:1px solid #1d5238;background:#08120c;padding:8px 14px;margin:10px 0 4px;color:#8dffbb;}' +
       '.more:hover{border-color:#45ff96;}' +
+      '.front{display:flex;gap:10px;flex-wrap:wrap;align-items:baseline;border:1px solid #1d5238;background:#07120c;padding:12px 14px;margin:14px 0}' +
+      '.front a{font-size:13.5px;color:#8dffbb}.front span{color:#4d7a5f;font-size:11.5px;}' +
       'tbody tr:hover{background:#07110b;}' +
       'footer{margin-top:34px;border-top:1px solid #123b26;padding-top:12px;color:#3f6b52;font-size:11px;}';
     const MORE_BUTTON = '<a class="more" href="/more">Find more services →</a>';
@@ -89,7 +91,9 @@
     const shell = inner => page(site, 'Index', css, '<div class="top"><b>THE ONION INDEX</b><span>' + esc(site.host) + ' · mirror 3 of 4 · signed ' + day(Date.now()) + '</span></div>' +
       '<div class="wrap">' + inner + '<footer>Listings are claims, not endorsements. A green probe only means an address answered. ' +
       'This directory is simulated inside the Cyber Desktop; no hidden service was contacted.</footer></div>');
-    const note = '<div class="note">Simulated hidden-service index. Every address, vendor and leak below is invented. Nothing here is reachable and nothing leaves this page.</div>';
+    const note = '<div class="note">Simulated hidden-service index. Every address, vendor and leak below is invented. Nothing here is reachable and nothing leaves this page.</div>' +
+      '<div class="front"><a href="https://' + esc((A.hiddenWiki && A.hiddenWiki.host) || 'hiddenwiki.onion') + '/"><b>The Hidden Wiki →</b></a>' +
+      '<span>the other front door: ' + (A.hiddenWiki ? A.hiddenWiki.count() : '?') + ' services in a directory, with the leak archives under it</span></div>';
     site.render = (path, query) => {
       if (path === '/pgp.txt') return pgpPage(site, 'The Onion Index signing key');
       if (path === '/about') return { status: 200, type: 'text/html', body: shell('<h1>About</h1><p>We list hidden services that answered at least once in the last thirty days. Where an operator publishes a PGP key, the mirror list is checked against it before the entry is kept.</p><p>A probe is a network fact. It says nothing about who runs the service, and clones answer too.</p>') };
@@ -719,7 +723,7 @@
       }
       if (path === '/order') {
         const o = offers.find(x => x.id === Number(query.get('offer')));
-        if (!o) return { status: 400, type: 'text/html', body: shell('Bad order', '<h1>Pick a listing first</h1><p><a href="/">Listings</a></p>') };
+        if (!o) return { status: 200, type: 'text/html', body: shell('No listing selected', '<h1>Pick a listing first</h1><p>Escrow opens from a listing, so the broker knows what is being paid for. <a href="/">Back to the listings →</a></p>') };
         const id = 'KB-' + (3000 + orders.length + 1);
         orders.push({ id, offer: o.id, at: Date.now(), price: o.price });
         return { status: 200, type: 'text/html', body: shell('Escrow', '<h1>Escrow opened · ' + esc(id) + '</h1><p>' + money(o.price) + ' held for ' + esc(o.sector) + ' · ' + esc(o.country) + '. The broker is asked for the proof you named: ' + esc(query.get('note') || 'one proof file') + '.</p>' +
@@ -912,6 +916,12 @@
           A.darkGen.agencies().forEach(register);
           A.darkGen.more(36, 90210).forEach(register);
         }
+        /* The Hidden Wiki is the section's other front door, and the leak archives under its directory have their own
+           catalogues, so they are always in the index rather than minted on the first click. */
+        if (A.hiddenWiki) {
+          register(A.hiddenWiki.site);
+          A.hiddenWiki.leakSites().forEach(register);
+        }
       } catch (e) { }
     }
     return CATALOGUE;
@@ -932,6 +942,8 @@
     if (!s) return null;
     const hit = sites().find(x => x.host === s);
     if (hit) return hit;
+    /* the Hidden Wiki's own address (and its short aliases) and every service in its directory */
+    if (A.hiddenWiki) { const w = A.hiddenWiki.find(s); if (w && !CATALOGUE.includes(w)) register(w); if (w) return w; }
     /* any .onion address is a real page here: typing one the index has never listed generates it on the spot */
     if (/\.onion$/.test(s) && A.darkGen) return register(A.darkGen.site(s));
     return null;
@@ -972,7 +984,10 @@
 
   /* what a directory scan finds on a hidden service: only the routes its own backend answers */
   function scan(site) {
-    const candidates = ['/', '/about', '/faq', '/archive', '/catalog', '/rules', '/login', '/cart', '/status', '/api/status', '/pgp.txt'];
+    /* the routes it prints in its own menu count too: a portal with six pages is not a two-page site */
+    const candidates = ['/', '/about', '/faq', '/archive', '/catalog', '/rules', '/login', '/cart', '/status', '/api/status', '/pgp.txt',
+      '/leaks', '/categories', '/directory', '/list', '/search', '/wanted', '/seized', '/report']
+      .concat((site.menu || []).map(item => item[1]).filter(Boolean));
     const out = [], seen = new Set();
     for (const p of candidates) {
       if (seen.has(p)) continue;
@@ -983,20 +998,97 @@
     return out.length ? out : [{ path: '/', status: 200, size: 4000, note: 'page' }];
   }
 
+  /* Every dark page runs inside the Browser's sandboxed frame, and a link or a form in a sandboxed frame only reaches
+     the Browser through the bridge script. The hand-written sites add it themselves; this puts it on every other
+     hidden service (the generated ones, the portals, the leak archives, the Hidden Wiki) so a click there really goes
+     somewhere instead of doing nothing. */
+  function withBridge(html) {
+    const script = bridge();
+    const text = String(html == null ? '' : html);
+    if (!script || !text || /cdweb/.test(text)) return text;
+    return /<\/body>/i.test(text) ? text.replace(/<\/body>/i, script + '</body>') : text + script;
+  }
   function serve(site, path, query, method) {
     if (!site || !site.render) return { status: 404, type: 'text/plain', body: '404 Not Found\n' };
     const clean = path || '/';
     try {
       const out = site.render(clean, query, method);
-      if (out && out.body != null && out.status) return out;
-      return { status: 200, type: 'text/html', body: String(out) };
+      if (out && out.body != null && out.status) {
+        if (/html/i.test(String(out.type || 'text/html'))) out.body = withBridge(out.body);
+        return out;
+      }
+      return { status: 200, type: 'text/html', body: withBridge(String(out)) };
     } catch (error) {
       return { status: 500, type: 'text/html', body: page(site, 'Error', '', '<h1>500</h1><p>The service dropped the request.</p>') };
     }
   }
 
+  /* ---------------------------------------------------------------- difficulty ------------------------------------------------------------ */
+  /* How hard a site is to work, read off what the site actually is rather than a table of numbers: a government portal
+     with no upload and a staff login is the far end of the scale; a static radio page with one route is the near end.
+     The same function answers for the hand-written onions, the generated ones, the government portals, the leak archives
+     and every surface site in the fake internet, because it only reads fields they all carry. */
+  const DIFF_KIND = {
+    Government: 92, Marketplace: 84, 'Leak archive': 78, Archive: 74, Hosting: 70, 'Service desk': 66,
+    Forum: 61, 'Paste & leaks': 57, Zine: 53, News: 53, Mail: 49, 'Search engine': 45, Stream: 45,
+    'Software mirror': 45, VPN: 39, Mirror: 37, Directory: 33, Library: 29, Seized: 12, wiki: 41,
+    Pharmacy: 70, Carding: 72, 'Whistleblowing drop': 66
+  };
+  const SURFACE_RULES = [
+    [/gov|ministr|council|police|tax|embassy|parliament/i, 88, 'a government site: authenticated staff area, no uploads and a filter in front'],
+    [/bank|financ|credit|payment|insurance|loan|invest/i, 80, 'money: strong accounts, rate limits and a fraud team behind the login'],
+    [/health|hospital|clinic|medical|pharma|doctor/i, 70, 'health records: restricted staff access, audit trail, regulatory reporting'],
+    [/crypto|exchange|wallet|coin/i, 74, 'an exchange: hardened auth and withdrawal limits'],
+    [/school|university|college|edu|course|student/i, 62, 'a campus site: student accounts, a content system and a lot of forgotten subdomains'],
+    [/corp|enterprise|industrial|logistics|airline|energy/i, 64, 'a company site with a login and an intranet behind it'],
+    [/shop|store|market|commerce|retail|deals|cart/i, 54, 'a storefront: accounts, a cart and an order history to probe'],
+    [/forum|board|community|discuss|social/i, 58, 'a community: accounts, posts, moderation and search'],
+    [/news|blog|magazine|journal|press|daily|times/i, 38, 'publishing: few moving parts, mostly static pages'],
+    [/wiki|library|archive|docs|reference/i, 34, 'a reference site: read-only pages and a search box'],
+    [/radio|music|stream|video|tv|podcast/i, 36, 'media: a player and a schedule, little else'],
+    [/mail|inbox|messag|chat/i, 64, 'messaging: accounts, sessions and a lot to lose']
+  ];
+  function difficulty(site) {
+    if (!site) return null;
+    const kind = String(site.kind || '');
+    const brand = String(site.brand || '') + ' ' + String(site.tagline || '') + ' ' + String((site.cat && site.cat.label) || '') + ' ' + String(site.topic || '');
+    let score = DIFF_KIND[kind] != null ? DIFF_KIND[kind] : null;
+    const why = [];
+    if (score == null) {
+      const rule = SURFACE_RULES.find(r => r[0].test(brand));
+      score = rule ? rule[1] : 48;
+      why.push(rule ? rule[2] : 'an ordinary site: a handful of pages and one form');
+    } else {
+      why.push(site.gov ? 'a law-enforcement portal: staff accounts only, no uploads, every route logged and filtered'
+        : kind === 'Marketplace' ? 'escrow marketplace: accounts, vendor bonds, an admin panel and money moving through it'
+          : kind === 'Leak archive' || site.leaks ? 'a leak archive: a searchable catalogue with thousands of records behind it'
+            : kind === 'Directory' ? 'a directory: read-only, and its links are the whole attack surface'
+              : 'a ' + kind.toLowerCase() + ' hidden service');
+    }
+    if (site.gov) { score += 5; why.push('government: signed mirror list, a pinned key, and no anonymous anything'); }
+    if (site.market) { score += 3; why.push('sells things: a cart, orders and an escrow balance to go after'); }
+    if (site.leaks) {
+      const big = (A.hiddenWiki && A.hiddenWiki.leaks ? A.hiddenWiki.leaks() : []);
+      const inside = big.length;
+      score += Math.min(9, Math.round(Math.log10(Math.max(10, inside * 1e6))));
+      why.push('carries ' + inside + ' historical archives, the largest in the billions of rows');
+    }
+    if (Array.isArray(site.users) && site.users.length) { score += 3; why.push('has a user table of its own to enumerate'); }
+    if (Array.isArray(site.items) && site.items.length) { score += Math.min(4, Math.round(site.items.length / 4)); why.push(site.items.length + ' listings to work through, each with its own page'); }
+    if (site.wiki && A.hiddenWiki) { score += 4; why.push(A.hiddenWiki.count() + ' services listed: the links are the whole attack surface'); }
+    if (site.trapped) { score += 5; why.push('this one bites back: it is a trap, not a target'); }
+    const tier = String(site.tier || site.quality || '');
+    if (tier === 'premium') { score += 4; why.push('premium build: consistent layout, no debug pages, no version strings'); }
+    else if (tier === 'shoddy') { score -= 7; why.push('shoddy build: broken markup and debug output are free reconnaissance'); }
+    else if (tier === 'broken') { score -= 11; why.push('barely maintained: errors on its own pages give away its stack'); }
+    score = Math.max(10, Math.min(100, Math.round(score)));
+    const level = score >= 90 ? 'elite' : score >= 78 ? 'very hard' : score >= 62 ? 'hard' : score >= 45 ? 'moderate' : score >= 28 ? 'easy' : 'trivial';
+    const stars = Math.max(1, Math.min(5, Math.round(score / 20)));
+    return { score, level, stars, why, gov: !!site.gov, dark: !!site.dark, kind: kind || (site.cat && site.cat.label) || 'site', host: site.host, brand: site.brand || site.host };
+  }
+
   A.cyberDark = {
-    sites, find, search, serve, scan, darkHost, rank, register, more,
+    sites, find, search, serve, scan, darkHost, rank, register, more, difficulty,
     all: () => sites(),
     count: () => sites().length,
     /* the government and police portals, listed separately for `tor gov` and the Browser */

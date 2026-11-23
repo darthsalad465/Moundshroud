@@ -1377,6 +1377,7 @@
     return {
       s, host, base: 'http://' + host, ip: (s && s.ip) || '', depth: (s && s.depth) || 1,
       adminPath: (s && s.adminPath) || '/staff', privesc: (s && s.privesc) || 'sudo-python',
+      sec: (s && s.sec) || null,
       done: new Set((s && s.done) || []), rooted: !!(s && s.rooted)
     };
   }
@@ -1385,6 +1386,12 @@
     const i = walkInfo();
     const H = i.base, A = i.adminPath, IP = i.ip || '10.10.10.5';
     const priv = WALK_PRIVESC[i.privesc] || WALK_PRIVESC['sudo-python'];
+    /* a Cyber Desktop target can refuse the tutorial's injection: the walkthrough has to print the way in that
+       actually works on the site in front of the learner, not the way the tutorial floor teaches */
+    const sec = i.sec || {};
+    const hardLogin = sec.sqliLogin === false;
+    const credFile = sec.credPath || sec.secretPath || (sec.leaks && sec.leaks[0] && sec.leaks[0].path) || '/.env';
+    const loginPath = sec.loginPath || '/login';
     const steps = [];
     const add = (objective, title, text) => steps.push({ objective, title, lines: String(text).split('\n') });
 
@@ -1429,20 +1436,25 @@ TEACHES   Content discovery, and reading status codes as information: 404 = no s
 FIX       Do not rely on obscurity. Put authentication in front of admin routes, rate-limit directory brute force, and
           keep robots.txt free of anything you actually care about — it is a map you are handing out.`);
 
-    add('login', 'Broken authentication: the login builds a SQL string', `GOAL      Get in without a password, by making the database answer a different question.
-WHY       The login glues your input straight into its SQL. If your input is SQL syntax, it becomes part of the
-          query: the password comparison is no longer a check, it is a suggestion. The range even prints the query
-          it is about to run on a failed attempt — that is the vulnerability in plain sight.
-DO        Send a username that closes the string and makes the WHERE clause always true.
-TYPE      curl "${H}/login?u=' OR 1=1-- &p=x"
-TYPE      sqlmap -u "${H}/login?u=1&p=1" --batch --dump
-EXPECT    HTTP/1.1 302 Found, Location: /account and Set-Cookie: session=adm_… — the app has signed you in as admin.
-          sqlmap prints the users table with names, emails, roles and API keys: the same finding, automated.
-TEACHES   Injection: data crossing into code. The apostrophe closes the quote, OR 1=1 makes the condition true for every
-          row, and -- comments out the password check that followed. sqlmap is not magic; it is this, tried with many
-          spellings of the same idea.
+    add('login', hardLogin ? 'Broken authentication: the hardened login' : 'Broken authentication: the login builds a SQL string',
+      `GOAL      Get a staff session, using whatever this site actually left exposed.
+WHY       ${hardLogin
+        ? 'This site uses parameterised queries, so the apostrophe that breaks the tutorial login is just a character here.\n          That is the correct behaviour — the way in is somewhere else: a configuration file left in the web root, a\n          developer note or an old bundle. Reading it is reconnaissance, not an exploit.'
+        : 'The login glues your input straight into its SQL. If your input is SQL syntax, it becomes part of the\n          query: the password comparison is no longer a check, it is a suggestion. The range even prints the query\n          it is about to run on a failed attempt — that is the vulnerability in plain sight.'}
+DO        ${hardLogin
+        ? 'Read the leaked configuration, then sign in with the staff email and password it prints.'
+        : 'Send a username that closes the string and makes the WHERE clause always true.'}
+TYPE      ${hardLogin ? 'curl -s ' + H + credFile : 'curl "' + H + `/login?u=' OR 1=1-- &p=x"`}
+TYPE      ${hardLogin ? 'curl "' + H + loginPath + '?u=<ADMIN_EMAIL>&p=<ADMIN_PASSWORD>"' : 'sqlmap -u "' + H + '/login?u=1&p=1" --batch --dump'}
+EXPECT    ${hardLogin
+        ? 'the file prints ADMIN_PATH, ADMIN_EMAIL and ADMIN_PASSWORD; the login then answers 302 Found, Location: /account\n          and Set-Cookie: session=adm_… — a real staff session, obtained without breaking the SQL layer.'
+        : 'HTTP/1.1 302 Found, Location: /account and Set-Cookie: session=adm_… — the app has signed you in as admin.\n          sqlmap prints the users table with names, emails, roles and API keys: the same finding, automated.'}
+TEACHES   ${hardLogin
+        ? 'Defence works: prepared statements stop the injection completely. The finding here is the leaked artefact that\n          hands over the staff account anyway — the same outcome through a different, equally common mistake.'
+        : 'Injection: data crossing into code. The apostrophe closes the quote, OR 1=1 makes the condition true for every\n          row, and -- comments out the password check that followed. sqlmap is not magic; it is this, tried with many\n          spellings of the same idea.'}
 FIX       Parameterised queries (prepared statements) for every statement, never string building. Validate and
-          allowlist input. Log failed logins. Treat the sign-in as a security boundary, not a form.`);
+          allowlist input. Log failed logins. Treat the sign-in as a security boundary, not a form. Keep configuration
+          files out of the web root and rotate any credential that ever sat in one.`);
 
     add('staff', 'Session trust: using the session you just obtained', `GOAL      Reach the page the session was supposed to protect.
 WHY       Authentication proved who you are. Authorisation decides what you may see — and this app never asks again:
@@ -2890,8 +2902,10 @@ DONE      When the range shows every objective ticked: type next to take the nex
     try { A.cyberBank?.once('pc:' + pc.ip, 140, 'Remote access: ' + pc.hostname + ' (' + pc.ip + ')', 'host', 'targets'); } catch (e) { }
     return 'Welcome to ' + pc.os + ' (' + pc.hostname + ')\n' +
       'Logged in as ' + who + '. Last login: ' + pc.owner.last + ' from ' + pc.ip + '.\n' +
+      'Difficulty: ' + (pc.tier || 'medium') + ' · the FLAG is at /root/flag.txt' +
+      (pc.tier === 'extremely-easy' ? ' (and in ~/flag.txt)' : '') + '.\n' +
       'This is ' + pc.name + '\'s own PC — ' + Object.keys(pc.files).length + ' files in ~, including Documents/work and Documents/personal.\n' +
-      'Try: ls · cat Desktop/passwords.txt · cat secrets-work.txt · grep -ri password Documents · help · exit';
+      'Try: ls · cat Desktop/passwords.txt · cat secrets-work.txt · cat Documents/work/root-access.txt · help · exit';
   }
 
   /* ---- the two commands that leave the app's own disk: a site's leaked user table, and a PC behind one of its IPs --- */
@@ -2909,7 +2923,9 @@ DONE      When the range shows every objective ticked: type next to take the nex
         'Read it in the browser too: https://' + hit.site.host + '/dump/users.csv\n\n' + A.cyberPcs.table(hit.site) +
         '\n\nEvery IP above is a machine on the simulated network:\n' +
         '  nmap ' + users[0].ip + '\n' +
-        '  ssh ' + users[0].handle + '@' + users[0].ip + '   (the password is the password column)'
+        '  ssh ' + users[0].handle + '@' + users[0].ip + '   (the password is the password column)\n' +
+        '\nEach PC has the same tier as the site that leaked it: nmap names it, and the flag is at /root/flag.txt\n' +
+        '(home on the softest tier). The way up to root differs per tier: sudo, su, docker or SUID.'
     };
   }
   /* `ssh [user@]<leaked ip> [password]`: with the password inline it logs straight in and the PC's shell takes over;
@@ -3161,6 +3177,17 @@ DONE      When the range shows every objective ticked: type next to take the nex
           }
         } catch (e) { }
       }
+      paint();
+      if (promptEl) promptEl.textContent = promptText();
+      return text;
+    }
+    /* how hard a site is, from its own content — any site in the fake internet, onion or clearnet */
+    const diffCall = /^difficulty(?:\s+([\s\S]*))?$/i.exec(line.trim());
+    if (diffCall) {
+      hist.push(line); hi = hist.length;
+      let text = '';
+      try { text = difficultyCommand((diffCall[1] || '').trim()); } catch (e) { text = 'difficulty: ' + String(e && e.message || e); }
+      if (text) say(String(text).replace(/\n$/, ''));
       paint();
       if (promptEl) promptEl.textContent = promptText();
       return text;
@@ -3655,6 +3682,13 @@ DONE      When the range shows every objective ticked: type next to take the nex
           (list.length > show.length ? '\n  … and ' + (list.length - show.length) + ' more (tor sites <word>)' : '') +
           '\n\n  tor open <host> opens one in the Browser · tor more mints a fresh page of services';
       }
+      if (arg === 'wiki' || arg === 'hiddenwiki' || arg === 'hidden-wiki') {
+        const w = A.hiddenWiki ? A.hiddenWiki.site : null;
+        if (!w) return 'tor: the Hidden Wiki is not loaded in this page.';
+        const url = 'https://' + w.host + '/';
+        try { if (A.lib && A.lib.openUrl) { A.lib.openUrl(url, 'The Hidden Wiki'); return 'tor: opening the Hidden Wiki in the Browser — ' + (A.hiddenWiki.count ? A.hiddenWiki.count() : '?') + ' services and ' + (A.hiddenWiki.leaks ? A.hiddenWiki.leaks().length : '?') + ' leak archives.'; } } catch (e) { }
+        return 'tor: the Hidden Wiki is at ' + url + ' — open it from the dark web tab or with browser open ' + w.host;
+      }
       if (arg === 'more') { const made = A.cyberDark ? A.cyberDark.more(12) : []; return 'tor: ' + made.length + ' more services listed (the index never runs out).\n' + made.map(s => '  ' + s.host + ' · ' + s.brand + ' · ' + s.tier).join('\n'); }
       if (arg === 'open' || arg === 'visit') {
         const host = (words[1] || '').trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
@@ -3686,7 +3720,7 @@ DONE      When the range shows every objective ticked: type next to take the nex
         '  public address: ' + t.publicIp() + (v.on ? '  (the VPN\u2019s exit, not a Tor relay)' : t.on ? '  (the exit relay)' : ''),
         '  onion services known: ' + (A.cyberDark ? A.cyberDark.count() : 0) + '  ·  government portals: ' + (A.cyberDark ? A.cyberDark.agencies().length : 0),
         '',
-        '  tor on | off | circuit | newid | sites [q] | gov | more | check <host> | open <host>'
+        '  tor on | off | circuit | newid | sites [q] | gov | wiki | more | check <host> | open <host>'
       ].filter(x => x !== '').join('\n');
     }
     /* vpn */
@@ -3746,13 +3780,68 @@ DONE      When the range shows every objective ticked: type next to take the nex
     return null;
   }
 
+  /* ---- difficulty: how hard a site is to work, read from what the site is ---------------------------------------------- */
+  function difficultyCommand(rest) {
+    const arg = String(rest == null ? '' : rest).trim();
+    const dark = (A && A.cyberDark) || null;
+    if (!dark || !dark.difficulty) return 'difficulty: the fake internet is not loaded in this page.';
+    const stars = n => '★★★★★'.slice(0, n) + '☆☆☆☆☆'.slice(0, Math.max(0, 5 - n));
+    const row = s => {
+      const d = dark.difficulty(s);
+      return '  ' + stars(d.stars) + '  ' + String(d.score).padStart(3) + '/100  ' + (d.level + '        ').slice(0, 10) + '  ' + (String(s.brand || s.host).slice(0, 30) + '                              ').slice(0, 32) + ' ' + s.host;
+    };
+    const table = (list, title) => {
+      const sorted = list.slice().sort((a, b) => dark.difficulty(b).score - dark.difficulty(a).score);
+      return title + ' · ' + sorted.length + ' sites, hardest first\n\n' + sorted.slice(0, 40).map(row).join('\n') +
+        (sorted.length > 40 ? '\n  … and ' + (sorted.length - 40) + ' more (difficulty <host> asks about one)' : '');
+    };
+    if (/^(?:dark|onion|onions)$/i.test(arg)) return table(dark.sites().filter(s => s.dark), 'ONION DIFFICULTY');
+    if (/^(?:gov|government|agencies|police)$/i.test(arg)) return table(dark.agencies(), 'GOVERNMENT & POLICE PORTALS');
+    if (/^(?:all|list|everything)$/i.test(arg)) {
+      const { CW } = fakeWorld();
+      let surface = []; try { surface = CW && CW.all ? CW.all().filter(s => !s.dark) : []; } catch (e) { }
+      return table(surface.concat(dark.sites()), 'EVERY SITE IN THE FAKE INTERNET');
+    }
+    /* one site: the open tab, a host, an address, or a name from the index */
+    const { CW } = fakeWorld();
+    let site = null, at = null;
+    if (!arg || /^(?:current|here|this|page)$/i.test(arg)) {
+      const cur = currentBrowserUrl();
+      at = cur ? fakePick(CW, cur, { create: false }) : null;
+      site = at && at.site;
+      if (!site) return 'difficulty: nothing is open in the Browser. Try `difficulty dark`, or name a site: difficulty cai-intel.onion';
+    } else {
+      const clean = arg.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+      site = dark.find(clean)
+        || (dark.search(arg)[0] || null)
+        || ((at = fakePick(CW, arg, { create: false })) && at.site)
+        || null;
+    }
+    if (!site) return 'difficulty: no site called “' + arg + '”. `difficulty dark` lists the onions, `difficulty all` lists everything.';
+    const d = dark.difficulty(site);
+    const routes = (() => { try { return dark.scan(site).length; } catch (e) { return '?'; } })();
+    const portals = d.gov ? '\n  family: one of ' + dark.agencies().length + ' government portals in the index' : '';
+    const start = d.gov ? 'A wall, by design. Read it first: `paths`, then `breach current` to see what the range says about a portal. The report form and the press page are the only things it accepts.'
+      : site.leaks ? 'Start with the catalogue: `browser read current` on an archive page, then `paths` for /leaks/<id>/files. The interesting rows are the ones with the oldest provenance.'
+        : site.market ? 'Start with `paths` and `leaked current`; an escrow market leaks its own user table, and those IPs answer in this shell.'
+          : 'Start with `paths`, then `breach current` for the simulated range, and `leaked current` if the site keeps accounts.';
+    return 'DIFFICULTY · ' + String(d.brand) + '\n' +
+      '  https://' + site.host + '/  ·  ' + d.kind + (site.dark ? ' · onion' : ' · clearnet') + portals + '\n' +
+      '  ' + stars(d.stars) + '  ' + d.score + '/100  ·  ' + d.level.toUpperCase() + '\n\n' +
+      '  Why ' + d.score + ':\n' + d.why.map(w => '    · ' + w).join('\n') + '\n\n' +
+      '  Content: ' + routes + ' routes on a directory scan · ' + (Array.isArray(site.users) ? site.users.length : 0) + ' rows in its user table · ' +
+      (site.leaks ? 'a leak catalogue' : site.market ? 'a cart and an escrow balance' : 'no storefront') + '\n' +
+      '  Where to start: ' + start + '\n\n' +
+      '  harder: difficulty dark   ·   every portal: difficulty gov   ·   everything: difficulty all';
+  }
+
   function commandBrief() {
     if (room && commandCache.room === room) return commandCache.text;
     const names = new Set();
     const add = name => { if (typeof name === 'string' && /^[a-z][a-z0-9_.+-]{0,23}$/i.test(name)) names.add(name); };
     try { Object.keys((room && room.cmds) || {}).forEach(add); } catch (e) { }
     try { moundshellCommands().forEach(entry => add(String(entry.name || '').trim().split(/\s+/)[0])); } catch (e) { }
-    ['targets', 'leaked', 'ssh', 'paths', 'breach', 'browser', 'virus', 'solve', 'range', 'guide', 'pentest', 'current', 'tor', 'vpn', 'help']
+    ['targets', 'leaked', 'ssh', 'paths', 'breach', 'browser', 'virus', 'solve', 'range', 'guide', 'pentest', 'current', 'tor', 'vpn', 'difficulty', 'help']
       .forEach(add);
     const text = [...names].sort().join(' · ');
     if (room) commandCache = { room, text };
@@ -3924,6 +4013,7 @@ DONE      When the range shows every objective ticked: type next to take the nex
       if (first === 'breach') return finish(await breachCommand(rest));
       if (first === 'browser') return finish(await browserCommand(rest));
       if (['tor', 'vpn'].includes(first)) return finish(netCommand(line));
+      if (first === 'difficulty') return finish(difficultyCommand(rest));
       if (['paths', 'wordlist', 'try'].includes(first)) return finish(pathsCommand(rest));
       if (first === 'targets') return finish(await targetsCommand(rest));
       if (['virus', 'antivirus', 'av', 'malware'].includes(first)) return finish(virusCommand(rest));
@@ -4128,8 +4218,10 @@ DONE      When the range shows every objective ticked: type next to take the nex
         [['browser source 1', 'the HTML as stored'], ['browser source virus 1', 'inspect a random site’s HTML source']], ['browser src']),
       own('browser open', 'browser open <n|slug|host|url|current>', 'Opens any library or Cyber Desktop website in the Browser (creating any new domain on demand, just like the address bar).',
         [['browser open 1', 'show it in the Browser'], ['browser open moundhub.com', 'open MoundHub'], ['browser open virus 1', 'open a random site']], ['browser go']),
-      own('tor', 'tor [on|off|circuit|newid|status|sites [q]|gov|more|check <host>|open <host>]', 'Tor from the moundshell. `tor` on its own prints the circuit: the guard, the middle relay and the exit, each with its own country and address, plus the public address this PC appears to have. `tor on` builds a circuit, `tor circuit` keeps your identity and swaps the three relays, `tor newid` swaps the circuit and drops everything the pages were holding about you. With Tor on, `.onion` addresses resolve: `curl <host>.onion` returns the page, `ip a` shows the socks proxy, and a public-IP lookup answers with the exit relay. With Tor off, an .onion has no route, exactly as on a real machine. `tor sites` searches every hidden service, `tor gov` lists the government and police portals, `tor more` mints a fresh page of services.',
-        [['tor', 'the three relays and the exit address'], ['tor on', 'build a circuit'], ['tor newid', 'a new circuit with no shared history'], ['tor gov', 'the government and police onion portals'], ['tor sites bank', 'search the hidden services'], ['tor open cai-intel.onion', 'open a portal in the Browser'], ['tor check nightfall-market.onion', 'does an address answer, and through which exit'], ['tor more', 'another page of services']], ['onion', 'circuit']),
+      own('difficulty', 'difficulty [site|current|dark|gov|all]', 'How hard a site is to work, read off what the site actually is rather than a table of numbers. `difficulty <host|name|url>` rates one site; with no argument it rates whatever the Browser has open. Onions, government portals and leak archives are rated too, and the government portals sit at the far end of the scale — a staff-only portal with no upload, a pinned signing key and a filter in front is not a market with a cart. The rating explains itself: each line is a fact about the site (escrow and a cart, a user table to enumerate, a shoddy build that prints its own errors) rather than a made-up score.',
+        [['difficulty cai-intel.onion', 'how hard the CAI portal is, and why'], ['difficulty', 'rate the page open in the Browser'], ['difficulty dark', 'every onion, hardest first'], ['difficulty gov', 'the nine government and police portals'], ['difficulty all', 'every site in the fake internet, hardest first'], ['difficulty nightfall', 'rate a site by name']]),
+      own('tor', 'tor [on|off|circuit|newid|status|sites [q]|gov|wiki|more|check <host>|open <host>]', 'Tor from the moundshell. `tor` on its own prints the circuit: the guard, the middle relay and the exit, each with its own country and address, plus the public address this PC appears to have. `tor on` builds a circuit, `tor circuit` keeps your identity and swaps the three relays, `tor newid` swaps the circuit and drops everything the pages were holding about you. With Tor on, `.onion` addresses resolve: `curl <host>.onion` returns the page, `ip a` shows the socks proxy, and a public-IP lookup answers with the exit relay. With Tor off, an .onion has no route, exactly as on a real machine. `tor sites` searches every hidden service, `tor gov` lists the government and police portals, `tor more` mints a fresh page of services.',
+        [['tor', 'the three relays and the exit address'], ['tor on', 'build a circuit'], ['tor newid', 'a new circuit with no shared history'], ['tor gov', 'the government and police onion portals'], ['tor wiki', 'open The Hidden Wiki and its directory'], ['tor sites bank', 'search the hidden services'], ['tor open cai-intel.onion', 'open a portal in the Browser'], ['tor check nightfall-market.onion', 'does an address answer, and through which exit'], ['tor more', 'another page of services']], ['onion', 'circuit']),
       own('vpn', 'vpn [on [cc]|off|list|connect <provider|cc>|status]', 'A fake VPN for the Browser and this shell. `vpn` prints the state; `vpn on` routes this PC through a provider’s exit, `vpn on SE` picks a country, `vpn list` shows the invented providers, `vpn connect gullvad` chooses one. With the VPN on, `ip a` grows a tun0 interface, a public-IP lookup answers with the VPN exit, and the Browser shows the provider and country in its toolbar. It composes with Tor: the VPN wraps the circuit, so the exit relay sees the VPN address rather than your own. Nothing is tunnelled — it is one object in this page.',
         [['vpn', 'is the tunnel up, and where does it come out'], ['vpn on', 'connect through the default provider'], ['vpn on CH', 'connect through a Swiss exit'], ['vpn list', 'every invented provider'], ['vpn off', 'back to this PC\u2019s own address']], ['tunnel']),
       own('virus', 'virus [status|list|scan <site|current>|clean]', 'Cyber Desktop anti-malware from moundshell: check if fake pop-ups are active, explain why no site is pre-labelled, inspect any website for a simulated trap payload, or clean active fake pop-ups off the desktop. Finding a trap is the user’s job: `virus scan`, nikto, whatweb and gobuster are the detector.',

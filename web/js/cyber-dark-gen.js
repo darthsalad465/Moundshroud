@@ -67,11 +67,13 @@
   function design(host) {
     const h = hash(host);
     const b = rnd(h, 48);
+    /* palette, quality and type each come from their own hash of the address: drawing them from one LCG stream made
+       the low bits line up, so every service desk was premium and every forum was clean */
     return {
       b, h,
-      pal: at(PALETTES, b[0]),
-      tier: at(TIERS, b[1]),
-      kind: at(KINDS, b[2]),
+      pal: PALETTES[hash('pal:' + host) % PALETTES.length],
+      tier: TIERS[hash('tier:' + host) % TIERS.length],
+      kind: KINDS[hash('kind:' + host) % KINDS.length],
       brand: at(A_WORDS, b[3]) + ' ' + at(B_WORDS, b[4]),
       handle: at(HANDLES, b[5]),
       tint: (b[6] % 360)
