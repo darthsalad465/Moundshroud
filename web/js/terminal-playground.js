@@ -183,6 +183,8 @@
             return { hardware, models: models.filter(model => !model.cloud && !/embed|(?:^|[-:])cloud$|^free-|-agent(?:-\d+k)?(?::latest)?$|-\d+k-agent(?::latest)?$/i.test(model.name || '')) };
           },
           swarmStore: { load: () => TP.readSave?.('tpg_mcode_swarm'), save: value => TP.writeSave?.('tpg_mcode_swarm', value) },
+          // The model picked with /model is remembered for the next session in every terminal.
+          modelStore: { load: () => TP.readSave?.('tpg_mcode_model'), save: name => TP.writeSave?.('tpg_mcode_model', name) },
           // The whip cracks against the terminal output, where mcode writes its reply.
           // Each change also repaints the 🪢 /whip button, so Ctrl+C and a solved puzzle switch it off too.
           // The whip is drawn inside this terminal only: its own pointer events, its own canvas box, nothing of the rest

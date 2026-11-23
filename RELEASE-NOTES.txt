@@ -1,3 +1,4 @@
+mcode leaves with /bye as well as /exit and /quit, starts on the model you last chose in Chat, and /code can work a leaked user's PC as well as the breach range.
 Moundshroud Code’s /code in moundshell now works like the Agent tab: it answers a plain message and waits, and only starts working once you point it at a target or a file.
 Cyber Desktop: a breach lab, a fake internet with a dark web and leak archive, leaked PCs, and moundshell, the app’s own shell over the simulated range.
 Scratch is rebuilt around drag-and-drop blocks, and every Playground language now has a Coding course.

@@ -871,8 +871,9 @@
       out.push('');
     }
     out.push('  BUILT-IN BROWSER SITES',
-      '      MoundHub             ·  https://moundhub.com  (127.0.0.1 · git repository site)',
-      '      Moundshroud Search   ·  https://search.moundshroud.example  (10.14.0.1 · indexes every fake site)', '');
+      '      Moundshroud Search   ·  https://search.moundshroud.example  (10.14.0.1 · indexes every fake site)', '',
+      '  YOUR REPOSITORY STORE (not a target)',
+      '      MoundHub             ·  https://moundhub.com  (your own commits — read it in the Browser, write it with git)', '');
     if (fake && fake.CW && fake.sites.length) {
       out.push('  THE FAKE INTERNET — generated sites from the Cyber Desktop (' + fake.sites.length + ' sites)');
       for (const site of fake.sites.slice(0, 12)) out.push('    ' + String(site.id).padStart(3) + '. ' + site.brand + '  ·  ' + site.host + '  (' + site.ip + ')  ·  ' + site.kind + trapTag(site));
@@ -1059,7 +1060,7 @@
     let host = '', brand = '', targetSite = null;
     if (want) {
       const at = fakePick(CW, want, { create: true });
-      if (!at || !at.site) return 'paths: “' + want + '” is not a recognised website.\nName any host from the Cyber Desktop browser, `paths web`, `paths virus`, `paths moundhub.com`, or `paths current`.';
+      if (!at || !at.site) return 'paths: “' + want + '” is not a recognised website.\nName any host from the Cyber Desktop browser, `paths web`, `paths virus`, or `paths current`. MoundHub is not a target.';
       if (isChurchSite(at.site)) return sanctuary('paths', at.site);
       targetSite = at.site; host = targetSite.host; brand = targetSite.brand;
     }
@@ -1068,9 +1069,9 @@
     out.push('  tester checks them. ' + (host ? 'Open them in the Cyber Desktop browser, or read them from here with curl.' : 'Give  paths <host>  and the list comes back as addresses you can type.'));
     out.push('');
     if (targetSite && targetSite.hub) {
-      [['/', 'MoundHub repository web interface'], ['/robots.txt', 'crawler rules'], ['/api/repos', 'local repository list (requires MoundHub unlock)']].forEach(([p, why]) => {
-        out.push('  https://' + host + p, '      ' + why);
-      });
+      return 'paths: MoundHub is your own repository store, not a target.\n' +
+        '  Its pages show the commits you made here: open https://moundhub.com in the Browser to read them, and use git from this shell to write them.\n' +
+        '  There is nothing on it to scan, so no path list is offered. Name a fake-internet host instead.';
     } else if (targetSite && targetSite.portal) {
       [['/', 'Moundshroud Search portal home'], ['/?q=bank', 'search every generated site'], ['/robots.txt', 'crawler rules']].forEach(([p, why]) => {
         out.push('  https://' + host + p, '      ' + why);
@@ -2886,6 +2887,48 @@ DONE      When the range shows every objective ticked: type next to take the nex
       'Try: ls · cat Desktop/passwords.txt · cat secrets-work.txt · grep -ri password Documents · help · exit';
   }
 
+  /* ---- the two commands that leave the app's own disk: a site's leaked user table, and a PC behind one of its IPs --- */
+  /* The player's shell and mcode's /code both go through these, so a command typed here and a step mcode runs answer
+     exactly the same way. They return the text; the caller prints it and sets the prompt. */
+  function leakedFor(want) {
+    const key = String(want == null ? '' : want).trim();
+    const { CW } = fakeWorld();
+    const hit = key ? fakePick(CW, key, { create: true }) : null;
+    if (hit && hit.site && isChurchSite(hit.site)) return { text: sanctuary('leaked', hit.site) };
+    if (!hit || !hit.site) return { text: 'leaked <host>: name a website from the browser — leaked bank · leaked web · leaked virus · leaked current' };
+    const users = A.cyberPcs.roster(hit.site);
+    return {
+      text: 'LEAKED USERS · ' + hit.site.host + ' (' + hit.site.brand + ') · ' + users.length + ' accounts\n' +
+        'Read it in the browser too: https://' + hit.site.host + '/dump/users.csv\n\n' + A.cyberPcs.table(hit.site) +
+        '\n\nEvery IP above is a machine on the simulated network:\n' +
+        '  nmap ' + users[0].ip + '\n' +
+        '  ssh ' + users[0].handle + '@' + users[0].ip + '   (the password is the password column)'
+    };
+  }
+  /* `ssh [user@]<leaked ip> [password]`: with the password inline it logs straight in and the PC's shell takes over;
+     without it the shell asks, exactly as ssh does. Returns null when no leaked PC has that address. */
+  function sshFor(rest) {
+    const args = String(rest == null ? '' : rest).trim().split(/\s+/).filter(Boolean).filter(x => !x.startsWith('-'));
+    const targetArg = args[0] || '';
+    const pcw = targetArg ? A.cyberPcs.find(targetArg.replace(/^[^@]+@/, '')) : null;
+    if (!pcw) return null;
+    const userArg = /@/.test(targetArg) ? targetArg.split('@')[0] : '';
+    const inline = args[1] || '';
+    const check = inline ? A.cyberPcs.login(pcw, userArg, inline) : null;
+    if (check && check.ok) return { text: pcOpen(pcw, check.user), session: !!pcSession };
+    if (check) return { text: check.why };
+    pcAuth = { pc: pcw, user: userArg || pcw.user, tries: 0 };
+    return {
+      prompt: 'password: ',
+      text: 'The authenticity of host \'' + pcw.ip + ' (' + pcw.hostname + ')\' can\'t be established.\n' +
+        'ED25519 key fingerprint is SHA256:' + pcFingerprint(pcw.ip) + '.\n' +
+        'This machine belongs to ' + pcw.name + ' (' + pcw.owner.role + ', ' + pcw.owner.city + ').\n' +
+        (userArg ? '' : 'Accounts on it: ' + pcw.user + ', root.   ') +
+        'The password is in the site dump: curl -s https://' + pcw.site.host + '/dump/users.csv\n' +
+        pcAuth.user + '@' + pcw.ip + '\'s password: '
+    };
+  }
+
   async function exec(raw) {
     if (busy) return;
     const line = String(raw == null ? '' : raw);
@@ -2967,57 +3010,20 @@ DONE      When the range shows every objective ticked: type next to take the nex
     }
     const sshCall = /^ssh(?:\s+([\s\S]*))?$/i.exec(line.trim());
     if (sshCall && typeof A !== 'undefined' && A.cyberPcs) {
-      const args = (sshCall[1] || '').trim().split(/\s+/).filter(Boolean).filter(x => !x.startsWith('-'));
-      const targetArg = args[0] || '';
-      const pcw = targetArg ? A.cyberPcs.find(targetArg.replace(/^[^@]+@/, '')) : null;
-      if (pcw) {
+      const res = sshFor(sshCall[1] || '');
+      if (res) {
         hist.push(line); hi = hist.length;
-        const userArg = /@/.test(targetArg) ? targetArg.split('@')[0] : '';
-        const inline = args[1] || '';
-        const check = inline ? A.cyberPcs.login(pcw, userArg, inline) : null;
-        let text = '';
-        if (check && check.ok) text = pcOpen(pcw, check.user);
-        else if (check) text = check.why;
-        else {
-          pcAuth = { pc: pcw, user: userArg || pcw.user, tries: 0 };
-          text = 'The authenticity of host \'' + pcw.ip + ' (' + pcw.hostname + ')\' can\'t be established.\n' +
-            'ED25519 key fingerprint is SHA256:' + pcFingerprint(pcw.ip) + '.\n' +
-            'This machine belongs to ' + pcw.name + ' (' + pcw.owner.role + ', ' + pcw.owner.city + ').\n' +
-            (userArg ? '' : 'Accounts on it: ' + pcw.user + ', root.   ') +
-            'The password is in the site dump: curl -s https://' + pcw.site.host + '/dump/users.csv\n' +
-            pcAuth.user + '@' + pcw.ip + '\'s password: ';
-        }
-        say(text);
+        say(res.text);
         paint();
-        if (promptEl) promptEl.textContent = (pcSession ? promptText() : pcAuth ? 'password: ' : promptText());
-        return text;
+        if (promptEl) promptEl.textContent = res.prompt || promptText();
+        return res.text;
       }
     }
     /* `leaked <host>` reads the user table a site left in its web root, without opening a browser */
     const leakedCall = /^(?:leaked|userdump|siteusers)(?:\s+([\s\S]*))?$/i.exec(line.trim());
     if (leakedCall && typeof A !== 'undefined' && A.cyberPcs) {
       hist.push(line); hi = hist.length;
-      const want = (leakedCall[1] || '').trim();
-      const { CW } = fakeWorld();
-      const hit = want ? fakePick(CW, want, { create: true }) : null;
-      if (hit && hit.site && isChurchSite(hit.site)) {
-        hist.push(line); hi = hist.length;
-        const refused = sanctuary('leaked', hit.site);
-        say(refused); paint();
-        if (promptEl) promptEl.textContent = promptText();
-        return refused;
-      }
-      let text = '';
-      if (!hit || !hit.site) {
-        text = 'leaked <host>: name a website from the browser — leaked bank · leaked web · leaked virus · leaked current';
-      } else {
-        const users = A.cyberPcs.roster(hit.site);
-        text = 'LEAKED USERS · ' + hit.site.host + ' (' + hit.site.brand + ') · ' + users.length + ' accounts\n' +
-          'Read it in the browser too: https://' + hit.site.host + '/dump/users.csv\n\n' + A.cyberPcs.table(hit.site) +
-          '\n\nEvery IP above is a machine on the simulated network:\n' +
-          '  nmap ' + users[0].ip + '\n' +
-          '  ssh ' + users[0].handle + '@' + users[0].ip + '   (the password is the password column)';
-      }
+      const text = leakedFor(leakedCall[1]).text;
       say(text);
       paint();
       if (promptEl) promptEl.textContent = promptText();
@@ -3455,6 +3461,13 @@ DONE      When the range shows every objective ticked: type next to take the nex
   /* The harness must talk with the same model the user is driving in real Moundshroud Code (mcode). When mcode has
      no session yet it uses the model chosen as the app's main Chat bot. Only local models can serve this shell. */
   async function mcodeModel() {
+    /* the model the user is driving in Chat — the last one they picked there — is what they mean by "my model", so it
+       comes first: a stale mcode session must never pull the shell onto a model the user is not using */
+    try {
+      const base = (typeof A !== 'undefined') ? A.ai : null;
+      const picked = base && base.localModel ? await base.localModel() : '';
+      if (picked) return picked;
+    } catch (e) { }
     try {
       const r = await fetch('/api/harness/sessions', { cache: 'no-store' });
       if (r.ok) {
@@ -3524,7 +3537,7 @@ DONE      When the range shows every objective ticked: type next to take the nex
     'SEARCH RESULTS come from a real read-only search of this shell. When they are given, answer from them, name the full path relative to ~/app (for example web/js/core.js), and never invent a file or a path.',
     'If the search found nothing, say so plainly instead of guessing a path.',
     'You cannot run a command in /chat: for anything that needs one, say to use /code <task>.',
-    'This shell maps every web, recon, and security command (curl, wget, ping, dig, nslookup, host, whois, traceroute, nmap, masscan, whatweb, nikto, gobuster, ffuf, dirb, sqlmap, hydra, wpscan, openssl, nc, ssh, lynx, subfinder, tshark, searchsploit, tool, paths, browser, virus, breach, guide) to EVERY website in the Cyber Desktop browser — including all generated fake websites, every site that may carry an injected script (which site is never announced: find it with `virus scan <site>`, nikto, whatweb or gobuster; `virus clean` ends the pop-ups), Cyber Mail phishing sites, custom domains, `search.moundshroud.example`, `moundhub.com`, offline libraries, and `current` (the open browser tab). Answer questions about it freely, and be clear that every host, account, file and flag is invented, no socket is opened, and nothing outside this app is reachable.'
+    'This shell maps every web, recon, and security command (curl, wget, ping, dig, nslookup, host, whois, traceroute, nmap, masscan, whatweb, nikto, gobuster, ffuf, dirb, sqlmap, hydra, wpscan, openssl, nc, ssh, lynx, subfinder, tshark, searchsploit, tool, paths, browser, virus, breach, guide) to EVERY website in the Cyber Desktop browser — including all generated fake websites, every site that may carry an injected script (which site is never announced: find it with `virus scan <site>`, nikto, whatweb or gobuster; `virus clean` ends the pop-ups), Cyber Mail phishing sites, custom domains, `search.moundshroud.example`, offline libraries, and `current` (the open browser tab). MoundHub (moundhub.com) is your own repository store and is deliberately not a target. Answer questions about it freely, and be clear that every host, account, file and flag is invented, no socket is opened, and nothing outside this app is reachable.'
   ].join(' ');
   async function appLookup(question) {
     if (!room) return null;
@@ -3586,7 +3599,24 @@ DONE      When the range shows every objective ticked: type next to take the nex
 
   /* A message only counts as pointing mcode at the engagement when it names the range, a target or a tool. The range's
      next-step hint is only handed over then: on every line it turned a passing remark into an order to solve it. */
-  const POINTS_AT_RANGE = /\b(?:range|target|targets|breach|engagement|scan|nmap|gobuster|nikto|whatweb|sqlmap|curl|wget|exploit|enum|loot|flag|objective|attack|penetrat|hint)\b|https?:\/\/|[\w-]+\.(?:com|net|org|io|dev|local)\b/i;
+  const POINTS_AT_RANGE = /\b(?:range|target|targets|breach|engagement|scan|nmap|gobuster|nikto|whatweb|sqlmap|curl|wget|exploit|enum|loot|flag|objective|attack|penetrat|hint|continue|carry\s+on|keep\s+going|go\s+on|proceed|resume|next\s+step|what\s+next)\b|https?:\/\/|[\w-]+\.(?:com|net|org|io|dev|local)\b/i;
+  /* What /code is told this shell can run, read from the two places that really decide it: the bash room's command
+     table and the moundshell's own command catalogue. Because it is read from the live tables, the list can never
+     drift from what actually works here — mcode never has to guess at a command, or invent one that does not exist. */
+  const PC_COMMANDS = 'ls · cd · pwd · cat · head · tail · grep · find · wc · whoami · id · ps · env · ip a · ss · sudo -l · help · exit';
+  let commandCache = { room: null, text: '' };
+  function commandBrief() {
+    if (room && commandCache.room === room) return commandCache.text;
+    const names = new Set();
+    const add = name => { if (typeof name === 'string' && /^[a-z][a-z0-9_.+-]{0,23}$/i.test(name)) names.add(name); };
+    try { Object.keys((room && room.cmds) || {}).forEach(add); } catch (e) { }
+    try { moundshellCommands().forEach(entry => add(String(entry.name || '').trim().split(/\s+/)[0])); } catch (e) { }
+    ['targets', 'leaked', 'ssh', 'paths', 'breach', 'browser', 'virus', 'solve', 'range', 'guide', 'pentest', 'current', 'help']
+      .forEach(add);
+    const text = [...names].sort().join(' · ');
+    if (room) commandCache = { room, text };
+    return text;
+  }
   function buildMcode() {
     const TP = window.TerminalPlayground;
     if (!TP || !TP.mcode || !TP.mcode.create) return null;
@@ -3598,6 +3628,8 @@ DONE      When the range shows every objective ticked: type next to take the nex
         /* /code works like the Agent tab's coding agent: a plain line is a normal message, and commands only start
            running once the player has pointed it at something. */
         assist: true,
+        /* an open range or a leaked PC's shell is a session mcode may leave: `exit` is a normal command there */
+        canLeave: () => !!(breach || pcSession),
         ai: () => service(),
         models: async signal => {
           if (A.ai && A.ai.models) return await A.ai.models(signal);
@@ -3618,6 +3650,12 @@ DONE      When the range shows every objective ticked: type next to take the nex
           load: () => { try { return JSON.parse(localStorage.getItem('aeshell_mcode_swarm') || 'null'); } catch (e) { return null; } },
           save: value => { try { localStorage.setItem('aeshell_mcode_swarm', JSON.stringify(value)); } catch (e) { } }
         },
+        /* the model chosen with /model is remembered across sessions and reloads, so /code never falls back to a
+           default the user never chose */
+        modelStore: {
+          load: () => { try { return localStorage.getItem('aeshell_mcode_model') || ''; } catch (e) { return ''; } },
+          save: name => { try { localStorage.setItem('aeshell_mcode_model', String(name || '')); } catch (e) { } }
+        },
         whipCursor: A.mcodeWhip ? {
           on: onCrack => A.mcodeWhip.on({ onCrack, host: wrap, target: () => (mcode && mcode.open()) ? out : null }),
           off: () => A.mcodeWhip.off()
@@ -3631,15 +3669,19 @@ DONE      When the range shows every objective ticked: type next to take the nex
             'This shell can only read and change files inside ~/app (the app itself). Nothing outside it exists here, and the real computer this app runs on is not reachable.\n' +
             'This shell also carries a simulated breach range, entirely in this page: `targets` lists the offline pages the Browser holds and the generated fake-internet sites; `breach <n>` or `breach web <n|host>` starts an engagement; inside it nmap, whatweb, gobuster, nikto, curl, sqlmap, shell, sudo -l, status, loot, hint, report and guide all work, and every bash command (ls, cat, echo, python, git, grep …) still works there too. Every host, account, file and flag is invented, no socket is opened, and nothing outside this app is reachable.',
           breach: true,
+          /* every command this shell really answers to, handed to /code so it knows the whole inventory — and just a
+             leaked PC's own commands while mcode is sitting in that machine's shell */
+          commands: pcSession ? PC_COMMANDS + '  (this is ' + pcSession.pc.hostname + '\u2019s own shell: only these, and exit leaves it)' : commandBrief(),
           task: '', plan: 'Ask a question, or /code <task> to let mcode work on this app’s files or the simulated breach range in this shell. It can only touch the app and the in-page simulation, never the rest of the PC.'
         }),
         /* What the shell can tell mcode before it plans: the open range's objectives and the exact next step, so a
-           turn never starts blind and guesses at commands the range already spells out. */
+           turn never starts blind and guesses at commands the range already spells out. It is handed over only when
+           the message points at the range: on every other line it turned a greeting into an order to start scanning. */
         shellState: request => {
-          if (!breach) return '';
+          if (!breach || !POINTS_AT_RANGE.test(String(request || ''))) return '';
           const out = [];
           try { out.push(String(breach.run('status'))); } catch (e) { }
-          if (POINTS_AT_RANGE.test(String(request || ''))) { try { out.push(String(breach.run('hint'))); } catch (e) { } }
+          try { out.push(String(breach.run('hint'))); } catch (e) { }
           return out.filter(Boolean).join('\n\n');
         },
         recent: () => lines.slice(-40).map(line => line.t),
@@ -3698,8 +3740,40 @@ DONE      When the range shows every objective ticked: type next to take the nex
       return String(text == null ? '' : text);
     };
     try {
-      /* inside the range every line is a range command, exactly as when the user types it */
-      if (breach) return finish(breach.run(line));
+      /* inside a leaked PC every line is that machine's own shell, exactly as when the player is sitting in it */
+      if (pcSession) {
+        const out = pcSession.run(line);
+        if (out === null) {
+          const pc = pcSession.pc;
+          pcSession = null;
+          return finish('Connection to ' + pc.ip + ' (' + pc.hostname + ') closed. Back in bash.');
+        }
+        return finish(out || '');
+      }
+      /* ssh's password prompt: the next line mcode runs is the password, exactly as a player types it */
+      if (pcAuth) {
+        const attempt = line.trim();
+        if (/^(?:exit|logout|cancel|abort)$/i.test(attempt)) { pcAuth = null; return finish('ssh: authentication cancelled.'); }
+        const check = A.cyberPcs.login(pcAuth.pc, pcAuth.user, attempt);
+        const pc = pcAuth.pc;
+        pcAuth = null;
+        return finish(check.ok ? pcOpen(pc, check.user) : check.why);
+      }
+      /* inside the range every line is a range command, exactly as when the user types it. `exit` really leaves:
+         the webshell first, then the range, so a task can move on to the next target instead of being trapped here. */
+      if (breach) {
+        if (/^(?:exit|logout)$/i.test(line)) {
+          const inside = !/^kali@pentest/.test(String(breach.prompt()));
+          return finish(String(inside ? breach.run('exit') : await breachCommand('end')));
+        }
+        return finish(await breach.run(line));
+      }
+      /* the two commands that reach beyond the app's own disk, answered exactly as the player's line is */
+      if (['leaked', 'userdump', 'siteusers'].includes(first) && typeof A !== 'undefined' && A.cyberPcs) return finish(leakedFor(rest).text);
+      if (['ssh', 'remote'].includes(first) && typeof A !== 'undefined' && A.cyberPcs) {
+        const res = sshFor(rest);
+        if (res) return finish(res.text);
+      }
       if (first === 'breach') return finish(await breachCommand(rest));
       if (first === 'browser') return finish(await browserCommand(rest));
       if (['paths', 'wordlist', 'try'].includes(first)) return finish(pathsCommand(rest));
@@ -3742,7 +3816,7 @@ DONE      When the range shows every objective ticked: type next to take the nex
         out.push('');
       } catch (e) { out.push('  (the Browser libraries could not be listed: ' + String(e && e.message || e) + ')', ''); }
       out.push('  BUILT-IN BROWSER WEBSITES',
-        '    moundhub.com               127.0.0.1    MoundHub (local git repositories)',
+        '    moundhub.com               127.0.0.1    MoundHub (your repositories — not a scan target)',
         '    search.moundshroud.example 10.14.0.1    Moundshroud Search (fake internet index)',
         '    range.moundshroud.lab      10.66.0.1     Moundshroud Open Range (endless practice PCs · `range`)', '');
     }
@@ -3896,7 +3970,7 @@ DONE      When the range shows every objective ticked: type next to take the nex
       harness('/dir', '/dir', 'Says where the harness works: this app\u2019s files, mounted at ~/app.', [['/dir', 'where it works']]),
       harness('/reach', '/reach', 'Says what the harness can reach: only this shell and its files. The rest of the PC is not visible here.', [['/reach', 'what it can reach']]),
       harness('/net', '/net', 'Says whether anything can go online: nothing can. Commands are simulated and the model runs on this PC.', [['/net', 'the network rules']], ['/web']),
-      harness('/exit', '/exit', 'Leaves the mcode harness and returns to the plain moundshell prompt.', [['/exit', 'back to the shell']], ['/quit']),
+      harness('/exit', '/exit', 'Leaves the mcode harness and returns to the plain moundshell prompt. /bye and /quit do the same.', [['/exit', 'back to the shell'], ['/bye', 'the same thing']], ['/quit', '/bye']),
       harness('mcode', 'mcode [question]', 'Hands the rest of the line to the mcode harness, the same as typing /code.', [['mcode where is the help built?', 'ask the harness']]),
       harness('logout', 'logout', 'Closes the moundshell, the same as exit.', [['logout', 'close the shell']], ['exit'], true),
       own('browser', 'browser [list|tabs|sites [q]|virus]', 'Lists every offline library and every website in the Cyber Desktop browser — MoundHub, Moundshroud Search, and all generated fake-internet websites. `browser sites` searches them all; `browser virus` explains how to scan a site for a simulated pop-up trap (no site is tagged); `browser tabs` shows open tabs.',

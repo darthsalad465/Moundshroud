@@ -1,7 +1,7 @@
 {
   "name": "moundshroud-desktop",
   "productName": "Moundshroud",
-  "version": "1.4.5",
+  "version": "1.4.6",
   "description": "Moundshroud — Private Offline AI Assistant, 3D World Globe, 3D Brain & Local Workspace",
   "main": "main.js",
   "private": true,

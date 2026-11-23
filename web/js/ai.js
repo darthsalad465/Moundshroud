@@ -14,9 +14,14 @@
       const raw = (r.models || []).filter(m => !m.cloud);
       const sorted = A.modelOrder ? A.modelOrder.sort(raw, def) : raw;
       const ms = sorted.map(m => m.name);
+      /* the model the user last chose in Chat comes first: the select's own value, then the one saved when it changed.
+         Only when neither is installed does the app's default model apply, so nothing silently starts on a model the
+         user never picked. */
+      const sel = model();
       const saved = ls.get('local_model', '');
+      const picked = [sel, saved].find(m => m && !isCloud(m) && ms.includes(m)) || '';
       const defHit = def && sorted.find(m => A.modelOrder && A.modelOrder.matches(m, def));
-      localCache = (defHit && defHit.name) || (ms.includes(saved) ? saved : (ms.find(m => !/embed/i.test(m)) || ''));
+      localCache = picked || (defHit && defHit.name) || (ms.find(m => !/embed/i.test(m)) || '');
     } catch (e) { }
     return localCache || '';
   }

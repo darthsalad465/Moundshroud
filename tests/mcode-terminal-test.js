@@ -199,6 +199,31 @@ async function run(ok) {
       r.ran.join() === 'cat flag.txt' && /Answer · FLAG-42/.test(r.text()) && r.h.prompt() === 'mcode(code)> ', r.text());
   }
 
+  /* /bye is a third way out, and the model picked with /model is remembered */
+  {
+    for (const word of ['/exit', '/bye', '/quit']) {
+      const r = rig([]);
+      r.h.run('/code');
+      r.h.run(word);
+      ok('mcode terminal: ' + word + ' leaves the harness for the plain terminal, like the other two',
+        !r.h.open() && /Back in the terminal/.test(r.text()) && r.h.accepts('mcode') && !r.h.accepts('hello'), r.text().slice(-200));
+    }
+    let saved = '';
+    const r = rig(['THINK: look\nRUN: ls', 'THINK: done\nANSWER: ok', 'THINK: again\nRUN: ls', 'THINK: done\nANSWER: ok'],
+      { extra: { modelStore: { load: () => 'saved:7b', save: value => { saved = value; } } } });
+    r.h.run('/code list');
+    await tick(20);
+    const firstModel = r.calls[0] && r.calls[0].options.model;
+    r.h.run('/model other:7b');
+    await tick(10);
+    r.h.run('list again');
+    await tick(20);
+    const laterModel = (r.calls[2] || r.calls[r.calls.length - 1] || {}).options.model;
+    ok('mcode terminal: the remembered model is used first, and /model saves the new choice for next time',
+      firstModel === 'saved:7b' && saved === 'other:7b' && laterModel === 'other:7b' && /Local model · other:7b/.test(r.text()),
+      { firstModel, saved, laterModel });
+  }
+
   /* Ctrl+C and the step cap */
   {
     const r = rig(['THINK: look\nRUN: ls', 'hang']);
@@ -233,6 +258,58 @@ async function run(ok) {
     ok('mcode moundshell: unlimited /code runs past 12 steps until Ctrl+C stops it and moundshell enables it',
       busyPast12 && stoppedPast12 && !unlimStop.h.busy() && /\^C Stopped/.test(unlimStop.text()) && /maxSteps:\s*Infinity/.test(appShellSrc),
       { ran: unlimStop.ran.length, busyPast12, stoppedPast12 });
+  }
+
+  /* assist (the moundshell's /code): a greeting is answered, only a line that asks for work starts a step */
+  /* the command inventory /code is handed, and the shell that builds it */
+  {
+    const r = rig(['Hi. What do you need?', 'THINK: read the notes\nRUN: cat notes.md'], { task: '', extra: { assist: true, maxSteps: Infinity } });
+    r.h.run('/code');
+    r.h.run('hello');
+    await tick(12);
+    const greeted = r.ran.length === 0 && /Hi\. What do you need\?/.test(r.text()) && !/step 1/.test(r.text()) && !/Working with/.test(r.text());
+    const before = r.ran.length;
+    r.h.run('read the notes for me');
+    await tick(20);
+    ok('mcode moundshell: in /code a greeting is answered and runs nothing, while a pointed-at line is worked',
+      greeted && before === 0 && r.ran.join() === 'cat notes.md' && /step 1 · read the notes/.test(r.text()),
+      { greeted, ran: r.ran, text: r.text() });
+
+    /* the whole command inventory is handed to /code, so it knows every command the shell answers to */
+    const listed = rig(['THINK: read it\nRUN: cat notes.md'], { task: '', extra: {
+      assist: true, maxSteps: Infinity,
+      context: () => ({ key: 'k2', real: true, shellName: 'bash', breach: true, chat: 'shell', plan: 'Plan',
+        commands: 'breach · browser · cat · leaked · nmap · paths · ssh · targets · virus' })
+    } });
+    listed.h.run('/code read the notes');
+    await tick(20);
+    const system = listed.calls[0]?.messages?.[0]?.content || '';
+    ok('mcode moundshell: /code is given the shell’s full command list, so it never guesses at a command that does not exist',
+      /commands this shell really has/.test(system) && /breach · browser · cat · leaked · nmap · paths · ssh · targets · virus/.test(system) &&
+      listed.ran.join() === 'cat notes.md', system.slice(-400));
+
+    /* exit stays the player's command, unless the shell says there is a range or a leaked PC to leave */
+    const kept = rig(['THINK: leave\nRUN: exit', 'THINK: nothing to do\nANSWER: still here']);
+    kept.h.run('/code leave it');
+    await tick(20);
+    const left = rig(['THINK: leave\nRUN: exit', 'THINK: out\nANSWER: back in bash'], { extra: { maxSteps: Infinity, canLeave: () => true } });
+    left.h.run('/code leave it');
+    await tick(20);
+    ok('mcode moundshell: exit is never run for the player, and is run when a range or a leaked PC is open',
+      kept.ran.length === 0 && /Step 1 skipped · exit/.test(kept.text()) && left.ran.join() === 'exit' && /Answer · back in bash/.test(left.text()),
+      { kept: kept.text().slice(-200), ran: left.ran });
+
+    const shell = fs.readFileSync(path.join(__dirname, '..', 'web', 'js', 'moundshell.js'), 'utf8');
+    ok('mcode moundshell: /code reaches leaked, ssh and a leaked PC’s own shell, and can leave a range with exit',
+      /leakedFor\(rest\)/.test(shell) && /sshFor\(rest\)/.test(shell) && /if \(pcSession\) \{\r?\n\s*const out = pcSession\.run\(line\)/.test(shell) &&
+      /canLeave: \(\) => !!\(breach \|\| pcSession\)/.test(shell),
+      shell.slice(shell.indexOf('async function mcodeShell'), shell.indexOf('async function mcodeShell') + 1800));
+    ok('mcode moundshell: the shell builds that list from its own live command tables and passes it in the context',
+      /commands: pcSession \? PC_COMMANDS[\s\S]{0,300}: commandBrief\(\)/.test(shell) && /function commandBrief\(\)/.test(shell) &&
+      /Object\.keys\(\(room && room\.cmds\) \|\| \{\}\)/.test(shell) && /moundshellCommands\(\)\.forEach/.test(shell),
+      shell.slice(shell.indexOf('function commandBrief'), shell.indexOf('function commandBrief') + 300));
+    ok('mcode moundshell: the breach range is only described to mcode when the message points at it',
+      /shellState: request => \{\s*\r?\n\s*if \(!breach \|\| !POINTS_AT_RANGE\.test/.test(shell), shell.slice(shell.indexOf('shellState: request'), shell.indexOf('shellState: request') + 160));
   }
 
   /* careful autonomy asks before each command */
