@@ -229,7 +229,7 @@ async function run(ok) {
     const busyPast12 = unlimStop.h.busy() && unlimStop.ran.length === 15;
     const stoppedPast12 = unlimStop.h.interrupt();
     await tick();
-    const appShellSrc = fs.readFileSync(path.join(__dirname, '..', 'web', 'js', 'app-shell.js'), 'utf8');
+    const appShellSrc = fs.readFileSync(path.join(__dirname, '..', 'web', 'js', 'moundshell.js'), 'utf8');
     ok('mcode moundshell: unlimited /code runs past 12 steps until Ctrl+C stops it and moundshell enables it',
       busyPast12 && stoppedPast12 && !unlimStop.h.busy() && /\^C Stopped/.test(unlimStop.text()) && /maxSteps:\s*Infinity/.test(appShellSrc),
       { ran: unlimStop.ran.length, busyPast12, stoppedPast12 });

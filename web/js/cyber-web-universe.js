@@ -941,6 +941,7 @@
     { host: 'lucky-jackpot-spin.online', brand: 'Lucky Jackpot Spin', catId: 'casino', topic: 'instant bonus spins and prize giveaways', trapped: true },
     { host: 'free-mega-airdrop.xyz', brand: 'Mega Airdrop Claim', catId: 'scam', topic: 'urgent token claim and bonus wallet verification', trapped: true }
   ];
+  const REWARDS_HOST = 'vault.moundshroud.example';
   const PHISH_HOSTS = new Set(MAIL_SITES.filter(s => s.trapped).map(s => s.host));
   const ipForId = id => id <= 0 ? '10.14.0.1' : ('10.14.' + (Math.floor((id - 1) / 250) + 1) + '.' + (((id - 1) % 250) + 2));
   const makeVirus = (host, id) => ({
@@ -951,6 +952,77 @@
     clean: 'Run MoundShroud anti-malware (or type `virus clean` in moundshell)',
     host
   });
+
+  /* ---- The Open Range: an endless index of invented PCs, breached from moundshell ---------------------------- */
+  /* https://range.moundshroud.lab is a website in the Cyber Desktop browser that never runs out of machines. Each
+     row is generated from its number, so machine 1 and machine 1000001 exist without anything being stored. Every
+     one is an ordinary site on the fake internet (front page, leaked config, staff login, deploy secret), reached
+     from moundshell with `breach 10.66.1.2` or `breach pc-0001.range.moundshroud.lab`. Nothing is contacted. */
+  const RANGE_HOST = 'range.moundshroud.lab';
+  const RANGE_OS = ['Debian 12', 'Ubuntu 22.04 LTS', 'Ubuntu 24.04 LTS', 'Alpine 3.19', 'Rocky Linux 9',
+    'Windows Server 2019', 'Windows Server 2022', 'FreeBSD 14', 'openSUSE Leap 15', 'Arch Linux'];
+  const RANGE_ROLES = ['developer workstation', 'build server', 'CI runner', 'file server', 'jump host',
+    'staging web server', 'mail relay', 'database replica', 'monitoring node', 'backup appliance', 'VPN endpoint',
+    'print server', 'lab sandbox', 'accounting PC', 'reception desktop'];
+  const RANGE_TIERS = ['easy', 'medium', 'hard', 'extreme'];
+  const RANGE_PORTS = ['22/ssh · 80/http', '22/ssh · 80/http · 443/https', '22/ssh · 80/http · 8080/tomcat',
+    '22/ssh · 3306/mysql · 80/http', '3389/rdp · 445/smb', '22/ssh · 5432/postgres · 443/https',
+    '21/ftp · 22/ssh · 80/http', '22/ssh · 6379/redis · 80/http'];
+  const rangeMachine = n => {
+    const i = Math.max(1, Math.floor(Number(n) || 1));
+    const h = hash32('range-pc-' + i);
+    return {
+      n: i,
+      host: 'pc-' + String(i).padStart(4, '0') + '.' + RANGE_HOST,
+      ip: '10.66.' + (Math.floor((i - 1) / 250) + 1) + '.' + (((i - 1) % 250) + 2),
+      os: RANGE_OS[(h >>> 9) % RANGE_OS.length],
+      role: RANGE_ROLES[(h >>> 13) % RANGE_ROLES.length],
+      ports: RANGE_PORTS[(h >>> 17) % RANGE_PORTS.length],
+      tier: RANGE_TIERS[(h >>> 5) % RANGE_TIERS.length],
+      patch: ['two years behind on patches', 'one emergency patch behind', 'patched last week', 'never patched'][(h >>> 21) % 4],
+      flag: 'FLAG{range_pc_' + i + '_' + h.toString(16).padStart(8, '0').slice(0, 6) + '}'
+    };
+  };
+  const rangeMachineByIp = ip => {
+    const m = /^10\.66\.(\d{1,3})\.(\d{1,3})$/.exec(String(ip == null ? '' : ip).trim());
+    if (!m) return null;
+    const a = Number(m[1]), b = Number(m[2]);
+    if (a < 1 || b < 2 || b > 251) return null;
+    return rangeMachine((a - 1) * 250 + b - 1);
+  };
+  const rangeMachines = (page, per) => {
+    const p = Math.max(1, Math.floor(Number(page) || 1));
+    const size = Math.max(1, Math.min(50, Math.floor(Number(per) || 20)));
+    return Array.from({ length: size }, (_, k) => rangeMachine((p - 1) * size + k + 1));
+  };
+  const RANGE = {
+    id: 0, rangeIndex: true, portal: false, brand: 'Moundshroud Open Range', host: RANGE_HOST, ip: '10.66.0.1',
+    kind: 'Breach range', tagline: 'An endless index of invented PCs to practise breaking into, from moundshell.',
+    token: 'range', trapped: false, virus: null, theme: 'saas', accent: '#7dd3fc',
+    cat: { id: 'range', icon: '🖥', label: 'Breach range', route: '/machines', routeLabel: 'Machines', layout: 'status' },
+    users: [], items: [], posts: [], orders: [], session: { admin: false }, apiKey: '', flag: '',
+    createdAt: Date.now()
+  };
+  /* the machine's own site: an ordinary generated site whose front page is the web console running on that PC */
+  const rangeSites = new Map();
+  function rangeSiteFor(n) {
+    const m = rangeMachine(n);
+    const cached = rangeSites.get(m.host);
+    if (cached) return cached;
+    ensure(BASE);
+    /* the machine's own tier pins its security profile, so the range index and the engagement agree */
+    const site = make({ host: m.host, brand: 'Workstation ' + String(m.n).padStart(4, '0'), catId: 'devtools', topic: 'practice workstation web console', secTier: m.tier });
+    site.brand = 'Workstation ' + String(m.n).padStart(4, '0');
+    site.range = m;
+    site.ip = m.ip;
+    site.flag = m.flag;
+    site.kind = 'Range PC';
+    site.tagline = m.os + ' · ' + m.role + ' · ' + m.ip;
+    site.trapped = false;
+    site.virus = null;
+    rangeSites.set(m.host, site);
+    return site;
+  }
 
   /* ---- infinite topic synthesis & URL-to-category intelligence ---- */
   const REGIONS = ['Northfield', 'Seattle', 'Kyoto', 'Lisbon', 'Bristol', 'Oslo', 'Melbourne', 'Montreal', 'Zurich',
@@ -1201,9 +1273,43 @@
     '/vendors', '/media-library', '/cdn-staging', '/backup-old', '/site-backup', '/tmp-uploads', '/hold', '/unused',
     '/archive-2023', '/shop-old', '/checkout-legacy', '/register', '/users', '/profile', '/tools', '/metrics'
   ];
-  const HARD_CATS = new Set(['bank', 'gov', 'gov-dept', 'gov-secret', 'revenue', 'border', 'prison', 'police', 'defence', 'cybernews', 'space', 'markets', 'ai-lab', 'robotics']);
-  const MED_CATS = new Set(['saas', 'devtools', 'hosting', 'vpn', 'isp', 'mobile', 'grid', 'energy', 'university', 'clinic', 'hospital', 'flights', 'transit', 'law', 'insurance', 'crypto', 'opensource', 'smarthome', 'science', 'news', 'automotive', 'architecture']);
-  const EASY_CATS = new Set(['food', 'bakery', 'cafe', 'pet', 'blog', 'fan', 'scam', 'casino', 'loans', 'classifieds', 'gossip', 'tabloid', 'barber', 'pottery', 'florist', 'campsite', 'bike', 'farm', 'recipe', 'boardgames']);
+  /* How hard a site is to break into comes from what kind of site it is. A government department pays a security team
+     and hardens its public services; a conspiracy page is one person, a template and a password reused everywhere.
+     Each category has one fixed tier here, so the same kind of site is always the same kind of target, and a site
+     only ever drifts one step from its category's tier. */
+  const TIERS = ['extremely-easy', 'easy', 'medium', 'hard', 'extreme'];
+  const CAT_DIFFICULTY = {
+    /* --- extreme: public sector, defence, money and the security industry --- */
+    gov: 'extreme', 'gov-dept': 'extreme', 'gov-secret': 'extreme', defence: 'extreme', police: 'extreme',
+    border: 'extreme', prison: 'extreme', revenue: 'extreme', bank: 'extreme', markets: 'extreme', crypto: 'extreme',
+    cybernews: 'extreme', 'ai-lab': 'extreme', space: 'extreme', robotics: 'extreme',
+    /* --- hard: regulated, funded or infrastructure-carrying sites --- */
+    saas: 'hard', devtools: 'hard', hosting: 'hard', vpn: 'hard', isp: 'hard', mobile: 'hard', grid: 'hard',
+    energy: 'hard', water: 'hard', university: 'hard', law: 'hard', insurance: 'hard', transit: 'hard',
+    flights: 'hard', ferry: 'hard', news: 'hard', science: 'hard', opensource: 'hard', smarthome: 'hard',
+    electronics: 'hard', automotive: 'hard', leaks: 'hard', streaming: 'hard', clinic: 'hard', dentist: 'hard',
+    /* --- medium: run by a small team that knows a little --- */
+    social: 'medium', school: 'medium', jobs: 'medium', sports: 'medium', radio: 'medium', magazine: 'medium',
+    fitness: 'medium', charity: 'medium', estate: 'medium', theatre: 'medium', library: 'medium', forum: 'medium',
+    wiki: 'medium', weather: 'medium', courier: 'medium', cinema: 'medium', arcade: 'medium', hotel: 'medium',
+    dating: 'medium', esports: 'medium', modding: 'medium', music: 'medium', fashion: 'medium',
+    architecture: 'medium', watches: 'medium', furniture: 'medium', parks: 'medium', astronomy: 'medium',
+    museum: 'medium', archive: 'medium', auction: 'medium', tv: 'medium', hackerforum: 'medium',
+    /* --- easy: a hobby, a shop, a single rented server --- */
+    market: 'easy', food: 'easy', travel: 'easy', pet: 'easy', bakery: 'easy', cafe: 'easy', garage: 'easy',
+    tattoo: 'easy', barber: 'easy', hardware: 'easy', books: 'easy', pottery: 'easy', florist: 'easy',
+    farm: 'easy', bike: 'easy', campsite: 'easy', taxi: 'easy', nursery: 'easy', vet: 'easy', plumber: 'easy',
+    brewery: 'easy', yoga: 'easy', blog: 'easy', recipe: 'easy', podcast: 'easy', photo: 'easy',
+    church: 'easy', anime: 'easy', coffee: 'easy', vinyl: 'easy', boardgames: 'easy', culinary: 'easy',
+    sneakers: 'easy', filmdb: 'easy', outdoors: 'easy',
+    /* --- extremely easy: lures, conspiracies and one-page dreams --- */
+    scam: 'extremely-easy', casino: 'extremely-easy', loans: 'extremely-easy', classifieds: 'extremely-easy',
+    fan: 'extremely-easy', gossip: 'extremely-easy', tabloid: 'extremely-easy', scandal: 'extremely-easy',
+    paste: 'extremely-easy', blackmarket: 'extremely-easy', truth: 'extremely-easy', ufo: 'extremely-easy',
+    flat: 'extremely-easy', chemtrails: 'extremely-easy', reptilian: 'extremely-easy', moonhoax: 'extremely-easy',
+    mindcontrol: 'extremely-easy', society: 'extremely-easy', cult: 'extremely-easy', anti5g: 'extremely-easy',
+    freeenergy: 'extremely-easy'
+  };
 
   function buildSecProfile(site) {
     const seed = hash32(site.host + '|sec|' + site.token);
@@ -1213,22 +1319,20 @@
     const t3 = site.token.slice(0, 3);
     const t4 = site.token.slice(0, 4);
 
-    /* Choose difficulty realistically by site type, while still spanning extremely-easy -> extreme */
+    /* The category decides the tier. A site only drifts one step from it (never more), and the drift is seeded per
+       host, so the same address is always the same target. A range machine can pin its tier exactly. */
+    const forced = TIERS.indexOf(String(site.secTier || ''));
+    const baseIndex = Math.max(0, TIERS.indexOf(CAT_DIFFICULTY[cid] || 'medium'));
     let difficulty;
-    if (site.trapped || site.host === 'midnight-ramen.shop') {
+    if (forced >= 0) {
+      difficulty = TIERS[forced];
+    } else if (site.drill || site.host === 'midnight-ramen.shop') {
+      /* a Cyber Mail phishing drill is a lure, not a hardened service: it stays soft whatever it impersonates */
       difficulty = rnd() < 0.45 ? 'extremely-easy' : 'easy';
-    } else if (HARD_CATS.has(cid)) {
-      const r = rnd();
-      difficulty = r < 0.48 ? 'extreme' : r < 0.85 ? 'hard' : 'medium';
-    } else if (MED_CATS.has(cid)) {
-      const r = rnd();
-      difficulty = r < 0.14 ? 'extreme' : r < 0.42 ? 'hard' : r < 0.82 ? 'medium' : 'easy';
-    } else if (EASY_CATS.has(cid)) {
-      const r = rnd();
-      difficulty = r < 0.40 ? 'extremely-easy' : r < 0.78 ? 'easy' : 'medium';
     } else {
       const r = rnd();
-      difficulty = r < 0.18 ? 'extremely-easy' : r < 0.44 ? 'easy' : r < 0.72 ? 'medium' : r < 0.90 ? 'hard' : 'extreme';
+      const index = r < 0.7 ? baseIndex : r < 0.9 ? Math.max(0, baseIndex - 1) : Math.min(TIERS.length - 1, baseIndex + 1);
+      difficulty = TIERS[index];
     }
 
     const stack = rp(WEB_STACKS);
@@ -1433,6 +1537,9 @@
       id, brand, host, ip: ipForId(id), cat, icon: cat.icon, kind: cat.label, topic,
       tagline, accent, token,
       trapped,
+      /* a Cyber Mail phishing drill is deliberately a soft target; a generated site that happens to be a scam is
+         still judged by its category like every other site */
+      drill: !!(spec && spec.trapped === true),
       virus: trapped ? makeVirus(host, id) : null,
       adminPath: '/' + pick(['admin', 'staff', 'backoffice', 'ops', 'manage']) + '-' + tok(3),
       flag: 'FLAG{' + brand.toLowerCase().replace(/[^a-z0-9]+/g, '_') + '_' + token + '}',
@@ -1444,6 +1551,7 @@
     };
     site.theme = themeFamilyFor(site);
     site.isMarket = site.theme === 'commerce';
+    if (spec && spec.secTier) site.secTier = spec.secTier;
     site.sec = buildSecProfile(site);
     site.adminPath = site.sec.adminPath;
     site.difficulty = site.sec.difficulty;
@@ -1566,8 +1674,29 @@
     }
     const want = Math.max(BASE, Math.floor(n) || 0);
     while (catalog.length < want) make();
+    /* The Fake Dark Web is a separate section with its own hand-written services, but it joins this catalogue so
+       that resolving, searching, browsing and every moundshell command answer for an .onion exactly as they answer
+       for the surface web. It is appended once, after the generated sites, so no site number ever shifts. */
+    if (!darkSeeded) {
+      darkSeeded = true;
+      const darks = (A.cyberDark && A.cyberDark.sites) ? A.cyberDark.sites() : [];
+      for (const darkSite of darks) {
+        if (!darkSite || usedHosts.has(darkSite.host)) continue;
+        darkSite.id = catalog.length + 1;
+        usedHosts.add(darkSite.host);
+        catalog.push(darkSite);
+      }
+    }
+    /* The Surplus Vault, the shop the practice bank's money exists for, is appended last for the same reason the
+       dark services are: it is hand-written, and adding it here never shifts a generated site's number or files. */
+    if (!vaultSeeded) {
+      vaultSeeded = true;
+      if (!usedHosts.has(REWARDS_HOST)) make({ host: REWARDS_HOST, brand: 'Surplus Vault', catId: 'market', topic: 'practice rewards, desktop apps and cosmetics', trapped: false });
+    }
     return catalog;
   };
+  let darkSeeded = false;
+  let vaultSeeded = false;
   const all = () => { ensure(BASE); return catalog; };
   const trapped = () => { ensure(BASE); return catalog.filter(s => s.trapped); };
   const site = n => ensure(n)[Math.max(0, (Math.floor(n) || 1) - 1)] || catalog[0];
@@ -1586,6 +1715,9 @@
     const clean = String(ip == null ? '' : ip).trim();
     if (!clean) return null;
     if (clean === PORTAL.ip) return PORTAL;
+    if (clean === RANGE.ip) return RANGE;
+    const ranged = rangeMachineByIp(clean);
+    if (ranged) return rangeSiteFor(ranged.n);
     ensure(BASE);
     return catalog.find(s => s.ip === clean) || null;
   }
@@ -1609,6 +1741,9 @@
     const parts = splitUrl(raw);
     const host = parts.host || raw;
     if (host === SEARCH_HOST || raw === 'portal' || raw === 'search') return PORTAL;
+    if (host === RANGE_HOST || raw === 'range' || raw === RANGE_HOST) return RANGE;
+    const rangeHit = /^pc-(\d+)\.range\.moundshroud\.lab$/.exec(host);
+    if (rangeHit) return rangeSiteFor(Number(rangeHit[1]) || 1);
     if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)) return byIp(host);
     return catalog.find(s => s.host === host) ||
       catalog.find(s => s.host.startsWith(host) || s.brand.toLowerCase() === raw) ||
@@ -1620,6 +1755,9 @@
     const { host, path } = splitUrl(raw);
     if (!host) return null;
     if (host === SEARCH_HOST) return { site: PORTAL, path: path || '/' };
+    if (host === RANGE_HOST) return { site: RANGE, path: path || '/' };
+    const rangeHost = /^pc-(\d+)\.range\.moundshroud\.lab$/.exec(host);
+    if (rangeHost) return { site: rangeSiteFor(Number(rangeHost[1]) || 1), path: path || '/' };
     if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)) {
       const byAddr = byIp(host);
       return byAddr ? { site: byAddr, path: path || '/' } : null;
@@ -1656,6 +1794,14 @@
 
   function dirScan(site) {
     if (!site) return [];
+    /* a hidden service answers for the routes its own backend really has */
+    if (site.dark && A.cyberDark && A.cyberDark.scan) {
+      const scanned = A.cyberDark.scan(site);
+      return A.cyberPcs ? scanned.concat(['/dump', '/dump/users.csv', '/dump/users.json', '/dump/site.sql'].map(p => ({ path: p, status: 200, size: 2600, note: 'leaked user dump' }))) : scanned;
+    }
+    if (site.rangeIndex) {
+      return ['/', '/?p=2', '/pc/1', '/robots.txt'].map(p => ({ path: p, status: 200, size: 2400, note: 'generated range page' }));
+    }
     if (site.portal) {
       return ['/', '/?q=bank', '/all', '/mail', '/trapped', '/random', '/robots.txt'].map(p => ({ path: p, status: 200, size: 1420, note: '' }));
     }
@@ -1703,6 +1849,13 @@
     }
     if (site.trapped && site.virus && site.virus.scriptPath) {
       push(site.virus.scriptPath, 200, 340, '⚠ fake-virus trap (' + site.virus.name + ')');
+    }
+    /* the user dump a maintenance script left behind: readable without a login on every one of these sites */
+    if (A.cyberPcs) {
+      push('/dump', 200, 640, 'backup script output index');
+      push('/dump/users.csv', 200, 2400 + (site.id % 40) * 90, 'user table with IPs and passwords');
+      push('/dump/users.json', 200, 4200 + (site.id % 40) * 120, 'the same rows as JSON');
+      push('/dump/site.sql', 200, 6800 + (site.id % 40) * 160, 'full database dump');
     }
     return items;
   }
@@ -3233,12 +3386,31 @@
     const at = target.indexOf('?');
     const path = at < 0 ? target : target.slice(0, at);
     const query = new URLSearchParams(at < 0 ? '' : target.slice(at + 1));
+    if (site.rangeIndex) return rangeServe(path, query);
     if (site.portal) return portalServe(path, query);
+    /* the Surplus Vault is a shop with a real counter: its pages come from the rewards module, not the generator */
+    if (site.host === REWARDS_HOST && A.cyberRewards && A.cyberRewards.page) {
+      const answer = A.cyberRewards.page(path) || {};
+      return { status: answer.status || 200, type: 'text/html', body: shell(site, answer.title || site.brand, answer.inner || '') };
+    }
+    /* Every site leaks its own user table — names, e-mails, the IP each account signed in from and the
+       password the site stored in clear text. /dump/users.csv is the readable copy, and those IPs answer
+       in Moundshroud's shell (nmap, ssh) as the users' own machines. */
+    if (!site.hub && A.cyberPcs && A.cyberPcs.isDumpPath(path)) {
+      const dumped = A.cyberPcs.dump(site, path);
+      if (dumped) return dumped;
+      return { status: 404, type: 'text/html', body: shell(site, 'Not Found', '<h1>404</h1><p class="lede">No dump lives at that address.</p><p><a class="btn" href="/">Back to ' + esc(site.brand) + '</a></p>') };
+    }
+    /* a hidden service has its own hand-written backend, served the same way a generated site is */
+    if (site.dark && A.cyberDark && A.cyberDark.serve) {
+      if (path === '/robots.txt') return { status: 200, type: 'text/plain', body: 'User-agent: *\nDisallow: /\n' };
+      return A.cyberDark.serve(site, path, query, method);
+    }
     const res = (status, type, body) => ({ status, type, body });
     const page = (title, body, status) => res(status || 200, 'text/html', shell(site, title, body));
     const pay = (id, amount, label, kind, stat) => paySite(site, id, amount, label, kind, stat);
 
-    if (path === '/' || path === '/index.html') return page(site.brand, homeBody(site));
+    if (path === '/' || path === '/index.html') return page(site.brand, (site.range ? rangeBanner(site) : '') + homeBody(site));
     if (path === site.cat.route) return page(site.cat.routeLabel, listBody(site));
     if (/^\/item\/\d+$/.test(path)) return page('Details', itemBody(site, parseInt(path.split('/').pop(), 10)));
     if (/^\/article\/\d+$/.test(path)) return page('Article', articleBody(site, parseInt(path.split('/').pop(), 10), query, method));
@@ -3268,26 +3440,28 @@
       const has = fact => (frag.facts || []).includes(fact);
       const size = sec.difficulty === 'extreme' ? 140 : sec.difficulty === 'hard' ? 95 : sec.difficulty === 'medium' ? 60 : 45;
       pay('env', size, 'Discovered staff configuration at ' + frag.path);
+      /* Whatever this file is, it carries the seeded staff account: an email mission that asks for staff access has to be
+         finishable on every site. The difficulty still comes from where the file is and how many hops the site hides. */
       const parts = [];
       if (has('db')) parts.push('DB_PASSWORD=' + site.apiKey);
       if (has('jwt')) parts.push('APP_KEY=base64:' + site.token + tok(10));
-      if (has('adminpath')) parts.push('ADMIN_PATH=' + site.adminPath);
-      if (has('login')) parts.push('ADMIN_EMAIL=' + site.adminLogin);
-      if (has('pass')) parts.push('ADMIN_PASSWORD=' + site.adminPass);
+      parts.push('ADMIN_PATH=' + site.adminPath);
+      parts.push('ADMIN_EMAIL=' + site.adminLogin);
+      parts.push('ADMIN_PASSWORD=' + site.adminPass);
       if (frag.kind === 'json') {
         const obj = { service: site.brand, host: site.host, stack: sec.stack.id };
         if (has('db')) obj.DB_PASSWORD = site.apiKey;
         if (has('jwt')) obj.APP_KEY = 'base64:' + site.token + tok(10);
-        if (has('adminpath')) obj.ADMIN_PATH = site.adminPath;
-        if (has('login')) obj.ADMIN_EMAIL = site.adminLogin;
-        if (has('pass')) obj.ADMIN_PASSWORD = site.adminPass;
+        obj.ADMIN_PATH = site.adminPath;
+        obj.ADMIN_EMAIL = site.adminLogin;
+        obj.ADMIN_PASSWORD = site.adminPass;
         return res(200, 'application/json', JSON.stringify(obj, null, 2));
       }
       if (frag.kind === 'js') {
         const cfg = { apiBase: 'https://' + site.host + '/api', loginPath: sec.loginPath };
-        if (has('adminpath')) cfg.adminPortal = site.adminPath;
-        if (has('login')) cfg.staffEmail = site.adminLogin;
-        if (has('pass')) cfg.staffPass = site.adminPass;
+        cfg.adminPortal = site.adminPath;
+        cfg.staffEmail = site.adminLogin;
+        cfg.staffPass = site.adminPass;
         if (has('db') || has('jwt')) cfg.apiKey = site.apiKey;
         return res(200, 'application/javascript',
           '// ' + site.brand + ' frontend runtime bundle — shipped with its environment settings baked in\n' +
@@ -3297,9 +3471,7 @@
         return res(200, 'text/plain',
           '-- ' + site.brand + ' (' + site.host + ') · development seed dump\n' +
           'CREATE TABLE users (id int, email varchar(120), role varchar(20), password varchar(120));\n' +
-          (has('login') || has('pass')
-            ? "INSERT INTO users VALUES (1,'" + site.adminLogin + "','admin','" + site.adminPass + "');\n"
-            : "INSERT INTO users VALUES (1,'admin." + site.host.split('.')[0] + "','admin','redacted');\n") +
+          "INSERT INTO users VALUES (1,'" + site.adminLogin + "','admin','" + site.adminPass + "');\n" +
           (has('db') ? '-- GRANT ALL ON ' + site.host.split('.')[0] + ".* TO 'web'@'localhost' IDENTIFIED BY '" + site.apiKey + "';\n" : '') +
           (has('jwt') ? '-- deploy note: APP_KEY=base64:' + site.token + tok(10) + '\n' : ''));
       }
@@ -3309,10 +3481,9 @@
           '  app/config.php\n  app/.env\n  app/public/index.php\n  uploads/\n' +
           (has('jwt') ? 'app/config.php: $JWT_SECRET=\'' + site.token + 'jwt\'\n' : '') +
           (has('db') ? 'app/.env: DB_PASSWORD=' + site.apiKey + '\n' : '') +
-          (has('adminpath') ? 'app/.env: ADMIN_PATH=' + site.adminPath + '\n' : '') +
-          (has('login') ? 'app/.env: ADMIN_EMAIL=' + site.adminLogin + '\n' : '') +
-          (has('pass') ? 'app/.env: ADMIN_PASSWORD=' + site.adminPass + '\n' : '') +
-          (parts.length ? '' : 'Nothing sensitive in this copy. The credentials were rotated before it was archived.\n'));
+          'app/.env: ADMIN_PATH=' + site.adminPath + '\n' +
+          'app/.env: ADMIN_EMAIL=' + site.adminLogin + '\n' +
+          'app/.env: ADMIN_PASSWORD=' + site.adminPass + '\n');
       }
       return res(200, 'text/plain',
         '# ' + site.brand + ' (' + site.host + ') · ' + sec.vector + ' (' + sec.difficulty + ')\n' +
@@ -3525,6 +3696,89 @@
     users: [], items: [], posts: [], orders: [], adminPath: '/staff', apiKey: '', flag: '', session: { admin: false },
     createdAt: Date.now()
   };
+  /* the Open Range website: an index page and one detail page per machine, all generated from the number */
+  function rangeDoc(inner) {
+    return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+      '<title>Moundshroud Open Range</title><style>' +
+      'body{margin:0;background:#080b12;color:#dbe4f3;font:15px/1.62 system-ui,-apple-system,"Segoe UI",sans-serif}' +
+      'a{color:#7dd3fc;text-decoration:none}a:hover{text-decoration:underline}' +
+      '.wrap{max-width:1120px;margin:0 auto;padding:22px 20px 48px}' +
+      'header{border-bottom:1px solid #1e2836;padding-bottom:14px;margin-bottom:18px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}' +
+      'h1{font-size:23px;margin:0}h2{font-size:18px;margin:24px 0 8px}' +
+      '.lede{color:#9fb3cd;max-width:840px}' +
+      'table{width:100%;border-collapse:collapse;font-size:13.5px;margin:10px 0}' +
+      'th,td{text-align:left;padding:7px 8px;border-bottom:1px solid #1b2431;vertical-align:top}' +
+      'th{color:#8fa6c2;font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.06em}' +
+      'code{background:#111827;border:1px solid #223047;border-radius:6px;padding:1px 6px;font-size:12.5px}' +
+      '.pill{display:inline-block;border:1px solid #2a3a52;border-radius:999px;padding:1px 9px;font-size:11.5px;color:#a9c2dd}' +
+      '.easy{color:#6ee7b7;border-color:#1f6b4a}.medium{color:#fcd34d;border-color:#6b5a1f}.hard{color:#fca5a5;border-color:#6b2f2f}.extreme{color:#f0abfc;border-color:#6b2f6b}' +
+      '.nav{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}' +
+      '.btn{display:inline-block;border:1px solid #2f4a6b;background:#0f1a28;border-radius:9px;padding:7px 13px;color:#cfe6ff}' +
+      '.note{background:#0d1520;border:1px solid #1d2a3d;border-radius:11px;padding:12px 14px;margin:12px 0;color:#a9bfd8;font-size:13.5px}' +
+      'footer{margin-top:28px;border-top:1px solid #1e2836;padding-top:12px;color:#7d90a8;font-size:12.5px}' +
+      '</style></head><body><div class="wrap">' + inner + '</div></body></html>';
+  }
+  function rangeServe(path, query) {
+    if (path === '/robots.txt') return { status: 200, type: 'text/plain', body: 'User-agent: *\nDisallow: /pc/\n# every PC on this range is a simulation; there is nothing here to crawl\n' };
+    const at = /^\/pc\/(\d+)\/?$/.exec(String(path || '/'));
+    if (at) {
+      const m = rangeMachine(+at[1]);
+      return {
+        status: 200, type: 'text/html', body: rangeDoc(
+          '<header><h1>🖥 Workstation ' + String(m.n).padStart(4, '0') + '</h1><span class="pill ' + m.tier + '">' + m.tier + '</span></header>' +
+          '<p class="lede">One PC behind the Open Range. Its web console is a small application running on this box, and the box itself is invented in this page.</p>' +
+          '<table><tr><th>Address</th><td><code>' + esc(m.ip) + '</code> · <a href="https://' + esc(m.host) + '/">' + esc(m.host) + '</a></td></tr>' +
+          '<tr><th>Operating system</th><td>' + esc(m.os) + ' — ' + esc(m.patch) + '</td></tr>' +
+          '<tr><th>Role</th><td>' + esc(m.role) + '</td></tr>' +
+          '<tr><th>Listening</th><td>' + esc(m.ports) + '</td></tr>' +
+          '<tr><th>Difficulty</th><td>' + esc(m.tier) + '</td></tr></table>' +
+          '<div class="note"><b>From moundshell</b><br><code>breach ' + esc(m.ip) + '</code> or <code>breach ' + esc(m.host) + '</code> starts the simulated engagement. ' +
+          'You can also open its console at <a href="https://' + esc(m.host) + '/">https://' + esc(m.host) + '/</a>. Once the box is yours, its FLAG is printed on the staff page — submit it with <code>solve FLAG{…}</code>.</div>' +
+          '<div class="nav"><a class="btn" href="/?p=' + Math.max(1, Math.ceil(m.n / 20)) + '">← Back to the index</a>' +
+          '<a class="btn" href="/pc/' + (m.n + 1) + '">Next PC →</a></div>' +
+          '<footer>Everything here is invented and simulated inside the Cyber Desktop browser. No host is contacted, no socket is opened, nothing leaves this page.</footer>'
+        )
+      };
+    }
+    const page = Math.max(1, parseInt(query.get('p'), 10) || 1);
+    const per = 20, machines = rangeMachines(page, per);
+    const rows = machines.map(m =>
+      '<tr><td><a href="/pc/' + m.n + '">' + String(m.n).padStart(4, '0') + '</a></td>' +
+      '<td><a href="https://' + esc(m.host) + '/">' + esc(m.host) + '</a></td>' +
+      '<td><code>' + esc(m.ip) + '</code></td>' +
+      '<td>' + esc(m.os) + '</td><td>' + esc(m.role) + '</td>' +
+      '<td><span class="pill ' + m.tier + '">' + m.tier + '</span></td>' +
+      '<td><code>breach ' + esc(m.ip) + '</code></td></tr>').join('');
+    return {
+      status: 200, type: 'text/html', body: rangeDoc(
+        '<header><h1>🖥 Moundshroud Open Range</h1><span class="pill">∞ machines</span></header>' +
+        '<p class="lede">An endless range of practice PCs. Every machine on this page is invented from its number, so the list never runs out: machine 1 000 001 exists the moment you ask for it. Pick one, open its console, or take it apart from moundshell.</p>' +
+        '<div class="note"><b>How to use it:</b> in moundshell type <code>breach ' + esc(machines[0].ip) + '</code> (or <code>breach ' + esc(machines[0].host) + '</code>) and work the range: nmap, whatweb, gobuster, the leaked config, the staff login, then the box. <code>range ' + page + '</code> lists these same machines from the shell. Owning a PC pays the practice bank, and its FLAG can be submitted with <code>solve FLAG{…}</code>.</div>' +
+        '<div class="nav">' + (page > 1 ? '<a class="btn" href="/?p=' + (page - 1) + '">← Previous page</a>' : '') +
+        '<a class="btn" href="/?p=' + (page + 1) + '">Next page →</a><a class="btn" href="/pc/1">Machine 0001</a></div>' +
+        '<table><tr><th>#</th><th>Machine</th><th>Address</th><th>OS</th><th>Role</th><th>Tier</th><th>From moundshell</th></tr>' + rows + '</table>' +
+        '<div class="nav"><a class="btn" href="/?p=' + (page + 1) + '">Next page →</a></div>' +
+        '<footer>Page ' + page + ' · machines ' + ((page - 1) * per + 1) + '–' + (page * per) + ' of ∞ · simulated entirely inside this page</footer>'
+      )
+    };
+  }
+  /* the banner a range PC's own site carries, so its console names the box it runs on */
+  const rangeBanner = site => {
+    const m = site && site.range;
+    if (!m) return '';
+    return '<div class="card" style="border-color:#2f4a6b;margin-bottom:16px">' +
+      '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b>🖥 Range PC ' + String(m.n).padStart(4, '0') + '</b>' +
+      '<span class="badge">' + esc(m.tier) + '</span><span class="badge">' + esc(m.ip) + '</span></div>' +
+      '<p style="margin:6px 0 0;font-size:13.5px">' + esc(m.os) + ' · ' + esc(m.role) + ' · listening on ' + esc(m.ports) + ' — ' + esc(m.patch) + '.</p>' +
+      '<p style="margin:6px 0 0;font-size:13px" class="mute">This web console runs on that PC. From moundshell: <code>breach ' + esc(m.host) + '</code> or <code>breach ' + esc(m.ip) + '</code>. The box\'s FLAG is printed on its staff page once you own it.</p></div>';
+  };
+
+  /* how hard the fake internet says each site is: the badge every card carries, colour-matched to the tier */
+  const DIFF_COLOR = { 'extremely-easy': '#6ee7b7', easy: '#a3e635', medium: '#fcd34d', hard: '#fca5a5', extreme: '#f0abfc' };
+  const DIFF_SHORT = { 'extremely-easy': 'extremely easy', easy: 'easy', medium: 'medium', hard: 'hard', extreme: 'extreme' };
+  const siteTier = (site, catId) => (site && (site.sec ? site.sec.difficulty : site.difficulty)) || (catId && CAT_DIFFICULTY[catId]) || 'medium';
+  const tierBadge = (tier, label) => '<span class="badge" style="color:' + (DIFF_COLOR[tier] || '#a9c2dd') + ';border-color:currentColor">' +
+    esc((label || '') + (DIFF_SHORT[tier] || tier)) + '</span>';
   function portalServe(path, query) {
     ensure(BASE);
     const q = String(query.get('q') || '').trim();
@@ -3539,6 +3793,7 @@
       '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
       '<b style="font-size:15.5px"><a href="https://' + esc(s.host) + '/">' + esc(s.brand) + '</a></b>' +
       '<span class="badge">' + esc(s.icon + ' ' + s.kind) + '</span>' +
+      tierBadge(siteTier(s)) +
       (s.trapped ? '<span class="badge" style="color:#f87171">⚠ fake-virus trap</span>' : '') +
       '</div>' +
       '<small>https://' + esc(s.host) + ' · ' + esc(s.region || 'Web') + (s.topic ? ' · Topic: ' + esc(s.topic) : '') + '</small>' +
@@ -3550,13 +3805,17 @@
       '<a href="https://' + esc(s.host) + '/login">Sign in</a>' +
       '</div></div>';
     const catOptions = '<option value="">All categories (' + CATS.length + ')</option>' +
-      CATS.map(c => '<option value="' + esc(c.id) + '"' + (catParam === c.id ? ' selected' : '') + '>' + esc(c.icon + ' ' + c.label) + '</option>').join('');
+      CATS.map(c => '<option value="' + esc(c.id) + '"' + (catParam === c.id ? ' selected' : '') + '>' +
+        esc(c.icon + ' ' + c.label + ' · ' + (DIFF_SHORT[CAT_DIFFICULTY[c.id]] || 'medium')) + '</option>').join('');
     const head = '<div class="hero" style="padding:20px 22px"><h1 style="margin-bottom:4px">Moundshroud Fake Internet</h1>' +
       '<p class="lede" style="margin-bottom:12px">Search infinite generated websites across every category and any topic — separate from your downloaded offline libraries.</p>' +
       '<form action="/" method="get" style="display:flex;gap:8px;max-width:760px;flex-wrap:wrap">' +
       '<input name="q" value="' + esc(q) + '" placeholder="Search any topic (e.g. quantum robotics, ramen, space, crypto, leaks…)" style="flex:2;min-width:220px">' +
       '<select name="cat" style="flex:0 1 200px">' + catOptions + '</select>' +
-      '<button type="submit">Search</button></form></div>';
+      '<button type="submit">Search</button></form>' +
+      '<p class="mute" style="margin:10px 0 0;font-size:12.5px">Every card carries the difficulty of that site — ' +
+      ['extremely-easy', 'easy', 'medium', 'hard', 'extreme'].map(t => tierBadge(t)).join(' ') +
+      ' — and each category chip shows the tier its sites are built to.</p></div>';
     const mailList = MAIL_SITES.map(m => catalog.find(s => s.host === m.host)).filter(Boolean);
     if (path === '/mail') {
       const extra = catalog.filter(s => !MAIL_SITES.some(m => m.host === s.host)).slice(0, 12);
@@ -3565,6 +3824,20 @@
         '<h2>Cyber Mail &amp; phishing drill sites (' + mailList.length + ')</h2>' + mailList.map(cardOf).join('') +
         '<h2>More fake-internet sites sent in mail</h2>' + extra.map(cardOf).join('') +
         '<p><a class="btn" href="/all">Browse infinite directory →</a></p>') };
+    }
+    if (path === '/dark') {
+      /* the Fake Dark Web is its own section: onion-only services, listed here and reachable from the Browser's chip */
+      const darks = A.cyberDark ? A.cyberDark.all() : [];
+      const card = s => '<div class="card" style="margin-bottom:10px;border-left:3px solid ' + esc(s.accent || '#38bdf8') + '">' +
+        '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="font-size:15.5px"><a href="https://' + esc(s.host) + '/">' + esc(s.brand) + '</a></b>' +
+        '<span class="badge">' + esc(s.icon + ' ' + s.kind) + '</span>' + (s.market ? '<span class="badge" style="color:#fbbf24">market · sells</span>' : '<span class="badge">no sales</span>') + '</div>' +
+        '<small>' + esc(s.host) + ' · ' + esc(s.topic || 'onion service') + ' · ' + (s.market ? 'escrow market' : 'information service') + '</small>' +
+        '<p style="margin:6px 0 6px">' + esc(s.tagline) + '</p></div>';
+      return { status: 200, type: 'text/html', body: shell(PORTAL, 'Fake Dark Web', head +
+        '<p class="lede">The second, separate section of this simulated internet: ' + darks.length + ' Tor-style hidden services on .onion addresses, each with its own layout and its own backend. Only the services that really are markets sell anything.</p>' +
+        '<p><span class="pill">Every address, vendor and leak below is invented inside this page.</span> <span class="pill">Reachable from moundshell with curl, wget and browser.</span></p>' +
+        darks.map(card).join('') +
+        '<p><a class="btn" href="https://' + esc(A.cyberDark ? A.cyberDark.portalHost : 'darknet-index.onion') + '/">Open The Onion Index (the dark directory) →</a></p>') };
     }
     if (path === '/trapped') {
       const per = 25, needTotal = pageNum * per;
@@ -3598,17 +3871,30 @@
         '<a class="btn-ghost" href="/random">Random site</a>' +
         '<a class="btn-ghost" href="/mail">Cyber Mail sites</a>' +
         '<a class="btn-ghost" href="/trapped">Unsafe / virus sites</a>' +
-        '<a class="btn-ghost" href="/all">Infinite directory (' + catalog.length + '+)</a></div>';
+        '<a class="btn" href="https://vault.moundshroud.example/">🎁 Surplus Vault (rewards)</a>' +
+        '<a class="btn" href="/dark">🧅 Fake Dark Web</a>' +
+        '<a class="btn-ghost" href="/all">Infinite directory (' + catalog.length + '+)</a>' +
+        '<a class="btn-ghost" href="https://' + RANGE_HOST + '/">🖥 Open Range (endless practice PCs)</a></div>';
       return { status: 200, type: 'text/html', body: shell(PORTAL, 'Search', head + quick +
         '<h2>Featured Flagship Websites</h2><div class="web-net" style="margin-bottom:20px">' +
         featuredFlagships.map(s => '<a class="web-card" href="https://' + esc(s.host) + '/">' +
           '<div style="display:flex;align-items:center;gap:8px"><span>' + esc(s.icon) + '</span><b>' + esc(s.brand) + '</b></div>' +
           '<span class="badge" style="align-self:flex-start">' + esc(s.kind) + ' · ' + esc(s.region) + '</span>' +
+          tierBadge(siteTier(s)) +
           '<small>' + esc(s.tagline) + '</small><small style="margin-top:auto;opacity:.75">https://' + esc(s.host) + ' →</small></a>').join('') + '</div>' +
+        '<h2>🧅 Fake Dark Web — the separate onion section</h2>' +
+        '<p class="lede" style="margin-bottom:12px">Tor-style hidden services, written by hand with their own layouts and backends. Only the markets sell; the leak site, the paper, the drop, the forum and the directory do not.</p>' +
+        '<div class="web-net" style="margin-bottom:20px">' + (A.cyberDark ? A.cyberDark.all() : []).slice(0, 8).map(s =>
+          '<a class="web-card" href="https://' + esc(s.host) + '/" style="border-color:' + esc(s.accent || '#38bdf8') + '">' +
+          '<div style="display:flex;align-items:center;gap:8px"><span>' + esc(s.icon) + '</span><b>' + esc(s.brand) + '</b></div>' +
+          '<span class="badge" style="align-self:flex-start">' + esc(s.kind) + (s.market ? ' · market' : ' · no sales') + '</span>' +
+          '<small>' + esc(s.tagline) + '</small><small style="margin-top:auto;opacity:.75">https://' + esc(s.host) + ' →</small></a>').join('') + '</div>' +
+        '<p><a class="btn" href="/dark">All onion services →</a> <a class="btn-ghost" href="https://' + esc(A.cyberDark ? A.cyberDark.portalHost : 'darknet-index.onion') + '/">The Onion Index →</a></p>' +
         '<h2>Trending topics (infinite search)</h2><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">' +
         trend.map(t => '<a class="pill" href="/?q=' + encodeURIComponent(t) + '">' + esc(cap(t)) + '</a>').join('') + '</div>' +
         '<h2>Browse by category (' + CATS.length + ' categories — infinite topics in every one)</h2><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px">' +
-        CATS.map(c => '<a class="pill" href="/?cat=' + encodeURIComponent(c.id) + '">' + esc(c.icon + ' ' + c.label) + '</a>').join('') + '</div>' +
+        CATS.map(c => '<a class="pill" href="/?cat=' + encodeURIComponent(c.id) + '">' + esc(c.icon + ' ' + c.label) +
+          '<span style="opacity:.7"> · ' + esc(DIFF_SHORT[CAT_DIFFICULTY[c.id]] || 'medium') + '</span></a>').join('') + '</div>' +
         '<h2>Cyber Mail &amp; phishing sites</h2>' + mailList.slice(0, 6).map(cardOf).join('') +
         '<p><a href="/mail">See all Cyber Mail sites →</a></p>') };
     }
@@ -3623,24 +3909,40 @@
       '<span class="mute">Page ' + pageNum + ' · showing ' + slice.length + ' sites (' + hits.length + '+ indexed for this query)</span>' +
       '<a class="btn" href="' + pageHref(pageNum + 1) + '">Next page (generate more) →</a></div>';
     const heading = (catObj ? catObj.icon + ' ' + catObj.label : 'Search results') + (q ? ' · “' + q + '”' : '');
+    const headingBadge = catObj ? ' ' + tierBadge(CAT_DIFFICULTY[catObj.id] || 'medium', 'category · ') : '';
     const subChips = catObj
       ? '<div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 14px">' +
         Array.from({ length: 6 }, () => pick(SUBJECTS)).filter((v, i, a) => a.indexOf(v) === i).map(t =>
           '<a class="pill" href="/?q=' + encodeURIComponent(t) + '&cat=' + encodeURIComponent(catObj.id) + '">' + esc(cap(t)) + '</a>').join('') + '</div>'
       : '';
     return { status: 200, type: 'text/html', body: shell(PORTAL, heading, head +
-      '<h2>' + esc(heading) + '</h2>' + subChips + nav + slice.map(cardOf).join('') + nav) };
+      '<h2>' + esc(heading) + headingBadge + '</h2>' + subChips + nav + slice.map(cardOf).join('') + nav) };
   }
 
   A.cyberWeb = {
     ensure, all, trapped, site, more, find, search, serve, homeHtml, locate, visit, resolve, byIp, routes, dirScan, random, next,
     isMarket: isMarketSite, onAction, recordAction,
+    /* the Fake Dark Web section, separate from the generated internet but resolved by the same commands */
+    dark: () => (A.cyberDark ? A.cyberDark.all() : []),
+    darkPortal: 'https://' + (A.cyberDark ? A.cyberDark.portalHost : 'darknet-index.onion') + '/',
+    isDarkHost: raw => /(?:^|\/\/)(?:[a-z0-9-]+\.)+onion(?:$|[\/:?#])/i.test(String(raw || '')),
     mailHosts: () => MAIL_SITES.map(m => m.host),
     /* the walkthrough reads a target the same way, with the practice bank's payouts switched off for its requests */
     serveSilent: (site, raw, method) => serve(site, raw, method, { silent: true }),
     count: () => { ensure(BASE); return catalog.length; },
     portal: PORTAL, portalUrl: q => 'https://' + SEARCH_HOST + '/?q=' + encodeURIComponent(String(q == null ? '' : q)),
     CATS,
+    /* the Open Range website: endless invented PCs, breached from moundshell */
+    range: {
+      host: RANGE_HOST,
+      site: RANGE,
+      machine: n => rangeMachine(n),
+      siteFor: n => rangeSiteFor(n),
+      byIp: ip => { const m = rangeMachineByIp(ip); return m ? rangeMachine(m.n) : null; },
+      list: (page, per) => rangeMachines(page, per),
+      pageUrl: p => 'https://' + RANGE_HOST + (p && p > 1 ? '/?p=' + p : '/'),
+      pcUrl: n => 'https://' + RANGE_HOST + '/pc/' + Math.max(1, Math.floor(Number(n) || 1))
+    },
     /* a short, stable label for anywhere that lists sites */
     label: s => s.brand + '  ·  ' + s.host,
     bridgeScript: BRIDGE_SCRIPT

@@ -26,7 +26,7 @@
   const pentestActive = () => pentestUser && vmRunning();
   const shellIdentity = () => pentestActive() ? 'kali@pentest' : 'moundshroud@moundshroud';
   /* what the app looks like on disk, so files that appear or change outside this shell can be pulled in */
-  let known = new Map(), sig = '', timer = null, syncing = false;
+  let known = new Map(), sig = '', timer = null, syncing = false, quietUntil = 0;
   const SYNC_MS = 8000;
   /* files whose text has not arrived yet: rel -> { size, text }. Preloading walks this map in small batches. */
   const pending = new Map();
@@ -68,8 +68,10 @@
     '· `git status`, `git add -A`, `git commit -m "…"` and `git push` save what you made here; it appears on MoundHub.',
     '· `browser` shows the libraries the Browser holds on this PC · `browser read 1` reads one · `breach 1` simulates\n  breaking into it on invented hosts, entirely inside this page.',
     '· `paths` lists what a tester tries on a website (robots.txt, the .env, /login, the hidden staff folder) and\n  `paths <host>` prints the same list as addresses for a site on the Cyber Desktop\'s fake internet.',
+    '· Every fake website leaks its accounts at /dump/users.csv (names, e-mails, session IPs, passwords): `leaked <host>` prints the table.\n  Plug an IP into `nmap <ip>`, then `ssh user@<ip>` with the leaked password — the PC opens with its own files, work secrets and personal secrets.\n  `exit` comes back to this shell.',
     '· `guide` walks you through that breach step by step — scope, recon, injection, a shell, root, the report — with\n  the exact commands for your target. guide next moves on; guide list shows the ladder.',
-    '· `juice start` runs OWASP Juice Shop on this PC and `juice guide` walks the site itself; `app` drives the whole\n  app (tabs, theme, notes, chat, settings, games) and `tools` runs every Toolkit tool from here.'
+    '· `juice start` runs OWASP Juice Shop on this PC and `juice guide` walks the site itself; `app` drives the whole\n  app (tabs, theme, notes, chat, settings, games) and `tools` runs every Toolkit tool from here.',
+    '· Every fake website, Browser library and Open Range PC hides a `FLAG{...}`: type  solve FLAG{...}  and it pays the\n  Cyber Desktop practice bank. `solve` alone says where the flags are; `range` lists endless practice PCs to breach.'
   ].map(t => ({ k: t.startsWith('· The ❓') ? 'dim' : 'out', t }));
   /* clearing the screen never leaves it empty: the starting text is what a fresh shell shows */
   function resetScreen() {
@@ -90,6 +92,7 @@
     return p[0] === 'app' ? p.slice(1) : p;
   };
   const promptText = () => {
+    if (pcSession) return pcSession.prompt();
     if (breach) return breach.prompt();
     if (mcode && mcode.open && mcode.open()) return mcode.prompt();
     const parts = cwdParts();
@@ -124,15 +127,18 @@
   const strip = rel => rel.startsWith(PREFIX) ? rel.slice(PREFIX.length) : rel;
   const fmtBytes = n => !n ? '0 B' : n < 1024 ? n + ' B' : n < 1048576 ? Math.round(n / 1024) + ' KB' : (n / 1048576).toFixed(n < 10485760 ? 1 : 0) + ' MB';
 
-  /* Every edit made here belongs to this browser only. Nothing is ever written back to the app's files: the overlay
-     below is kept in localStorage (per browser, per profile) and painted on top of a read-only copy of the source. */
+  /* A command that changes a file changes the app itself (persist() writes it back through /api/appedit/shellwrite,
+     which accepts only paths inside the app). The overlay below is only for what the server refuses, plus git's own
+     checkout and pull, which live in the Repositories store rather than on disk. */
   const OVERLAY_KEY = 'aeshell_overlay_v1';
   function readOverlay() {
     try {
       const raw = localStorage.getItem(OVERLAY_KEY);
       const data = raw ? JSON.parse(raw) : null;
-      return data && typeof data === 'object' ? { files: data.files || {}, removed: Array.isArray(data.removed) ? data.removed : [] } : { files: {}, removed: [] };
-    } catch (e) { return { files: {}, removed: [] }; }
+      return data && typeof data === 'object'
+        ? { files: data.files || {}, removed: Array.isArray(data.removed) ? data.removed : [], written: Array.isArray(data.written) ? data.written : [], deleted: Array.isArray(data.deleted) ? data.deleted : [] }
+        : { files: {}, removed: [], written: [], deleted: [] };
+    } catch (e) { return { files: {}, removed: [], written: [], deleted: [] }; }
   }
   function writeOverlay(overlay) {
     try { localStorage.setItem(OVERLAY_KEY, JSON.stringify(overlay)); } catch (e) { /* private mode: keep it in memory only */ }
@@ -140,7 +146,9 @@
   function clearOverlay() {
     try { localStorage.removeItem(OVERLAY_KEY); } catch (e) { /* nothing to clear */ }
   }
-  let overlay = { files: {}, removed: [] };
+  /* files: refused changes kept here · removed: refused removals · written: files this shell saved to disk ·
+     deleted: files this shell removed from disk. The last two are markers git reads, not a copy of the content. */
+  let overlay = { files: {}, removed: [], written: [], deleted: [] };
 
   /* files changed in this browser win over what is on disk, so a local edit is never silently replaced */
   function applyOverlay(files) {
@@ -149,34 +157,86 @@
     return files;
   }
 
+  /* A file a command changes is the app's own file: the change goes back through /api/appedit/shellwrite, which takes
+     a path only inside the app (web, lib, tests, scripts, desktop, docs, agent, or one of its top-level files) and never
+     anything outside it. A path it refuses, or a page served without that endpoint, keeps the change in this browser's
+     overlay as before — and says so. */
   function persist(before, after) {
-    const created = [], saved = [], removed = [];
+    /* only paths under ~/app are the app: anything the shell made outside it is reported and never written */
+    const real = p => String(p).startsWith(PREFIX) && !strip(p).split('/').some(x => !x || x === '.' || x === '..');
+    const created = [], saved = [], removed = [], folders = [], outer = [];
     for (const [p, text] of Object.entries(after.files)) {
-      if (!(p in before.files)) created.push(p);
-      else if (before.files[p] !== text) saved.push(p);
+      if (!(p in before.files)) (real(p) ? created : outer).push(p);
+      else if (before.files[p] !== text) (real(p) ? saved : outer).push(p);
     }
-    for (const p of Object.keys(before.files)) if (!(p in after.files)) removed.push(p);
-    if (!created.length && !saved.length && !removed.length) return;
+    for (const p of Object.keys(before.files)) if (!(p in after.files)) (real(p) ? removed : outer).push(p);
+    for (const d of after.dirs) if (!before.dirs.includes(d) && real(d)) folders.push(d);
+    for (const p of outer) status(strip(p) + ': outside ~/app — nothing was written');
+    if (!created.length && !saved.length && !removed.length && !folders.length) return Promise.resolve(0);
 
-    let changed = 0;
-    for (const p of created.concat(saved)) {
-      const rel = strip(p);
-      overlay.files[rel] = after.files[p];
+    const put = rel => {
+      overlay.files[rel] = after.files[PREFIX + rel];
       overlay.removed = overlay.removed.filter(x => x !== rel);
-      changed++;
-    }
-    for (const p of removed) {
-      const rel = strip(p);
+      overlay.written = overlay.written.filter(x => x !== rel);
+      overlay.deleted = overlay.deleted.filter(x => x !== rel);
+    };
+    const drop = rel => {
       delete overlay.files[rel];
       if (!overlay.removed.includes(rel)) overlay.removed.push(rel);
-      changed++;
-    }
-    for (const d of after.dirs) if (!before.dirs.includes(d)) status('folder ' + strip(d) + '/');
-    for (const p of created) status('created ' + strip(p) + ' (this browser only)');
-    for (const p of saved) status('saved ' + strip(p) + ' (this browser only)');
-    for (const p of removed) status('removed ' + strip(p) + ' (this browser only)');
-    writeOverlay(overlay);
-    if (changed) status('your copy — the app\'s own files are unchanged');
+      overlay.written = overlay.written.filter(x => x !== rel);
+      if (!overlay.deleted.includes(rel)) overlay.deleted.push(rel);
+    };
+    const browserOnly = () => {
+      for (const p of created.concat(saved)) put(strip(p));
+      for (const p of removed) drop(strip(p));
+      for (const d of folders) status('folder ' + strip(d) + '/');
+      for (const p of created) status('created ' + strip(p) + ' (this browser only)');
+      for (const p of saved) status('saved ' + strip(p) + ' (this browser only)');
+      for (const p of removed) status('removed ' + strip(p) + ' (this browser only)');
+      writeOverlay(overlay);
+      status('your copy — the app\'s own files are unchanged');
+      return 0;
+    };
+
+    return post('shellwrite', {
+      save: created.concat(saved).map(p => ({ rel: strip(p), text: after.files[p] })),
+      remove: removed.map(strip),
+      mkdir: folders.map(strip)
+    }).then(r => {
+      if (!r || r.error || !Array.isArray(r.saved)) return browserOnly();
+      /* the change on disk is this shell's own write: keep the disk watcher quiet while its idea catches up */
+      quietUntil = Date.now() + 4000;
+      const made = new Set(r.created || []), took = new Set(r.removed || []);
+      /* the content is on disk now, so only the fact that this shell changed the file is kept */
+      for (const rel of r.saved) {
+        delete overlay.files[rel];
+        overlay.removed = overlay.removed.filter(x => x !== rel);
+        overlay.deleted = overlay.deleted.filter(x => x !== rel);
+        if (!overlay.written.includes(rel)) overlay.written.push(rel);
+      }
+      for (const rel of took) {
+        delete overlay.files[rel];
+        overlay.removed = overlay.removed.filter(x => x !== rel);
+        overlay.written = overlay.written.filter(x => x !== rel);
+        if (!overlay.deleted.includes(rel)) overlay.deleted.push(rel);
+      }
+      for (const rel of r.saved) status((made.has(rel) ? 'created ' : 'saved ') + rel);
+      for (const rel of took) status('removed ' + rel);
+      for (const rel of (r.folders || [])) status('folder ' + rel + '/');
+      for (const f of (r.refused || [])) {
+        const rel = String((f && f.rel) || '');
+        if (!rel) continue;
+        const key = PREFIX + rel, isFile = (key in after.files) || (key in before.files);
+        if (key in after.files) put(rel); else if (key in before.files) drop(rel);
+        status(rel + ': ' + String((f && f.why) || 'cannot be written from here') + (isFile ? ' — kept in this browser only' : ''));
+      }
+      writeOverlay(overlay);
+      /* the receipt carries the new state, so the disk watcher needs no second request to catch up */
+      for (const rel of (r.removed || [])) known.delete(rel);
+      for (const rel of Object.keys(r.at || {})) known.set(rel, Number(r.at[rel]) || 0);
+      if (r.sig) sig = r.sig;
+      return r.saved.length + took.size;
+    }).catch(() => browserOnly());
   }
 
   /* what this browser can honestly say about the machine it is running on (never sent anywhere) */
@@ -323,10 +383,16 @@
       }
       for (const [rel, text] of Object.entries(overlay.files)) if (!(rel in tree)) out[rel] = text;
       for (const rel of overlay.removed) if (rel in tree) out[rel] = null;
+      /* files this shell saved or removed after they reached the disk are its changes too */
+      for (const rel of overlay.written) if (!(rel in tree) && rel in work) out[rel] = work[rel];
+      for (const rel of overlay.deleted) if (rel in tree && !(rel in work)) out[rel] = null;
       return out;
     }
+    const work = workFiles();
     for (const [rel, text] of Object.entries(overlay.files)) out[rel] = text;
     for (const rel of overlay.removed) out[rel] = null;
+    for (const rel of overlay.written) if (rel in work) out[rel] = work[rel];
+    for (const rel of overlay.deleted) out[rel] = null;
     return out;
   }
 
@@ -654,6 +720,15 @@
     try { sites = (CW.all ? CW.all() : []) || []; } catch (e) { sites = []; }
     return { CW, sites };
   }
+  /* ---- the sanctuary rule: church websites cannot be hacked from this shell -------------------------------- */
+  /* The fake internet's churches are off limits: a small module holds the list of KJV verses and the popup storm, and
+     every site tool below asks it first. Nothing is sent anywhere — the popups are DIVs inside this page. */
+  function churchApi() { return (typeof A !== 'undefined' && A && A.cyberChurch) || null; }
+  function isChurchSite(site) { const C = churchApi(); try { return !!(C && site && C.isChurch(site)); } catch (e) { return false; } }
+  function sanctuary(tool, site) {
+    const C = churchApi();
+    return C ? C.punish(tool, site) : '\u26ea This is a church website — no tool in this shell will touch it.';
+  }
   function currentBrowserUrl() {
     try {
       const lib = typeof A !== 'undefined' ? A.lib : null;
@@ -705,10 +780,12 @@
   function fakePick(CW, want, opts) {
     const key = String(want == null ? '' : want).trim();
     if (!key) return null;
-    if (/^(?:current|@current|active|here)$/i.test(key)) {
+    if (/^(?:current|@current|active|here)(?:[\/?#]|$)/i.test(key)) {
       const cur = currentBrowserUrl();
       if (!cur) return null;
-      return fakePick(CW, cur, opts);
+      /* current/robots.txt or current?q=bank: the open tab, plus a path on that same site */
+      const tail = key.replace(/^(?:current|@current|active|here)/i, '');
+      return fakePick(CW, cur.replace(/\/+$/, '') + (tail.charAt(0) === '?' ? '/' + tail : tail), opts);
     }
     if (isHubTarget(key)) {
       const p = splitTargetPath(key).path;
@@ -729,7 +806,13 @@
     const world = fakeWorld();
     return world.CW && world.CW.serve ? world.CW.serve(at.site, at.path || '/', method || 'GET') : { status: 503, type: 'text/plain', body: 'fake internet unavailable' };
   }
-  const trapTag = site => site && site.trapped && site.virus ? '  [⚠ FAKE VIRUS: ' + site.virus.name + ']' : (site && site.trapped ? '  [⚠ FAKE VIRUS]' : '');
+  /* No listing, header or page read announces a trap: a site only gives itself away to the scan tools
+     (`virus scan`, nikto, gobuster, whatweb, nmap) or by reading the script it injects. */
+  const TRAP_SCAN_HINT = 'There is no index of infected websites — that is the point of the exercise. Scan one instead:\n' +
+    '  virus scan <host|current>          check one site for a simulated pop-up trap\n' +
+    '  nikto -h <host>                    a scanner\'s view of the same page\n' +
+    '  whatweb <host> · gobuster dir -u https://<host>    the stack and every route it serves';
+  const trapTag = () => '';
   /* the library a page belongs to, from the Browser's own numbering, so the shell and the address bar agree */
   function libOfUrl(url) {
     try { const lib = typeof A !== 'undefined' ? A.lib : null; return lib && lib.libraryOf ? lib.libraryOf(url) : null; } catch (e) { return null; }
@@ -748,9 +831,7 @@
       'Title: ' + (facts.title || at.site.brand || '(none)'),
       'Page: ' + facts.h1 + ' h1 · ' + facts.h2 + ' h2 · ' + facts.links + ' links · ' + facts.forms + ' form' + (facts.forms === 1 ? '' : 's') +
       ' · ' + facts.inputs + ' inputs · ' + facts.scripts + ' script' + (facts.scripts === 1 ? '' : 's')]
-      .concat(at.site.trapped && at.site.virus ? [
-        '⚠ FAKE VIRUS TRAP: ' + at.site.virus.name + ' · script ' + at.site.virus.scriptPath + ' (harmless Cyber Desktop simulation)'
-      ] : [])
+
       .concat([at.hub || at.site.hub
         ? 'MoundHub: the app\'s own local repository website (shared with moundshell git).'
         : 'A generated site from the Cyber Desktop\'s fake internet: invented here, and nothing was contacted.', '']).join('\n');
@@ -775,7 +856,7 @@
     const curUrl = currentBrowserUrl();
     if (curUrl) {
       const curAt = fake && fake.CW ? fakePick(fake.CW, curUrl, { create: false }) : null;
-      out.push('  CURRENTLY OPEN: ' + curUrl + (curAt && curAt.site ? '  (' + curAt.site.brand + trapTag(curAt.site) + ')' : ''), '');
+      out.push('  CURRENTLY OPEN: ' + curUrl + (curAt && curAt.site ? '  (' + curAt.site.brand + ')' : ''), '');
     }
     if (mine.length) {
       out.push('  YOUR LIBRARIES — imported by their page source (' + mine.length + ')');
@@ -784,7 +865,8 @@
     }
     if (books.length) {
       out.push('  REFERENCE LIBRARIES that came with the app (' + books.length + ')');
-      for (const item of books.slice(0, 30)) out.push('    ' + String(item.n).padStart(2) + '. ' + item.title + '  ·  ' + item.mb + ' MB  ·  ' + item.category);
+      for (const item of books.slice(0, 30)) out.push('    ' + String(item.n).padStart(2) + '. ' + item.title + '  ·  ' + item.mb + ' MB  ·  ' + item.category +
+        (typeof A !== 'undefined' && A.cyberFlags ? '  ·  ' + A.cyberFlags.libFlag(item) : ''));
       if (books.length > 30) out.push('    …and ' + (books.length - 30) + ' more');
       out.push('');
     }
@@ -792,17 +874,24 @@
       '      MoundHub             ·  https://moundhub.com  (127.0.0.1 · git repository site)',
       '      Moundshroud Search   ·  https://search.moundshroud.example  (10.14.0.1 · indexes every fake site)', '');
     if (fake && fake.CW && fake.sites.length) {
-      const trappedCount = fake.sites.filter(s => s.trapped).length;
-      out.push('  THE FAKE INTERNET — generated sites from the Cyber Desktop (' + fake.sites.length + ' sites · ' + trappedCount + ' booby-trapped with fake viruses)');
+      out.push('  THE FAKE INTERNET — generated sites from the Cyber Desktop (' + fake.sites.length + ' sites)');
       for (const site of fake.sites.slice(0, 12)) out.push('    ' + String(site.id).padStart(3) + '. ' + site.brand + '  ·  ' + site.host + '  (' + site.ip + ')  ·  ' + site.kind + trapTag(site));
-      if (fake.sites.length > 12) out.push('      …and ' + (fake.sites.length - 12) + ' more — use `browser sites [query]` or `browser virus [query]` to list/search them all');
+      if (fake.sites.length > 12) out.push('      …and ' + (fake.sites.length - 12) + ' more — use `browser sites [query]` to search them all');
       out.push('');
     }
-    out.push('  browser read <n|host|url|current>    read any page or fake website (status, title, virus trap check, text)',
+    const darks = fake && fake.CW && fake.CW.dark ? fake.CW.dark() : [];
+    if (darks.length) {
+      out.push('  THE FAKE DARK WEB — onion-only hidden services (' + darks.length + ' services · ' +
+        darks.filter(s => s.market).length + ' markets, the rest sell nothing)');
+      for (const site of darks) out.push('    ' + String(site.id).padStart(3) + '. ' + site.brand + '  ·  ' + site.host + '  (' + site.ip + ')  ·  ' + site.kind + (site.market ? ' · market' : ' · no sales'));
+      out.push('      `browser dark [query]` lists them · `browser read|open <host>` works on every one · curl/wget/nmap/paths/breach too', '');
+    }
+    out.push('  browser read <n|host|url|current>    read any page or fake website (status, title, text)',
       '  browser source <n|host|url|current>  raw HTML/JSON/text source of any page or fake website',
       '  browser open <n|host|url|current>    open any site in the Browser (works on Cyber Desktop too)',
-      '  browser sites [query]                list or search generated Cyber Desktop websites (including virus sites)',
-      '  browser virus [query]                list booby-trapped fake-virus websites and their payload names',
+      '  browser sites [query]                list or search generated Cyber Desktop websites',
+      '  browser virus                        how to scan a site yourself (no list of infected ones)',
+      '  browser dark [query]                 the Fake Dark Web: every .onion hidden service in the onion section',
       '  browser tabs                         the pages the Browser has open right now',
       '  breach <n|host|web [n]|virus [n]>    simulated engagement against ANY browser website or library',
       '  curl · wget · nmap · whatweb · nikto · gobuster · sqlmap · dig · whois · ping · paths · tool · virus  all work on every website!');
@@ -816,15 +905,9 @@
     try { tabs = lib.tabs() || []; } catch (e) { tabs = []; }
     try { cur = lib.current ? lib.current() : null; } catch (e) { cur = null; }
     if (!tabs.length) return 'The Browser has no page open right now.';
-    const world = fakeWorld();
-    const tagFor = url => {
-      if (!url || !world.CW) return '';
-      const at = fakePick(world.CW, url, { create: false });
-      return at && at.site ? trapTag(at.site) : '';
-    };
     return ['OPEN IN THE BROWSER — ' + tabs.length + ' tab' + (tabs.length === 1 ? '' : 's') +
-      (cur && cur.url ? ' · showing: ' + (cur.title || '(no title)') + ' — ' + cur.url + tagFor(cur.url) : ''), '']
-      .concat(tabs.map((tab, i) => '  ' + String(i + 1).padStart(2) + '. ' + (tab.title || '(no title)') + (tab.url ? '  ·  ' + tab.url + tagFor(tab.url) : '')))
+      (cur && cur.url ? ' · showing: ' + (cur.title || '(no title)') + ' — ' + cur.url : ''), '']
+      .concat(tabs.map((tab, i) => '  ' + String(i + 1).padStart(2) + '. ' + (tab.title || '(no title)') + (tab.url ? '  ·  ' + tab.url : '')))
       .join('\n');
   }
 
@@ -891,27 +974,29 @@
       if (inCyber) A.cyberDesktop.api.openSite(url);
       else if (lib.openSite) lib.openSite(url, item.title);
       else lib.openUrl(url, item.title);
-      return 'Opened “' + item.title + '” (' + url + ') in the Browser.' +
-        (item.site.trapped ? '  ⚠ Note: this site is booby-trapped with a simulated pop-up virus (' + (item.site.virus ? item.site.virus.name : 'popup') + ') — type `virus clean` if it triggers.' : ' It is a generated site from the fake internet.');
+      return 'Opened “' + item.title + '” (' + url + ') in the Browser. It is a generated site from the fake internet.';
     }
     if (item.url) lib.openUrl(item.url, item.title);
     else lib.openUrl('/wiki/random?content=' + encodeURIComponent(item.id), item.title);
     return 'Opened “' + item.title + '” in the Browser tab.';
   }
 
-  function browserSiteList(fake, query, onlyVirus) {
+  function browserSiteList(fake, query, onlyVirus, onlyDark) {
     if (!fake || !fake.CW) return 'The fake internet is still loading — try again in a moment.';
     const q = String(query || '').trim();
-    let list = q ? fake.CW.search(q, 80) : fake.sites;
-    if (onlyVirus) list = list.filter(s => s.trapped);
-    const total = onlyVirus ? fake.sites.filter(s => s.trapped).length : fake.sites.length;
-    const head = (onlyVirus ? 'TRAPPED FAKE-VIRUS WEBSITES' : 'CYBER DESKTOP FAKE INTERNET') +
+    const darks = fake.CW.dark ? fake.CW.dark() : [];
+    let list = q ? (onlyDark ? darks.filter(s => (s.brand + ' ' + s.host + ' ' + s.kind + ' ' + (s.tagline || '')).toLowerCase().includes(q.toLowerCase())) : fake.CW.search(q, 80)) : (onlyDark ? darks : fake.sites);
+    if (onlyVirus) return TRAP_SCAN_HINT;
+    const total = onlyDark ? darks.length : fake.sites.length;
+    const head = (onlyDark ? 'FAKE DARK WEB — onion-only hidden services' : 'CYBER DESKTOP FAKE INTERNET') +
       (q ? ' matching “' + q + '”' : '') + ' · ' + list.length + ' shown of ' + total + ' total';
     if (!list.length) return head + '\n  No sites matched. Type any made-up domain (e.g. `browser open mysite.shop`) and it will be created.';
     return [head, ''].concat(
-      list.slice(0, 40).map(s => '  ' + String(s.id).padStart(3) + '. ' + s.host.padEnd(28) + ' ' + s.ip.padEnd(13) + ' ' + s.brand + ' (' + s.kind + ')' + trapTag(s)),
+      list.slice(0, 40).map(s => '  ' + String(s.id).padStart(3) + '. ' + s.host.padEnd(28) + ' ' + s.ip.padEnd(13) + ' ' + s.brand + ' (' + s.kind + ')'),
       list.length > 40 ? ['', '  …and ' + (list.length - 40) + ' more. Narrow with a keyword: `browser ' + (onlyVirus ? 'virus' : 'sites') + ' <word>`.'] : [],
-      ['', '  Every site works with: browser read|source|open|breach <host> · curl · wget · nmap · whatweb · nikto · gobuster · sqlmap · dig · whois · paths · tool · virus scan']
+      ['', '  Every site works with: browser read|source|open|breach <host> · curl · wget · nmap · whatweb · nikto · gobuster · sqlmap · dig · whois · paths · tool · virus scan'],
+      ['', '  Every site LEAKS its users at /dump/users.csv (names, e-mails, session IPs, passwords): `leaked <host>` prints it,'],
+      ['', '  `nmap <ip>` finds that user\'s PC and `ssh user@<ip>` (with the password from the dump) opens it: ls, cat, grep, exit.']
     ).join('\n');
   }
 
@@ -925,6 +1010,7 @@
     if (sub === 'tabs' || sub === 'windows') return browserTabs();
     if (sub === 'sites' || sub === 'web' || sub === 'fake' || sub === 'search') return browserSiteList(fake, tail, false);
     if (sub === 'virus' || sub === 'trapped' || sub === 'malware') return browserSiteList(fake, tail, true);
+    if (sub === 'dark' || sub === 'darkweb' || sub === 'onion' || sub === 'onions') return browserSiteList(fake, tail, false, true);
     /* every website in the Cyber Desktop browser (generated sites, trapped fake-virus sites, custom domains,
        search.moundshroud.example, moundhub.com, current tab, imported pages, reference libraries) answers here */
     if (['read', 'cat', 'source', 'src', 'open', 'go', 'breach', 'pentest'].includes(sub)) {
@@ -944,7 +1030,7 @@
         return await openInBrowser(site);
       }
       return (targetArg ? 'browser ' + sub + ': nothing matches “' + targetArg + '”.\n' : 'browser ' + sub + ': name a page number, slug, host, URL, `web <n>`, `virus <n>`, or `current`.\n') +
-        'Type `browser` to list libraries and sites, or `browser virus` for booby-trapped sites.';
+        'Type `browser` to list libraries and sites; `virus scan <host>` checks one site for a trap.';
     }
     return 'usage: browser [list|tabs|sites [q]|virus [q]] · browser read|source|open|breach <n|slug|host|url|web [n]|virus [n]|current>\nType browser for the list.';
   }
@@ -974,6 +1060,7 @@
     if (want) {
       const at = fakePick(CW, want, { create: true });
       if (!at || !at.site) return 'paths: “' + want + '” is not a recognised website.\nName any host from the Cyber Desktop browser, `paths web`, `paths virus`, `paths moundhub.com`, or `paths current`.';
+      if (isChurchSite(at.site)) return sanctuary('paths', at.site);
       targetSite = at.site; host = targetSite.host; brand = targetSite.brand;
     }
     const out = [host ? 'PATHS TO TRY · ' + brand + ' · ' + host + (targetSite && targetSite.ip ? ' (' + targetSite.ip + ')' : '') + trapTag(targetSite) : 'PATHS TO TRY · the checklist, for any site'];
@@ -988,6 +1075,23 @@
       [['/', 'Moundshroud Search portal home'], ['/?q=bank', 'search every generated site'], ['/robots.txt', 'crawler rules']].forEach(([p, why]) => {
         out.push('  https://' + host + p, '      ' + why);
       });
+    } else if (targetSite && /^ghostleaks\.onion$/i.test(host) && typeof A !== 'undefined' && A.cyberLeaks) {
+      /* the leak site is an archive: every batch and every published file in it has its own address */
+      const LK = A.cyberLeaks, batch = LK.archive[0];
+      out.push('  WHAT THE LEAK SITE PUBLISHES (' + LK.count() + ' batches · ' + LK.files() + ' files)');
+      LK.paths().forEach(p => out.push('  https://' + host + p));
+      out.push('  https://' + host + '/raw/<batch>/<file>', '      every file a batch lists: curl it, or wget it and read it back');
+      if (batch) batch.docs.slice(0, 6).forEach(d => out.push('      https://' + host + '/raw/' + batch.slug + '/' + d.path));
+      out.push('');
+    } else if (targetSite && targetSite.dark && CW.dirScan) {
+      /* a hidden service answers only its own routes: a scan lists those, and nothing is invented */
+      const found = CW.dirScan(targetSite);
+      out.push('  WHAT THIS HIDDEN SERVICE ANSWERS (' + found.length + ' paths)' );
+      found.forEach(f => {
+        out.push('  https://' + host + f.path);
+        out.push('      ' + f.status + ' · ' + String(f.size) + ' bytes' + (f.note ? ' · ' + f.note : ''));
+      });
+      out.push('');
     } else {
       const orderId = targetSite && targetSite.orders && targetSite.orders[0] ? targetSite.orders[0].id : '<id>';
       if (targetSite && targetSite.cat && targetSite.cat.route) {
@@ -1016,10 +1120,6 @@
         out.push('  ' + (host ? 'https://' + host + shown : p));
         out.push('      ' + why + (host && money ? '   ·   pays $' + money : ''));
       });
-      if (targetSite && targetSite.trapped && targetSite.virus) {
-        out.push('  https://' + host + targetSite.virus.scriptPath);
-        out.push('      ⚠ FAKE VIRUS PAYLOAD (' + targetSite.virus.name + ') — inspect safely with curl, or run `virus scan ' + host + '`');
-      }
     }
     out.push('');
     out.push('  HOW TO READ THE ANSWER');
@@ -1028,11 +1128,19 @@
     if (!host) {
       out.push('  paths <host|url>    the same checklist as addresses for one site, e.g.  paths amberbasket.shop');
       out.push('  paths web           pick a random site from the Cyber Desktop\'s fake internet');
-      out.push('  paths virus         pick a booby-trapped fake-virus site');
+      out.push('  paths virus         the same checklist for a site picked at random');
       out.push('  paths current       checklist for the website currently open in the Browser');
       out.push('  targets             every site and page a breach can be pointed at');
     } else {
-      out.push('  next  breach ' + host + '   runs the full simulated engagement against this site');
+                if (targetSite && A.cyberPcs) {
+            const users = A.cyberPcs.roster(targetSite);
+            if (users.length) {
+              out.push('  https://' + host + '/dump/users.csv', '      the user table a backup script left in the web root: ' + users.length + ' accounts, their IPs and their passwords');
+              out.push('      nmap ' + users[0].ip + '   ·   ssh ' + users[0].handle + '@' + users[0].ip + '   (password in the dump)');
+              out.push('');
+            }
+          }
+          out.push('  next  breach ' + host + '   runs the full simulated engagement against this site');
       out.push('  try   curl -s https://' + host + '/robots.txt   ·   gobuster dir -u https://' + host);
       out.push('  note  every site hides it differently: the staff folder shows up in robots.txt, a leaked config, a JS bundle');
       out.push('        or a clue chain, depending on how well the site is run. Gobuster lists what is discoverable by name.');
@@ -1047,11 +1155,21 @@
      material — while every host, user, secret, endpoint and shell behind it is invented and lives inside this page.
      No socket is opened, no site or PC is contacted, and the library file is never changed. */
   let breach = null, breachItem = null;
+  /* a remote session on a leaked user PC: pcSession owns every line until exit, pcAuth is the password prompt */
+  let pcSession = null, pcAuth = null;
   /* An open range is still the moundshell. Its prompt is the session’s real identity (kali@pentest only when the
      Cyber VM signed this shell in), and every command the range does not program is handed to the app’s own bash,
      so ls, cat, echo, python, git and the rest never become “command not found” just because a range is open. */
   const rangeOptions = () => ({
     prompt: () => shellIdentity() + ':~$ ',
+    /* a range download is written into this shell's own files, so the next ls, cat, unzip or python run
+       sees the same bytes the range reported (same writer the moundshell's wget and curl -o use) */
+    saveFile: (name, body) => {
+      const rel = normRel(name);
+      if (!rel || !room || !room.applyFiles) return rel || String(name || '');
+      room.applyFiles({ [PREFIX + rel]: String(body == null ? '' : body) }, []);
+      return rel;
+    },
     fallback: line => {
       if (!room) return 'bash: the shell is still loading — try again in a moment.';
       try {
@@ -1065,6 +1183,49 @@
       } catch (e) { return 'bash: ' + String(e && e.message || e); }
     }
   });
+
+  /* ---- `solve`: a FLAG from any fake website, Browser library or Open Range PC pays the practice bank -------- */
+  async function solveCommand(rest) {
+    const F = (typeof A !== 'undefined' && A.cyberFlags) || null;
+    if (!F) return 'solve: the Cyber Desktop is still loading — try again in a moment.';
+    const text = String(rest == null ? '' : rest).trim();
+    if (!text || /^(?:list|board|progress|help|\?)$/i.test(text)) return await F.board();
+    let res;
+    try { res = await F.submit(text); } catch (e) { return 'solve: ' + String(e && e.message || e); }
+    const money = n => '$' + Number(n || 0).toFixed(2);
+    if (res.status === 'paid') return '✓ FLAG accepted · ' + res.label + '\n' +
+      '  +' + money(res.amount) + ' paid into the Cyber Desktop practice bank · balance ' + money(res.balance) + '\n' +
+      '  Spend it in Cyber Desktop › Bank › Cosmetics shop.';
+    if (res.status === 'known') return '✓ That flag was already submitted — each flag pays once. Balance ' + money(res.balance) + '.';
+    if (res.status === 'malformed') return 'solve: a flag looks like FLAG{...} — paste the whole thing, braces included.\n' +
+      'Type `solve` on its own to see where the flags are and how many you have submitted.';
+    if (res.status === 'unavailable') return 'solve: the practice bank is not loaded yet — try again in a moment.';
+    return 'solve: that flag is not on the Cyber Desktop\'s fake internet, its libraries or the Open Range.\n' +
+      'Type `solve` on its own to see where the flags are.';
+  }
+
+  /* ---- `range`: the Open Range website's endless PCs, listed the way moundshell lists anything else ------------- */
+  function rangeCommand(rest) {
+    const { CW } = fakeWorld();
+    const R = CW && CW.range;
+    if (!R) return 'range: the Cyber Desktop is still loading — try again in a moment.';
+    const want = String(rest == null ? '' : rest).trim();
+    const ns = /^(\d+)$/.exec(want);
+    const page = ns ? Math.max(1, +ns[1]) : 1;
+    const machines = R.list(page, 14);
+    const out = ['MOUNDSHROUD OPEN RANGE · ' + R.host + ' · page ' + page + ' of ∞ invented PCs', ''];
+    out.push('  #     machine                             address          os · role                                tier');
+    machines.forEach(m => out.push('  ' + String(m.n).padStart(4, '0') + '  ' + m.host.padEnd(34) + ' ' + m.ip.padEnd(16) + ' ' +
+      (m.os + ' · ' + m.role).padEnd(39) + ' ' + m.tier));
+    out.push('');
+    out.push('  breach ' + machines[0].ip + '        start a simulated engagement against that PC');
+    out.push('  breach ' + machines[0].host);
+    out.push('  range ' + (page + 1) + '                 next page · range 1 is the first');
+    out.push('  Open ' + R.pageUrl(page) + ' in the Browser for the full index and each PC\'s details.');
+    out.push('  Owning a PC pays the practice bank; its FLAG (on the staff page) can be sent with `solve FLAG{...}`.');
+    out.push('  Everything is invented in this page: no machine is contacted and no socket is opened.');
+    return out.join('\n');
+  }
 
   async function startBreach(want) {
     const TP = window.TerminalPlayground;
@@ -1080,18 +1241,28 @@
     const items = await browserItems();
     const libItem = !explicitWeb && asked ? browserPick(items, asked) : null;
     if (!libItem && asked) {
-      const at = fakePick(CW, asked, { create: true });
+      let at = fakePick(CW, asked, { create: true });
+      if (at && at.site && isChurchSite(at.site)) {
+        if (/^(?:web|virus|trapped|malware|portal)$/i.test(asked)) {
+          const C = churchApi();
+          const alt = C ? C.elsewhere(at.site, /^(?:virus|trapped|malware)$/i.test(asked)) : null;
+          if (alt) at = { site: alt, path: '/' };
+        } else {
+          return sanctuary('breach', at.site);
+        }
+      }
       if (at && at.site) {
         const fake = at.site;
         const html = at.hub ? serveHub('/').body : CW.homeHtml(fake);
-        TP.setPentestLibraries([{ title: fake.brand + ' · ' + fake.host, name: fake.host, host: fake.host, ip: fake.ip, html, cyberSite: at.hub ? null : fake }]);
+        /* an Open Range PC keeps the address the range index gave it, so nmap/curl here match the website */
+        const targetIp = (fake.range && fake.range.ip) || fake.ip;
+        TP.setPentestLibraries([{ title: fake.brand + ' · ' + fake.host, name: fake.host, host: fake.host, ip: targetIp, html, cyberSite: at.hub ? null : fake }]);
         breach = TP.makePentest(rangeOptions());
         breachItem = { title: fake.brand + ' (' + fake.host + ')', host: fake.host, site: fake };
         const opened = breach.run('target 1');
-        return 'BREACH RANGE · ' + fake.brand + ' · ' + fake.host + ' (' + (fake.ip || '10.10.10.5') + ')' + trapTag(fake) + '\n' +
+        return 'BREACH RANGE · ' + fake.brand + ' · ' + fake.host + ' (' + (targetIp || '10.10.10.5') + ')\n' +
           (at.hub ? '  simulated engagement targeting a local mirror of MoundHub\n'
             : '  a generated site from the Cyber Desktop\'s fake internet: its front page, accounts, .env, APIs and backend are mapped here\n') +
-          (fake.trapped && fake.virus ? '  ⚠ booby-trapped fake-virus site: ' + fake.virus.name + ' at ' + fake.virus.scriptPath + '\n' : '') +
           '\n' + opened + '\n\n' +
           'Every host, account, key, endpoint and fake box behind this site is invented in memory — no socket is opened and\n' +
           'nothing is contacted. Its staff area is reachable, and the deploy secret is waiting behind it.\n' +
@@ -1140,7 +1311,7 @@
     if (/^(help|\?)$/i.test(words)) {
       return ['breach [n|slug|host|url]  start a simulated engagement against ANY browser website or library',
         'breach web [n]            a site from the Cyber Desktop\'s fake internet (random if no number)',
-        'breach virus [n]          a booby-trapped fake-virus website from the Cyber Desktop browser',
+        'breach virus [n]          a site picked at random from the Cyber Desktop browser',
         'breach current            the website currently open in the Cyber Desktop browser',
         'breach end                leave the range and return to the mound shell',
         '',
@@ -1830,19 +2001,23 @@ DONE      When the range shows every objective ticked: type next to take the nex
   function toolText(id, r) {
     if (!r) return '(no answer)';
     if (r.error) return 'error: ' + r.error;
-    if (id === 'dns') return (r.records || []).map(x => x.type.padEnd(6) + x.value + '   ' + (x.note || '')).join('\n') || (r.note || 'no records');
-    if (id === 'portscan') return (r.open || []).map(p => String(p.port).padEnd(6) + 'open   ' + (p.service || '')).join('\n') || (r.note || 'no open ports');
-    if (id === 'hashmake') return Object.entries(r.hashes || {}).map(([a, h]) => a.toUpperCase().padEnd(8) + h).join('\n');
-    if (id === 'hashid') return (r.guesses || []).map(g => g.name).join('\n') || (r.error || '');
-    if (id === 'hashcrack') return r.cracked ? 'cracked: ' + r.password + '  (' + r.algo + ', after ' + r.tried + ' tries)' : 'not cracked after ' + r.tried + ' tries. ' + (r.note || '');
-    if (id === 'secrets') return (r.findings || []).map(f => f.file + ':' + f.line + '  ' + f.rule + '  ' + f.preview).join('\n') +
-      (r.findings && r.findings.length ? '\n' + r.findings.length + ' hit(s) in ' + r.scanned + ' files. ' + (r.note || '') : 'nothing found in ' + r.scanned + ' files.');
-    if (id === 'strings') return (r.strings || []).join('\n') || (r.note || 'no readable text');
-    if (id === 'hashdir') return (r.files || []).map(f => f.sha256 + '  ' + f.file).join('\n') || (r.note || 'no files');
-    if (id === 'headers') return r.grade ? 'grade ' + r.grade + ' (' + r.score + '/100)\npresent: ' + (r.present || []).map(x => x.name).join(', ') + '\nmissing: ' + (r.missing || []).map(x => x.name).join(', ') : prettyJson(r);
-    if (id === 'whois') return Object.entries(r.facts || {}).filter(([, v]) => v).map(([k, v]) => k.padEnd(12) + v).join('\n') || prettyJson(r);
-    if (id === 'connections') return (r.connections || []).slice(0, 60).map(c => (c.program || '?').padEnd(16) + c.local + '  ->  ' + (c.remote || '-') + '  ' + c.state).join('\n') || (r.note || 'none');
-    return prettyJson(r);
+    /* every answer names the target it is about, so a tool never answers anonymously about a site */
+    const who = r.host || r.path || (r.url ? String(r.url).split('://').pop().split('/')[0] : '');
+    const lead = who ? 'target  ' + who + (r.ip && r.ip !== who ? '  (' + r.ip + ')' : '') + '\n' : '';
+    const body = id === 'dns' ? ((r.records || []).map(x => x.type.padEnd(6) + x.value + '   ' + (x.note || '')).join('\n') || (r.note || 'no records'))
+      : id === 'portscan' ? ((r.open || []).map(p => String(p.port).padEnd(6) + 'open   ' + (p.service || '')).join('\n') || (r.note || 'no open ports'))
+      : id === 'hashmake' ? Object.entries(r.hashes || {}).map(([a, h]) => a.toUpperCase().padEnd(8) + h).join('\n')
+      : id === 'hashid' ? ((r.guesses || []).map(g => g.name).join('\n') || (r.error || ''))
+      : id === 'hashcrack' ? (r.cracked ? 'cracked: ' + r.password + '  (' + r.algo + ', after ' + r.tried + ' tries)' : 'not cracked after ' + r.tried + ' tries. ' + (r.note || ''))
+      : id === 'secrets' ? ((r.findings || []).map(f => f.file + ':' + f.line + '  ' + f.rule + '  ' + f.preview).join('\n') +
+          ((r.findings || []).length ? '\n' + r.findings.length + ' hit(s) in ' + r.scanned + ' files. ' + (r.note || '') : 'nothing found in ' + r.scanned + ' files.'))
+      : id === 'strings' ? ((r.strings || []).join('\n') || (r.note || 'no readable text'))
+      : id === 'hashdir' ? ((r.files || []).map(f => f.sha256 + '  ' + f.file).join('\n') || (r.note || 'no files'))
+      : id === 'headers' ? (r.grade ? 'grade ' + r.grade + ' (' + r.score + '/100)\npresent: ' + (r.present || []).map(x => x.name).join(', ') + '\nmissing: ' + (r.missing || []).map(x => x.name).join(', ') : prettyJson(r))
+      : id === 'whois' ? (Object.entries(r.facts || {}).filter(([, v]) => v).map(([k, v]) => k.padEnd(12) + v).join('\n') || prettyJson(r))
+      : id === 'connections' ? ((r.connections || []).slice(0, 60).map(c => (c.program || '?').padEnd(16) + c.local + '  ->  ' + (c.remote || '-') + '  ' + c.state).join('\n') || (r.note || 'none'))
+      : prettyJson(r);
+    return lead + body;
   }
   /* ---- Cyber Desktop websites for `tool <name>` (no real network traffic ever leaves for fake sites) ---------- */
   function fakeToolAnswer(id, body) {
@@ -1871,11 +2046,10 @@ DONE      When the range shows every objective ticked: type next to take the nex
         { type: 'NS', value: 'ns1.' + host, note: 'Name server' },
         { type: 'TXT', value: 'v=spf1 ip4:' + ip + ' -all', note: 'SPF record' }
       ];
-      if (trap) records.push({ type: 'TXT', value: 'x-cd-trap=' + s.virus.name + ' path=' + s.virus.scriptPath, note: '⚠ simulated fake-virus advisory' });
       return { host, records };
     }
-    if (id === 'reverse') return { ip, names: [host], note: trap ? '⚠ booby-trapped fake-virus host (' + s.virus.name + ')' : 'Cyber Desktop simulated host' };
-    if (id === 'ipinfo') return { ip, host, org: s.brand + ' (Cyber Desktop simulated)', network: s.hub ? '127.0.0.0/8' : '10.14.0.0/16', category: s.kind, trapped: trap, virus: trap ? s.virus.name : 'none' };
+    if (id === 'reverse') return { ip, names: [host], note: 'Cyber Desktop simulated host' };
+    if (id === 'ipinfo') return { ip, host, org: s.brand + ' (Cyber Desktop simulated)', network: s.hub ? '127.0.0.0/8' : '10.14.0.0/16', category: s.kind };
     if (id === 'whois') {
       return {
         facts: {
@@ -1884,14 +2058,13 @@ DONE      When the range shows every objective ticked: type next to take the nex
           created: new Date(s.createdAt || Date.now()).toISOString().slice(0, 10),
           admin: s.adminLogin || ('admin@' + host),
           nameserver: 'ns1.' + host,
-          safety: trap ? '⚠ BOOBY-TRAPPED — fake pop-up virus (' + s.virus.name + ') at ' + s.virus.scriptPath : 'clean (simulated training site)'
+          safety: 'no reputation data (simulated registry)'
         }
       };
     }
     if (id === 'subdomains') {
       const found = ['www.' + host, 'api.' + host, 'mail.' + host, 'admin.' + host];
-      if (trap) found.push('ads.' + host, 'pop.' + host);
-      return { host, subdomains: found, note: 'Cyber Desktop simulated DNS — nothing left this page.' };
+      return { host, ip, subdomains: found, note: 'Cyber Desktop simulated DNS — nothing left this page.' };
     }
     if (id === 'portscan') {
       const open = [
@@ -1899,23 +2072,23 @@ DONE      When the range shows every objective ticked: type next to take the nex
         { port: 80, service: 'HTTP (nginx/1.24.0)' },
         { port: 443, service: 'HTTPS (nginx/1.24.0 · PHP/8.2.12)' }
       ];
-      if (trap) open.push({ port: 8080, service: 'HTTP-alt (fake pop-up dropper: ' + s.virus.name + ')' });
+      if (trap) open.push({ port: 8080, service: 'HTTP-alt (nginx 1.18.0)' });
       return { host, ip, scanned: 22, open, note: 'Cyber Desktop simulated scan — zero packets sent.' };
     }
     if (id === 'tlscert') {
       const from = new Date(s.createdAt || Date.now() - 86400000 * 30).toUTCString();
       const to = new Date(Date.now() + 86400000 * 300).toUTCString();
       return {
-        host, subject: host, issuer: 'Moundshroud Practice CA (simulated)',
+        host, ip, subject: host, issuer: 'Moundshroud Practice CA (simulated)',
         altNames: [host, 'www.' + host, 'api.' + host], validFrom: from, validTo: to,
         daysLeft: 300, expired: false, protocol: 'TLSv1.3', cipher: 'TLS_AES_256_GCM_SHA384',
-        note: trap ? '⚠ Certificate is valid, but the page itself carries a simulated pop-up virus (' + s.virus.name + '). HTTPS does not mean safe!' : 'Simulated certificate.'
+        note: 'Simulated certificate.'
       };
     }
     if (id === 'headers') {
       return {
-        url: 'https://' + host + (at.path || '/'), grade: trap ? 'F' : 'D', score: trap ? 15 : 35,
-        present: [{ name: 'X-Content-Type-Options' }, { name: 'Server (nginx/1.24.0)' }].concat(trap ? [{ name: 'X-CD-Trap (' + s.virus.name + ')' }] : []),
+        host, ip, url: 'https://' + host + (at.path || '/'), grade: 'D', score: 35,
+        present: [{ name: 'X-Content-Type-Options' }, { name: 'Server (nginx/1.24.0)' }],
         missing: [{ name: 'Content-Security-Policy' }, { name: 'Strict-Transport-Security' }, { name: 'X-Frame-Options' }, { name: 'HttpOnly on session cookie' }]
       };
     }
@@ -1924,9 +2097,7 @@ DONE      When the range shows every objective ticked: type next to take the nex
       return {
         url: 'https://' + host + (at.path || '/'), status: ans.status, brand: s.brand, category: s.kind, ip,
         server: 'nginx/1.24.0', runtime: 'PHP/8.2.12',
-        routes: CW && CW.routes && !s.hub ? CW.routes(s).slice(0, 12) : ['/', '/robots.txt', '/api/repos'],
-        trapped: trap,
-        virus: trap ? { name: s.virus.name, scriptPath: s.virus.scriptPath, vector: s.virus.vector } : null
+        routes: CW && CW.routes && !s.hub ? CW.routes(s).slice(0, 12) : ['/', '/robots.txt', '/api/repos']
       };
     }
     if (id === 'traceroute') {
@@ -1952,16 +2123,16 @@ DONE      When the range shows every objective ticked: type next to take the nex
         });
       }
       if (trap) {
-        findings.push({ file: 'https://' + host + s.virus.scriptPath, line: 1, rule: 'FAKE_VIRUS_TRAP', preview: s.virus.name + ' (' + s.virus.vector + ')' });
+        findings.push({ file: 'https://' + host + s.virus.scriptPath, line: 1, rule: 'SUSPICIOUS_SCRIPT', preview: 'obfuscated dropper (' + s.virus.vector + ')' });
       }
-      return { scanned: trap ? 3 : 2, findings, note: 'Scanned simulated Cyber Desktop site ' + host + ' (nothing left this page).' };
+      return { host, ip, scanned: trap ? 3 : 2, findings, note: 'Scanned simulated Cyber Desktop site ' + host + ' (nothing left this page).' };
     }
     if (id === 'strings') {
       const ans = serveTarget(at, 'GET');
       const parts = [String(ans.body || '')];
       if (trap && CW && CW.serveSilent) parts.push(String(CW.serveSilent(s, s.virus.scriptPath, 'GET').body || ''));
       const found = parts.join('\n').match(/[ -~]{6,}/g) || [];
-      return { strings: found.slice(0, 80), note: 'Readable text from https://' + host + (at.path || '/') };
+      return { host, ip, strings: found.slice(0, 80), note: 'Readable text from https://' + host + (at.path || '/') };
     }
     return null;
   }
@@ -1970,7 +2141,7 @@ DONE      When the range shows every objective ticked: type next to take the nex
     const w = argvOf(rest), id = (w[0] || '').toLowerCase();
     if (!id || /^(help|list|\?)$/.test(id)) {
       return ['THE SECURITY TOOLKIT, FROM THIS SHELL — every tool in Cyber › Toolkit, same code',
-        '  Works on real local targets AND every website in the Cyber Desktop browser (including trapped fake-virus sites).',
+        '  Works on real local targets AND every website in the Cyber Desktop browser.',
         ''].concat(Object.keys({ ...TOOL_ARGS, ...TOOL_GET }).map(k =>
           '  ' + (TOOL_LINE[k] ? k : k).padEnd(12) + (TOOL_ARGS[k] || []).map(a => '<' + a + '>').join(' ') +
           (TOOL_GET[k] ? '   (no arguments)' : '') + '   — ' + (TOOL_LINE[k] || ''))).concat([
@@ -1986,6 +2157,12 @@ DONE      When the range shows every objective ticked: type next to take the nex
       ]).join('\n');
     }
     if (!TOOL_ARGS[id] && !TOOL_GET[id]) return 'tools: no tool called “' + id + '”. Type tools for the list.';
+    /* a church site answers no toolkit either: no headers, no DNS lookup, no secrets scan, no port scan */
+    const churchTarget = w.slice(1).find(tok => /^(?:https?:\/\/|[\w-]+\.[a-z]{2,12}(?:\/|$))/i.test(tok));
+    if (churchTarget) {
+      const hit = fakePick(fakeWorld().CW, churchTarget.replace(/^https?:\/\//i, ''), { create: false });
+      if (hit && hit.site && isChurchSite(hit.site)) return sanctuary('tool ' + id, hit.site);
+    }
     const body = {};
     (TOOL_ARGS[id] || []).forEach((key, i) => { if (w[i + 1] != null) body[key] = w.slice(i + 1).join(' '); });
     if (id === 'hashid' && w[1]) body.hash = w[1];
@@ -2004,16 +2181,16 @@ DONE      When the range shows every objective ticked: type next to take the nex
     return toolText(id, r);
   }
 
-  /* ---- `virus` / `antivirus`: inspect booby-trapped fake-virus websites and clean fake pop-ups ---------------- */
+  /* ---- `virus` / `antivirus`: scan any website for a simulated trap and clean fake pop-ups ------------------- */
   function virusCommand(rest) {
     const w = argvOf(rest), sub = (w[0] || 'status').toLowerCase(), tail = w.slice(1).join(' ').trim();
     const { CW, sites } = fakeWorld();
     const av = (typeof A !== 'undefined' && A.cyberVirus) || null;
     if (/^(help|\?)$/.test(sub)) {
-      return ['virus / antivirus — inspect booby-trapped Cyber Desktop websites and clean fake pop-ups',
+      return ['virus / antivirus — scan Cyber Desktop websites and clean fake pop-ups',
         '  virus status               check if a fake pop-up outbreak is active on the Cyber Desktop',
-        '  virus list [query]         list every fake website that carries a simulated pop-up virus',
-        '  virus scan <host|current>  inspect ANY Cyber Desktop website for fake-virus traps and exposed files',
+        '  virus list                 why there is no index of infected sites (scan instead)',
+        '  virus scan <host|current>  inspect ANY Cyber Desktop website for an injected script and exposed files',
         '  virus clean                run MoundShroud anti-malware and close every fake pop-up on the desktop'].join('\n');
     }
     if (/^(clean|fix|remove|cure|disinfect)$/.test(sub)) {
@@ -2023,11 +2200,12 @@ DONE      When the range shows every objective ticked: type next to take the nex
       }
       return 'Desktop is clean: no fake pop-up virus is active right now.';
     }
-    if (/^(list|ls|sites|all)$/.test(sub)) return browserSiteList({ CW, sites }, tail, true);
+    if (/^(list|ls|sites|all)$/.test(sub)) return TRAP_SCAN_HINT;
     if (/^(scan|check|inspect)$/.test(sub)) {
       const target = tail || 'current';
       const at = fakePick(CW, target, { create: true });
       if (!at || !at.site) return 'virus scan: could not find website “' + target + '”. Pass any host, URL, `virus 1`, or `current`.';
+      if (isChurchSite(at.site)) return sanctuary('virus scan', at.site);
       const s = at.site;
       const lines = ['ANTI-MALWARE SCAN · ' + s.brand + ' · https://' + s.host + ' (' + (s.ip || '127.0.0.1') + ')'];
       if (s.trapped && s.virus) {
@@ -2048,16 +2226,16 @@ DONE      When the range shows every objective ticked: type next to take the nex
     }
     if (/^(status|state)$/.test(sub)) {
       const active = !!(av && av.active && av.active());
-      const trappedCount = sites.filter(s => s.trapped).length;
+      const shield = !!(typeof A !== 'undefined' && A.cyberRewards && A.cyberRewards.blocks && A.cyberRewards.blocks());
       const curUrl = currentBrowserUrl();
-      const curAt = curUrl ? fakePick(CW, curUrl, { create: false }) : null;
       return [
         'CYBER DESKTOP ANTI-MALWARE STATUS',
         '  desktop     ' + (active ? '⚠ FAKE POP-UP VIRUS ACTIVE — run `virus clean` to remove it' : '✓ clean (no active fake pop-ups)'),
-        '  catalogue   ' + trappedCount + ' of ' + sites.length + ' fake-internet websites are booby-trapped with fake viruses',
-        curAt && curAt.site ? ('  open tab    ' + curAt.site.host + (curAt.site.trapped ? '  ⚠ TRAPPED (' + curAt.site.virus.name + ')' : '  ✓ clean')) : '  open tab    (none)',
+        '  shield      ' + (shield ? 'Shield Pro installed (Surplus Vault) — every trap blocked before it opens'
+          : 'not installed — buy it at https://vault.moundshroud.example/'),
+        '  open tab    ' + (curUrl || '(none)'),
         '',
-        '  virus list [query]          list trapped fake-virus websites',
+        '  virus list                  why there is no index of infected sites',
         '  virus scan <host|current>   inspect any website safely from moundshell',
         '  virus clean                 remove active fake pop-ups from the desktop'
       ].join('\n');
@@ -2108,7 +2286,7 @@ DONE      When the range shows every objective ticked: type next to take the nex
       }
       return candidates.find(x => /^https?:\/\//i.test(x)) ||
         candidates.find(x => /\.[a-z]{2,12}(?::\d+)?(?:\/|$)/i.test(x) || /^\d{1,3}(?:\.\d{1,3}){3}(?:\/|$)/.test(x)) ||
-        candidates.find(x => /^(?:current|@current|active|here|moundhub|portal|web|virus|trapped|malware)$/i.test(x)) ||
+        candidates.find(x => /^(?:current|@current|active|here|moundhub|portal|web|virus|trapped|malware)(?:[\/?#:]|$)/i.test(x)) ||
         candidates[0] || '';
     };
     const resolveFromArgs = (a, allowCreate) => {
@@ -2122,11 +2300,24 @@ DONE      When the range shows every objective ticked: type next to take the nex
       if (/^(?:web|virus|trapped|malware)$/i.test(raw) && idx >= 0 && /^\d+$/.test(arr[idx + 1] || '')) key = raw + ' ' + arr[idx + 1];
       const cleaned = key.replace(/\/FUZZ$/i, '/').replace(/^[^@]+@/, '');
       if (allowCreate === undefined) {
-        allowCreate = /^(?:https?:\/\/|web\b|virus\b|trapped\b|malware\b|current$|@current$|active$|here$|moundhub)/i.test(cleaned) ||
+        allowCreate = /^(?:https?:\/\/|web\b|virus\b|trapped\b|malware\b|current(?:[\/?#:]|$)|@current(?:[\/?#:]|$)|active(?:[\/?#:]|$)|here(?:[\/?#:]|$)|moundhub)/i.test(cleaned) ||
           /\.example(?:\/|$|:)/i.test(cleaned) || /^10\.14\./.test(cleaned) ||
           (typeof A !== 'undefined' && A.cur === 'cyber' && /\.[a-z]{2,12}(?::\d+)?(?:\/|$)/i.test(cleaned));
       }
-      return fakePick(CW, cleaned, { create: !!allowCreate });
+      const at = fakePick(CW, cleaned, { create: !!allowCreate });
+      if (at && at.site && isChurchSite(at.site)) {
+        /* `curl web`, `nmap virus` and friends pick at random: that must never land on a sanctuary, or chance would
+           punish the shell. Naming one (a host, a number, `current`) is deliberate, and rings the bells. */
+        const all = pos(a), at2 = all.indexOf(raw);
+        const numbered = at2 >= 0 && /^\d+$/.test(all[at2 + 1] || '');
+        if (/^(?:web|virus|trapped|malware|portal)$/i.test(raw) && !numbered) {
+          const C = churchApi();
+          const alt = C ? C.elsewhere(at.site, /^(?:virus|trapped|malware)$/i.test(raw)) : null;
+          if (alt) return { site: alt, path: '/' };
+        }
+        return { site: at.site, path: at.path, church: true };
+      }
+      return at;
     };
     const writeFile = (name, text) => {
       if (!name || !targetRoom.applyFiles) return '';
@@ -2146,7 +2337,6 @@ DONE      When the range shows every objective ticked: type next to take the nex
         'Content-Length: ' + String(r.body == null ? '' : r.body).length,
         'Set-Cookie: session=' + (s.session && s.session.admin ? 'adm_' + s.token : 'guest') + '; Path=/'
       ];
-      if (s.trapped && s.virus) rows.push('X-CD-Trap: ' + s.virus.name + ' (' + s.virus.scriptPath + ')');
       return rows.join('\n');
     };
     const simNote = '  · Cyber Desktop simulated site — no packet left this page';
@@ -2192,7 +2382,6 @@ DONE      When the range shows every objective ticked: type next to take the nex
         "Saving to: '" + (saved || saveAs) + "'",
         '',
         (saved || saveAs) + '  100%[===================>] ' + fmtBytes(body.length) + '  --.-KB/s  in 0s',
-        s.trapped && s.virus ? '⚠ Warning: ' + s.host + ' is booby-trapped (' + s.virus.name + '). File saved safely as text.' : '',
         simNote
       ].filter(Boolean).join('\n');
     };
@@ -2207,7 +2396,6 @@ DONE      When the range shows every objective ticked: type next to take the nex
       for (let i = 1; i <= count; i++) rows.push('64 bytes from ' + s.host + ' (' + ip + '): icmp_seq=' + i + ' ttl=64 time=0.' + (18 + i * 7) + ' ms');
       rows.push('', '--- ' + s.host + ' ping statistics ---',
         count + ' packets transmitted, ' + count + ' received, 0% packet loss, time ' + (count * 1000) + 'ms',
-        s.trapped && s.virus ? '  · note: ' + s.host + ' is a booby-trapped fake-virus website (' + s.virus.name + ')' : '',
         simNote);
       return rows.filter(Boolean).join('\n');
     };
@@ -2220,7 +2408,6 @@ DONE      When the range shows every objective ticked: type next to take the nex
       const ans = [s.host + '.\t\t300\tIN\tA\t' + ip,
         s.host + '.\t\t300\tIN\tMX\t10 mail.' + s.host + '.',
         s.host + '.\t\t300\tIN\tNS\tns1.' + s.host + '.'];
-      if (s.trapped && s.virus) ans.push(s.host + '.\t\t300\tIN\tTXT\t"x-cd-trap=' + s.virus.name + ' script=' + s.virus.scriptPath + '"');
       return ['; <<>> DiG 9.18.24 <<>> ' + (a || []).join(' '),
         ';; ->>HEADER<<- opcode: QUERY, status: NOERROR',
         ';; QUESTION SECTION:', ';' + s.host + '.\t\t\tIN\tANY', '',
@@ -2233,7 +2420,7 @@ DONE      When the range shows every objective ticked: type next to take the nex
       if (!at || !at.site) return origNslookup ? origNslookup(a) : '';
       const s = at.site;
       return 'Server:\t\t10.14.0.1\nAddress:\t10.14.0.1#53\n\nNon-authoritative answer:\nName:\t' + s.host +
-        '\nAddress: ' + (s.ip || '127.0.0.1') + (s.trapped && s.virus ? '\nAdvisory: ⚠ fake-virus trap (' + s.virus.name + ')' : '') + '\n' + simNote;
+        '\nAddress: ' + (s.ip || '127.0.0.1') + '\n' + simNote;
     };
 
     const origHost = orig('host');
@@ -2242,7 +2429,7 @@ DONE      When the range shows every objective ticked: type next to take the nex
       if (!at || !at.site) return origHost ? origHost(a) : '';
       const s = at.site;
       return s.host + ' has address ' + (s.ip || '127.0.0.1') + '\n' + s.host + ' mail is handled by 10 mail.' + s.host + '.' +
-        (s.trapped && s.virus ? '\n' + s.host + ' descriptive text "x-cd-trap=' + s.virus.name + '"' : '') + '\n' + simNote;
+        '\n' + simNote;
     };
 
     const origWhois = orig('whois');
@@ -2258,7 +2445,7 @@ DONE      When the range shows every objective ticked: type next to take the nex
         'Creation Date: ' + new Date(s.createdAt || Date.now()).toISOString().slice(0, 10),
         'Admin Email: ' + (s.adminLogin || ('admin@' + s.host)),
         'Name Server: NS1.' + s.host.toUpperCase(),
-        'Safety Status: ' + (s.trapped && s.virus ? '⚠ BOOBY-TRAPPED (fake pop-up virus: ' + s.virus.name + ' @ ' + s.virus.scriptPath + ')' : 'clean (simulated)'),
+        'Safety Status: no reputation data (simulated registry)',
         simNote
       ].join('\n');
     };
@@ -2277,11 +2464,14 @@ DONE      When the range shows every objective ticked: type next to take the nex
     const origNmap = orig('nmap');
     C.nmap = a => {
       const rawTok = pickTargetToken(a);
+      /* a leaked user PC answers for its own address, with its own ports and the account that owns it */
+      const leakedPc = (typeof A !== 'undefined' && A.cyberPcs) ? A.cyberPcs.find(rawTok) : null;
+      if (leakedPc) return A.cyberPcs.scan(leakedPc) + '\n' + simNote;
       const { sites } = fakeWorld();
       if (/^10\.14\.\d+\.0\/(?:16|24)$/.test(rawTok)) {
         const subset = sites.slice(0, 20);
         return ['Starting Nmap 7.94 ( https://nmap.org ) (Cyber Desktop simulated)', ''].concat(
-          subset.map(s => 'Nmap scan report for ' + s.host + ' (' + s.ip + ')\nHost is up (0.008s latency).  [' + s.kind + (s.trapped ? ' · ⚠ FAKE VIRUS' : '') + ']'),
+          subset.map(s => 'Nmap scan report for ' + s.host + ' (' + s.ip + ')\nHost is up (0.008s latency).  [' + s.kind + ']'),
           ['', 'Nmap done: ' + sites.length + ' simulated sites on 10.14.0.0/16 (showing first ' + subset.length + ').', simNote]).join('\n');
       }
       const at = resolveFromArgs(a);
@@ -2293,7 +2483,7 @@ DONE      When the range shows every objective ticked: type next to take the nex
         ['80/tcp', 'open', 'http', 'nginx 1.24.0'],
         ['443/tcp', 'open', 'ssl/https', 'nginx 1.24.0 (PHP 8.2.12)']
       ];
-      if (s.trapped && s.virus) ports.push(['8080/tcp', 'open', 'http-alt', 'fake pop-up dropper (' + s.virus.name + ')']);
+      if (s.trapped && s.virus) ports.push(['8080/tcp', 'open', 'http-alt', 'nginx 1.18.0 (static)']);
       const rows = [
         'Starting Nmap 7.94 ( https://nmap.org ) (Cyber Desktop simulated)',
         'Nmap scan report for ' + s.host + ' (' + ip + ')',
@@ -2307,7 +2497,7 @@ DONE      When the range shows every objective ticked: type next to take the nex
           const sec = s.sec || {};
           rows.push('| http-robots.txt: ' + (sec.robotsLeaksAdmin ? '3 disallowed entries (' + (sec.loginPath || '/login') + ' /account ' + s.adminPath + ')' : '2 disallowed entries (' + (sec.loginPath || '/login') + ' /account)'));
         }
-        if (s.trapped && s.virus) rows.push('|_http-malware-host: ⚠ SIMULATED FAKE POP-UP VIRUS (' + s.virus.name + ') at ' + s.virus.scriptPath);
+        if (s.trapped && s.virus) rows.push('|_http-malware-host: injected script served from ' + s.virus.scriptPath);
       }
       rows.push('', 'Nmap done: 1 IP address (1 host up) scanned in 0.42 seconds', simNote);
       return rows.join('\n');
@@ -2323,7 +2513,7 @@ DONE      When the range shows every objective ticked: type next to take the nex
         'Discovered open port 22/tcp on ' + ip,
         'Discovered open port 80/tcp on ' + ip,
         'Discovered open port 443/tcp on ' + ip]
-        .concat(s.trapped ? ['Discovered open port 8080/tcp on ' + ip + '  (fake pop-up trap)'] : [], [simNote]).join('\n');
+        .concat(s.trapped ? ['Discovered open port 8080/tcp on ' + ip] : [], [simNote]).join('\n');
     };
 
     C.whatweb = a => {
@@ -2335,7 +2525,7 @@ DONE      When the range shows every objective ticked: type next to take the nex
       const s = at.site;
       return 'https://' + s.host + (at.path || '/') + ' [200 OK] IP[' + (s.ip || '127.0.0.1') + '], HTTPServer[nginx/1.24.0], PHP[8.2.12], ' +
         'Title[' + s.brand + '], Category[' + s.kind + '], Cookies[session]' +
-        (s.trapped && s.virus ? ', Trap[⚠ ' + s.virus.name + ' @ ' + s.virus.scriptPath + ']' : '') + '\n' + simNote;
+        (s.trapped && s.virus ? ', Script[' + s.virus.scriptPath + ']' : '') + '\n' + simNote;
     };
 
     const origNikto = orig('nikto');
@@ -2368,7 +2558,7 @@ DONE      When the range shows every objective ticked: type next to take the nex
         );
       }
       if (s.trapped && s.virus) {
-        rows.push('+ OSVDB-SIM: ⚠ Booby-trapped fake pop-up virus detected: ' + s.virus.name + ' at ' + s.virus.scriptPath);
+        rows.push('+ ' + s.virus.scriptPath + ': obfuscated JavaScript injects a full-screen pop-up (scareware pattern).');
       }
       rows.push('+ 1 host(s) tested', simNote);
       return rows.join('\n');
@@ -2383,11 +2573,11 @@ DONE      When the range shows every objective ticked: type next to take the nex
       const mapped = s.hub ? [{ path: '/', status: 200 }, { path: '/robots.txt', status: 200 }, { path: '/api/repos', status: 200 }]
         : (CW && CW.dirScan ? CW.dirScan(s).map(e => ({
           path: e.path, status: e.status,
-          note: e.note || (s.trapped && s.virus && e.path === s.virus.scriptPath ? '⚠ fake-virus trap (' + s.virus.name + ')' : '')
+          note: e.note || ''
         })) : ['/', '/robots.txt', '/login', s.adminPath].map(p => ({ path: p, status: 200 })));
       const rows = mapped.map(e => e.path.padEnd(26) + '(Status: ' + e.status + ')' + (e.note ? '  <-- ' + e.note : ''));
       return ['===============================================================',
-        toolName + ' · https://' + s.host + ' (' + (s.ip || '127.0.0.1') + ')' + trapTag(s),
+        toolName + ' · https://' + s.host + ' (' + (s.ip || '127.0.0.1') + ')',
         '===============================================================']
         .concat(rows, ['===============================================================',
           'Finished: ' + rows.length + ' routes mapped on ' + s.host + '.', simNote]).join('\n');
@@ -2450,7 +2640,7 @@ DONE      When the range shows every objective ticked: type next to take the nex
       return ['[+] URL: https://' + s.host + '/ (' + (s.ip || '127.0.0.1') + ')',
         '[+] Site: ' + s.brand + ' (' + s.kind + ') · custom PHP stack',
         '[+] Users ' + (s.sec && s.sec.openUsersApi ? 'found via /api/users: ' + (s.users || []).map(u => u.email).join(', ') : 'not enumerable: /api/users requires authentication')]
-        .concat(s.trapped && s.virus ? ['[!] Malicious script detected: ' + s.virus.name + ' at ' + s.virus.scriptPath] : ['[+] No fake-virus trap scripts detected'], [simNote]).join('\n');
+        .concat(s.trapped && s.virus ? ['[!] Injected script found in the template: ' + s.virus.scriptPath] : [], [simNote]).join('\n');
     };
 
     const origOpenssl = orig('openssl');
@@ -2467,7 +2657,6 @@ DONE      When the range shows every objective ticked: type next to take the nex
             '   i:CN = Moundshroud Practice CA (simulated)',
             'Protocol  : TLSv1.3',
             'Cipher    : TLS_AES_256_GCM_SHA384',
-            s.trapped && s.virus ? 'Advisory  : ⚠ HTTPS is valid, but site is booby-trapped (' + s.virus.name + ')' : '',
             simNote].filter(Boolean).join('\n');
         }
       }
@@ -2481,7 +2670,7 @@ DONE      When the range shows every objective ticked: type next to take the nex
       const s = at.site, port = pos(a).find(x => /^\d{2,5}$/.test(x)) || '80';
       if (port === '80' || port === '443' || port === '8080') {
         return 'Connection to ' + s.host + ' (' + (s.ip || '127.0.0.1') + ') ' + port + ' port [tcp/http] succeeded!\n' +
-          'Server: nginx/1.24.0 · ' + s.brand + (s.trapped && s.virus ? ' · ⚠ ' + s.virus.name : '') + '\n' + simNote;
+          'Server: nginx/1.24.0 · ' + s.brand + '\n' + simNote;
       }
       return 'nc: connect to ' + s.host + ' (' + (s.ip || '127.0.0.1') + ') port ' + port + ' (tcp) failed: Connection refused\n' + simNote;
     };
@@ -2499,7 +2688,7 @@ DONE      When the range shows every objective ticked: type next to take the nex
       const plain = String(r.body || '').replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ')
         .replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
         .replace(/\s+/g, ' ').trim();
-      return 'LYNX · https://' + s.host + (at.path || '/') + ' · HTTP ' + r.status + trapTag(s) + '\n\n' + plain.slice(0, 2000) + '\n' + simNote;
+      return 'LYNX · https://' + s.host + (at.path || '/') + ' · HTTP ' + r.status + '\n\n' + plain.slice(0, 2000) + '\n' + simNote;
     };
     C.lynx = textBrowser;
     C.w3m = textBrowser;
@@ -2508,7 +2697,7 @@ DONE      When the range shows every objective ticked: type next to take the nex
       const at = resolveFromArgs(a);
       if (!at || !at.site) return 'usage: ' + toolName + ' <domain|current|virus 1>';
       const s = at.site, ip = s.ip || '127.0.0.1';
-      return ['[' + toolName + '] ' + s.host + ' (' + ip + ')' + trapTag(s),
+      return ['[' + toolName + '] ' + s.host + ' (' + ip + ')',
         s.host, 'www.' + s.host, 'api.' + s.host, 'admin.' + s.host, 'mail.' + s.host, 'cdn.' + s.host,
         simNote].join('\n');
     };
@@ -2524,7 +2713,6 @@ DONE      When the range shows every objective ticked: type next to take the nex
       return ['Starting enum4linux (Cyber Desktop simulated)',
         ' ========================== ( Target ' + s.host + ' · ' + (s.ip || '127.0.0.1') + ' ) ==========================']
         .concat(rows.length ? rows : ['(no local users exposed on this service)'],
-          s.trapped && s.virus ? ['⚠ Site carries fake-virus trap: ' + s.virus.name + ' (' + s.virus.scriptPath + ')'] : [],
           [simNote]).join('\n');
     };
 
@@ -2565,11 +2753,7 @@ DONE      When the range shows every objective ticked: type next to take the nex
         '    2 0.001120 ' + ip + ' -> 10.14.0.10 TLSv1.3 Server Hello, Certificate (CN=' + s.host + ')',
         '    3 0.002450 10.14.0.10 -> ' + ip + ' HTTP/1.1 GET / HTTP/1.1'
       ];
-      if (s.trapped && s.virus) {
-        rows.push('    4 0.003810 ' + ip + ' -> 10.14.0.10 HTTP/1.1 200 OK (⚠ fake-virus trap ' + s.virus.name + ' · ' + s.virus.scriptPath + ')');
-      } else {
-        rows.push('    4 0.003810 ' + ip + ' -> 10.14.0.10 HTTP/1.1 200 OK (clean — ' + s.brand + ')');
-      }
+      rows.push('    4 0.003810 ' + ip + ' -> 10.14.0.10 HTTP/1.1 200 OK (' + s.brand + ')');
       rows.push(simNote);
       return rows.join('\n');
     };
@@ -2580,13 +2764,12 @@ DONE      When the range shows every objective ticked: type next to take the nex
       if (!at || !at.site) return origSearchsploit ? origSearchsploit(a) : '';
       const s = at.site;
       return [
-        'Exploits & checks mapped to ' + s.host + ' (' + (s.ip || '127.0.0.1') + ')' + trapTag(s),
+        'Exploits & checks mapped to ' + s.host + ' (' + (s.ip || '127.0.0.1') + ')',
         '----------------------------------------------------------------------',
         '  1. /.env credential disclosure               | curl https://' + s.host + '/.env',
         '  2. /login SQL injection auth bypass          | sqlmap -u "https://' + s.host + '/login?u=1&p=1"',
         '  3. /api/orders/<id> IDOR                     | curl https://' + s.host + '/api/orders/' + (s.orders && s.orders[0] ? s.orders[0].id : 1001),
         '  4. ' + s.adminPath + '/backup.zip exposure  | wget https://' + s.host + s.adminPath + '/backup.zip',
-        s.trapped && s.virus ? '  5. ⚠ Fake-virus trap (' + s.virus.name + ') | virus scan ' + s.host : '',
         '  Full interactive engagement:  breach ' + s.host,
         simNote
       ].filter(Boolean).join('\n');
@@ -2609,6 +2792,27 @@ DONE      When the range shows every objective ticked: type next to take the nex
         'ED25519 key fingerprint is SHA256:SimulatedCyberDesktopHostKey' + (s.token || '0000') + '.\n' +
         'To open a full interactive shell on this site\'s simulated box, run:  breach ' + s.host + '\n' + simNote;
     };
+
+    /* ---- the sanctuary rule: every site tool in this shell refuses church websites -------------------------- */
+    /* A church site answers no scan, no dump, no lookup and no shell. The command is not run at all: the bells
+       ring for thirty seconds instead. Random `web`/`virus` picks were already moved to an ordinary site by
+       resolveFromArgs, so only naming a sanctuary on purpose can ring the bells. */
+    const SANCTUARY_TOOLS = ['curl', 'wget', 'ping', 'dig', 'nslookup', 'host', 'whois', 'traceroute', 'nmap', 'masscan',
+      'whatweb', 'nikto', 'gobuster', 'ffuf', 'dirb', 'dirbuster', 'sqlmap', 'hydra', 'wpscan', 'openssl', 'nc',
+      'feroxbuster', 'wfuzz', 'lynx', 'subfinder', 'amass', 'smbclient', 'ftp', 'scp', 'tshark', 'searchsploit', 'telnet', 'ssh'];
+    SANCTUARY_TOOLS.forEach(name => {
+      const inner = C[name];
+      if (typeof inner !== 'function') return;
+      C[name] = function (a) {
+        const args = a || [];
+        /* a whole-range scan (`nmap 10.14.0.0/16`) is not aimed at one church, and its own branch lists every site */
+        if (/^\d{1,3}(?:\.\d{1,3}){3}\/\d+$/.test(pickTargetToken(args) || '')) return inner(a);
+        let at = null;
+        try { at = resolveFromArgs(args); } catch (e) { at = null; }
+        if (at && at.site && (at.church || isChurchSite(at.site))) return sanctuary(name, at.site);
+        return inner(a);
+      };
+    });
 
     C.virus = a => virusCommand((a || []).join(' '));
     C.antivirus = C.virus;
@@ -2666,6 +2870,22 @@ DONE      When the range shows every objective ticked: type next to take the nex
     return name + ': unknown tool';
   }
 
+  /* a stable pretend host key for a leaked PC, so `ssh` shows the same fingerprint twice */
+  function pcFingerprint(ip) {
+    let h = 2166136261;
+    for (let i = 0; i < String(ip).length; i++) { h ^= String(ip).charCodeAt(i); h = Math.imul(h, 16777619); }
+    return (h >>> 0).toString(36) + 'SimulatedLeakedHostKey';
+  }
+  /* opening a session on a leaked user PC: the welcome text, the one-off payout, and the prompt switch */
+  function pcOpen(pc, who) {
+    pcSession = A.cyberPcs.shell(pc, who);
+    try { A.cyberBank?.once('pc:' + pc.ip, 140, 'Remote access: ' + pc.hostname + ' (' + pc.ip + ')', 'host', 'targets'); } catch (e) { }
+    return 'Welcome to ' + pc.os + ' (' + pc.hostname + ')\n' +
+      'Logged in as ' + who + '. Last login: ' + pc.owner.last + ' from ' + pc.ip + '.\n' +
+      'This is ' + pc.name + '\'s own PC — ' + Object.keys(pc.files).length + ' files in ~, including Documents/work and Documents/personal.\n' +
+      'Try: ls · cat Desktop/passwords.txt · cat secrets-work.txt · grep -ri password Documents · help · exit';
+  }
+
   async function exec(raw) {
     if (busy) return;
     const line = String(raw == null ? '' : raw);
@@ -2709,6 +2929,100 @@ DONE      When the range shows every objective ticked: type next to take the nex
       if (promptEl) promptEl.textContent = promptText();
       return text;
     }
+    /* ---- the user PCs behind a leaked IP: password prompt, then the machine's own shell owns every line ------ */
+    if (pcAuth) {
+      hist.push(line); hi = hist.length;
+      const attempt = line.trim();
+      let text = '';
+      if (/^(?:exit|logout|cancel|abort)$/i.test(attempt)) {
+        pcAuth = null;
+        text = 'ssh: authentication cancelled.';
+      } else {
+        const check = A.cyberPcs.login(pcAuth.pc, pcAuth.user, attempt);
+        if (check.ok) {
+          text = pcOpen(pcAuth.pc, check.user);
+          pcAuth = null;
+        } else {
+          say(check.why);
+          if (++pcAuth.tries >= 4) { say('ssh: too many authentication failures (' + pcAuth.pc.ip + ')'); pcAuth = null; }
+          else { say(pcAuth.user + '@' + pcAuth.pc.ip + '\'s password: '); if (promptEl) promptEl.textContent = 'password: '; }
+          paint();
+          return;
+        }
+      }
+      if (text) say(text);
+      paint();
+      if (promptEl) promptEl.textContent = promptText();
+      return text;
+    }
+    if (pcSession) {
+      hist.push(line); hi = hist.length;
+      const out = pcSession.run(line);
+      const pcHost = pcSession.pc.ip, pcName = pcSession.pc.hostname;
+      if (out === null) { pcSession = null; say('Connection to ' + pcHost + ' (' + pcName + ') closed.'); }
+      else if (out) say(out);
+      paint();
+      if (promptEl) promptEl.textContent = promptText();
+      return out;
+    }
+    const sshCall = /^ssh(?:\s+([\s\S]*))?$/i.exec(line.trim());
+    if (sshCall && typeof A !== 'undefined' && A.cyberPcs) {
+      const args = (sshCall[1] || '').trim().split(/\s+/).filter(Boolean).filter(x => !x.startsWith('-'));
+      const targetArg = args[0] || '';
+      const pcw = targetArg ? A.cyberPcs.find(targetArg.replace(/^[^@]+@/, '')) : null;
+      if (pcw) {
+        hist.push(line); hi = hist.length;
+        const userArg = /@/.test(targetArg) ? targetArg.split('@')[0] : '';
+        const inline = args[1] || '';
+        const check = inline ? A.cyberPcs.login(pcw, userArg, inline) : null;
+        let text = '';
+        if (check && check.ok) text = pcOpen(pcw, check.user);
+        else if (check) text = check.why;
+        else {
+          pcAuth = { pc: pcw, user: userArg || pcw.user, tries: 0 };
+          text = 'The authenticity of host \'' + pcw.ip + ' (' + pcw.hostname + ')\' can\'t be established.\n' +
+            'ED25519 key fingerprint is SHA256:' + pcFingerprint(pcw.ip) + '.\n' +
+            'This machine belongs to ' + pcw.name + ' (' + pcw.owner.role + ', ' + pcw.owner.city + ').\n' +
+            (userArg ? '' : 'Accounts on it: ' + pcw.user + ', root.   ') +
+            'The password is in the site dump: curl -s https://' + pcw.site.host + '/dump/users.csv\n' +
+            pcAuth.user + '@' + pcw.ip + '\'s password: ';
+        }
+        say(text);
+        paint();
+        if (promptEl) promptEl.textContent = (pcSession ? promptText() : pcAuth ? 'password: ' : promptText());
+        return text;
+      }
+    }
+    /* `leaked <host>` reads the user table a site left in its web root, without opening a browser */
+    const leakedCall = /^(?:leaked|userdump|siteusers)(?:\s+([\s\S]*))?$/i.exec(line.trim());
+    if (leakedCall && typeof A !== 'undefined' && A.cyberPcs) {
+      hist.push(line); hi = hist.length;
+      const want = (leakedCall[1] || '').trim();
+      const { CW } = fakeWorld();
+      const hit = want ? fakePick(CW, want, { create: true }) : null;
+      if (hit && hit.site && isChurchSite(hit.site)) {
+        hist.push(line); hi = hist.length;
+        const refused = sanctuary('leaked', hit.site);
+        say(refused); paint();
+        if (promptEl) promptEl.textContent = promptText();
+        return refused;
+      }
+      let text = '';
+      if (!hit || !hit.site) {
+        text = 'leaked <host>: name a website from the browser — leaked bank · leaked web · leaked virus · leaked current';
+      } else {
+        const users = A.cyberPcs.roster(hit.site);
+        text = 'LEAKED USERS · ' + hit.site.host + ' (' + hit.site.brand + ') · ' + users.length + ' accounts\n' +
+          'Read it in the browser too: https://' + hit.site.host + '/dump/users.csv\n\n' + A.cyberPcs.table(hit.site) +
+          '\n\nEvery IP above is a machine on the simulated network:\n' +
+          '  nmap ' + users[0].ip + '\n' +
+          '  ssh ' + users[0].handle + '@' + users[0].ip + '   (the password is the password column)';
+      }
+      say(text);
+      paint();
+      if (promptEl) promptEl.textContent = promptText();
+      return text;
+    }
     /* in the breach range `exit` leaves the range first, so a simulated session can never close the shell by mistake */
     if (line.trim() === 'exit' || line.trim() === 'logout') {
       if (breach) {
@@ -2744,6 +3058,31 @@ DONE      When the range shows every objective ticked: type next to take the nex
       let text = '';
       try { text = pathsCommand((pathsCall[1] || '').trim()); }
       catch (e) { text = 'paths: ' + String(e && e.message || e); }
+      if (text) say(String(text).replace(/\n$/, ''));
+      paint();
+      if (promptEl) promptEl.textContent = promptText();
+      return text;
+    }
+    /* every fake website, Browser library and Open Range PC hides a FLAG{...}: `solve` pays it into the bank */
+    const solveCall = /^(?:solve|submit|flag|flags)(?:\s+([\s\S]*))?$/i.exec(line.trim());
+    if (solveCall) {
+      hist.push(line); hi = hist.length;
+      busy = true;
+      let text = '';
+      try { text = await solveCommand((solveCall[1] || '').trim()); }
+      catch (e) { text = 'solve: ' + String(e && e.message || e); }
+      finally { busy = false; }
+      if (text) say(String(text).replace(/\n$/, ''));
+      paint();
+      if (promptEl) promptEl.textContent = promptText();
+      return text;
+    }
+    const rangeCall = /^range(?:\s+([\s\S]*))?$/i.exec(line.trim());
+    if (rangeCall) {
+      hist.push(line); hi = hist.length;
+      let text = '';
+      try { text = rangeCommand((rangeCall[1] || '').trim()); }
+      catch (e) { text = 'range: ' + String(e && e.message || e); }
       if (text) say(String(text).replace(/\n$/, ''));
       paint();
       if (promptEl) promptEl.textContent = promptText();
@@ -2882,15 +3221,19 @@ DONE      When the range shows every objective ticked: type next to take the nex
     inp.value = hi >= hist.length ? '' : hist[hi];
   }
 
-  /* Restart is a new session: the screen, an open breach range, the walkthrough, staged commits, history and mcode
-     all go, and the app files are read again. With the Cyber VM running the fresh shell signs in as kali@pentest. */
-  function restartShell() {
-    breach = null; breachItem = null;
+  /* A new session: the screen, an open breach range, the walkthrough, staged commits, history and mcode all go, and
+     the app files are read again. With the Cyber VM running the fresh shell signs in as kali@pentest. */
+  function resetSession() {
+    breach = null; breachItem = null; pcSession = null; pcAuth = null;
     walk = { on: false, step: 0 };
     staged.clear(); hist = []; hi = 0;
     /* this is the only thing besides `pentest` that signs the shell in as kali@pentest: a restart with the VM running */
     pentestUser = vmRunning();
     screenCleared = true; savedLines = null;
+  }
+
+  function restartShell() {
+    resetSession();
     close();
     open();
   }
@@ -2936,6 +3279,7 @@ DONE      When the range shows every objective ticked: type next to take the nex
   /* pull in anything another window, the editor, or a build changed while this shell was open */
   async function syncFromDisk() {
     if (!room || busy || syncing) return;
+    if (Date.now() < quietUntil) return;   /* the change is this shell's own write, already applied */
     syncing = true;
     try {
       const next = await currentSig();
@@ -3180,7 +3524,7 @@ DONE      When the range shows every objective ticked: type next to take the nex
     'SEARCH RESULTS come from a real read-only search of this shell. When they are given, answer from them, name the full path relative to ~/app (for example web/js/core.js), and never invent a file or a path.',
     'If the search found nothing, say so plainly instead of guessing a path.',
     'You cannot run a command in /chat: for anything that needs one, say to use /code <task>.',
-    'This shell maps every web, recon, and security command (curl, wget, ping, dig, nslookup, host, whois, traceroute, nmap, masscan, whatweb, nikto, gobuster, ffuf, dirb, sqlmap, hydra, wpscan, openssl, nc, ssh, lynx, subfinder, tshark, searchsploit, tool, paths, browser, virus, breach, guide) to EVERY website in the Cyber Desktop browser — including all generated fake websites, all booby-trapped fake-virus websites (`virus list`, `virus scan <site>`, `virus clean`), Cyber Mail phishing sites, custom domains, `search.moundshroud.example`, `moundhub.com`, offline libraries, and `current` (the open browser tab). Answer questions about it freely, and be clear that every host, account, file and flag is invented, no socket is opened, and nothing outside this app is reachable.'
+    'This shell maps every web, recon, and security command (curl, wget, ping, dig, nslookup, host, whois, traceroute, nmap, masscan, whatweb, nikto, gobuster, ffuf, dirb, sqlmap, hydra, wpscan, openssl, nc, ssh, lynx, subfinder, tshark, searchsploit, tool, paths, browser, virus, breach, guide) to EVERY website in the Cyber Desktop browser — including all generated fake websites, every site that may carry an injected script (which site is never announced: find it with `virus scan <site>`, nikto, whatweb or gobuster; `virus clean` ends the pop-ups), Cyber Mail phishing sites, custom domains, `search.moundshroud.example`, `moundhub.com`, offline libraries, and `current` (the open browser tab). Answer questions about it freely, and be clear that every host, account, file and flag is invented, no socket is opened, and nothing outside this app is reachable.'
   ].join(' ');
   async function appLookup(question) {
     if (!room) return null;
@@ -3283,6 +3627,15 @@ DONE      When the range shows every objective ticked: type next to take the nex
           breach: true,
           task: '', plan: 'Ask a question, or /code <task> to let mcode work on this app’s files or the simulated breach range in this shell. It can only touch the app and the in-page simulation, never the rest of the PC.'
         }),
+        /* What the shell can tell mcode before it plans: the open range's objectives and the exact next step, so a
+           turn never starts blind and guesses at commands the range already spells out. */
+        shellState: () => {
+          if (!breach) return '';
+          const out = [];
+          try { out.push(String(breach.run('status'))); } catch (e) { }
+          try { out.push(String(breach.run('hint'))); } catch (e) { }
+          return out.filter(Boolean).join('\n\n');
+        },
         recent: () => lines.slice(-40).map(line => line.t),
         /* the harness rewrites one line in place while an arrow-key list is open, so the newest line is handed back */
         write: text => { say(text); paint(); return lines[lines.length - 1]; },
@@ -3352,6 +3705,8 @@ DONE      When the range shows every objective ticked: type next to take the nex
       if (['tool', 'tools', 'toolkit'].includes(first)) return finish(await toolsCommand(rest));
       if (['secrets', 'strings', 'hashdir', 'checksums'].includes(first)) return finish(await toolsCommand(first === 'checksums' ? 'hashdir ' + rest : first + ' ' + rest));
       if (['rg', 'fd', 'jq', 'sd'].includes(first)) return finish(await microCommand(first, rest));
+      if (['solve', 'submit', 'flag', 'flags'].includes(first)) return finish(await solveCommand(rest));
+      if (first === 'range') return finish(rangeCommand(rest));
     } catch (e) { return finish('shell: ' + String(e && e.message || e)); }
     return runSync(line);
   }
@@ -3359,6 +3714,7 @@ DONE      When the range shows every objective ticked: type next to take the nex
   async function targetsCommand(rest) {
     const filter = String(rest == null ? '' : rest).trim().toLowerCase();
     const onlyVirus = /^(?:virus|trapped|malware)$/.test(filter);
+    if (onlyVirus) return TRAP_SCAN_HINT;
     const showAll = filter === 'all';
     const out = ['BREACH & RECON TARGETS · every website in the Cyber Desktop browser (all simulated inside this page)', ''];
     const curUrl = currentBrowserUrl();
@@ -3366,7 +3722,7 @@ DONE      When the range shows every objective ticked: type next to take the nex
     if (curUrl) {
       const curAt = fakePick(CW, curUrl, { create: false });
       out.push('  CURRENTLY OPEN IN BROWSER — use `current` with any command:',
-        '    ' + curUrl + (curAt && curAt.site ? '  (' + curAt.site.brand + ' · ' + (curAt.site.ip || '127.0.0.1') + trapTag(curAt.site) + ')' : ''), '');
+        '    ' + curUrl + (curAt && curAt.site ? '  (' + curAt.site.brand + ' · ' + (curAt.site.ip || '127.0.0.1') + ')' : ''), '');
     }
     if (!onlyVirus) {
       try {
@@ -3381,18 +3737,23 @@ DONE      When the range shows every objective ticked: type next to take the nex
       } catch (e) { out.push('  (the Browser libraries could not be listed: ' + String(e && e.message || e) + ')', ''); }
       out.push('  BUILT-IN BROWSER WEBSITES',
         '    moundhub.com               127.0.0.1    MoundHub (local git repositories)',
-        '    search.moundshroud.example 10.14.0.1    Moundshroud Search (fake internet index)', '');
+        '    search.moundshroud.example 10.14.0.1    Moundshroud Search (fake internet index)',
+        '    range.moundshroud.lab      10.66.0.1     Moundshroud Open Range (endless practice PCs · `range`)', '');
     }
     let fake = fakeAll;
     if (onlyVirus) fake = fake.filter(s => s.trapped);
     else if (filter && !showAll && CW && CW.search) fake = CW.search(filter, 80);
-    const trappedTotal = fakeAll.filter(s => s.trapped).length;
-    out.push('  FAKE INTERNET websites (' + fake.length + ' matched · ' + fakeAll.length + ' total · ' + trappedTotal + ' booby-trapped with fake viruses) — `breach <host>` or `breach virus <n>`');
+    const sanctuaries = fake.filter(isChurchSite);
+    fake = fake.filter(s => !isChurchSite(s));
+    out.push('  FAKE INTERNET websites (' + fake.length + ' matched · ' + fakeAll.length + ' total) — `breach <host>`');
     const limit = showAll ? 120 : 40;
     if (fake.length) {
-      fake.slice(0, limit).forEach(site => out.push('    ' + String(site.id).padStart(3) + '. ' + site.host.padEnd(28) + ' ' + (site.ip || '').padEnd(13) + ' ' + (site.brand || site.host) + trapTag(site)));
+      fake.slice(0, limit).forEach(site => out.push('    ' + String(site.id).padStart(3) + '. ' + site.host.padEnd(28) + ' ' + (site.ip || '').padEnd(13) + ' ' + (site.brand || site.host)));
       if (fake.length > limit) out.push('    …and ' + (fake.length - limit) + ' more (`targets <keyword>`, `targets virus`, or pass any domain directly)');
-    } else out.push('    (no sites matched that filter — any domain you type is created automatically)');
+    } else if (!sanctuaries.length) out.push('    (no sites matched that filter — any domain you type is created automatically)');
+    if (sanctuaries.length) out.push('    · ' + sanctuaries.length + ' church website' + (sanctuaries.length === 1 ? '' : 's') +
+      ' in this list ' + (sanctuaries.length === 1 ? 'is' : 'are') + ' off limits to every tool in this shell — browse ' +
+      (sanctuaries.length === 1 ? 'it' : 'them') + ' in the Cyber Desktop browser instead');
     out.push('', '  Every moundshell command works on every site above:',
       '    curl · wget · ping · dig · nslookup · host · whois · traceroute · nmap · masscan · whatweb · nikto · gobuster · ffuf · dirb · sqlmap · hydra · wpscan · openssl · nc · ssh',
       '    browser read|source|open|breach <site> · paths <site> · tool <name> <site> · virus scan|list|clean · breach <site> · guide <site>');
@@ -3532,24 +3893,32 @@ DONE      When the range shows every objective ticked: type next to take the nex
       harness('/exit', '/exit', 'Leaves the mcode harness and returns to the plain moundshell prompt.', [['/exit', 'back to the shell']], ['/quit']),
       harness('mcode', 'mcode [question]', 'Hands the rest of the line to the mcode harness, the same as typing /code.', [['mcode where is the help built?', 'ask the harness']]),
       harness('logout', 'logout', 'Closes the moundshell, the same as exit.', [['logout', 'close the shell']], ['exit'], true),
-      own('browser', 'browser [list|tabs|sites [q]|virus [q]]', 'Lists every offline library and every website in the Cyber Desktop browser — MoundHub, Moundshroud Search, and all generated fake-internet websites (including booby-trapped fake-virus sites). `browser sites` searches them all; `browser virus` lists trapped fake-virus sites; `browser tabs` shows open tabs.',
-        [['browser', 'libraries and Cyber Desktop sites'], ['browser sites bank', 'search generated sites'], ['browser virus', 'list fake-virus trapped sites'], ['browser tabs', 'pages open right now']], ['browser list']),
-      own('browser read', 'browser read <n|slug|host|url|current>', 'Reads any imported page or any Cyber Desktop browser website (including fake-virus trapped sites, MoundHub, search.moundshroud.example, and any path like /.env or /robots.txt).',
-        [['browser read 1', 'read your newest imported library'], ['browser read current', 'read the website currently open'], ['browser read virus 1', 'read a fake-virus trapped site safely']], ['browser cat']),
-      own('browser source', 'browser source <n|slug|host|url|current>', 'Prints the raw HTML, JSON or script source of any imported library or any Cyber Desktop browser website (including trapped fake-virus sites).',
-        [['browser source 1', 'the HTML as stored'], ['browser source virus 1', 'inspect a trapped site’s HTML source']], ['browser src']),
+      own('browser', 'browser [list|tabs|sites [q]|virus]', 'Lists every offline library and every website in the Cyber Desktop browser — MoundHub, Moundshroud Search, and all generated fake-internet websites. `browser sites` searches them all; `browser virus` explains how to scan a site for a simulated pop-up trap (no site is tagged); `browser tabs` shows open tabs.',
+        [['browser', 'libraries and Cyber Desktop sites'], ['browser sites bank', 'search generated sites'], ['browser virus', 'how to scan a site yourself'], ['browser dark', 'the Fake Dark Web: every onion hidden service'], ['browser tabs', 'pages open right now']], ['browser list']),
+      own('browser read', 'browser read <n|slug|host|url|current>', 'Reads any imported page or any Cyber Desktop browser website (MoundHub, search.moundshroud.example, and any path like /.env or /robots.txt).',
+        [['browser read 1', 'read your newest imported library'], ['browser read current', 'read the website currently open'], ['browser read virus 1', 'read a site picked at random']], ['browser cat']),
+      own('browser source', 'browser source <n|slug|host|url|current>', 'Prints the raw HTML, JSON or script source of any imported library or any Cyber Desktop browser website.',
+        [['browser source 1', 'the HTML as stored'], ['browser source virus 1', 'inspect a random site’s HTML source']], ['browser src']),
       own('browser open', 'browser open <n|slug|host|url|current>', 'Opens any library or Cyber Desktop website in the Browser (creating any new domain on demand, just like the address bar).',
-        [['browser open 1', 'show it in the Browser'], ['browser open moundhub.com', 'open MoundHub'], ['browser open virus 1', 'open a trapped fake-virus site']], ['browser go']),
-      own('virus', 'virus [status|list [q]|scan <site|current>|clean]', 'Cyber Desktop anti-malware from moundshell: check if fake pop-ups are active, list every booby-trapped fake-virus website in the browser, inspect any website’s trap payload safely, or clean active fake pop-ups off the desktop.',
-        [['virus status', 'desktop infection and catalogue status'], ['virus list', 'list trapped fake-virus websites'], ['virus scan current', 'scan the open browser website'], ['virus clean', 'remove active fake pop-ups']], ['antivirus', 'av', 'malware']),
+        [['browser open 1', 'show it in the Browser'], ['browser open moundhub.com', 'open MoundHub'], ['browser open virus 1', 'open a random site']], ['browser go']),
+      own('virus', 'virus [status|list|scan <site|current>|clean]', 'Cyber Desktop anti-malware from moundshell: check if fake pop-ups are active, explain why no site is pre-labelled, inspect any website for a simulated trap payload, or clean active fake pop-ups off the desktop. Finding a trap is the user’s job: `virus scan`, nikto, whatweb and gobuster are the detector.',
+        [['virus status', 'desktop infection status'], ['virus list', 'why there is no list of infected sites'], ['virus scan current', 'scan the open browser website'], ['virus clean', 'remove active fake pop-ups']], ['antivirus', 'av', 'malware']),
       own('pentest', 'pentest [on|off]', 'Switches the moundshell user between kali@pentest and moundshroud@moundshroud. The Pentest user only exists while the Cyber Desktop\u2019s VM is running: with the VM off the shell stays moundshroud@moundshroud, and turning the VM on does not change an open shell — restart it (\u27f2 Restart) and the new session signs in as kali@pentest. Plain `pentest` toggles.',
         [['pentest', 'switch to kali@pentest (or back)'], ['pentest off', 'always go back to moundshroud@moundshroud']]),
-      own('breach', 'breach [n|slug|host|web [n]|virus [n]|current] | breach end', 'Starts a simulated security engagement against ANY website in the Cyber Desktop browser (generated sites, trapped fake-virus sites, custom domains, MoundHub, Moundshroud Search) or any offline library, using the Pentest range: nmap, whatweb, gobuster, curl, sqlmap, a webshell and root. Everything is invented and lives inside the page.',
-        [['breach', 'target your current site or library'], ['breach web 3', 'target a fake-internet site'], ['breach virus 1', 'target a trapped fake-virus site'], ['breach current', 'target the open browser site'], ['breach end', 'leave the range']], ['breach range']),
-      own('paths', 'paths [host|url|web|virus|current]', 'Prints the checklist a tester runs on a website — robots.txt, the .env, /login, the hidden staff folder, the backup archive, the APIs, injection probes, and (on trapped sites) the fake-virus script path — as ready-to-type addresses for ANY Cyber Desktop browser website.',
-        [['paths', 'the checklist every tester runs'], ['paths web', 'addresses for a random fake site'], ['paths virus', 'addresses for a trapped fake-virus site'], ['paths current', 'addresses for the open browser website']], ['wordlist', 'pathlist']),
-      own('targets', 'targets [query|virus|all]', 'Lists everything a breach or recon command can be pointed at: the currently open browser website, offline pages, MoundHub, Moundshroud Search, and every generated Cyber Desktop website (tagging every trapped fake-virus site and its simulated IP).',
-        [['targets', 'what can be targeted right now'], ['targets virus', 'list booby-trapped fake-virus websites'], ['targets bank', 'filter websites by keyword']]),
+      own('leaked', 'leaked <host|web|virus|current>', 'Prints the user table every fake website leaks at /dump/users.csv: account id, e-mail, name, role, city, the IP the account signed in from, and the plain-text password the site stored. The same table is served at https://<host>/dump/users.csv, /dump/users.json and /dump/site.sql. Those IPs are machines: nmap finds them and ssh logs into them.',
+        [['leaked bank', 'the user table of a random fake bank'], ['leaked current', 'the site open in the Browser']]),
+      own('ssh', 'ssh [user@]<leaked ip> [password]', 'Opens a simulated session on the PC behind an IP from a leaked user table. It asks for the password that the site leaked; once in, the prompt becomes user@hostname and ls, cd, cat, head, tail, grep, find, wc, whoami, id, ps, env, ip a, ss, sudo -l all work on that PC\u2019s own files (documents, contracts, payroll, credentials, bank and medical notes). exit drops the session. Nothing is contacted: the machine is an object in this page.',
+        [['nmap 10.14.200.20', 'find the machine behind a leaked IP'], ['ssh marcus.whitfield@10.14.200.20', 'log in with the leaked password'], ['exit', 'leave the remote PC']], ['remote']),
+      own('breach', 'breach [n|slug|host|web [n]|virus [n]|current] | breach end', 'Starts a simulated security engagement against ANY website in the Cyber Desktop browser (generated sites, custom domains, MoundHub, Moundshroud Search) or any offline library, using the Pentest range: nmap, whatweb, gobuster, curl, sqlmap, a webshell and root. Everything is invented and lives inside the page.',
+        [['breach', 'target your current site or library'], ['breach web 3', 'target a fake-internet site'], ['breach virus 1', 'target a site picked at random'], ['breach current', 'target the open browser site'], ['breach end', 'leave the range']], ['breach range']),
+      own('solve', 'solve [FLAG{...}]', 'Submits a FLAG found on the fake internet and pays the Cyber Desktop practice bank once for it. Every generated website prints its flag on its staff dashboard, every bundled Browser library shows its flag in the library bar, and every Open Range PC prints its flag on its own staff page. `solve` on its own shows where the flags are and how many have been submitted.',
+        [['solve FLAG{...}', 'bank a flag you found'], ['solve', 'where flags are, and your progress']], ['flag', 'flags', 'submit']),
+      own('range', 'range [page]', 'Lists the Moundshroud Open Range — an endless index of invented PCs at https://range.moundshroud.lab in the Browser. Each PC has its own address, operating system, role, open ports and difficulty; `breach <ip>` or `breach <pc host>` starts the simulated engagement against it, and owning it pays the practice bank.',
+        [['range', 'the first page of practice PCs'], ['range 4', 'a later page — the range never runs out'], ['breach 10.66.1.2', 'start an engagement on a range PC']]),
+      own('paths', 'paths [host|url|web|virus|current]', 'Prints the checklist a tester runs on a website — robots.txt, the .env, /login, the hidden staff folder, the backup archive, the APIs and injection probes — as ready-to-type addresses for ANY Cyber Desktop browser website.',
+        [['paths', 'the checklist every tester runs'], ['paths web', 'addresses for a random fake site'], ['paths virus', 'addresses for a random site'], ['paths current', 'addresses for the open browser website']], ['wordlist', 'pathlist']),
+      own('targets', 'targets [query|virus|all]', 'Lists everything a breach or recon command can be pointed at: the currently open browser website, offline pages, MoundHub, Moundshroud Search, and every generated Cyber Desktop website with its simulated IP. No site is tagged as infected — scan it.',
+        [['targets', 'what can be targeted right now'], ['targets virus', 'why there is no list of infected sites'], ['targets bank', 'filter websites by keyword']]),
       own('walkthrough', 'guide [list|next|<n>|intro|off]', 'An extremely detailed, step-by-step walkthrough of breaching one of your own offline pages in the breach range: scope and the rules of engagement, reconnaissance, path discovery, SQL injection, the staff session, IDOR, then the deeper floors\u2019 path traversal, leaked backup, SSRF and command injection, then upload to a webshell, the shell, privilege escalation, root and the report. Each step prints the exact command for the target in front of you, what you should see, why it works and how a defender fixes it. The range ticks each objective for real, so guide next cannot be skipped by reading ahead.',
         [['guide', 'turn it on and start at step 1'], ['guide next', 'move on once the range ticks the step'], ['guide list', 'the whole ladder and what is done']], ['walk', 'tutorial']),
       /* the app itself, Juice Shop and the Toolkit, all driven from this shell */
@@ -3701,7 +4070,7 @@ DONE      When the range shows every objective ticked: type next to take the nex
     panel.querySelector('[data-aeshell="close"]').onclick = close;
     wrap.querySelector('#aeshellclear').onclick = resetScreen;
     wrap.querySelector('#aeshellrestart').onclick = restartShell;
-    wrap.querySelector('#aeshellreset').onclick = () => { clearOverlay(); overlay = { files: {}, removed: [] }; close(); open(); };
+    wrap.querySelector('#aeshellreset').onclick = () => { clearOverlay(); overlay = { files: {}, removed: [], written: [], deleted: [] }; close(); open(); };
     wrap.querySelector('#aeshellreload').onclick = () => { close(); open(); };
     wrap.querySelector('#aeshellhelp').onclick = () => openManual('');
     const colorInput = wrap.querySelector('#aeshellusercol');
@@ -3870,6 +4239,18 @@ DONE      When the range shows every objective ticked: type next to take the nex
     const t = e.target && e.target.closest ? e.target.closest('#appsh, #set-appshell') : null;
     if (t) { e.preventDefault(); open(); }
   });
+
+  /* A small handle for the rest of the app: the church guard puts Moundshroud back to the state it opens in, which
+     means ending the shell session and taking the window away, not merely hiding it. */
+  try {
+    A.moundshell = {
+      open,
+      close,
+      restart: restartShell,
+      isOpen: () => !!wrap,
+      reset() { resetSession(); close(); }
+    };
+  } catch (e) { /* no app object: the shell still works on its own */ }
 
   /* Ctrl+T / ⌘T opens the moundshell from anywhere: a terminal, an input, focus mode or a fullscreen terminal — and
      closes it again when it is already open, so the same key puts the shell away. It used to stand aside whenever an

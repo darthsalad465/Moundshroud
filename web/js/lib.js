@@ -240,10 +240,15 @@
     const ttl = at.site.brand + ' — ' + name.replace(/\.(?:html?|json|txt|zip|php)$/i, '');
     if (e) { e.u = url; e.t = ttl; }
     if (t === T()) { curTitle = ttl; f = fr; }
-    /* half of this internet is booby-trapped: the pop-up virus breaks out on the desktop around the browser */
+    /* half of this internet is booby-trapped: the pop-up virus breaks out on the desktop around the browser,
+       unless Shield Pro from the Surplus Vault is installed, which blocks every one of them before it opens */
     if (at.site.trapped && A.cyberVirus && A.cur === 'cyber') {
-      const desk = document.querySelector('#p-cyber .cd-desktop');
-      if (desk) A.cyberVirus.start(desk, { host: at.site.host });
+      if (A.cyberRewards && A.cyberRewards.blocks && A.cyberRewards.blocks()) {
+        A.toast && A.toast('🛡 Shield Pro blocked the fake virus on ' + at.site.host + '.', 4200);
+      } else {
+        const desk = document.querySelector('#p-cyber .cd-desktop');
+        if (desk) A.cyberVirus.start(desk, { host: at.site.host });
+      }
     }
     render(); saveTabs();
   }
@@ -317,6 +322,8 @@
     if (isHub(url)) return { no: B + 1, name: 'MoundHub', icon: '🔖', note: 'the repository site this app keeps, shared with moundshell git' };
     const at = web && web.locate ? web.locate(url) : null;
     if (at && at.site) {
+      if (at.site.dark) return { no: B + 3 + (web.CATS ? web.CATS.length : 0), name: 'Fake Dark Web', icon: '🧅',
+        note: 'the onion section · ' + (A.cyberDark ? A.cyberDark.count() : '?') + ' hidden services · ' + at.site.host };
       if (at.site.portal) return { no: B + 2, name: 'Moundshroud Search', icon: '🔎', note: 'the index of the whole fake internet · ' + (web.count ? web.count() : 0) + ' sites' };
       const cats = web.CATS || [], i = cats.findIndex(c => c && at.site.cat && c.id === at.site.cat.id);
       const shelf = i >= 0 ? cats[i] : { label: at.site.kind || 'Generated sites', icon: '🌐' };
@@ -338,9 +345,14 @@
     const e = E(T()), info = libraryOf(e && e.u);
     if (!info) { el.style.display = 'none'; el.dataset.copy = ''; return; }
     el.style.display = '';
-    el.innerHTML = info.icon + (info.no ? ' <b>Library ' + info.no + '</b>' : '') + ' · ' + esc(info.name);
-    el.dataset.copy = 'Library ' + (info.no || '?') + ' · ' + info.name;
-    el.title = el.dataset.copy + (info.note ? '\n' + info.note : '') + '\n\nClick to copy this line.';
+    /* the library's own FLAG: every bundled library carries one, paid into the Cyber Desktop bank with `solve` */
+    const book = books[info.no - 1] || null;
+    const flag = book && A.cyberFlags && A.cyberFlags.libFlag ? A.cyberFlags.libFlag(book) : '';
+    el.innerHTML = info.icon + (info.no ? ' <b>Library ' + info.no + '</b>' : '') + ' · ' + esc(info.name) +
+      (flag ? ' <span style="margin-left:8px;padding:1px 7px;border:1px solid var(--acc);border-radius:6px;font:12.5px/1.6 Consolas,\'Cascadia Mono\',monospace;color:var(--acc);opacity:.92" data-libflag>' + esc(flag) + '</span>' : '');
+    el.dataset.copy = 'Library ' + (info.no || '?') + ' · ' + info.name + (flag ? '\nFLAG: ' + flag : '');
+    el.title = 'Library ' + (info.no || '?') + ' · ' + info.name + (info.note ? '\n' + info.note : '') +
+      (flag ? '\n\nThis library\'s flag: ' + flag + '\nSubmit it in moundshell with: solve ' + flag : '') + '\n\nClick to copy this line.';
   }
   function favState() { const u = curUrl(), on = u && A.fav && A.fav.has(u); $('lstar').textContent = on ? '⭐' : '☆'; const b = $('lfavb'); if (b) b.textContent = A.fav && A.fav.has('book:' + book, 'book') ? '⭐ Library favorited' : '☆ Favorite this library'; }
   document.addEventListener('favchange', favState);
@@ -364,7 +376,7 @@
   $('lhist').onclick = e => { const d = e.target.closest('[data-hi]'); if (d) jump(T(), +d.dataset.hi); };
   $('ltabs').onclick = e => { if (e.target.id === 'lnew') return newTab(); const x = e.target.closest('[data-tx]'); if (x) { e.stopPropagation(); return closeTab(+x.dataset.tx); } const t = e.target.closest('[data-ti]'); if (t) switchTab(+t.dataset.ti); };
   $('ltabs').onauxclick = e => { if (e.button !== 1) return; const t = e.target.closest('[data-ti]'); if (t) { e.preventDefault(); closeTab(+t.dataset.ti); } };
-  const MENU = [['🗂 New tab', 'newtab', 'Ctrl+T'], ['✕ Close tab', 'closetab', 'Ctrl+W'], ['↩ Reopen closed tab', 'reopen'], ['hr'], ['🔍 Find in page', 'find', 'Ctrl+F'], ['📖 Reader view', 'reader'], ['➕ Zoom in', 'zin', 'Ctrl +'], ['➖ Zoom out', 'zout', 'Ctrl -'], ['↺ Reset zoom', 'zreset', 'Ctrl 0'], ['🖨 Print or save as PDF', 'print', 'Ctrl+P'], ['⛶ Full screen', 'fs', 'Esc exits'], ['hr'], ['🔗 Copy link to this page', 'copy'], ['🕘 History of this tab', 'thist'], ['🕘 All history', 'allhist', 'Ctrl+H'], ['🧹 Clear browsing history', 'clearhist'], ['⭐ Favorites', 'favs'], ['hr'], ['🔖 Show or hide the bookmarks bar', 'bmbar', 'Ctrl+Shift+B'], ['📥 Import your own library', 'imp'], ['🗂 Your imported libraries', 'mine'], ['📕 Dictionary', 'dict'], ['📚 Thesaurus', 'thes'], ['🎵 Rhymer', 'rhy']];
+  const MENU = [['🗂 New tab', 'newtab', 'Ctrl+T'], ['✕ Close tab', 'closetab', 'Ctrl+W'], ['↩ Reopen closed tab', 'reopen'], ['hr'], ['🔍 Find in page', 'find', 'Ctrl+F'], ['</> View page source', 'source', 'Ctrl+U'], ['📖 Reader view', 'reader'], ['➕ Zoom in', 'zin', 'Ctrl +'], ['➖ Zoom out', 'zout', 'Ctrl -'], ['↺ Reset zoom', 'zreset', 'Ctrl 0'], ['🖨 Print or save as PDF', 'print', 'Ctrl+P'], ['⛶ Full screen', 'fs', 'Esc exits'], ['hr'], ['🔗 Copy link to this page', 'copy'], ['🕘 History of this tab', 'thist'], ['🕘 All history', 'allhist', 'Ctrl+H'], ['🧹 Clear browsing history', 'clearhist'], ['⭐ Favorites', 'favs'], ['hr'], ['🔖 Show or hide the bookmarks bar', 'bmbar', 'Ctrl+Shift+B'], ['📥 Import your own library', 'imp'], ['🗂 Your imported libraries', 'mine'], ['📕 Dictionary', 'dict'], ['📚 Thesaurus', 'thes'], ['🎵 Rhymer', 'rhy']];
   const closed = [];
   $('lmore').onclick = e => { e.stopPropagation(); const m = $('lmenu'); if (m.style.display === 'block') return closeMenus(); m.innerHTML = MENU.map(x => x[0] === 'hr' ? '<hr>' : '<div data-m="' + x[1] + '">' + x[0] + (x[1] === 'reader' ? '<b>' + (T().reader ? 'On' : 'Off') + '</b>' : x[2] ? '<b>' + x[2] + '</b>' : '') + '</div>').join('') + '<div class="small mute" style="cursor:default">Zoom ' + Math.round(T().z * 100) + '%</div>'; m.style.display = 'block'; };
   $('lmenu').onclick = e => { const d = e.target.closest('[data-m]'); if (!d) return; closeMenus(); act(d.dataset.m); };
@@ -374,6 +386,7 @@
     const t = T();
     if (a === 'newtab') newTab(); else if (a === 'closetab') { const e = E(t); if (e && e.u) closed.push(e); closeTab(active); } else if (a === 'find') openFind();     else if (a === 'reader') { if (!E(t).u || !t.fr) return A.toast('Open a page first to use Reader view'); if (t.fr._fake || t.fr._hub) return A.toast('Reader view only works on library pages'); t.reader = !t.reader; t.fr.lf.css(pageCss(t)); saveTabs(); A.toast(t.reader ? 'Reader view on' : 'Reader view off'); } else if (a === 'zin') zoom(.1); else if (a === 'zout') zoom(-.1); else if (a === 'zreset') zoom(0);
     else if (a === 'print') { if (t.fr && E(t).u && !t.fr._fake && !t.fr._hub) t.fr.lf.print(); else A.toast(t.fr && t.fr._fake ? 'This is a simulated site — it has nothing to print' : 'Open a page first'); }
+    else if (a === 'source') viewSource();
     else if (a === 'fs') {
       if (desktopHost) desktopHost.closest('.cd-window')?.querySelector('[data-action="maximize"]')?.click();
       else if (A.pageFS) A.pageFS.toggle();
@@ -438,7 +451,7 @@
   function pickCat(cat, hint) { const b = (hint && books.find(x => x.category === cat && hint.test(x.name))) || books.find(x => x.category === cat); if (b) { book = b.name; $('lbook').value = b.name; A.toast(cat + ' selected'); } }
 
   function bar() {
-    $('wbar').innerHTML = '<span class="chip" data-a="hub" style="border-color:var(--acc)" title="Your repositories: moundhub.com">🔖 MoundHub</span><span class="chip" data-a="favs" style="border-color:var(--acc)">⭐ Favorites</span><span class="chip" data-a="dict" style="border-color:var(--acc)">📕 Dictionary</span><span class="chip" data-a="thes" style="border-color:var(--acc)">📚 Thesaurus</span><span class="chip" data-a="rhy" style="border-color:var(--acc)">🎵 Rhymer</span><span class="chip" data-a="fakes" title="Browse and search the Cyber Desktop fake internet (only generated & Cyber Mail sites — never your downloaded libraries)">🌐 Fake internet</span><span class="chip" data-a="rand" title="Open a random fake-internet website or a random page from any of your downloaded libraries">🎲 Random</span><span class="chip" data-a="ask">Ask AI about this page</span><span class="chip" data-a="listen">Read aloud</span><span class="chip" data-a="note">Save to note</span>';
+    $('wbar').innerHTML = '<span class="chip" data-a="hub" style="border-color:var(--acc)" title="Your repositories: moundhub.com">🔖 MoundHub</span><span class="chip" data-a="favs" style="border-color:var(--acc)">⭐ Favorites</span><span class="chip" data-a="dict" style="border-color:var(--acc)">📕 Dictionary</span><span class="chip" data-a="thes" style="border-color:var(--acc)">📚 Thesaurus</span><span class="chip" data-a="rhy" style="border-color:var(--acc)">🎵 Rhymer</span><span class="chip" data-a="fakes" title="Browse and search the Cyber Desktop fake internet (only generated & Cyber Mail sites — never your downloaded libraries)">🌐 Fake internet</span><span class="chip" data-a="dark" title="Open the Fake Dark Web: the separate onion section with its own hidden services">🧅 Fake dark web</span><span class="chip" data-a="rand" title="Open a random fake-internet website or a random page from any of your downloaded libraries">🎲 Random</span><span class="chip" data-a="ask">Ask AI about this page</span><span class="chip" data-a="listen">Read aloud</span><span class="chip" data-a="note">Save to note</span>';
   }
   $('wbar').onclick = e => {
     const c = e.target.closest('.chip'); if (!c) return;
@@ -449,6 +462,11 @@
       case 'favs': A.fav.open('all'); break;
       case 'rand': random(); break;
       case 'fakes': init().then(() => { if (A.cyberWeb && A.cyberWeb.ensure) A.cyberWeb.ensure(); show('https://search.moundshroud.example/', 'Moundshroud Search'); }); break;
+      case 'dark': init().then(() => {
+        if (A.cyberWeb && A.cyberWeb.ensure) A.cyberWeb.ensure();
+        const portal = A.cyberWeb && A.cyberWeb.darkPortal ? A.cyberWeb.darkPortal : 'https://darknet-index.onion/';
+        show(portal, 'Fake dark web');
+      }); break;
       case 'dict': { const w = (lastSel || '').trim(); if (w && w.split(/\s+/).length <= 3 && /^[\p{L}'\u2019 -]+$/u.test(w)) define(w); else { navigate(''); A.websearch.mount($('wh')); A.websearch.dict(true); A.websearch.focus(); A.toast('Dictionary mode: type a word and press Enter'); } break; }
       case 'thes': A.thes.open(q.value.trim().split(/\s+/)[0] || ''); break;
       case 'rhy': A.rhyme.open(q.value.trim().split(/\s+/)[0] || ''); break;

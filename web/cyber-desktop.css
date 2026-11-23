@@ -657,3 +657,63 @@
 .cd-shop-buy { grid-column: 1 / -1; display: flex; gap: 9px; align-items: center; margin-top: 4px; }
 .cd-shop-buy small { color: var(--mute); font-size: 11px; }
 .cd-shop-fine { margin-top: 16px; font-size: 11.5px; color: var(--mute); }
+
+/* ---- bought in the Surplus Vault: the unlocked apps' own small layouts ---- */
+.cd-vault { display: grid; gap: 10px; align-content: start; }
+.cd-vault h2 { margin-bottom: 2px; }
+.cd-vault .mute { color: var(--mute); font-size: 12px; }
+.cd-vault .v-row { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+.cd-vault .v-between { justify-content: space-between; align-items: center; }
+.cd-vault .v-field { display: grid; gap: 3px; font-size: 11.5px; }
+.cd-vault input, .cd-vault select, .cd-vault textarea { padding: 6px 9px; font-size: 12.5px; }
+.cd-vault textarea { width: 100%; font-family: Consolas, monospace; resize: vertical; }
+.cd-vault .v-big { font: 700 25px/1.2 ui-monospace, Consolas, monospace; color: #dff0ff; padding: 8px 0; letter-spacing: .02em; }
+.cd-vault .v-out { font-family: Consolas, monospace; word-break: break-all; padding: 10px; border: 1px solid #33506e; border-radius: 8px; background: #08121f; }
+.cd-vault .v-rows, .cd-vault .v-stats { display: grid; gap: 2px; }
+.cd-vault .v-row-item, .cd-vault .v-stats > div { display: flex; gap: 8px; align-items: baseline; justify-content: space-between; border-bottom: 1px solid #1d3048; padding: 4px 0; font-size: 12.5px; }
+.cd-vault .v-row-item span { flex: 1; color: var(--mute); }
+.cd-vault .v-row-item small { color: var(--mute); font-size: 11px; }
+.cd-vault .v-list { margin: 0; padding-left: 18px; font-family: Consolas, monospace; font-size: 12px; max-height: 150px; overflow: auto; }
+.cd-vault .v-pre { max-height: 210px; overflow: auto; font-family: Consolas, monospace; font-size: 12px; background: #08121f; border: 1px solid #223a52; border-radius: 8px; padding: 10px; white-space: pre-wrap; }
+.cd-vault .v-error { color: #ffb5ad; font-size: 12px; margin: 0; }
+.cd-vault .v-clock-main { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid #2a445f; border-radius: 10px; background: #08131f; }
+.cd-vault .v-clock-main b { font: 700 29px/1.1 ui-monospace, monospace; }
+.cd-vault .v-clock-main span { color: var(--mute); font-size: 12px; }
+.cd-vault .v-cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; font-size: 12px; text-align: center; }
+.cd-vault .v-cal b { color: var(--mute); font-size: 11px; }
+.cd-vault .v-cal span, .cd-vault .v-cal i { padding: 5px 0; border-radius: 6px; font-style: normal; }
+.cd-vault .v-cal span.on { background: var(--acc); color: #04121f; font-weight: 700; }
+.cd-vault .v-checks { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; }
+.cd-vault .v-checks label { display: flex; gap: 5px; align-items: center; }
+.cd-vault .v-meter { height: 8px; border-radius: 999px; background: #16263a; overflow: hidden; }
+.cd-vault .v-meter i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #ff8a8a, #ffd387, #8ef0b0); transition: width .2s; }
+.cd-vault .v-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.cd-vault .v-table th, .cd-vault .v-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #1d3048; vertical-align: top; }
+.cd-vault .v-ascii { display: grid; grid-template-columns: repeat(auto-fill, minmax(58px, 1fr)); gap: 4px; max-height: 320px; overflow: auto; }
+.cd-vault .v-ascii-cell { display: grid; justify-items: center; padding: 5px 2px; border: 1px solid #223a52; border-radius: 6px; background: #08131f; font-size: 11px; }
+.cd-vault .v-ascii-cell b { font: 700 15px/1.2 monospace; }
+.cd-vault .v-ascii-cell i { color: var(--mute); font-style: normal; font-size: 9.5px; }
+.cd-vault .v-swatches, .cd-vault .v-pads { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 6px; }
+.cd-vault .v-swatch { display: grid; gap: 2px; padding: 10px; border: 1px solid #ffffff22; border-radius: 9px; color: #04121f; text-align: left; font-size: 11px; cursor: pointer; }
+.cd-vault .v-swatch span { font-family: Consolas, monospace; font-size: 10.5px; }
+.cd-vault .v-canvas { width: 100%; height: auto; border: 1px solid #2a445f; border-radius: 10px; touch-action: none; cursor: crosshair; background: #0a1524; }
+.cd-vault .v-pad { display: grid; gap: 2px; padding: 14px 6px; border: 1px solid #2a445f; border-radius: 10px; background: #0b1a2a; color: #cfe8ff; }
+.cd-vault .v-pad.on { background: var(--acc); color: #04121f; }
+.cd-vault .v-split { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 640px) { .cd-vault .v-split { grid-template-columns: 1fr; } }
+.cd-vault .v-preview { border: 1px solid #2a445f; border-radius: 9px; padding: 10px 12px; background: #08131f; overflow: auto; max-height: 320px; font-size: 12.5px; }
+.cd-vault .v-preview h2, .cd-vault .v-preview h3 { margin: 8px 0 4px; }
+.cd-vault .v-preview p { margin: 6px 0; }
+.cd-vault .v-preview blockquote { margin: 6px 0; padding-left: 10px; border-left: 3px solid var(--acc); color: var(--mute); }
+.cd-vault .v-tasks { display: grid; gap: 4px; }
+.cd-vault .v-task { display: flex; gap: 8px; align-items: center; padding: 5px 8px; border: 1px solid #223a52; border-radius: 7px; font-size: 12.5px; }
+.cd-vault .v-task span { flex: 1; }
+.cd-vault .v-task.done span { text-decoration: line-through; color: var(--mute); }
+.cd-vault .v-task button { padding: 1px 6px; background: transparent; border: 1px solid #3a4f68; color: #cfe8ff; }
+.cd-vault .v-binary { display: flex; gap: 10px; }
+.cd-vault .v-bin-col { display: grid; gap: 3px; justify-items: center; }
+.cd-vault .v-bin-col i { width: 13px; height: 13px; border-radius: 50%; background: #1b2c40; }
+.cd-vault .v-bin-col i.on { background: var(--acc); box-shadow: 0 0 8px var(--acc); }
+.cd-vault .v-bin-col small { color: var(--mute); font-size: 10px; }
+.cd-vault .v-emojis { display: grid; grid-template-columns: repeat(auto-fill, minmax(38px, 1fr)); gap: 4px; max-height: 320px; overflow: auto; }
+.cd-vault .v-emoji { font-size: 19px; padding: 5px 0; background: #08131f; border: 1px solid #223a52; border-radius: 7px; }

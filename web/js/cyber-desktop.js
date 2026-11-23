@@ -4,10 +4,14 @@
   const read = (key, fallback = '') => ls.get(prefix + key, fallback);
   const write = (key, value) => ls.set(prefix + key, value);
   const themes = [['abyss', 'Abyss'], ['glacier', 'Glacier'], ['ember', 'Ember'], ['violet', 'Violet']];
-  /* wallpapers bought in the Cosmetics shop are as valid here as the four that came free */
+  /* wallpapers bought in the Cosmetics shop or the Surplus Vault are as valid here as the four that came free */
   const ownedWallpapers = () => {
-    try { return (A.cyberCosmetics && A.cyberCosmetics.ownedWallpapers && A.cyberCosmetics.ownedWallpapers()) || []; }
-    catch (error) { return []; }
+    const list = [];
+    try { list.push(...((A.cyberCosmetics && A.cyberCosmetics.ownedWallpapers && A.cyberCosmetics.ownedWallpapers()) || [])); }
+    catch (error) { /* the cosmetics shop may not be loaded */ }
+    try { list.push(...((A.cyberRewards && A.cyberRewards.vaultWallpapers && A.cyberRewards.vaultWallpapers()) || [])); }
+    catch (error) { /* the Vault may not be loaded */ }
+    return list;
   };
   const wallpaperList = () => themes.concat(ownedWallpapers());
   /* the few things outside apps need from a mounted desktop: what it is wearing, and how to change it */
@@ -27,6 +31,9 @@
     tutorial: ['▷', 'Tutorial'], remote: ['▣', 'Remote Sessions'],
     walkthrough: ['⌖', 'Walkthrough'], cosmetics: ['✦', 'Cosmetics shop']
   };
+  /* apps bought in the Surplus Vault join this list; until they are bought they stay locked and hidden */
+  Object.assign(apps, (A.cyberRewards && A.cyberRewards.entries) ? A.cyberRewards.entries() : {});
+  const vaultLocked = id => !!(A.cyberRewards && A.cyberRewards.locked && A.cyberRewards.locked(id));
   const dockApps = ['terminal', 'vm', 'games', 'browser', 'mail', 'bank', 'photos', 'remote', 'incidents', 'files', 'notes', 'settings'];
   const defaultDock = dockApps.slice();
   const defaultIcons = ['vm', 'terminal', 'browser', 'walkthrough', 'games', 'files', 'notes', 'mail', 'bank', 'photos', 'settings'];
@@ -36,7 +43,7 @@
     ['Open a remote practice session', 'remote', ['Open Remote Sessions. Choose an exercise and difficulty, then press Generate case.', 'Click a computer card to open its own window. Open Files to read records or Console to run local practice commands.', 'Compare the reports. Return to Remote Sessions to verify the computer name and reference.']],
     ['Use the Terminal Playground', 'terminal', ['Open Terminal. In Sandbox choose Bash / Linux and type pwd, then press Enter.', 'Type ls to list files. The examples panel gives you commands to try.', 'Switch to Puzzles or Labyrinth for a challenge. Use Help to learn what the current shell understands.']],
     ['Work a case and write a report', 'incidents', ['Open Incident Desk and select a case.', 'Read the case and its evidence. Pick the response you think fits and press Check answer.', 'Add a completed finding to Notes. Use Next incident phase to continue.']],
-    ['Browse the fake internet', 'browser', ['Open Moundshroud Browser in the dock and read your mail: some messages carry a link to a site.', 'Type a site address in the browser box, or click a link in a message, and the page opens here.', 'Type any words instead of an address to search every generated site: Moundshroud Search lists them all, and the address is search.moundshroud.example.', 'Sites are generated as you go. About one in eight of them (in sketchy categories like giveaways, casinos, shady downloads, and grey markets) are scam/pop-up traps, and the anti-malware window is the way out.']],
+    ['Browse the fake internet', 'browser', ['Open Moundshroud Browser in the dock and read your mail: some messages carry a link to a site.', 'Type a site address in the browser box, or click a link in a message, and the page opens here.', 'Type any words instead of an address to search every generated site: Moundshroud Search lists them all, and the address is search.moundshroud.example.', 'Sites are generated as you go. About one in eight of them (in sketchy categories like giveaways, casinos, shady downloads, and grey markets) are scam/pop-up traps, and the anti-malware window is the way out.', 'The separate 🧅 Fake Dark Web section is one click away: onion-only services written by hand, each with its own layout and backend. Only the markets there sell anything.', 'Every site also leaks its own user table at /dump/users.csv (names, e-mails, the IP each account signed in from, and the passwords). Read it with `leaked <host>`, then plug an IP into moundshell: `nmap <ip>` finds the user\'s PC and `ssh user@<ip>` with the leaked password opens it — the PC holds work documents, credentials, payroll, bank and medical notes. `exit` comes back.']],
     ['Follow a walkthrough', 'walkthrough', ['Open Walkthrough from the desktop and paste an address from the fake internet, or an IP from the practice network (10.20.30.21).', 'Each chapter gives the exact request or command and a button that runs it here; the answer appears underneath it.', 'Nothing in it pays the bank on purpose. The Cosmetics shop is where the money the rest of the desktop earns gets spent.']],
     ['Boot the Cyber VM', 'vm', ['Open Cyber VM from the dock and press Start VM.', 'Inside the guest, press Open hacking range to work the simulated targets.', 'Never start an attack tool on the host: here the host gets compromised and you have to restore the snapshot.']],
     ['Play something', 'games', ['Open Games from the dock or the desktop.', 'Choose Minefield, Cable Snake, Block Collapse or Memory Row.', 'Arrow keys move in the games; right-click flags a mine.']],
@@ -141,6 +148,8 @@
     /* apps the guest has deleted: the app list, the dock and the desktop all skip them until Settings puts them back */
     let removedApps = new Set();
     let showIcons = true, vivid = true, accent = '', requirePassword = true;
+    /* bought from the Surplus Vault: an overlay on the desktop, a dock shape and the machine's name */
+    let frame = '', dockShape = '', nameplate = '';
     let releaseBrowser, breachLabRelease, selectedUtility = 'digest', labQuery = '', sessionVersion = 0, wallpaperRequest = 0;
     let tutorial = false, lesson = 0, step = 0, caseEgg = false;
     let remote;
@@ -179,7 +188,7 @@
       removedApps.delete('settings');
     }
     /* a function declaration, not a const: the dock and the icons are drawn below before this line would run */
-    function installed(id) { return Object.hasOwn(apps, id) && !removedApps.has(id); }
+    function installed(id) { return Object.hasOwn(apps, id) && !removedApps.has(id) && !vaultLocked(id); }
     function refreshAppMenu() {
       const list = $('.cd-app-menu-apps');
       if (!list) return;
@@ -310,6 +319,10 @@
       shell.classList.toggle('cd-noanim', !vivid);
       if (/^#[0-9a-f]{6}$/i.test(accent)) shell.style.setProperty('--acc', accent);
       else shell.style.removeProperty('--acc');
+      if (frame) shell.dataset.frame = frame; else delete shell.dataset.frame;
+      if (dockShape) shell.dataset.dockshape = dockShape; else delete shell.dataset.dockshape;
+      const machine = $('.cd-widget[data-widget="sys"] span');
+      if (machine) machine.textContent = nameplate || 'Practice machine';
       screen.dataset.theme = theme;
       if (/^data:image\/jpeg;base64,[a-z0-9+/=]+$/i.test(customWallpaper)) {
         screen.style.setProperty('--cd-wallpaper', 'url("' + customWallpaper + '")');
@@ -327,6 +340,9 @@
       /* the boot password is a saved choice for the virtual disk; a live USB session is temporary and always starts with it */
       requirePassword = live ? true : read('boot_password', '1') !== '0';
       accent = live ? '' : read('accent', '');
+      frame = live ? '' : read('frame', '');
+      dockShape = live ? '' : read('dock_shape', '');
+      nameplate = live ? '' : read('nameplate', '');
       customWallpaper = live ? '' : read('custom_wallpaper');
       theme = live ? 'abyss' : read('wallpaper', 'abyss');
       if (!wallpaperList().some(([id]) => id === theme) && !(theme === 'custom' && customWallpaper)) theme = 'abyss';
@@ -341,6 +357,16 @@
       applyAppearance();
     }
     currentSettings();
+    /* a purchase in the Surplus Vault shows up in Applications and the dock without reloading the desktop */
+    if (A.cyberRewards && A.cyberRewards.watch) {
+      A.cyberRewards.watch(() => {
+        refreshAppMenu();
+        syncDock();
+        renderIcons();
+        const panel = slots.get('settings');
+        if (panel) renderApp('settings', panel.body);
+      });
+    }
     function time() {
       const now = new Date();
       clock.dateTime = now.toISOString();
@@ -761,11 +787,35 @@
       if (!live) write('accent', accent);
       applyAppearance();
     };
+    /* the Surplus Vault's cosmetics: an overlay, a dock shape and the name on the machine */
+    lookApi.setFrame = value => {
+      frame = /^[a-z]+$/.test(String(value || '')) ? String(value) : '';
+      if (!live) write('frame', frame);
+      applyAppearance();
+    };
+    lookApi.setDock = value => {
+      dockShape = /^[a-z]+$/.test(String(value || '')) ? String(value) : '';
+      if (!live) write('dock_shape', dockShape);
+      applyAppearance();
+    };
+    lookApi.setNameplate = value => {
+      nameplate = String(value || '').slice(0, 32);
+      if (!live) write('nameplate', nameplate);
+      applyAppearance();
+    };
     lookApi.open = id => openApp(id);
     lookApi.openSite = url => openSite(url);
     const extraCtx = {
       open: id => openApp(id), refresh: () => time(), hacked: reason => showHacked(reason),
-      infect: () => A.cyberVirus?.start(desktop, { reason: 'phish' }), toast: message => A.toast(message),
+      /* Shield Pro from the Surplus Vault blocks the fake virus everywhere, including a link in the mail */
+      infect: () => {
+        if (A.cyberRewards && A.cyberRewards.blocks && A.cyberRewards.blocks()) {
+          A.toast('🛡 Shield Pro blocked the fake virus from that link. Nothing opened.', 4500);
+          return;
+        }
+        A.cyberVirus?.start(desktop, { reason: 'phish' });
+      },
+      toast: message => A.toast(message),
       openSite, install: id => restoreApp(id, true), live: () => live
     };
     function renderApp(id, body) {
@@ -774,6 +824,11 @@
       /* the practice bank: what the puzzles, the breach lab and the case desk pay into */
       if (id === 'bank' && A.cyberBank) {
         body._cleanup = A.cyberBank.app(body) || null;
+        return;
+      }
+      /* an app bought in the Surplus Vault runs its own small window */
+      if (A.cyberRewards && A.cyberRewards.item && (A.cyberRewards.item(id) || {}).kind === 'app') {
+        body._cleanup = A.cyberRewards.render(id, body, extraCtx) || null;
         return;
       }
       if (A.cyberExtras && Object.hasOwn(A.cyberExtras, id) && typeof A.cyberExtras[id] === 'function') {
@@ -791,7 +846,7 @@
           <p>Accent colour</p><div class="cd-accents">${accents.map(([value, name]) =>
             `<button type="button" data-accent="${value}" aria-pressed="${(value === 'auto' ? '' : value) === accent}"><span style="background:${value === 'auto' ? 'linear-gradient(135deg,#8fd9ff,#d8baff)' : value}"></span>${name}</button>`).join('')}</div>
           <h2>Applications</h2><p>Untick an app to delete it from this desktop. Nothing is lost: every app stays in this list, so tick it again to bring it back.</p>
-          <div class="cd-dock-list">${Object.keys(apps).map(id => `<label${installed(id) ? '' : ' class="cd-app-removed"'}><input type="checkbox" data-app-setting="${id}" ${installed(id) ? 'checked' : ''} ${id === 'settings' ? 'disabled title="Settings cannot be deleted"' : ''}><span aria-hidden="true">${apps[id][0]}</span> ${apps[id][1]}</label>`).join('')}</div>
+          <div class="cd-dock-list">${Object.keys(apps).filter(id => !vaultLocked(id)).map(id => `<label${installed(id) ? '' : ' class="cd-app-removed"'}><input type="checkbox" data-app-setting="${id}" ${installed(id) ? 'checked' : ''} ${id === 'settings' ? 'disabled title="Settings cannot be deleted"' : ''}><span aria-hidden="true">${apps[id][0]}</span> ${apps[id][1]}</label>`).join('')}</div>
           <h2>Taskbar</h2><p>Tick the apps that sit in the dock. Right-click a dock icon to unpin it, drag dock icons to reorder them, and right-click a desktop icon or an Applications entry to pin it.</p>
           <div class="cd-dock-list">${Object.keys(apps).filter(installed).map(id => '<label><input type="checkbox" data-dock-setting="' + id + '"' + (dockList.includes(id) ? ' checked' : '') + '><span aria-hidden="true">' + apps[id][0] + '</span> ' + apps[id][1] + '</label>').join('')}</div>
           <button type="button" data-action="dock-reset">Restore the default taskbar</button>
@@ -1301,7 +1356,10 @@
       wallpaper: value => lookApi.wallpaper && lookApi.wallpaper(value),
       accent: value => lookApi.accent && lookApi.accent(value),
       open: id => lookApi.open && lookApi.open(id),
-      openSite: url => lookApi.openSite && lookApi.openSite(url)
+      openSite: url => lookApi.openSite && lookApi.openSite(url),
+      setFrame: value => lookApi.setFrame && lookApi.setFrame(value),
+      setDock: value => lookApi.setDock && lookApi.setDock(value),
+      setNameplate: value => lookApi.setNameplate && lookApi.setNameplate(value)
     }
   };
 })();

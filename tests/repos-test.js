@@ -75,7 +75,7 @@ module.exports = async ok => {
   ok('repos: a repository can be removed', gone.ok && !S.get(imported.id));
 
   /* ----- wiring: the site lives in the Browser at https://moundhub.com, not in a tab ----- */
-  const html = rd('web/index.html'), main = rd('web/js/main.js'), shell = rd('web/js/app-shell.js'),
+  const html = rd('web/index.html'), main = rd('web/js/main.js'), shell = rd('web/js/moundshell.js'),
     hub = rd('web/moundhub.js'), hubHtml = rd('web/moundhub.html'), lib = rd('web/js/lib.js'), search = rd('web/js/websearch.js');
   ok('repos: the store is loaded by the app and the old Repositories tab is gone',
     html.includes('/web/js/repo-store.js') && !html.includes('p-repos') && !html.includes('repos.js') &&

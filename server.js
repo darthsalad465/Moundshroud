@@ -1103,6 +1103,8 @@ if (url === '/api/chat' && req.method === 'POST') {
     if (url === '/api/appedit/shell') return json(res, 200, appedit.shell({ meta: q.get('meta') === '1', brief: q.get('brief') === '1' }));
     /* the mound shell reads file contents in batches, so a huge vendor library never holds up opening it */
     if (url === '/api/appedit/shellfiles' && req.method === 'POST') { const b = await jbody(req, 4e6); return json(res, 200, appedit.shell({ files: Array.isArray(b.files) ? b.files : [] })); }
+    /* the mound shell writing a file it changed: only inside the app, backed up like every other save */
+    if (url === '/api/appedit/shellwrite' && req.method === 'POST') { const b = await jbody(req, 8e6).catch(() => ({})); return json(res, 200, appedit.shellWrite(b)); }
     if (url === '/api/appedit/edited') return json(res, 200, { edited: appedit.edited() });
     if (url === '/api/appedit/read' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, appedit.read(String(b.path || ''))); }
     if (url === '/api/appedit/check' && req.method === 'POST') { const b = await jbody(req, 2e6); return json(res, 200, appedit.check(String(b.path || ''), b.text)); }

@@ -16,6 +16,7 @@
     ['Fake site: fully owned', '$250', 'Access, the leaked .env and the backup archive on one site ($350 on a finance or exchange site).'],
     ['Remote session verified', '$30', 'A correct finding in Remote Sessions, once per generated case.'],
     ['Website lab mission owned', '$40', 'A mission completed in the Website Lab; $200 for the core five on one site.'],
+    ['Flag submitted', '$60–$280', 'A FLAG{...} from a fake website, a Browser library or an Open Range PC, submitted with solve in moundshell.'],
     ['Vulnerability exploited', '$60', 'Every bug found on a simulated site in Breach Lab.'],
     ['Target fully owned', '$400', 'All of a site’s bugs found on one instance; $700 for a finance target.'],
     ['Incident case closed', '$40', 'A correct answer in Incident Desk, paid once per case.'],
@@ -26,7 +27,7 @@
   const fresh = () => ({
     balance: 250,
     opened: Date.now(),
-    stats: { puzzles: 0, exploits: 0, cases: 0, phish: 0, targets: 0 },
+    stats: { puzzles: 0, exploits: 0, cases: 0, phish: 0, targets: 0, flags: 0 },
     history: [{ at: Date.now(), amount: 250, label: 'Practice account opened', kind: 'open' }],
     balanceStart: 250,
     /* lifetime totals: what came in and what went out, so spending never hides what the work was worth */
@@ -40,7 +41,7 @@
     if (!saved || !Number.isFinite(saved.balance) || !Array.isArray(saved.history)) return null;
     const state = Object.assign(fresh(), saved);
     state.balance = Math.round(Number(saved.balance) * 100) / 100;
-    state.stats = Object.assign({ puzzles: 0, exploits: 0, cases: 0, phish: 0, targets: 0 }, saved.stats || {});
+    state.stats = Object.assign({ puzzles: 0, exploits: 0, cases: 0, phish: 0, targets: 0, flags: 0 }, saved.stats || {});
     state.history = saved.history.slice(0, 60);
     state.awards = Object.assign({}, saved.awards || {});
     if (!Number.isFinite(state.balanceStart)) state.balanceStart = 250;
@@ -162,6 +163,7 @@
         '<div class="cd-bank-card"><span>Sites fully owned</span><b data-bank-targets></b></div>' +
         '<div class="cd-bank-card"><span>Cases closed</span><b data-bank-cases></b></div>' +
         '<div class="cd-bank-card"><span>Phishing reported</span><b data-bank-phish></b></div>' +
+        '<div class="cd-bank-card"><span>Flags submitted</span><b data-bank-flags></b></div>' +
       '</div>' +
       '<div class="cd-bank-grid"><section><h3>Where money comes from</h3><table class="cd-bank-rates"><tbody>' +
         RATES.map(([what, amount, how]) => '<tr><th>' + what + '</th><td>' + amount + '</td><td class="mute">' + how + '</td></tr>').join('') +
@@ -181,6 +183,7 @@
       q('[data-bank-targets]').textContent = state.stats.targets;
       q('[data-bank-cases]').textContent = state.stats.cases;
       q('[data-bank-phish]').textContent = state.stats.phish;
+      q('[data-bank-flags]').textContent = state.stats.flags || 0;
       q('[data-bank-ledger]').innerHTML = state.history.length
         ? state.history.map(row => '<li class="' + (row.amount < 0 ? 'out' : 'in') + '"><b>' + money(row.amount) + '</b>' +
             '<span>' + row.label.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]) + '</span>' +

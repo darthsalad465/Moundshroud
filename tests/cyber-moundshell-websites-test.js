@@ -103,6 +103,12 @@ async function run(ok) {
     if (String(url).startsWith('/api/appedit/shellfiles')) {
       return { ok: true, status: 200, json: async () => ({ files: { 'server.js': '// server\n' } }) };
     }
+    /* the mound shell writing back a file it changed (real writes go to the app's own folders) */
+    if (String(url).startsWith('/api/appedit/shellwrite')) {
+      const body = (() => { try { return JSON.parse((opts && opts.body) || '{}'); } catch (e) { return {}; } })();
+      const save = Array.isArray(body.save) ? body.save.map(f => String(f && f.rel || '')) : [];
+      return { ok: true, status: 200, json: async () => ({ saved: save, created: save, removed: Array.isArray(body.remove) ? body.remove : [], folders: Array.isArray(body.mkdir) ? body.mkdir : [], refused: [], at: {}, sig: '' }) };
+    }
     if (String(url).startsWith('/api/lib/mine')) {
       return { ok: true, status: 200, json: async () => ({ libraries: [] }) };
     }
@@ -131,6 +137,9 @@ async function run(ok) {
   vm.createContext(ctx);
 
   const loadOrder = [
+    'web/js/cyber-dark-leaks.js',
+    'web/js/cyber-user-pcs.js',
+    'web/js/cyber-dark-web.js',
     'web/js/cyber-web-universe.js',
     'web/js/repo-store.js',
     'web/js/terminal-unix.js',
@@ -141,7 +150,7 @@ async function run(ok) {
     'web/js/terminal-labyrinth.js',
     'web/js/terminal-puzzles.js',
     'web/js/terminal-pentest.js',
-    'web/js/app-shell.js'
+    'web/js/moundshell.js'
   ];
   for (const file of loadOrder) {
     vm.runInContext(rd(file), ctx, { filename: file });
@@ -168,6 +177,12 @@ async function run(ok) {
     return after.startsWith(before) ? after.slice(before.length) : after;
   };
 
+  /* a leaked file may be dotenv, JSON, JS or SQL: accept a fact in any of the shapes this site's plan serves */
+  const hasFact = (text, key, value) => {
+    const s = String(text || '');
+    return s.includes(key + '=' + value) || s.includes('"' + key + '": "' + value + '"') ||
+      s.includes("'" + key + "': '" + value + "'") || s.includes(key + ': ' + value) || s.includes(key + "='" + value + "'");
+  };
   const CW = A.cyberWeb;
   CW.ensure();
   const allSites = CW.all();
@@ -192,8 +207,10 @@ async function run(ok) {
     JSON.stringify({ total: allSites.length, trapped: trappedSites.length, ratio: +trappedRatio.toFixed(3), bogusTrapped: bogusTrapped.map(s => s.cat.id), missingMail: mailHosts.filter(h => !CW.locate(h)?.site) }));
 
   /* 1. Every fake website (safe, trapped fake-virus, phishing, custom domain, portal, moundhub) works with curl, wget, pipes */
-  const envOut = await execText('curl -s https://' + virusSite.host + '/.env');
-  const pipeOut = await execText('curl -s https://' + virusSite.host + '/.env | grep ADMIN_PATH');
+  /* every site hides the staff configuration somewhere different: use the file this one really leaves reachable */
+  const virusLeak = (virusSite.sec && Array.isArray(virusSite.sec.leaks) && virusSite.sec.leaks[0]) ? virusSite.sec.leaks[0].path : '/.env';
+  const envOut = await execText('curl -s https://' + virusSite.host + virusLeak);
+  const pipeOut = await execText('curl -s https://' + virusSite.host + virusLeak + ' | grep ADMIN_PATH');
   const trapScriptOut = await execText('curl -s https://' + virusSite.host + virusSite.virus.scriptPath);
   const headOut = await execText('curl -I https://' + virusSite.host + '/');
   const customOut = await execText('curl -s https://custom-virus-check.xyz/robots.txt');
@@ -202,17 +219,80 @@ async function run(ok) {
   const wgetOut = await execText('wget https://' + virusSite.host + '/robots.txt');
   const catWget = await execText('cat robots.txt');
 
-  ok('moundshell curl & wget: serve real responses (incl. .env, robots.txt, virus trap script, pipes, custom domains, portal, moundhub)',
-    envOut.includes('ADMIN_PATH=' + virusSite.adminPath) &&
-    pipeOut.includes('ADMIN_PATH=' + virusSite.adminPath) &&
+  ok('moundshell curl & wget: serve real responses (incl. .env, robots.txt, injected script, pipes, custom domains, portal, moundhub)',
+    hasFact(envOut, 'ADMIN_PATH', virusSite.adminPath) &&
+    hasFact(pipeOut, 'ADMIN_PATH', virusSite.adminPath) &&
     trapScriptOut.includes(virusSite.virus.name) &&
-    headOut.includes('X-CD-Trap: ' + virusSite.virus.name) &&
+    headOut.includes('HTTP/1.1 200') && !headOut.includes('X-CD-Trap') &&
     customOut.includes('Disallow:') &&
     portalOut.includes('Moundshroud Search') &&
     hubOut.includes('MoundHub') &&
     wgetOut.includes(virusSite.ip) &&
-    catWget.includes(virusSite.adminPath),
+    (!virusSite.sec || virusSite.sec.robotsLeaksAdmin ? catWget.includes(virusSite.adminPath) : !catWget.includes(virusSite.adminPath)),
     JSON.stringify({ envOut: envOut.slice(0, 260), pipeOut: pipeOut.slice(0, 260), headOut: headOut.slice(0, 260) }));
+
+  /* 1b. The Fake Dark Web is the second section, and every moundshell command maps to it the same way */
+  const darkHosts = CW.dark ? CW.dark().map(s => s.host) : [];
+  const darkCurl = await execText('curl -s https://nightfall-market.onion/');
+  const darkCatalog = await execText('curl -s https://nightfall-market.onion/catalog');
+  const darkList = await execText('browser dark');
+  const darkRead = await execText('browser read ghostleaks.onion/');
+  const darkScan = await execText('paths nightfall-market.onion');
+  const darkJson = await execText('curl -s https://mirrorgate.onion/api/status');
+  const darkSource = await execText('browser source nightfall-market.onion/catalog');
+  ok('moundshell maps the Fake Dark Web section like the fake internet (curl, browser dark/read/source, paths, JSON API)',
+    darkHosts.length >= 10 && darkHosts.every(h => /\.onion$/.test(h)) &&
+    /Nightfall Market/.test(darkCurl) && /Vendor|listing/i.test(darkCatalog) &&
+    darkList.includes('nightfall-market.onion') && darkList.includes('ghostleaks.onion') &&
+    /GHOST COLLECTIVE|current victims/i.test(darkRead) && darkScan.includes('/') &&
+    /simulated probes|"services"/.test(darkJson) && /<!doctype html>/i.test(darkSource),
+    JSON.stringify({ darkHosts: darkHosts.length, darkCurl: darkCurl.slice(0, 90), darkScan: darkScan.slice(0, 90) }));
+
+  /* 1d. The leak site is a real archive: different kinds of leaks, every file readable from moundshell */
+  const leakIndex = await execText('curl -s https://ghostleaks.onion/archive');
+  const leakCatPage = await execText('curl -s https://ghostleaks.onion/leak/scada-grid');
+  const leakCode = await execText('curl -s https://ghostleaks.onion/raw/petrichor-build/src/engine.c');
+  const leakGame = await execText('curl -s https://ghostleaks.onion/raw/petrichor-build/docs/roadmap-internal.md');
+  const leakGov = await execText('curl -s https://ghostleaks.onion/raw/kestrel-brief/briefing.md');
+  const leakPol = await execText('curl -s https://ghostleaks.onion/raw/party-2027/strategy.md');
+  const leakHealth = await execText('curl -s https://ghostleaks.onion/raw/trial-adverse/adverse-events.csv');
+  const leakTorrent = await execText('curl -s https://ghostleaks.onion/download/petrichor-build.torrent');
+  const leakWget = await execText('wget https://ghostleaks.onion/raw/scada-grid/credentials.txt');
+  const leakCat = await execText('cat credentials.txt');
+  const leakPaths = await execText('paths ghostleaks.onion');
+  ok('the leak site serves a whole archive — code, games, government, politics, health, credentials — all readable from moundshell',
+    /source code/i.test(leakIndex) && /government/i.test(leakIndex) && /games/i.test(leakIndex) &&
+    /credentials\.txt/.test(leakCatPage) && /svc-vendor/.test(leakCat) &&
+    /engine_init/.test(leakCode) && /publisher was told/.test(leakGame) &&
+    /PROJECT KESTREL/.test(leakGov) && /wedge/i.test(leakPol) && /hepatic/.test(leakHealth) &&
+    /announce/.test(leakTorrent) && /created credentials\.txt/.test(leakWget) && leakPaths.includes('/archive'),
+    JSON.stringify({ index: leakIndex.slice(0, 70), code: leakCode.slice(0, 70), gov: leakGov.slice(0, 70), paths: leakPaths.slice(0, 200) }));
+
+  /* 1c. Every website leaks its users and their IPs, and those IPs are machines you can break into and read */
+  const leakSite = allSites.find(s => !s.portal && !s.hub && !s.dark) || allSites[0];
+  const leakedUsers = A.cyberPcs.roster(leakSite);
+  const leakVictim = leakedUsers[0];
+  const leakCsv = await execText('curl -s https://' + leakSite.host + '/dump/users.csv');
+  const leakedOut = await execText('leaked ' + leakSite.host);
+  const pcNmap = await execText('nmap ' + leakVictim.ip);
+  const sshPrompt = await execText('ssh ' + leakVictim.handle + '@' + leakVictim.ip);
+  const sshDenied = await execText('definitely-not-the-password');
+  const sshWelcome = await execText(leakVictim.password);
+  const sshLs = await execText('ls');
+  const sshSecret = await execText('cat secrets-work.txt');
+  const sshGrep = await execText('grep -ri password Documents');
+  const sshExit = await execText('exit');
+  const sshAfter = await execText('leaked ' + leakSite.host);
+  ok('every website leaks its users and their IPs, and each IP is a PC you can nmap, ssh into and read',
+    leakedUsers.length >= 12 &&
+    leakCsv.includes(leakVictim.ip) && leakCsv.includes(leakVictim.password) &&
+    leakedOut.includes(leakVictim.email) &&
+    pcNmap.includes(leakVictim.ip) && /ssh/.test(pcNmap) &&
+    /password:/.test(sshPrompt) && /Permission denied/.test(sshDenied) &&
+    /Welcome to/.test(sshWelcome) && /Desktop|Documents/.test(sshLs) &&
+    /WORK SECRETS/.test(sshSecret) && /password/i.test(sshGrep) &&
+    /closed/.test(sshExit) && leakedOut.includes(leakSite.host) && sshAfter.includes(leakVictim.ip),
+    JSON.stringify({ users: leakedUsers.length, nmap: pcNmap.slice(0, 90), prompt: sshPrompt.slice(-90), secret: sshSecret.slice(0, 90) }));
 
   /* 2. Recon & network commands map to trapped fake-virus sites, safe sites, IPs, custom domains, portal, moundhub */
   const pingOut = await execText('ping -c 2 ' + virusSite.host);
@@ -252,17 +332,17 @@ async function run(ok) {
 
   const reconChecks = {
     ping: pingOut.includes(virusSite.ip),
-    dig: digOut.includes(virusSite.ip) && digOut.includes(virusSite.virus.name),
+    dig: digOut.includes(virusSite.ip),
     nslookup: nslookupOut.includes(virusSite.host),
     host: hostOut.includes(virusSite.ip),
-    whois: whoisOut.includes(virusSite.brand) && whoisOut.includes(virusSite.virus.name),
+    whois: whoisOut.includes(virusSite.brand) && whoisOut.includes(virusSite.ip),
     trace: traceOut.includes(virusSite.ip),
     tracepath: tracepathOut.includes(virusSite.ip),
-    nmap: nmapOut.includes(virusSite.ip) && nmapOut.includes(virusSite.virus.name),
+    nmap: nmapOut.includes(virusSite.ip) && nmapOut.includes('8080/tcp'),
     nmapScript: nmapScriptOut.includes(virusSite.ip),
     masscan: masscanOut.includes(virusSite.ip),
-    whatweb: whatwebOut.includes(virusSite.brand) && whatwebOut.includes(virusSite.virus.name),
-    nikto: niktoOut.includes(virusSite.adminPath) && niktoOut.includes(virusSite.virus.name),
+    whatweb: whatwebOut.includes(virusSite.brand) && whatwebOut.includes(virusSite.virus.scriptPath),
+    nikto: niktoOut.includes(virusSite.adminPath) && niktoOut.includes(virusSite.virus.scriptPath),
     gobuster: gobusterOut.includes(virusSite.adminPath) && gobusterOut.includes(virusSite.virus.scriptPath),
     ffuf: ffufOut.includes(virusSite.adminPath),
     dirb: dirbOut.includes(virusSite.adminPath),
@@ -270,7 +350,7 @@ async function run(ok) {
     wfuzz: wfuzzOut.includes(virusSite.adminPath),
     sqlmap: sqlmapOut.includes(virusSite.adminLogin) && sqlmapOut.includes(virusSite.adminPass),
     hydra: hydraOut.includes(virusSite.adminPass),
-    wpscan: wpscanOut.includes(virusSite.virus.name),
+    wpscan: wpscanOut.includes(virusSite.virus.scriptPath),
     ssl: sslOut.includes('CN = ' + virusSite.host),
     nc: ncOut.includes(virusSite.ip),
     netcat: netcatOut.includes(virusSite.ip),
@@ -279,14 +359,17 @@ async function run(ok) {
     lynx: lynxOut.includes(virusSite.brand),
     subfinder: subfinderOut.includes('api.' + virusSite.host),
     amass: amassOut.includes('admin.' + virusSite.host),
-    enum4linux: enum4Out.includes(virusSite.virus.name),
+    enum4linux: enum4Out.includes(virusSite.host),
     smbclient: smbOut.includes(virusSite.host),
     ftp: ftpOut.includes(virusSite.host),
     scp: scpOut.includes(virusSite.host),
-    tshark: tsharkOut.includes(virusSite.virus.name),
-    searchsploit: sploitOut.includes(virusSite.virus.name)
+    tshark: tsharkOut.includes(virusSite.brand),
+    searchsploit: sploitOut.includes(virusSite.adminPath),
+    /* the whole point: none of the quiet network commands announce a trap or name the payload */
+    quiet: !/FAKE VIRUS|booby|fake-virus|X-CD-Trap/i.test([pingOut, digOut, nslookupOut, hostOut, whoisOut, traceOut, masscanOut,
+      sslOut, ncOut, netcatOut, lynxOut, subfinderOut, amassOut, enum4Out, tsharkOut, sploitOut].join('\n'))
   };
-  ok('moundshell recon & offensive commands: all 34 network/web/pentest commands map to fake & fake-virus sites',
+  ok('moundshell recon & offensive commands: all 34 map to fake sites, and no quiet command announces the trap (only scans expose it)',
     Object.values(reconChecks).every(Boolean),
     JSON.stringify(Object.entries(reconChecks).filter(([, v]) => !v).map(([k]) => k)));
 
@@ -305,20 +388,42 @@ async function run(ok) {
   const virusClean = await execText('virus clean');
   const appOpenSite = await execText('app open ' + safeSite.host);
 
-  ok('moundshell browser/paths/targets/virus/app: map to current tab, fake-virus sites, safe sites, moundhub, and search portal',
-    openRes.includes(virusSite.host) && openedUrls.some(u => u.includes(virusSite.host)) &&
-    tabsOut.includes(virusSite.host) && tabsOut.includes(virusSite.virus.name) &&
-    readCur.includes(virusSite.brand) && readCur.includes(virusSite.virus.name) &&
+  ok('moundshell browser/paths/targets/virus/app: map to current tab, safe sites, moundhub, search portal — and never label the trap',
+    openRes.includes(virusSite.host) && !/FAKE VIRUS|booby/i.test(openRes) &&
+    openedUrls.some(u => u.includes(virusSite.host)) &&
+    tabsOut.includes(virusSite.host) && !/FAKE VIRUS|booby/i.test(tabsOut) &&
+    readCur.includes(virusSite.brand) && !readCur.includes(virusSite.virus.name) &&
     srcVirus.includes('<!doctype html>') &&
-    sitesVirus.includes('TRAPPED FAKE-VIRUS WEBSITES') &&
-    targetsVirus.includes('FAKE VIRUS') &&
-    pathsVirus.includes(virusSite.virus.scriptPath) &&
+    /no index of infected/i.test(sitesVirus) && !sitesVirus.includes(virusSite.host) &&
+    /no index of infected/i.test(targetsVirus) && !targetsVirus.includes(virusSite.host) &&
+    pathsVirus.includes(virusSite.host) && !pathsVirus.includes(virusSite.virus.scriptPath) &&
     pathsCurrent.includes(virusSite.host) &&
     pathsHub.includes('moundhub.com') &&
     pathsPortal.includes('search.moundshroud.example') &&
     virusScan.includes(virusSite.virus.name) &&
     virusClean.includes('anti-malware') && virusCleaned === 1 && !virusActive &&
-    appOpenSite.includes(safeSite.host));
+    appOpenSite.includes(safeSite.host),
+    JSON.stringify({
+      open: openRes.slice(0, 90), opened: openedUrls.some(u => u.includes(virusSite.host)),
+      tabs: tabsOut.slice(-160), readCur: readCur.slice(0, 160),
+      sitesVirus: sitesVirus.slice(0, 120), targetsVirus: targetsVirus.slice(0, 120),
+      pathsVirus: pathsVirus.slice(0, 200), scan: virusScan.slice(0, 90), app: appOpenSite.slice(0, 90),
+      checks: {
+        openHost: openRes.includes(virusSite.host), openQuiet: !/FAKE VIRUS|booby/i.test(openRes),
+        opened: openedUrls.some(u => u.includes(virusSite.host)),
+        tabHost: tabsOut.includes(virusSite.host), tabQuiet: !/FAKE VIRUS|booby/i.test(tabsOut),
+        readBrand: readCur.includes(virusSite.brand), readQuiet: !readCur.includes(virusSite.virus.name),
+        source: srcVirus.includes('<!doctype html>'),
+        sitesHint: /no index of infected/i.test(sitesVirus), sitesQuiet: !sitesVirus.includes(virusSite.host),
+        targetsHint: /no index of infected/i.test(targetsVirus), targetsQuiet: !targetsVirus.includes(virusSite.host),
+        pathsHost: pathsVirus.includes(virusSite.host), pathsQuiet: !pathsVirus.includes(virusSite.virus.scriptPath),
+        pathsCurrent: pathsCurrent.includes(virusSite.host), pathsHub: pathsHub.includes('moundhub.com'),
+        pathsPortal: pathsPortal.includes('search.moundshroud.example'),
+        scanName: virusScan.includes(virusSite.virus.name),
+        clean: virusClean.includes('anti-malware'), cleanedOnce: virusCleaned === 1, notActive: !virusActive,
+        app: appOpenSite.includes(safeSite.host)
+      }
+    }));
 
   /* 4. Toolkit `tool <name>` commands answer from simulated Cyber Desktop sites without external fetch */
   const fetchBeforeTools = fetchCalls.length;
@@ -332,41 +437,41 @@ async function run(ok) {
   const tSub = await execText('tool subdomains ' + virusSite.host);
   const tSec = await execText('secrets ' + virusSite.host);
   const tStr = await execText('strings ' + virusSite.host);
-  ok('moundshell toolkit (tool dns/reverse/whois/headers/fingerprint/portscan/tlscert/subdomains/secrets/strings): mapped to Cyber Desktop sites with zero real network calls',
+  ok('moundshell toolkit (dns/reverse/whois/headers/fingerprint/portscan/tlscert/subdomains/secrets/strings): mapped to Cyber Desktop sites, zero real network calls, no trap labels',
     fetchCalls.length === fetchBeforeTools &&
     tDns.includes(virusSite.ip) &&
     tRev.includes(virusSite.host) &&
-    tWhois.includes(virusSite.virus.name) &&
-    tHeaders.includes('X-CD-Trap') &&
-    tFp.includes(virusSite.virus.name) &&
+    tWhois.includes(virusSite.brand) &&
+    tHeaders.includes('Content-Security-Policy') && !tHeaders.includes('X-CD-Trap') &&
+    tFp.includes(virusSite.host) && !/FAKE VIRUS|booby|"trapped":true/i.test(tFp) &&
     tPort.includes('8080') &&
     tTls.includes(virusSite.host) &&
     tSub.includes('api.' + virusSite.host) &&
-    tSec.includes('FAKE_VIRUS_TRAP') &&
+    tSec.includes('SUSPICIOUS_SCRIPT') &&
     tStr.includes(virusSite.brand));
 
   /* 5. `browser breach` & `breach` work end-to-end on trapped fake-virus sites with real host/adminPath/.env/trap */
   const bStart = await execText('browser breach ' + virusSite.host);
   const bTargets = await execText('targets');
   const bNikto = await execText('nikto -h http://' + virusSite.host);
-  const bEnv = await execText('curl -s http://' + virusSite.host + '/.env');
+  const bEnv = await execText('curl -s http://' + virusSite.host + virusLeak);
   const bTrap = await execText('curl -s http://' + virusSite.host + virusSite.virus.scriptPath);
   const bLogin = await execText('curl "http://' + virusSite.host + '/login?u=' + encodeURIComponent(virusSite.adminLogin) + '&p=' + encodeURIComponent(virusSite.adminPass) + '"');
   const bStaff = await execText('curl http://' + virusSite.host + virusSite.adminPath);
   const bSwitch = await execText('target ' + phishSite.host);
   const bEnd = await execText('breach end');
 
-  ok('moundshell breach & browser breach: preserve real fake-virus host, .env, virus script, leaked login, staff flag, and live target switching',
-    bStart.includes(virusSite.host) && bStart.includes(virusSite.virus.name) &&
-    bTargets.includes(virusSite.host) && bTargets.includes(virusSite.virus.name) &&
-    bNikto.includes(virusSite.virus.name) &&
-    bEnv.includes('ADMIN_PASSWORD=' + virusSite.adminPass) &&
+  ok('moundshell breach & browser breach: preserve real host, .env, injected script, leaked login, staff flag, live target switching — with no trap banner',
+    bStart.includes(virusSite.host) && !/FAKE VIRUS|booby/i.test(bStart) &&
+    bTargets.includes(virusSite.host) && !/FAKE VIRUS|booby/i.test(bTargets) &&
+    bNikto.includes(virusSite.virus.scriptPath) &&
+    hasFact(bEnv, 'ADMIN_PASSWORD', virusSite.adminPass) &&
     bTrap.includes(virusSite.virus.name) &&
-    bLogin.includes('Signed in as <b>admin') &&
+    (/Set-Cookie: session=adm_/.test(bLogin) || bLogin.includes('Signed in as <b>admin')) &&
     bStaff.includes(virusSite.flag) &&
     bSwitch.includes(phishSite.host) &&
     bEnd.includes('Left the breach range'),
-    JSON.stringify({ bStart: bStart.slice(0, 80), bLogin: bLogin.slice(0, 60), bSwitch: bSwitch.slice(0, 60) }));
+    JSON.stringify({ bStart: bStart.slice(0, 80), bLogin: bLogin.slice(0, 60), bEnv: bEnv.slice(0, 260), bStaff: bStaff.slice(0, 160), bSwitch: bSwitch.slice(0, 60) }));
 
   /* 6. `guide <fake-virus-site>` starts breach & walkthrough directly on that site */
   const gOut = await execText('guide ' + phishSite.host);
@@ -522,7 +627,7 @@ async function run(ok) {
     };
     bCtx.window = bCtx.self = bCtx.globalThis = bCtx;
     vm.createContext(bCtx);
-    for (const f of ['web/js/libframe.js', 'web/js/cyber-web-universe.js', 'web/js/lib.js']) {
+    for (const f of ['web/js/libframe.js', 'web/js/cyber-dark-leaks.js', 'web/js/cyber-user-pcs.js', 'web/js/cyber-dark-web.js', 'web/js/cyber-web-universe.js', 'web/js/lib.js']) {
       vm.runInContext(rd(f), bCtx, { filename: f });
     }
     bA.lib.dock(deskHost);
@@ -644,7 +749,9 @@ async function run(ok) {
     const ramenHome = W.serve(ramen, '/', 'GET').body;
     const ramenCart = W.serve(ramen, '/cart?add=1', 'GET').body;
     const ramenOrder = W.serve(ramen, '/checkout?name=Alice&email=a@b.c', 'POST').body;
-    const ramenEnv = W.serve(ramen, '/.env', 'GET').body;
+    /* the site's own exposure plan decides which file leaks: read the one this target really leaves reachable */
+    const ramenLeak = (ramen.sec && ramen.sec.leaks && ramen.sec.leaks[0]) ? ramen.sec.leaks[0].path : '/.env';
+    const ramenEnv = W.serve(ramen, ramenLeak, 'GET').body;
     const ramenGit = W.serve(ramen, '/.git/HEAD', 'GET').body;
     const ramenSqli = W.serve(ramen, "/login?u=' OR 1=1--&p=x", 'GET').body;
     const heraldArt = W.serve(herald, '/article/1?author=Sam&comment=Great+reporting', 'POST').body;
@@ -653,12 +760,23 @@ async function run(ok) {
     const domainTrueOk =
       ramen.cat.id === 'food' && ramen.theme === 'commerce' && ramenHome.includes('Add to cart') &&
       ramenCart.includes('Place order') && ramenOrder.includes('Order Confirmed') &&
-      ramenEnv.includes('ADMIN_PASSWORD=' + ramen.adminPass) && ramenGit.includes('refs/heads/main') &&
-      ramenSqli.includes('Signed in as admin') &&
+      hasFact(ramenEnv, 'ADMIN_PASSWORD', ramen.adminPass) && ramenGit.includes('refs/heads/main') &&
+      (ramen.sec && /hard|extreme/.test(ramen.sec.difficulty) ? !/Signed in as admin/.test(ramenSqli) : /Signed in as admin/.test(ramenSqli)) &&
       herald.cat.id === 'news' && herald.theme === 'editorial' && heraldArt.includes('Great reporting') &&
       bank.cat.id === 'bank' && bank.theme === 'finance' &&
       board.cat.id === 'hackerforum' && board.theme === 'community' && boardThread.includes('Confirmed on v2') &&
       (devApi.cat.id === 'devtools' || devApi.cat.id === 'saas') && devApi.theme === 'saas';
+
+
+    const domainWhy = {
+      ramenCat: ramen.cat.id, theme: ramen.theme, addToCart: ramenHome.includes('Add to cart'), placeOrder: ramenCart.includes('Place order'),
+      order: ramenOrder.includes('Order Confirmed'), env: hasFact(ramenEnv, 'ADMIN_PASSWORD', ramen.adminPass), git: ramenGit.includes('refs/heads/main'),
+      sqli: /Signed in as admin/.test(ramenSqli), tier: ramen.sec && ramen.sec.difficulty,
+      herald: herald.cat.id === 'news' && herald.theme === 'editorial' && heraldArt.includes('Great reporting'),
+      bank: bank.cat.id === 'bank' && bank.theme === 'finance',
+      board: board.cat.id === 'hackerforum' && board.theme === 'community' && boardThread.includes('Confirmed on v2'),
+      dev: (devApi.cat.id === 'devtools' || devApi.cat.id === 'saas') && devApi.theme === 'saas'
+    };
 
     /* Infinite topic search & infinite per-category pagination */
     const p1 = W.serve(W.portal, '/?q=underwater+clockwork+orchids&p=1', 'GET').body;
@@ -672,17 +790,25 @@ async function run(ok) {
     const freshBankP2 = [...bankP2Hosts].filter(h => !bankP1Hosts.has(h));
     /* Verify newly synthesized infinite-topic site ALSO has full vulnerabilities */
     const synthSite = W.locate('https://' + [...p1Hosts][0] + '/')?.site;
+    const synthLeak = (synthSite && synthSite.sec && synthSite.sec.leaks && synthSite.sec.leaks[0]) ? synthSite.sec.leaks[0].path : '/.env';
     const synthVulnOk = !!synthSite &&
-      W.serve(synthSite, '/.env', 'GET').body.includes('ADMIN_PATH=' + synthSite.adminPath) &&
+      hasFact(W.serve(synthSite, synthLeak, 'GET').body, 'ADMIN_PATH', synthSite.adminPath) &&
       W.serve(synthSite, '/api/orders/' + synthSite.orders[0].id, 'GET').status === 200;
 
+
+    const synthWhy = {
+      hasSite: !!synthSite, sec: !!(synthSite && synthSite.sec), leak: synthLeak,
+      leaks: synthSite && synthSite.sec ? (synthSite.sec.leaks || []).length : -1,
+      body: synthSite ? String(W.serve(synthSite, synthLeak, 'GET').body).slice(0, 80) : '',
+      idor: synthSite && synthSite.orders && synthSite.orders[0] ? W.serve(synthSite, '/api/orders/' + synthSite.orders[0].id, 'GET').status : -1
+    };
     ok('Fake Internet realism & infinite generation: pages match their URL & theme, interactive flows work, every site has vulnerabilities, and search/categories generate infinite unique topics',
       domainTrueOk &&
       p1.toLowerCase().includes('underwater clockwork orchids') &&
       p1Hosts.size >= 15 && freshOnP2.length >= 15 &&
       bankP1Hosts.size >= 15 && freshBankP2.length >= 15 &&
       synthVulnOk,
-      JSON.stringify({ domainTrueOk, p1Count: p1Hosts.size, freshOnP2: freshOnP2.length, bankP1: bankP1Hosts.size, freshBankP2: freshBankP2.length, synthVulnOk }));
+      JSON.stringify({ domainWhy, synthWhy, domainTrueOk, p1Count: p1Hosts.size, freshOnP2: freshOnP2.length, bankP1: bankP1Hosts.size, freshBankP2: freshBankP2.length, synthVulnOk }));
 
     /* 9b. View page source comes to the forefront even when fullscreened (Cyber Desktop / Browser / any app page) */
     const fsShell = mkDomEl('section', 'cd-shell-fs');
@@ -710,7 +836,7 @@ async function run(ok) {
 
   /* 10. moundshell git commands strictly interact ONLY with MoundHub (https://moundhub.com) in the app's browser */
   {
-    const fetchBeforeGit = fetchCalls.length;
+    const fetchBeforeGit = fetchCalls.filter(u => String(u).includes('/api/cyber/') || String(u).startsWith('http')).length;
     const lockedStatus = await execText('git status');
     const unlocked = ctx.RepoStore.unlock('Moundshroud');
 
@@ -774,7 +900,7 @@ async function run(ok) {
       chainStatus.includes('* main') &&
       openHub.includes('https://moundhub.com') &&
       openedUrls.some(u => u.includes('https://moundhub.com')) &&
-      fetchCalls.length === fetchBeforeGit;
+      fetchCalls.filter(u => String(u).includes('/api/cyber/') || String(u).startsWith('http')).length === fetchBeforeGit;
 
     ok('moundshell git: strictly MoundHub-only (blocks all external git URLs, supports full MoundHub workflow, pipes/chains, and zero external network calls)',
       allBlocked && preExistingBlocked && workflowOk,
@@ -844,7 +970,7 @@ async function run(ok) {
       const h = W.serve(s, '/', 'GET').body;
       minLen = Math.min(minLen, h.length);
       const hasRich = h.length >= 12000 && s.items.length >= 12 && s.posts.length >= 8 &&
-        h.includes('hi-grid') && h.includes('Specifications &amp; Comparison Matrix') &&
+        h.includes('hi-grid') && /Specifications &amp; Comparison Matrix|Coverage Desk &amp; Reference Index|Public Services &amp; Directory Index|Featured Channels, Topics &amp; Highlights|Platform Modules &amp; Technical Specifications|Accounts, Benchmarks &amp; Disclosures|Indexed Records &amp; Reference Dossiers/.test(h) &&
         h.includes('Verified Community Feedback') && h.includes('<details') &&
         h.includes('Across the Web');
       const extLinks = [...h.matchAll(/href="https:\/\/([a-z0-9.-]+)\/"/g)].map(m => m[1]).filter(x => x !== s.host && x !== 'search.moundshroud.example');
