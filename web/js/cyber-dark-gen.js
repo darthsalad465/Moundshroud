@@ -96,7 +96,7 @@
     'button{background:' + p.acc + ';border:0;color:' + p.bg + ';padding:9px 15px;font:inherit;font-weight:600;border-radius:6px;cursor:pointer}' +
     'code,pre,kbd{font-family:"JetBrains Mono",Consolas,monospace}' +
     '.muted{color:' + p.mute + '}.small{font-size:12px}.tag{display:inline-block;padding:2px 7px;border:1px solid ' + p.line + ';border-radius:999px;font-size:11px;color:' + p.mute + '}' +
-    /* the shoddy and broken tiers never styled these, so a hero's links ran together as one word */ +
+    /* the shoddy and broken tiers never styled these, so a hero's links ran together as one word */
     '.btnrow a{display:inline-block;margin:4px 10px 4px 0}.card{margin:6px 0}.card h3{margin:0 0 2px}';
 
   const tierCss = (tier, p) => {
