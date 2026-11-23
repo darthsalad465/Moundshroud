@@ -410,7 +410,7 @@
       const a = w.join(' ');
       const g = {};
       g.help = () => G.formatHelp('git', a);
-      g.init = () => { S = seed(); return 'Initialized empty Git repository in C:/Users/dev/project/.git/'; };
+      g.init = () => { S = seed(); return 'Initialized empty Git repository in C:/Users/user/project/.git/'; };
       g.status = () => {
         const lines = ['On branch ' + S.branch];
         if (!S.commits.length) lines.push('', 'No commits yet');
@@ -540,7 +540,7 @@
       g['ls-tree'] = () => Object.keys(S.files).map(f => '100644 blob 4b825dc\t' + f).join('\n');
       g['cat-file'] = () => S.commits.length ? 'tree 4b825dc\nauthor dev <dev@dev-box>\n\n' + S.commits[S.commits.length - 1].msg : 'commit object';
       g.archive = () => '(created git archive)';
-      g.worktree = () => 'C:/Users/dev/project  ' + (branchCommits().slice(-1)[0] || '0000000') + ' [' + S.branch + ']';
+      g.worktree = () => 'C:/Users/user/project  ' + (branchCommits().slice(-1)[0] || '0000000') + ' [' + S.branch + ']';
       g.submodule = () => '(no submodules configured)';
       g.apply = () => '(patch applied cleanly)';
       g.am = () => '(mailbox patch applied)';
@@ -589,7 +589,7 @@
       g.stripspace = () => '(text passed through with repeated blank lines removed)';
       g.replace = () => '';
       g['range-diff'] = () => '1: 0000000 = 1: 0000000 ' + ((S.commits.slice(-1)[0] || {}).msg || 'commit');
-      g['request-pull'] = () => 'The following changes since commit ' + (branchCommits()[0] || '0000000') + ':\n\n  ' + ((S.commits.slice(-1)[0] || {}).msg || 'work') + '\n\nare available in the Git repository at:\n\n  ' + (S.remote || 'C:/Users/dev/project') + '\n';
+      g['request-pull'] = () => 'The following changes since commit ' + (branchCommits()[0] || '0000000') + ':\n\n  ' + ((S.commits.slice(-1)[0] || {}).msg || 'work') + '\n\nare available in the Git repository at:\n\n  ' + (S.remote || 'C:/Users/user/project') + '\n';
       g['send-email'] = () => '(the sandbox writes the patch to a file instead of sending mail)';
       g['sparse-checkout'] = () => 'sparse-checkout: no patterns set';
       g.difftool = () => 'no diff tool is configured for the sandbox — compare the output of git diff instead';

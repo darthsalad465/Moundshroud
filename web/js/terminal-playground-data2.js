@@ -544,7 +544,7 @@
       about: 'A PowerShell prompt on a simulated Windows box. Objects flow through the pipeline, so Select-Object, Sort-Object and Measure-Object do real work on real result sets.',
       prompt: () => 'PS ' + showPath() + '> ',
       cwdPath: showPath,
-      rootPath: 'C:/Users/moundshroud',
+      rootPath: 'C:/Users/user',
       run,
       /* Every cmdlet this PowerShell answers to, and every short name it accepts for one, so the help window lists
          the whole shell even for cmdlets nobody wrote a page for. */
@@ -945,7 +945,7 @@
       about: 'The old Windows command prompt on a simulated disk: dir, type, findstr, tasklist, netstat and the rest of the batch-era toolbox.',
       prompt: () => showPath() + '>',
       cwdPath: showPath,
-      rootPath: 'C:/Users/moundshroud',
+      rootPath: 'C:/Users/user',
       run,
       /* the batch-era names this prompt answers to, including the older spellings of its own commands */
       commandNames: () => Object.keys(C),
