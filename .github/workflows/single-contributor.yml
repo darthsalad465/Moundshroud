@@ -1,0 +1,92 @@
+name: Sole contributor
+
+# GitHub puts a name on the repository's contributor list for every author name or email, and every
+# "Co-Authored-By:" trailer, that appears on a commit. One machine-made or borrowed commit is therefore enough to
+# put a second person on the front page, which is what happened here.
+#
+# The history has since been rewritten to darthsalad465: main, every branch and every tag now hold commits whose
+# author and committer are darthsalad465 <322924254+darthsalad465@users.noreply.github.com>, and no commit message
+# keeps a co-author or generated-with trailer. A fresh clone of the repository contains no other identity, and
+# https://api.github.com/repos/darthsalad465/Moundshroud/contributors lists darthsalad465 alone. GitHub's page can
+# keep showing the older list until its own contributor cache is recomputed, which a push to main triggers.
+#
+# This job is the guard that keeps it that way, not a one-off rewrite: it normally finds nothing and says so. When a
+# push does bring in a foreign author, committer or trailer, it rewrites them to the owner and force-pushes the
+# rewritten refs. Branches and tags are both pushed: a rewritten tag left behind on GitHub keeps the old foreign
+# commits reachable, which is enough for them to be counted again.
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sole-contributor
+  cancel-in-progress: false
+
+jobs:
+  normalize:
+    name: Make darthsalad465 the sole contributor
+    if: github.repository_owner == 'darthsalad465'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the whole history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Confirm or restore the single-owner history
+        shell: bash
+        env:
+          OWNER_NAME: darthsalad465
+          OWNER_EMAIL: 322924254+darthsalad465@users.noreply.github.com
+        run: |
+          set -euo pipefail
+          git config user.name "$OWNER_NAME"
+          git config user.email "$OWNER_EMAIL"
+
+          # A push-triggered checkout only has the pushed branch. Mirror every branch on the remote locally so the
+          # check, the rewrite and the push below cover all of them, not just the one that triggered the run.
+          for remote_ref in $(git for-each-ref --format='%(refname:short)' refs/remotes | grep -vE '^(origin|origin/HEAD)$' || true); do
+            branch="${remote_ref#origin/}"
+            git show-ref --verify --quiet "refs/heads/$branch" || git branch "$branch" "$remote_ref"
+          done
+
+          # Every local branch and tag is examined, which is exactly the set that gets rewritten and pushed below.
+          need=0
+          while IFS=$'\t' read -r name mail; do
+            [ "$name" = "$OWNER_NAME" ] && [ "$mail" = "$OWNER_EMAIL" ] || need=1
+          done < <(git log --branches --tags --format='%an%x09%ae')
+          if git log --branches --tags --format='%B' | grep -qiE '^(co-authored-by:|generated with codebuff)'; then need=1; fi
+
+          if [ "$need" -eq 0 ]; then
+            echo "History already belongs to $OWNER_NAME alone; nothing was rewritten."
+            exit 0
+          fi
+
+          # Rewrite only local refs, never origin/*, so the lease below still compares against what is on GitHub.
+          FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch -f \
+            --env-filter "export GIT_AUTHOR_NAME='$OWNER_NAME'; export GIT_AUTHOR_EMAIL='$OWNER_EMAIL'; export GIT_COMMITTER_NAME='$OWNER_NAME'; export GIT_COMMITTER_EMAIL='$OWNER_EMAIL'" \
+            --msg-filter "grep -viE '^(co-authored-by:|generated with codebuff)' || printf 'Update\\n'" \
+            --tag-name-filter cat \
+            -- --branches --tags
+          git for-each-ref --format='%(refname)' refs/original | xargs -r -n1 git update-ref -d
+
+          # A push-triggered checkout is detached; give the push below a local branch to name.
+          if [ -z "$(git for-each-ref --format='%(refname)' refs/heads)" ]; then
+            git branch "sole-contributor" HEAD
+          fi
+
+          for branch in $(git for-each-ref --format='%(refname:short)' refs/heads); do
+            echo "Pushing rewritten branch $branch"
+            git push --force-with-lease origin "refs/heads/$branch:refs/heads/$branch"
+          done
+          for tag in $(git for-each-ref --format='%(refname:short)' refs/tags); do
+            echo "Pushing rewritten tag $tag"
+            git push --force origin "refs/tags/$tag:refs/tags/$tag"
+          done
+          echo "Every ref now belongs to $OWNER_NAME alone."
