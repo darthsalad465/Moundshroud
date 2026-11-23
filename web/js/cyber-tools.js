@@ -118,6 +118,40 @@
       how: 'Type any text. This runs on your PC and sends nothing anywhere.', ex: 'hello'
     },
     {
+      id: 'secrets', icon: '🔑', name: 'Secret scanner', line: 'Sweeps your own files for keys, tokens and private keys.',
+      inputs: [{ k: 'path', ph: 'a folder or file inside Moundshroud', label: 'Folder or file to scan', val: 'web/js' }], ep: 'secrets',
+      show: r => r.error ? '<div class="ct-bad">' + esc(r.error) + '</div>' : '<div class="small mute" style="margin-bottom:6px">' + esc(r.scanned || 0) + ' files scanned' + (r.path ? ' in ' + esc(r.path) : '') + '. ' +
+        ((r.findings || []).length ? '<span class="ct-bad">' + r.findings.length + ' possible secret' + (r.findings.length === 1 ? '' : 's') + '</span>' : '<span class="ct-ok">nothing that looks like a secret</span>') +
+        (r.truncated ? ' (stopped at 300 hits)' : '') + '</div>' +
+        ((r.findings || []).length ? '<table class="ct-tbl"><tr><th>File</th><th>Line</th><th>What it looks like</th><th>Masked</th></tr>' +
+          r.findings.slice(0, 120).map(f => '<tr><td class="ct-mono small">' + esc(f.file) + '</td><td>' + esc(f.line) + '</td><td>' + esc(f.rule) + '</td><td class="ct-mono">' + esc(f.preview) + '</td></tr>').join('') + '</table>' +
+          (r.findings.length > 120 ? '<div class="small mute" style="margin-top:4px">…and ' + (r.findings.length - 120) + ' more</div>' : '') : '') +
+        '<div class="small mute" style="margin-top:8px">' + esc(r.note || '') + '</div>',
+      why: 'A leaked API key is one of the most common real findings: it ships in a script, a config file, a test fixture or a committed .env, and anyone who reads the file can spend the owner’s money. This scanner knows the fingerprints of the usual families (AWS, GitHub, Slack, Google, Stripe, OpenAI, private key blocks, JWTs) and also flags long random-looking strings, which is how the tools in the awesome-secret-scanning lists (gitleaks, trufflehog) work.',
+      how: 'Name a folder or file inside Moundshroud and press Run. Everything is read from this PC only, each hit is masked, and nothing is sent anywhere. Treat a hit as a lead: a key can be a test value or public by design, and a real leak must be rotated, not just deleted.',
+      ex: 'web/js'
+    },
+    {
+      id: 'strings', icon: '🔤', name: 'strings', line: 'Readable text hidden inside any file or binary.',
+      inputs: [{ k: 'path', ph: 'a file inside Moundshroud', label: 'File', val: 'web/moundshroud.ico' }, { k: 'min', ph: '6', label: 'Shortest run of text to show (3-20)', val: '6' }], ep: 'strings',
+      show: r => r.error ? '<div class="ct-bad">' + esc(r.error) + '</div>' : '<div class="small mute" style="margin-bottom:6px">' + esc(r.file) + ' · ' + esc(r.bytes) + ' bytes · ' + esc(r.count) + ' runs of at least ' + esc(r.min) + ' characters' + (r.truncated ? ' (stopped at 500)' : '') + '</div>' +
+        ((r.strings || []).length ? '<pre class="ct-pre">' + esc((r.strings || []).join('\n')) + '</pre>' : '<div class="mute">No readable text found.</div>') +
+        '<div class="small mute" style="margin-top:8px">' + esc(r.note || '') + '</div>',
+      why: 'A file is not only what its extension says. Version banners, file paths, URLs, usernames and leftover build secrets all sit in plain text inside binaries, pictures and archives. Extracting the readable runs is how you learn what something really is, and it is the same idea as the strings command every tester has.',
+      how: 'Name a file inside Moundshroud (a picture, a binary, an archive) and press Run. It reads the first 4 MB of your own file and sends nothing anywhere.',
+      ex: 'web/moundshroud.ico'
+    },
+    {
+      id: 'hashdir', icon: '🧾', name: 'File checksums', line: 'A SHA-256 fingerprint of every file in a folder.',
+      inputs: [{ k: 'path', ph: 'a folder inside Moundshroud', label: 'Folder or file', val: 'web/js' }], ep: 'hashdir',
+      show: r => r.error ? '<div class="ct-bad">' + esc(r.error) + '</div>' : '<div class="small mute" style="margin-bottom:6px">' + esc(r.path) + ' · ' + (r.files || []).length + ' files</div>' +
+        ((r.files || []).length ? '<table class="ct-tbl"><tr><th>File</th><th>Size</th><th>SHA-256</th></tr>' + r.files.slice(0, 200).map(f => '<tr><td class="ct-mono small">' + esc(f.file) + '</td><td>' + esc(f.bytes) + '</td><td class="ct-mono small" style="word-break:break-all">' + esc(f.sha256) + '</td></tr>').join('') + '</table>' + (r.files.length > 200 ? '<div class="small mute" style="margin-top:4px">…and ' + (r.files.length - 200) + ' more</div>' : '') : '<div class="mute">No files found.</div>') +
+        '<div class="small mute" style="margin-top:8px">' + esc(r.note || '') + '</div>',
+      why: 'A checksum turns a file into a short fingerprint: change one byte and the fingerprint changes completely. Testers use a manifest to prove a download is the file they checked, and defenders use it to notice that something on disk was swapped. This is what sha256sum and signed build manifests do.',
+      how: 'Name a folder inside Moundshroud and press Run. Every byte is your own file, read locally; nothing is uploaded.',
+      ex: 'web/js'
+    },
+    {
       id: 'connections', icon: '🔌', name: 'Live connections', line: 'Who your PC is talking to right now, and which program. No internet needed.',
       inputs: [], ep: 'connections', get: 1,
       show: r => (r.connections || []).length ? '<table class="ct-tbl"><tr><th>Program</th><th>This PC</th><th>Talking to</th><th>State</th></tr>' + r.connections.map(c => '<tr><td>' + esc(c.program || '?') + '</td><td class="ct-mono">' + esc(c.local) + '</td><td class="ct-mono">' + esc(c.remote || '—') + '</td><td class="small mute">' + esc(c.state) + '</td></tr>').join('') + '</table><div class="small mute" style="margin-top:8px">' + esc(r.note || '') + '</div>' : '<div class="mute">' + esc(r.note || 'None.') + '</div>',

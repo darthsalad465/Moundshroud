@@ -79,7 +79,7 @@ async function run(ok) {
     const t = text();
     ok('mcode terminal: non-visual commands answer in the terminal',
       /Autonomy · careful/.test(t) && /Reasoning hidden/.test(t) && /OpenWhip on/.test(t) && /Theme · ocean/.test(t) &&
-      /Accent · #112233/.test(t) && /sandbox \/ Bash/.test(t) && /simulated terminal only/.test(t) && /Plan text/.test(t) &&
+      /Accent · #112233/.test(t) && /sandbox \/ Bash/.test(t) && /This simulated terminal and its invented targets only/.test(t) && /Plan text/.test(t) &&
       /New conversation/.test(t) && /Nothing is running/.test(t) && /Local model · other:7b/.test(t) &&
       /AI models this PC can run/.test(t) && !/free-auto/.test(t) && /autonomy careful · reasoning off · whip on · model other:7b/.test(t), t);
     ok('mcode terminal: /color changes the prompt colour', h.color() === '#112233');
@@ -152,38 +152,51 @@ async function run(ok) {
       /Step 4 skipped · job submit/.test(r.text()) && /Answer · FLAG-42/.test(r.text()), r.ran.concat(r.text()));
   }
 
-  /* /code <task> ends on ANSWER in free play */
+  /* /chat and /code are modes: each stays in force until the other command is typed */
   {
-    const r = rig(['Ask me to count them.', 'THINK: check\nRUN: ls', 'THINK: two files listed\nANSWER: 2 files'], { task: '' });
+    const r = rig(['Two files, listed.', 'Two files, still in chat mode.',
+      'THINK: list the files\nRUN: ls', 'THINK: two files\nANSWER: 2 files',
+      'THINK: list them again\nRUN: ls', 'THINK: two again\nANSWER: 2 files again'], { task: '' });
     r.h.run('mcode');
-    r.h.run('/code');
-    const idle = /Code mode/.test(r.text()) && r.calls.length === 0;
+    r.h.run('/chat');
     r.h.run('how many files are here?');
     await tick(8);
-    const questionOnly = r.ran.length === 0 && r.calls.length === 1 && /Ask me to count/.test(r.text());
-    r.h.run('Please count the files.');
-    await tick(12);
-    ok('mcode terminal: /code answers questions until the player explicitly requests a task',
-      idle && questionOnly && r.ran.join() === 'ls' && /Answer · 2 files/.test(r.text()) && r.h.prompt() === 'mcode(code)> ', r.text());
-  }
-  {
-    const r = rig(['RUN: ls', 'RUN: ls', 'RUN: ls', 'ANSWER: FLAG-42']);
+    const chatStuck = r.ran.length === 0 && r.calls.length === 1 && r.h.prompt() === 'mcode(chat)> ';
+    r.h.run('count the files in the shell for me');
+    await tick(8);
+    const chatStayed = r.ran.length === 0 && r.calls.length === 2 && r.h.prompt() === 'mcode(chat)> ';
     r.h.run('/code');
     await tick();
-    const idle = r.calls.length === 0;
-    r.h.run('/code how do I solve this puzzle?');
-    await tick();
-    r.h.run('Do you know how to find the key?');
+    const codeIdle = r.calls.length === 2 && /Every plain line is worked on/.test(r.text()) && r.h.prompt() === 'mcode(code)> ';
+    r.h.run('how many files are here?');
+    await tick(20);
+    const codeWorked = r.ran.join() === 'ls' && /Answer · 2 files/.test(r.text()) && r.h.prompt() === 'mcode(code)> ';
+    r.h.run('count them again');
+    await tick(20);
+    ok('mcode terminal: /chat and /code stay in force until the other command is typed',
+      chatStuck && chatStayed && codeIdle && codeWorked && r.ran.length === 2 && r.ran.every(command => command === 'ls') &&
+      /Answer · 2 files again/.test(r.text()) && r.h.prompt() === 'mcode(code)> ',
+      { chatStuck, chatStayed, codeIdle, codeWorked, ran: r.ran, calls: r.calls.length, prompt: r.h.prompt(), text: r.text() });
+  }
+  {
+    /* Asking whether mcode can do something is a question, not a task, in either mode. */
+    const r = rig(['You can run commands here.']);
+    r.h.run('/code');
     await tick();
     r.h.run('Can you run commands in code mode?');
-    await tick();
-    const questions = r.calls.length === 3 && r.ran.length === 0;
-    r.h.run('Could you please solve this puzzle?');
-    await tick();
-    ok('mcode terminal: even an active objective waits for explicit authorization',
-      idle && questions && r.calls.length === 4 && r.ran.length === 0 &&
-      r.calls[3].messages.some(message => message.content === 'Task:\nFind the flag file') &&
-      /Answer · FLAG-42/.test(r.text()), r.text());
+    await tick(8);
+    ok('mcode terminal: a capability question is answered as a chat reply even in code mode',
+      r.calls.length === 1 && r.ran.length === 0 && /You can run commands here/.test(r.text()) &&
+      r.h.prompt() === 'mcode(code)> ', r.text());
+  }
+  {
+    /* An active objective is still worked only when the line asks for it, and mcode never submits it. */
+    const r = rig(['THINK: read the flag\nRUN: cat flag.txt', 'THINK: found it\nANSWER: FLAG-42']);
+    r.h.run('/code solve this puzzle');
+    await tick(20);
+    ok('mcode terminal: "solve this puzzle" in code mode works the objective and leaves submission with the player',
+      r.calls[0].messages.some(message => message.content === 'Task:\nFind the flag file') &&
+      r.ran.join() === 'cat flag.txt' && /Answer · FLAG-42/.test(r.text()) && r.h.prompt() === 'mcode(code)> ', r.text());
   }
 
   /* Ctrl+C and the step cap */
@@ -199,6 +212,27 @@ async function run(ok) {
     cap.h.run('/code inspect repeatedly');
     await tick(80);
     ok('mcode terminal: /code stops at 12 steps', cap.ran.length === 12 && /Stopped after 12 steps/.test(cap.text()), cap.ran.length);
+
+    /* Unlimited mode (used in moundshell): works past 12 steps until solved or Ctrl+C */
+    const unlim = rig((msgs, n) => n < 18 ? 'THINK: step ' + n + '\nRUN: ls' : 'THINK: solved\nANSWER: SOLVED-AT-18', { extra: { maxSteps: Infinity } });
+    unlim.h.run('/code solve long problem');
+    await tick(140);
+    const maxMsgLen = Math.max(...unlim.calls.map(c => c.messages.length));
+    ok('mcode moundshell: unlimited /code works past 12 steps until solved and bounds context',
+      unlim.ran.length === 17 && /Working with local-test:latest until solved/.test(unlim.text()) &&
+      /Answer · SOLVED-AT-18/.test(unlim.text()) && !/Stopped after 12 steps/.test(unlim.text()) && maxMsgLen <= 27,
+      { ran: unlim.ran.length, maxMsgLen });
+
+    const unlimStop = rig((msgs, n) => n < 16 ? 'THINK: step ' + n + '\nRUN: ls' : 'hang', { extra: { maxSteps: Infinity } });
+    unlimStop.h.run('/code keep going');
+    await tick(120);
+    const busyPast12 = unlimStop.h.busy() && unlimStop.ran.length === 15;
+    const stoppedPast12 = unlimStop.h.interrupt();
+    await tick();
+    const appShellSrc = fs.readFileSync(path.join(__dirname, '..', 'web', 'js', 'app-shell.js'), 'utf8');
+    ok('mcode moundshell: unlimited /code runs past 12 steps until Ctrl+C stops it and moundshell enables it',
+      busyPast12 && stoppedPast12 && !unlimStop.h.busy() && /\^C Stopped/.test(unlimStop.text()) && /maxSteps:\s*Infinity/.test(appShellSrc),
+      { ran: unlimStop.ran.length, busyPast12, stoppedPast12 });
   }
 
   /* careful autonomy asks before each command */
@@ -368,6 +402,75 @@ async function run(ok) {
     c.h.run('/whip on');
     c.h.run('/exit');
     ok('mcode whip: leaving mcode puts the whip away', !c.h.whipping() && cursor.crack === null);
+  }
+
+  /* /chat in a shell that can look things up (the moundshell): the model is handed real paths, and nothing runs. */
+  {
+    const asked = [];
+    const r = rig(['The file is at web/js/core.js.'], { extra: {
+      instructions: 'Shell chat brief.',
+      lookup: async question => {
+        asked.push(question);
+        if (!/core/.test(question)) return null;
+        return { note: 'In this shell: web/js/core.js', context: 'Paths matching "core" (relative to ~/app):\n  web/js/core.js' };
+      }
+    } });
+    r.h.run('/chat');
+    r.h.run('find core.js');
+    await tick(10);
+    const messages = r.calls[0]?.messages || [];
+    ok('mcode shell chat: /chat looks the app up and gives the reply the real paths',
+      r.calls.length === 1 && r.ran.length === 0 && asked.join() === 'find core.js' &&
+      /In this shell: web\/js\/core\.js/.test(r.text()) && messages[0].content === 'Shell chat brief.' &&
+      messages.some(m => m.role === 'user' && m.content.includes('web/js/core.js')) &&
+      messages[messages.length - 1].content === 'find core.js', r.text());
+    const plain = rig(['It makes a file executable.']);
+    plain.h.run('what does chmod +x do');
+    await tick(6);
+    ok('mcode shell chat: a question with nothing to look up still reaches the model', plain.calls.length === 1 && !plain.ran.length);
+  }
+
+  /* "use the terminal to ..." is a task, not a question, even in code mode */
+  {
+    const r = rig(['THINK: write it\nRUN: echo hi > note.txt', 'ANSWER: wrote it']);
+    r.h.run('/code');
+    r.h.run('use the terminal to write a note');
+    await tick(20);
+    ok('mcode shell chat: "use the terminal to ..." starts a /code turn in this shell',
+      r.ran.join() === 'echo hi > note.txt' && /Answer · wrote it/.test(r.text()), r.text());
+  }
+
+  /* A turn always replies: a model that cannot answer hands over to another installed local model */
+  {
+    const tried = [];
+    const service = {
+      localModel: async () => 'missing:7b',
+      stream: (messages, onText, signal, options) => {
+        tried.push(options.model);
+        if (options.model === 'missing:7b') return Promise.reject(new Error('model not found'));
+        onText?.('The answer is 42.');
+        return Promise.resolve('The answer is 42.');
+      }
+    };
+    const r = rig([], { extra: { ai: () => service, models: async () => ['missing:7b', 'good:8b'] } });
+    r.h.run('/chat');
+    r.h.run('what is six times seven');
+    await tick(10);
+    ok('mcode chat: a model that cannot answer falls back to another installed local model, so the turn still replies',
+      tried.join() === 'missing:7b,good:8b' && /The answer is 42\./.test(r.text()) && !/Local chat failed/.test(r.text()) &&
+      r.h.prompt() === 'mcode(chat)> ', { tried, text: r.text() });
+  }
+  {
+    const r = rig([], { extra: {
+      ai: () => ({ localModel: async () => 'missing:7b', stream: () => Promise.reject(new Error('Local chat unavailable')) }),
+      models: async () => ['missing:7b']
+    } });
+    r.h.run('/chat');
+    r.h.run('hello');
+    await tick(10);
+    ok('mcode chat: when no model can answer the turn still replies with the reason and the next step',
+      /could not answer/.test(r.text()) && /\/model/.test(r.text()) && !/Ask a question, or \/code <task> to let mcode work/.test(r.text()) &&
+      r.h.prompt() === 'mcode(chat)> ', r.text());
   }
 
   /* The harness is a text engine: it may only use the callbacks the terminal hands it (write, shell, ai, models,

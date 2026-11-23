@@ -1,0 +1,612 @@
+/* System looks (web/js/os-shell.js, "System look"). Each class paints Moundshroud's window, title bar, taskbar and
+   Start menu in the manner of a desktop era or an open-source desktop: the same pieces, the same behaviour
+   (full-screen maximise, dragging, resizing, icons, pinned apps), in that desktop's colours and shapes. Everything is
+   scoped to html.os.ost-*, so a look is only ever a skin and turning the desktop look off leaves nothing behind.
+   Every name here is Moundshroud's own, the drawings are its own, and no company is behind them or endorses them. */
+
+/* ---------- Moundshroud's own mark, on every look ----------
+   The Start button and the top row of the Start menu carry the app's own logo (web/logo.svg), which is Moundshroud's
+   M and crown. Each look gives it its own size, shape and framing below, so the mark belongs to the skin instead of
+   being pasted on top of it. No other company's flag is drawn anywhere. */
+html.os #osstart .osi-ic{
+  width:22px;height:22px;border:0;border-radius:6px;box-shadow:none;
+  background:url("/web/logo.svg") center/contain no-repeat}
+html.os #osstart .osi-ic > *{display:none}
+html.os #osmenu .osm-hd{display:flex;align-items:center;gap:9px}
+html.os #osmenu .osm-hd::before{
+  content:"";flex:none;width:22px;height:22px;border-radius:6px;
+  background:url("/web/logo.svg") center/contain no-repeat}
+html.os #osmenu .osm-hd input{flex:1;min-width:0;width:auto}
+
+/* =====================================================================
+   Grey Box / Grey Gradient / Slate Blue / Millennia: grey, square, and every edge bevelled
+   ===================================================================== */
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia){
+  --ost-face:#c0c0c0;--ost-hi:#ffffff;--ost-lo:#808080;--ost-ink:#000000;
+  font-family:"Tahoma","MS Sans Serif",Verdana,sans-serif}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) #oswin{
+  border:2px solid;border-color:#dfdfdf #000 #000 #dfdfdf;border-radius:0;
+  box-shadow:3px 3px 0 rgba(0,0,0,.38)}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) #oswbar{
+  height:26px;padding:1px 2px;gap:2px;background:var(--ost-face);border:0;border-bottom:1px solid var(--ost-lo);color:var(--ost-ink);backdrop-filter:none}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) #ostitle{
+  color:#fff;font:700 11.5px/1 "Tahoma",sans-serif;padding:0 3px;background:#000080}
+html.os.ost-greybox #ostitle{background:#000080}
+html.os.ost-greygrad #ostitle{background:linear-gradient(90deg,#000080,#1084d0)}
+html.os.ost-slateblue #ostitle{background:linear-gradient(90deg,#0a246a,#a6caf0);color:#fff}
+html.os.ost-millennia #ostitle{background:linear-gradient(90deg,#0054e3,#4a9cff)}
+
+/* the four grey looks share a frame but not a habit: each one below has its own icons, bar and Start menu */
+
+/* ---- Grey Box: square icons, navy label selection, no rounding anywhere, a 1995 density ---- */
+html.os.ost-greybox .osi{border-radius:0;gap:4px}
+html.os.ost-greybox .osi:hover,html.os.ost-greybox .osi.on{border-radius:0;background:transparent;border-color:transparent}
+html.os.ost-greybox .osi b{padding:1px 3px;text-shadow:none}
+html.os.ost-greybox .osi.sel{background:transparent;border-color:transparent}
+html.os.ost-greybox .osi.sel b{background:#000080;color:#fff}
+html.os.ost-greybox .osi-ic{border-radius:1px;box-shadow:inset -1px -1px 0 rgba(0,0,0,.5)}
+html.os.ost-greybox #osstart .osi-ic{width:16px;height:16px;border-radius:1px}
+html.os.ost-greybox #osmenu .osm-hd{padding:5px 6px}
+html.os.ost-greybox #osmenu .osm-hd::before{width:16px;height:16px;border-radius:1px}
+html.os.ost-greybox #osmenu .osm-it .osi-ic{width:18px;height:18px}
+html.os.ost-greybox #oswbar{height:23px}
+html.os.ost-greybox #osfold,html.os.ost-greybox #ostoday{border-radius:0;border-color:#000;box-shadow:3px 3px 0 rgba(0,0,0,.38)}
+
+/* ---- Grey Gradient: the same years, one step on: a gradient banner over its Start menu and gradient window buttons ---- */
+html.os.ost-greygrad .osi{border-radius:0}
+html.os.ost-greygrad .osi:hover,html.os.ost-greygrad .osi.on{background:transparent;border-color:transparent;border-radius:0}
+html.os.ost-greygrad .osi b{padding:1px 3px;text-shadow:none}
+html.os.ost-greygrad .osi.sel{background:transparent;border-color:transparent}
+html.os.ost-greygrad .osi.sel b{background:#000080;color:#fff}
+html.os.ost-greygrad .osi-ic{border-radius:2px}
+html.os.ost-greygrad #osstart .osi-ic{width:16px;height:16px;border-radius:2px}
+html.os.ost-greygrad #oswctl button{border-radius:0}
+html.os.ost-greygrad #osmenu .osm-hd{
+  background:linear-gradient(90deg,#1084d0,#000080);padding:8px 9px;border-bottom:1px solid #000}
+html.os.ost-greygrad #osmenu .osm-hd::before{width:28px;height:28px;border-radius:3px}
+
+/* ---- Slate Blue: a blue frame around a grey window, a thinner title bar and a silver gradient bar ---- */
+html.os.ost-slateblue #oswin{border:3px solid #0a246a;border-radius:0;box-shadow:4px 4px 0 rgba(0,0,0,.32)}
+html.os.ost-slateblue #oswbar{height:23px;padding:1px 3px;background:#c0c0c0;border-bottom:1px solid #808080}
+html.os.ost-slateblue #ostitle{font:700 11px/1 "Tahoma",sans-serif;padding:0 4px}
+html.os.ost-slateblue #oswctl button{width:18px;height:16px}
+html.os.ost-slateblue #osbar{
+  height:30px;background:linear-gradient(180deg,#e6e6e6,#c8c8c8 55%,#b0b0b0);border-top:1px solid #dfdfdf}
+html.os.ost-slateblue .osi{border-radius:0}
+html.os.ost-slateblue .osi:hover,html.os.ost-slateblue .osi.on{background:transparent;border-color:transparent;border-radius:0}
+html.os.ost-slateblue .osi b{padding:1px 3px;text-shadow:none}
+html.os.ost-slateblue .osi.sel b{background:#0a246a;color:#fff}
+html.os.ost-slateblue .osi-ic{border-radius:2px}
+html.os.ost-slateblue #osstart .osi-ic{width:16px;height:16px;border-radius:1px}
+html.os.ost-slateblue #osmenu .osm-hd{background:linear-gradient(180deg,#0a246a,#a6caf0);padding:8px 9px}
+html.os.ost-slateblue #osmenu .osm-hd::before{width:24px;height:24px;border-radius:2px}
+
+/* ---- Millennia: the rounded, blue-buttoned grey look: a blue frame, a taller bar and a blue Start ---- */
+html.os.ost-millennia #oswin{border:2px solid #0054e3;border-radius:8px 8px 0 0;box-shadow:0 8px 26px rgba(0,0,0,.45)}
+html.os.ost-millennia #oswbar{
+  height:30px;padding:0 4px 0 6px;background:linear-gradient(180deg,#f6f6f6,#c9c9c9);border-bottom:1px solid #8a8a8a}
+html.os.ost-millennia #ostitle{font:700 12px/1 "Tahoma",sans-serif;padding:0 6px}
+html.os.ost-millennia #oswctl button{width:20px;height:18px;border-radius:3px;background:linear-gradient(180deg,#fff,#cfcfcf)}
+html.os.ost-millennia #osbar{
+  height:34px;background:linear-gradient(180deg,#f7f7f7,#c9c9c9 52%,#a8a8a8);border-top:1px solid #fff}
+html.os.ost-millennia #osstart{
+  background:linear-gradient(180deg,#4a9cff,#0054e3 60%,#0040b0);color:#fff;border:1px solid #003a9c;
+  border-radius:4px;padding:0 9px;text-shadow:1px 1px 1px #00277a}
+html.os.ost-millennia .osb{border-radius:4px}
+html.os.ost-millennia .osi{border-radius:4px}
+html.os.ost-millennia .osi-ic{border-radius:5px}
+html.os.ost-millennia .osi b{text-shadow:none}
+html.os.ost-millennia .osi.sel b{background:#0054e3;color:#fff}
+html.os.ost-millennia #osstart .osi-ic{width:18px;height:18px;border-radius:2px}
+html.os.ost-millennia #osmenu .osm-hd{
+  background:linear-gradient(180deg,#4a9cff,#0054e3);padding:9px 10px;border-radius:6px 6px 0 0}
+html.os.ost-millennia #osmenu .osm-hd::before{width:26px;height:26px;border-radius:4px}
+
+/* ---- Sky Blue: square icons, a two-column Start menu under a blue banner and a green Start ---- */
+html.os.ost-skyblue .osi{border-radius:2px}
+html.os.ost-skyblue .osi-ic{border-radius:3px}
+html.os.ost-skyblue .osi b{text-shadow:0 1px 3px rgba(0,0,0,.95)}
+html.os.ost-skyblue .osi.sel b{background:#316ac5;color:#fff}
+html.os.ost-skyblue #osstart .osi-ic{width:19px;height:19px;border-radius:1px}
+html.os.ost-skyblue #osmenu .osm-hd{
+  background:linear-gradient(180deg,#0997ff,#0053ee);padding:9px 10px;border-radius:7px 7px 0 0}
+html.os.ost-skyblue #osmenu .osm-hd::before{width:30px;height:30px;border-radius:3px}
+html.os.ost-skyblue #osmenu .osm-list{display:grid;grid-template-columns:1fr 1fr;gap:0 4px;align-content:start}
+html.os.ost-skyblue #osmenu .osm-g{grid-column:1/-1}
+
+/* ---- Black Glass: pill-shaped task buttons, a dark chrome and a dark menu, the mark in the orb ---- */
+html.os.ost-blackglass #oswbar{height:34px;background:linear-gradient(180deg,#232a35,#0b1017);border-bottom:1px solid #000}
+html.os.ost-blackglass #ostitle{color:#e6f0ff}
+html.os.ost-blackglass #osbar{height:38px}
+html.os.ost-blackglass .osb{width:46px;justify-content:center;padding:0;border-radius:999px}
+html.os.ost-blackglass .osb .os-tint svg{width:23px;height:23px}
+html.os.ost-blackglass #osstart{width:52px}
+html.os.ost-blackglass #osstart .osi-ic{width:30px;height:30px;border-radius:50%}
+html.os.ost-blackglass #osshell{width:40px;padding:0}
+html.os.ost-blackglass #osmenu{background:linear-gradient(180deg,rgba(16,22,32,.98),rgba(8,12,20,.98))}
+html.os.ost-blackglass #osmenu .osm-hd{border-bottom:1px solid rgba(150,190,240,.25);padding:10px 11px}
+html.os.ost-blackglass #osmenu .osm-hd::before{width:20px;height:20px;border-radius:50%}
+
+/* ---- Blue Glass: framed task buttons on a taller bar, a light chrome and a blue-tinted menu ---- */
+html.os.ost-blueglass #oswbar{height:30px;background:linear-gradient(180deg,rgba(240,247,255,.98),rgba(206,226,250,.95))}
+html.os.ost-blueglass #ostitle{color:#0b2a4a}
+html.os.ost-blueglass #osbar{height:40px;background:linear-gradient(180deg,rgba(64,120,180,.92),rgba(10,32,60,.97))}
+html.os.ost-blueglass .osb{
+  height:calc(100% - 8px);border-radius:2px;border:1px solid rgba(150,195,250,.3);
+  background:rgba(255,255,255,.07);padding:0 9px}
+html.os.ost-blueglass .osb:hover{background:rgba(255,255,255,.16)}
+html.os.ost-blueglass .osb.on{
+  background:rgba(120,180,255,.32);border-color:rgba(200,225,255,.65);box-shadow:inset 0 0 10px rgba(150,210,255,.5)}
+html.os.ost-blueglass #osstart{width:54px}
+html.os.ost-blueglass #osstart .osi-ic{width:32px;height:32px;border-radius:50%}
+html.os.ost-blueglass #osmenu{
+  background:linear-gradient(180deg,rgba(18,38,64,.98),rgba(8,18,34,.98));border-color:rgba(130,180,245,.6)}
+html.os.ost-blueglass #osmenu .osm-hd::before{width:22px;height:22px;border-radius:5px}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) #ostitle .osi-ic{display:none}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) #oswctl{gap:2px;margin-left:0}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) #oswctl button{
+  width:19px;height:17px;padding:0;border:1px solid;border-color:var(--ost-hi) #000 #000 var(--ost-hi);
+  border-radius:0;background:var(--ost-face);color:#000;font:700 10px/1 "Tahoma",sans-serif}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) #oswctl button:active{border-color:#000 var(--ost-hi) var(--ost-hi) #000}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) #oswctl button[data-w="close"]{margin-left:2px}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) #oswctl button[data-w="close"]:hover{background:#d6d6d6;color:#000}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) #osbar{
+  background:var(--ost-face);border-top:1px solid #dfdfdf;color:#000;padding:2px 3px;gap:2px;backdrop-filter:none}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) #osbar .osb-ic{width:16px;height:16px}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) #osbar .osb-ic svg{width:16px;height:16px}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) .osb{
+  height:calc(100% - 4px);padding:0 6px;gap:4px;
+  border:1px solid;border-color:#fff #000 #000 #fff;border-radius:0;background:var(--ost-face);color:#000;font:500 11.5px/1 "Tahoma",sans-serif}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) .osb:hover{background:#d2d2d2}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) .osb.on{border-color:#000 #fff #fff #000;background:#cfcfcf;box-shadow:inset 1px 1px 0 #969696}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) .osb.on::after{display:none}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) #osstart{
+  background:var(--ost-face);color:#000;border-radius:0;padding:0 5px;
+  border:1px solid;border-color:#fff #000 #000 #fff;font:700 11.5px/1 "Tahoma",sans-serif}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) #osstart:active{border-color:#000 #fff #fff #000}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) #osdeskbtn{
+  width:10px;min-width:10px;border-color:#fff #000 #000 #fff;background:var(--ost-face);border-radius:0}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) #osclock{color:#000;min-width:78px}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) #osmenu{
+  border:2px solid;border-color:#dfdfdf #000 #000 #dfdfdf;border-radius:0;background:var(--ost-face);color:#000;backdrop-filter:none;box-shadow:2px 2px 0 rgba(0,0,0,.35)}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) #osmenu .osm-hd{padding:6px}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) #osmenu input{
+  background:#fff;border:1px solid #808080;border-radius:0;color:#000;font-family:"Tahoma",sans-serif}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) #osmenu .osm-list{padding:2px 4px 6px}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) .osm-g{
+  color:#000080;font:700 10.5px/1.4 "Tahoma",sans-serif;letter-spacing:0}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) .osm-it{color:#000;border-radius:0;padding:4px 5px;font:12px/1.3 "Tahoma",sans-serif}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) .osm-it:hover{background:#000080;color:#fff;border-color:transparent}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) .osm-it .osi-ic{width:20px;height:20px;background:none;border-radius:0}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) #osmenu .osm-ft{background:var(--ost-face);border-top:1px solid #808080;gap:4px;padding:4px}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) #osmenu .osm-ft button,
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) #osfold .osf-hd button{
+  border:1px solid;border-color:#fff #000 #000 #fff;border-radius:0;background:var(--ost-face);color:#000;font-family:"Tahoma",sans-serif}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) #osfold{
+  border:2px solid;border-color:#dfdfdf #000 #000 #dfdfdf;border-radius:0;background:var(--ost-face);color:#000;backdrop-filter:none}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) #osfold .osf-hd{
+  background:#000080;color:#fff;font:700 11.5px/1 "Tahoma",sans-serif;border-radius:0}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) #osfold .osf-it{color:#000;border-radius:0}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) #osfold .osf-it:hover{background:#000080;color:#fff}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) #ostoday{
+  border:2px solid;border-color:#dfdfdf #000 #000 #dfdfdf;border-radius:0;background:var(--ost-face);color:#000;backdrop-filter:none}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) #ostoday .ost-hd{border-color:#808080;background:#000080;color:#fff}
+html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) #ostoday .ost-row{color:#000}
+
+/* =====================================================================
+   Sky Blue: sky blue, rounded top corners, a green Start button
+   ===================================================================== */
+html.os.ost-skyblue{font-family:"Tahoma","Segoe UI",sans-serif}
+html.os.ost-skyblue #oswin{border:3px solid #0831d9;border-radius:8px 8px 0 0;box-shadow:0 12px 44px rgba(0,0,0,.55)}
+html.os.ost-skyblue #oswbar{
+  height:30px;padding:0 3px 0 5px;gap:4px;border-bottom:1px solid #0831d9;
+  background:linear-gradient(180deg,#0058ee 0%,#3593ff 8%,#288eff 40%,#0054e3 88%,#0046d5 100%);
+  color:#fff;backdrop-filter:none}
+html.os.ost-skyblue #ostitle{color:#fff;font:700 13px/1 "Tahoma",sans-serif;text-shadow:1px 1px 1px #00227a;background:none}
+html.os.ost-skyblue #oswctl{gap:2px;margin-left:0}
+html.os.ost-skyblue #oswctl button{
+  width:21px;height:21px;padding:0;border:1px solid #fff;border-radius:3px;
+  background:linear-gradient(180deg,#3f8dff,#1a5fd0 60%,#0a44a8);color:#fff;font:700 10px/1 "Tahoma",sans-serif;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.55)}
+html.os.ost-skyblue #oswctl button:hover{filter:brightness(1.18)}
+html.os.ost-skyblue #oswctl button[data-w="close"]{background:linear-gradient(180deg,#f08a6c,#d4431c 55%,#a62c0d)}
+html.os.ost-skyblue #osbar{
+  background:linear-gradient(180deg,#245edb 0%,#3f8cf3 9%,#245edb 18%,#1941a5 92%,#1941a5 100%);
+  border-top:1px solid #0a246a;color:#fff;backdrop-filter:none;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.35)}
+html.os.ost-skyblue #osstart{
+  background:linear-gradient(180deg,#3f9b3f,#2f8a2f 45%,#1d751d) ;color:#fff;border-radius:0 8px 8px 0;padding:0 16px 0 8px;
+  font:700 13px/1 "Trebuchet MS",Tahoma,sans-serif;font-style:italic;text-shadow:1px 1px 1px #14501a;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.5)}
+html.os.ost-skyblue .osb{height:calc(100% - 6px);border:1px solid transparent;border-radius:3px;color:#fff;font:500 12px/1 Tahoma,sans-serif}
+html.os.ost-skyblue .osb:hover{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.3)}
+html.os.ost-skyblue .osb.on{background:#1c56c9;border-color:#8fb6ff;box-shadow:inset 0 1px 3px rgba(0,0,0,.35)}
+html.os.ost-skyblue #osclock{color:#fff}
+html.os.ost-skyblue #osmenu{
+  border:1px solid #0831d9;border-radius:8px 8px 0 0;background:#fff;color:#111;
+  box-shadow:0 18px 50px rgba(0,0,0,.5)}
+html.os.ost-skyblue #osmenu .osm-hd{background:linear-gradient(180deg,#0997ff,#0053ee);padding:8px;border-radius:7px 7px 0 0}
+html.os.ost-skyblue #osmenu input{background:#fff;border:1px solid #7f9db9;border-radius:2px;color:#111}
+html.os.ost-skyblue .osm-g{color:#0a4bb5;font-weight:700;letter-spacing:0}
+html.os.ost-skyblue .osm-it{color:#111}
+html.os.ost-skyblue .osm-it:hover{background:#316ac5;border-color:#2a5cc0;color:#fff}
+html.os.ost-skyblue #osmenu .osm-ft{background:linear-gradient(180deg,#4276ea,#2a56c6);border-top:2px solid #ffb31a}
+html.os.ost-skyblue #osmenu .osm-ft button{border:1px solid #fff4;background:rgba(255,255,255,.14);color:#fff;border-radius:3px}
+html.os.ost-skyblue #osfold{border:1px solid #0831d9;border-radius:8px 8px 0 0}
+html.os.ost-skyblue #osfold .osf-hd{background:linear-gradient(180deg,#0058ee,#0054e3);color:#fff}
+html.os.ost-skyblue #ostoday{border:1px solid #0831d9;border-radius:8px}
+
+/* =====================================================================
+   Black Glass and Blue Glass: dark translucent glass, a sheen, round-ish shapes
+   ===================================================================== */
+html.os:is(.ost-blackglass,.ost-blueglass){font-family:"Segoe UI",Tahoma,sans-serif}
+html.os:is(.ost-blackglass,.ost-blueglass) #oswin{
+  border:1px solid #6f92bb;border-radius:8px 8px 0 0;
+  box-shadow:0 0 0 1px rgba(255,255,255,.55),0 22px 64px rgba(0,0,0,.66)}
+html.os:is(.ost-blackglass,.ost-blueglass) #oswbar{
+  height:32px;padding:0 4px 0 8px;border-bottom:1px solid #6f92bb;
+  background:linear-gradient(180deg,rgba(238,246,255,.97),rgba(205,225,248,.93) 48%,rgba(176,204,238,.94));
+  color:#0c2543;backdrop-filter:blur(14px) saturate(1.3)}
+html.os:is(.ost-blackglass,.ost-blueglass) #ostitle{color:#0c2543;font:600 12.5px/1 "Segoe UI",sans-serif;text-shadow:0 1px 0 rgba(255,255,255,.75);background:none}
+html.os:is(.ost-blackglass,.ost-blueglass) #oswctl{gap:3px;margin-left:0}
+html.os:is(.ost-blackglass,.ost-blueglass) #oswctl button{
+  width:28px;height:20px;border:1px solid rgba(255,255,255,.65);border-radius:3px;
+  background:linear-gradient(180deg,rgba(255,255,255,.85),rgba(198,220,246,.6));color:#0c2543;font-size:10px;box-shadow:0 1px 2px rgba(0,0,0,.18)}
+html.os:is(.ost-blackglass,.ost-blueglass) #oswctl button:hover{background:linear-gradient(180deg,#fff,rgba(214,233,255,.9))}
+html.os:is(.ost-blackglass,.ost-blueglass) #oswctl button[data-w="close"]{
+  width:42px;background:linear-gradient(180deg,#f2a08a,#cf4a25 60%,#a93412);border-color:#e8927a;color:#fff}
+html.os:is(.ost-blackglass,.ost-blueglass) #osbar{
+  background:linear-gradient(180deg,rgba(52,72,104,.86),rgba(16,26,42,.94));
+  border-top:1px solid rgba(160,196,240,.55);color:#eef4ff;backdrop-filter:blur(20px) saturate(1.4);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.22)}
+html.os:is(.ost-blackglass,.ost-blueglass) .osb{height:calc(100% - 6px);border-radius:4px;color:#eef4ff;border:1px solid transparent}
+html.os:is(.ost-blackglass,.ost-blueglass) .osb:hover{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.28)}
+html.os:is(.ost-blackglass,.ost-blueglass) .osb.on{background:rgba(255,255,255,.24);border-color:rgba(255,255,255,.42);box-shadow:inset 0 0 10px rgba(160,210,255,.4)}
+html.os:is(.ost-blackglass,.ost-blueglass) #osstart{
+  border-radius:50%/42%;width:46px;min-width:46px;justify-content:center;padding:0;
+  background:radial-gradient(circle at 32% 28%,#8fd0ff,#1a6fc4 55%,#083b7a);
+  box-shadow:0 0 0 2px rgba(255,255,255,.32),0 0 14px rgba(90,180,255,.75);border:0}
+html.os:is(.ost-blackglass,.ost-blueglass) #osstart .osb-la{display:none}
+html.os:is(.ost-blackglass,.ost-blueglass) #osmenu{
+  border:1px solid rgba(150,190,240,.55);border-radius:10px;background:rgba(22,32,48,.96);backdrop-filter:blur(20px) saturate(1.4)}
+html.os:is(.ost-blackglass,.ost-blueglass) #osfold{border:1px solid rgba(150,190,240,.55);border-radius:8px 8px 0 0}
+
+/* =====================================================================
+   Flat Tiles: flat surfaces and a full-screen Start
+   ===================================================================== */
+html.os.ost-flattiles{font-family:"Segoe UI",Tahoma,sans-serif}
+html.os.ost-flattiles #oswin{border:1px solid #3a3a3a;border-radius:0;box-shadow:0 18px 50px rgba(0,0,0,.6)}
+html.os.ost-flattiles #oswbar{height:30px;background:#2b2b2b;border:0;border-bottom:1px solid #1a1a1a;color:#fff;backdrop-filter:none}
+html.os.ost-flattiles #ostitle{color:#fff;font:400 12px/1 "Segoe UI",sans-serif;background:none}
+html.os.ost-flattiles #ostitle .osi-ic{display:none}
+html.os.ost-flattiles #oswctl{gap:0;margin-left:0}
+html.os.ost-flattiles #oswctl button{width:44px;height:30px;border:0;border-radius:0;background:transparent;color:#fff;font-size:11px}
+html.os.ost-flattiles #oswctl button:hover{background:#3d3d3d}
+html.os.ost-flattiles #oswctl button[data-w="close"]:hover{background:#e81123}
+html.os.ost-flattiles #osbar{background:#1f1f1f;border-top:1px solid #000;color:#fff;backdrop-filter:none;padding:0}
+html.os.ost-flattiles .osb{height:100%;border-radius:0;border:0;color:#fff;padding:0 12px}
+html.os.ost-flattiles .osb:hover{background:#333}
+html.os.ost-flattiles .osb.on{background:#333;box-shadow:inset 0 -3px 0 var(--os-accent,#8b7cff)}
+html.os.ost-flattiles .osb.on::after{display:none}
+html.os.ost-flattiles #osstart{width:56px;justify-content:center;padding:0}
+html.os.ost-flattiles #osstart .osb-la{display:none}
+html.os.ost-flattiles #osmenu{
+  left:0;right:0;top:0;bottom:0;width:auto;max-width:none;max-height:none;border-radius:0;border:0;
+  background:#1f1f1f;color:#fff;backdrop-filter:none;padding:44px 64px 0}
+html.os.ost-flattiles #osmenu .osm-hd{padding:0 0 22px}
+html.os.ost-flattiles #osmenu input{background:#2b2b2b;border:1px solid #555;border-radius:0;color:#fff}
+html.os.ost-flattiles #osmenu .osm-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;align-content:start;padding:0;overflow:auto}
+html.os.ost-flattiles .osm-g{grid-column:1/-1;margin:12px 0 0;color:#bfbfbf;font:400 13px/1.4 "Segoe UI",sans-serif;letter-spacing:0;text-transform:none}
+html.os.ost-flattiles .osm-it{
+  flex-direction:column;align-items:flex-start;gap:12px;min-height:108px;padding:12px;border:2px solid transparent;
+  background:#2d2d2d;border-radius:0;color:#fff;font:400 13px/1.25 "Segoe UI",sans-serif}
+html.os.ost-flattiles .osm-it:hover{border-color:rgba(255,255,255,.4);background:#3a3a3a}
+html.os.ost-flattiles .osm-it .osi-ic{width:46px;height:46px;font-size:24px}
+html.os.ost-flattiles #osmenu .osm-ft{background:#1a1a1a;border-top:1px solid #000;padding:10px 0}
+html.os.ost-flattiles #ostoday{border-radius:0;border:1px solid #444;background:#242424}
+/* ---- Flat Tiles' own habits: square icons, a square mark, a tile grid that starts under it ---- */
+html.os.ost-flattiles .osi-ic,html.os.ost-flattiles #osstart .osi-ic{border-radius:0}
+html.os.ost-flattiles #osstart .osi-ic{width:22px;height:22px}
+html.os.ost-flattiles .osi b{text-shadow:none}
+html.os.ost-flattiles .osi.sel b{background:#0078d4;color:#fff}
+html.os.ost-flattiles #osmenu .osm-hd{padding:0 0 16px}
+html.os.ost-flattiles #osmenu .osm-hd::before{width:26px;height:26px;border-radius:0}
+
+/* =====================================================================
+   Dark Bar: a dark taskbar, accent underlines, a Start panel
+   ===================================================================== */
+html.os.ost-darkbar{font-family:"Segoe UI",Tahoma,sans-serif}
+html.os.ost-darkbar #oswin{border:1px solid #3a3a3a;border-radius:0;box-shadow:0 18px 60px rgba(0,0,0,.6)}
+html.os.ost-darkbar #oswbar{height:30px;background:#202020;border:0;border-bottom:1px solid #333;color:#fff;backdrop-filter:none}
+html.os.ost-darkbar #ostitle{color:#f3f3f3;font:400 12px/1 "Segoe UI",sans-serif;background:none}
+html.os.ost-darkbar #ostitle .osi-ic{display:none}
+html.os.ost-darkbar #oswctl{gap:0;margin-left:0}
+html.os.ost-darkbar #oswctl button{width:44px;height:30px;border:0;border-radius:0;background:transparent;color:#fff;font-size:11px}
+html.os.ost-darkbar #oswctl button:hover{background:#3a3a3a}
+html.os.ost-darkbar #oswctl button[data-w="close"]:hover{background:#e81123}
+html.os.ost-darkbar #osbar{background:rgba(24,24,24,.94);border-top:1px solid #3a3a3a;color:#fff;backdrop-filter:blur(18px)}
+html.os.ost-darkbar .osb{height:calc(100% - 6px);border:1px solid transparent;border-radius:3px;color:#fff}
+html.os.ost-darkbar .osb:hover{background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.1)}
+html.os.ost-darkbar .osb.on{background:rgba(255,255,255,.14)}
+html.os.ost-darkbar .osb.on::after{background:var(--os-accent,#0078d4);width:100%;left:0;margin-left:0;bottom:0;border-radius:0}
+html.os.ost-darkbar #osstart{width:46px;min-width:46px;justify-content:center;padding:0}
+html.os.ost-darkbar #osstart .osb-la{display:none}
+html.os.ost-darkbar #osmenu{
+  left:0;bottom:calc(var(--os-bar-h,40px) + 0px);width:min(620px,calc(100vw - 8px));border-radius:0;
+  border:1px solid #3a3a3a;background:rgba(31,31,31,.98);backdrop-filter:blur(22px);box-shadow:0 -4px 26px rgba(0,0,0,.6)}
+html.os.ost-darkbar #osmenu .osm-g{color:#c9c9c9;letter-spacing:0;text-transform:none;font-size:12px}
+html.os.ost-darkbar .osm-it{border-radius:2px}
+html.os.ost-darkbar .osm-it:hover{background:rgba(255,255,255,.09);border-color:transparent}
+html.os.ost-darkbar #osmenu .osm-ft{border-top:1px solid #3a3a3a;background:#191919}
+html.os.ost-darkbar #ostoday{border-radius:0;border:1px solid #3a3a3a;background:#1f1f1f}
+/* ---- Dark Bar's own habits: a narrower panel, two columns of apps, a square mark ---- */
+html.os.ost-darkbar #osmenu{width:min(560px,calc(100vw - 8px))}
+html.os.ost-darkbar #osmenu .osm-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 8px;align-content:start}
+html.os.ost-darkbar #osmenu .osm-g{grid-column:1/-1}
+html.os.ost-darkbar #osstart .osi-ic{width:20px;height:20px;border-radius:0}
+html.os.ost-darkbar #osstart:hover{background:rgba(255,255,255,.1)}
+html.os.ost-darkbar .osi-ic{border-radius:2px}
+html.os.ost-darkbar .osi b{text-shadow:none}
+html.os.ost-darkbar #osmenu .osm-hd::before{width:20px;height:20px;border-radius:1px}
+
+/* =====================================================================
+   Centred Light: a centred taskbar, rounded corners, light panels
+   ===================================================================== */
+html.os.ost-centred{font-family:"Segoe UI Variable","Segoe UI",Tahoma,sans-serif}
+html.os.ost-centred #oswin{border:1px solid rgba(255,255,255,.14);border-radius:8px;box-shadow:0 24px 70px rgba(0,0,0,.62)}
+html.os.ost-centred #oswin.maxed{border-radius:0}
+html.os.ost-centred #oswbar{height:32px;background:rgba(243,243,243,.96);border:0;border-bottom:1px solid rgba(0,0,0,.09);color:#1b1b1b;backdrop-filter:blur(24px)}
+html.os.ost-centred #ostitle{color:#1b1b1b;font:400 12px/1 "Segoe UI Variable","Segoe UI",sans-serif;background:none}
+html.os.ost-centred #ostitle .osi-ic{display:none}
+html.os.ost-centred #oswctl{gap:0;margin-left:0}
+html.os.ost-centred #oswctl button{width:44px;height:32px;border:0;border-radius:0;background:transparent;color:#1b1b1b;font-size:11px}
+html.os.ost-centred #oswctl button:hover{background:rgba(0,0,0,.07)}
+html.os.ost-centred #oswctl button[data-w="close"]:hover{background:#c42b1c;color:#fff}
+html.os.ost-centred #osbar{
+  background:rgba(243,243,243,.86);border-top:1px solid rgba(0,0,0,.1);color:#1b1b1b;
+  backdrop-filter:blur(30px) saturate(1.4);padding:0 10px;position:fixed}
+html.os.ost-centred #osbar #osapps{position:absolute;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:2px}
+html.os.ost-centred .osb{height:calc(100% - 12px);border-radius:6px;color:#1b1b1b;border:1px solid transparent;padding:0 9px}
+html.os.ost-centred .osb:hover{background:rgba(0,0,0,.06);border-color:rgba(0,0,0,.06)}
+html.os.ost-centred .osb.on{background:rgba(0,0,0,.09)}
+html.os.ost-centred .osb.on::after{background:#0078d4;bottom:2px;width:14px;margin-left:-7px}
+html.os.ost-centred #osstart{width:44px;min-width:44px;justify-content:center;padding:0}
+html.os.ost-centred #osstart .osb-la{display:none}
+html.os.ost-centred #osclock{color:#1b1b1b}
+html.os.ost-centred #osmenu{
+  left:50%;bottom:calc(var(--os-bar-h,48px) + 10px);transform:translateX(-50%);width:min(620px,calc(100vw - 20px));
+  border-radius:10px;border:1px solid rgba(0,0,0,.12);background:rgba(243,243,243,.97);color:#1b1b1b;
+  backdrop-filter:blur(30px) saturate(1.4);box-shadow:0 22px 64px rgba(0,0,0,.35)}
+html.os.ost-centred #osmenu input{background:#fff;border:1px solid rgba(0,0,0,.14);border-radius:6px;color:#1b1b1b}
+html.os.ost-centred #osmenu .osm-g{color:#5a5a5a;letter-spacing:0;text-transform:none}
+html.os.ost-centred .osm-it{color:#1b1b1b;border-radius:6px}
+html.os.ost-centred .osm-it:hover{background:rgba(0,0,0,.06);border-color:transparent}
+html.os.ost-centred #osmenu .osm-ft{background:rgba(0,0,0,.04);border-top:1px solid rgba(0,0,0,.09)}
+html.os.ost-centred #osmenu .osm-ft button{background:rgba(255,255,255,.7);border:1px solid rgba(0,0,0,.12);border-radius:6px;color:#1b1b1b}
+html.os.ost-centred #ostoday{border-radius:10px;border:1px solid rgba(0,0,0,.12);background:rgba(243,243,243,.98);color:#1b1b1b}
+html.os.ost-centred #osfold{border-radius:10px;background:rgba(243,243,243,.98);color:#1b1b1b}
+/* ---- Centred Light's own habits: rounder icons and mark, a search card at the top of the panel ---- */
+html.os.ost-centred .osi-ic{border-radius:12px}
+html.os.ost-centred #osstart .osi-ic{width:24px;height:24px;border-radius:6px}
+html.os.ost-centred .osi b{text-shadow:none;color:#fff}
+html.os.ost-centred .osi.sel b{background:#0078d4;color:#fff}
+html.os.ost-centred #osmenu .osm-hd{
+  background:rgba(255,255,255,.72);border-radius:8px;padding:8px 9px;margin:10px 10px 4px}
+html.os.ost-centred #osmenu .osm-hd::before{width:22px;height:22px;border-radius:6px}
+html.os.ost-centred #osmenu .osm-list{padding:0 8px 10px}
+
+/* =====================================================================
+   Orange Top: a dark top bar, orange accents, window buttons on the left
+   ===================================================================== */
+html.os.ost-orangetop{font-family:"Ubuntu","Cantarell","Segoe UI",sans-serif}
+html.os.ost-orangetop #oswbar{
+  height:34px;padding:0 6px;background:#3d3d3d;border:0;border-bottom:1px solid #1e1e1e;color:#f2f2f2;backdrop-filter:none}
+html.os.ost-orangetop #ostitle{color:#f7f7f7;font:500 13px/1 "Ubuntu",sans-serif;background:none}
+html.os.ost-orangetop #ostitle .osi-ic{display:none}
+html.os.ost-orangetop #oswctl{order:-1;margin-left:0;margin-right:6px;gap:7px;padding-left:2px}
+html.os.ost-orangetop #oswctl button{
+  width:15px;height:15px;border-radius:50%;border:0;background:#575757;color:transparent;font-size:0;box-shadow:inset 0 0 0 1px rgba(0,0,0,.35)}
+html.os.ost-orangetop #oswctl button[data-w="close"]{background:#e95420}
+html.os.ost-orangetop #oswctl button[data-w="min"]{background:#8a8a8a}
+html.os.ost-orangetop #oswctl button[data-w="max"]{background:#8a8a8a}
+html.os.ost-orangetop #oswctl button:hover{filter:brightness(1.25);color:transparent}
+html.os.ost-orangetop #oswin{border:1px solid #1b1b1b;border-radius:8px;box-shadow:0 24px 70px rgba(0,0,0,.6)}
+html.os.ost-orangetop #oswin.maxed{border-radius:0}
+html.os.ost-orangetop #osbar{
+  background:rgba(30,30,30,.98);border-top:0;border-bottom:1px solid #101010;color:#f2f2f2;backdrop-filter:blur(12px);
+  padding:0 8px;height:var(--os-bar-h,32px)}
+html.os.ost-orangetop #osstart{background:#e95420;color:#fff;border-radius:6px;padding:0 12px;font:600 12.5px/1 "Ubuntu",sans-serif}
+html.os.ost-orangetop #osstart .osi-ic{width:20px;height:20px;border-radius:6px}
+html.os.ost-orangetop .osb{height:calc(100% - 6px);border-radius:6px;color:#f2f2f2;border:1px solid transparent}
+html.os.ost-orangetop .osb:hover{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.14)}
+html.os.ost-orangetop .osb.on{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.22)}
+html.os.ost-orangetop .osb.on::after{background:#e95420}
+html.os.ost-orangetop #osmenu{
+  left:50%;top:calc(var(--os-bar-h,32px) + 6px);bottom:auto;transform:translateX(-50%);
+  width:min(680px,calc(100vw - 24px));max-height:min(78vh,720px);border-radius:10px;border:1px solid #3d3d3d;
+  background:rgba(38,38,38,.98);color:#f2f2f2;backdrop-filter:blur(20px);box-shadow:0 24px 70px rgba(0,0,0,.6)}
+html.os.ost-orangetop #osmenu input{background:#2b2b2b;border:1px solid #4a4a4a;border-radius:8px;color:#f2f2f2}
+html.os.ost-orangetop #osmenu .osm-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:6px;align-content:start}
+html.os.ost-orangetop .osm-g{grid-column:1/-1;color:#a5a5a5;letter-spacing:.04em}
+html.os.ost-orangetop .osm-it{border-radius:8px}
+html.os.ost-orangetop .osm-it:hover{background:#e95420;border-color:#e95420;color:#fff}
+html.os.ost-orangetop #osmenu .osm-ft{background:#2b2b2b;border-top:1px solid #3d3d3d}
+html.os.ost-orangetop #osfold{border-radius:8px}
+html.os.ost-orangetop #ostoday{border-radius:10px}
+
+/* =====================================================================
+   Green Menu: a dark panel, green highlights, a Menu button
+   ===================================================================== */
+html.os.ost-greenmenu{font-family:"Cantarell","Ubuntu","Segoe UI",sans-serif}
+html.os.ost-greenmenu #oswin{border:1px solid #111;border-radius:6px 6px 0 0;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+html.os.ost-greenmenu #oswbar{height:32px;background:#3c3c3c;border:0;border-bottom:1px solid #222;color:#f0f0f0;backdrop-filter:none}
+html.os.ost-greenmenu #ostitle{color:#f0f0f0;font:500 12.5px/1 "Cantarell",sans-serif;background:none}
+html.os.ost-greenmenu #ostitle .osi-ic{display:none}
+html.os.ost-greenmenu #oswctl{gap:2px;margin-left:0}
+html.os.ost-greenmenu #oswctl button{width:30px;height:24px;border:0;border-radius:4px;background:transparent;color:#e6e6e6}
+html.os.ost-greenmenu #oswctl button:hover{background:#4c4c4c}
+html.os.ost-greenmenu #oswctl button[data-w="close"]:hover{background:#c0392b;color:#fff}
+html.os.ost-greenmenu #osbar{background:#2f2f2f;border-top:1px solid #1b1b1b;color:#eaeaea;backdrop-filter:none}
+html.os.ost-greenmenu #osstart{
+  background:#8ec63f;color:#12240a;border-radius:4px;padding:0 12px;font:700 12.5px/1 "Cantarell",sans-serif}
+html.os.ost-greenmenu #osstart .osi-ic{width:18px;height:18px;border-radius:4px}
+html.os.ost-greenmenu .osb{height:calc(100% - 6px);border-radius:4px;color:#eaeaea;border:1px solid transparent}
+html.os.ost-greenmenu .osb:hover{background:#3d3d3d;border-color:#4a4a4a}
+html.os.ost-greenmenu .osb.on{background:#444}
+html.os.ost-greenmenu .osb.on::after{background:#8ec63f}
+html.os.ost-greenmenu #osmenu{border-radius:6px;border:1px solid #4a4a4a;background:#333;color:#eee}
+html.os.ost-greenmenu #osmenu input{background:#262626;border:1px solid #4a4a4a;color:#eee}
+html.os.ost-greenmenu .osm-g{color:#b9b9b9}
+html.os.ost-greenmenu .osm-it:hover{background:#8ec63f;border-color:#8ec63f;color:#12240a}
+html.os.ost-greenmenu #osmenu .osm-ft{background:#2a2a2a;border-top:1px solid #444}
+
+/* =====================================================================
+   Ocean Blue: a dark panel, blue highlights, a launcher
+   ===================================================================== */
+html.os.ost-oceanblue{font-family:"Noto Sans","Cantarell","Segoe UI",sans-serif}
+html.os.ost-oceanblue #oswin{border:1px solid #1b1e20;border-radius:6px 6px 0 0;box-shadow:0 22px 60px rgba(0,0,0,.6)}
+html.os.ost-oceanblue #oswbar{height:34px;background:#31363b;border:0;border-bottom:1px solid #232629;color:#eff0f1;backdrop-filter:none}
+html.os.ost-oceanblue #ostitle{color:#eff0f1;font:500 12.5px/1 "Noto Sans",sans-serif;background:none}
+html.os.ost-oceanblue #ostitle .osi-ic{display:none}
+html.os.ost-oceanblue #oswctl{gap:3px;margin-left:0}
+html.os.ost-oceanblue #oswctl button{width:30px;height:24px;border:0;border-radius:3px;background:transparent;color:#eff0f1}
+html.os.ost-oceanblue #oswctl button:hover{background:#3daee9;color:#0b1a22}
+html.os.ost-oceanblue #oswctl button[data-w="close"]:hover{background:#da4453;color:#fff}
+html.os.ost-oceanblue #osbar{background:#232629;border-top:1px solid #16181a;color:#eff0f1;backdrop-filter:none}
+html.os.ost-oceanblue #osstart{background:#3daee9;color:#062432;border-radius:4px;padding:0 12px;font:600 12.5px/1 "Noto Sans",sans-serif}
+html.os.ost-oceanblue #osstart .osi-ic{width:18px;height:18px;border-radius:4px}
+html.os.ost-oceanblue .osb{height:calc(100% - 6px);border-radius:4px;color:#eff0f1;border:1px solid transparent}
+html.os.ost-oceanblue .osb:hover{background:#31363b;border-color:#3daee9}
+html.os.ost-oceanblue .osb.on{background:#31363b;border-color:#3daee9}
+html.os.ost-oceanblue .osb.on::after{background:#3daee9}
+html.os.ost-oceanblue #osmenu{border:1px solid #31363b;border-radius:6px;background:#232629;color:#eff0f1}
+html.os.ost-oceanblue #osmenu input{background:#1b1e20;border:1px solid #31363b;color:#eff0f1}
+html.os.ost-oceanblue .osm-g{color:#9aa0a6}
+html.os.ost-oceanblue .osm-it:hover{background:#3daee9;border-color:#3daee9;color:#062432}
+html.os.ost-oceanblue #osmenu .osm-ft{background:#1b1e20;border-top:1px solid #31363b}
+
+/* =====================================================================
+   Grid Shell: a black top bar, header bars, a full-screen app grid
+   ===================================================================== */
+html.os.ost-gridshell{font-family:"Cantarell","Ubuntu","Segoe UI",sans-serif}
+html.os.ost-gridshell #oswin{border:1px solid #1b1b1b;border-radius:12px;box-shadow:0 26px 70px rgba(0,0,0,.62)}
+html.os.ost-gridshell #oswin.maxed{border-radius:0}
+html.os.ost-gridshell #oswbar{height:36px;background:#303030;border:0;border-bottom:1px solid #1b1b1b;color:#fff;backdrop-filter:none}
+html.os.ost-gridshell #ostitle{color:#fff;font:700 12.5px/1 "Cantarell",sans-serif;background:none;justify-content:center;text-align:center}
+html.os.ost-gridshell #ostitle .osi-ic{display:none}
+html.os.ost-gridshell #oswctl{gap:1px;margin-left:0}
+html.os.ost-gridshell #oswctl button{width:32px;height:26px;border:0;border-radius:6px;background:transparent;color:#e6e6e6}
+html.os.ost-gridshell #oswctl button:hover{background:#4a4a4a}
+html.os.ost-gridshell #oswctl button[data-w="close"]:hover{background:#e01b24;color:#fff}
+html.os.ost-gridshell #osbar{background:#000;border:0;color:#fff;backdrop-filter:none;height:var(--os-bar-h,32px)}
+html.os.ost-gridshell #osstart{background:transparent;border:1px solid transparent;border-radius:6px;color:#fff;padding:0 10px;font:600 12px/1 "Cantarell",sans-serif}
+html.os.ost-gridshell #osstart:hover{background:rgba(255,255,255,.14)}
+html.os.ost-gridshell #osstart .osi-ic{width:18px;height:18px;border-radius:5px}
+html.os.ost-gridshell .osb{height:calc(100% - 6px);border-radius:6px;color:#fff;border:1px solid transparent}
+html.os.ost-gridshell .osb:hover{background:rgba(255,255,255,.14)}
+html.os.ost-gridshell .osb.on{background:rgba(255,255,255,.22)}
+html.os.ost-gridshell .osb.on::after{background:#3584e4}
+html.os.ost-gridshell #osmenu{
+  left:0;right:0;top:0;bottom:0;width:auto;max-width:none;max-height:none;border:0;border-radius:0;
+  background:rgba(28,28,28,.97);color:#fff;backdrop-filter:blur(24px);padding:52px 8vw 0}
+html.os.ost-gridshell #osmenu .osm-hd{padding:0 0 20px}
+html.os.ost-gridshell #osmenu input{background:#3a3a3a;border:1px solid #4d4d4d;border-radius:10px;color:#fff}
+html.os.ost-gridshell #osmenu .osm-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;align-content:start}
+html.os.ost-gridshell .osm-g{grid-column:1/-1;color:#b5b5b5;letter-spacing:.04em}
+html.os.ost-gridshell .osm-it{flex-direction:column;gap:10px;padding:14px 10px;border-radius:10px;text-align:center}
+html.os.ost-gridshell .osm-it .osi-ic{width:56px;height:56px;background:rgba(255,255,255,.06)}
+html.os.ost-gridshell .osm-it:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.14)}
+html.os.ost-gridshell #osmenu .osm-ft{background:#232323;border-top:1px solid #3a3a3a}
+html.os.ost-gridshell #osfold{border-radius:12px}
+html.os.ost-gridshell #ostoday{border-radius:12px}
+
+/* =====================================================================
+   Swirl Red, Obsidian, Rolling Minimal, Gecko Teal, Deep Blue, Cobalt Tiles:
+   six more open-source desktops sharing one set of rules. Each class only sets
+   the panel colours and the font; the accent is the theme accent (--os-accent).
+   ===================================================================== */
+html.os:is(.ost-swirl,.ost-obsidian,.ost-rolling,.ost-gecko,.ost-deepblue,.ost-cobalt){
+  --od-face:#242424;--od-face2:#2e2e2e;--od-ink:#f2f2f2;--od-line:#3a3a3a;
+  font-family:"Noto Sans",Cantarell,"Segoe UI",sans-serif}
+html.os.ost-swirl{--od-face:#2b1620;--od-face2:#3a1c2a;--od-ink:#f6eaf0;--od-line:#4a2434}
+html.os.ost-obsidian{--od-face:#0d0d0d;--od-face2:#191919;--od-ink:#d6f0ff;--od-line:#2a2a2a;font-family:"DejaVu Sans Mono",Consolas,monospace}
+html.os.ost-rolling{--od-face:#111111;--od-face2:#1b1b1b;--od-ink:#e6e6e6;--od-line:#333333;font-family:"DejaVu Sans Mono",Consolas,monospace}
+html.os.ost-gecko{--od-face:#10241f;--od-face2:#18342c;--od-ink:#e8f6ef;--od-line:#27503f}
+html.os.ost-deepblue{--od-face:#101a2b;--od-face2:#16243a;--od-ink:#e8f0ff;--od-line:#2a3c58}
+html.os.ost-cobalt{--od-face:#1b1f27;--od-face2:#262c37;--od-ink:#eef2f8;--od-line:#333b48}
+html.os:is(.ost-swirl,.ost-obsidian,.ost-rolling,.ost-gecko,.ost-deepblue,.ost-cobalt) #oswin{
+  border:1px solid var(--od-line);border-radius:8px;box-shadow:0 22px 64px rgba(0,0,0,.6)}
+html.os:is(.ost-swirl,.ost-obsidian,.ost-rolling,.ost-gecko,.ost-deepblue,.ost-cobalt) #oswin.maxed{border-radius:0}
+html.os:is(.ost-swirl,.ost-obsidian,.ost-rolling,.ost-gecko,.ost-deepblue,.ost-cobalt) #oswbar{
+  height:32px;padding:0 5px 0 8px;background:var(--od-face);border:0;border-bottom:1px solid var(--od-line);
+  color:var(--od-ink);backdrop-filter:none}
+html.os:is(.ost-swirl,.ost-obsidian,.ost-rolling,.ost-gecko,.ost-deepblue,.ost-cobalt) #ostitle{
+  color:var(--od-ink);font:600 12.5px/1 inherit;background:none}
+html.os:is(.ost-swirl,.ost-obsidian,.ost-rolling,.ost-gecko,.ost-deepblue,.ost-cobalt) #ostitle .osi-ic{display:none}
+html.os:is(.ost-swirl,.ost-obsidian,.ost-rolling,.ost-gecko,.ost-deepblue,.ost-cobalt) #oswctl{gap:3px;margin-left:0}
+html.os:is(.ost-swirl,.ost-obsidian,.ost-rolling,.ost-gecko,.ost-deepblue,.ost-cobalt) #oswctl button{
+  width:28px;height:22px;border:0;border-radius:5px;background:transparent;color:var(--od-ink)}
+html.os:is(.ost-swirl,.ost-obsidian,.ost-rolling,.ost-gecko,.ost-deepblue,.ost-cobalt) #oswctl button:hover{background:var(--od-face2)}
+html.os:is(.ost-swirl,.ost-obsidian,.ost-rolling,.ost-gecko,.ost-deepblue,.ost-cobalt) #oswctl button[data-w="close"]:hover{background:#c0392b;color:#fff}
+html.os:is(.ost-swirl,.ost-obsidian,.ost-rolling,.ost-gecko,.ost-deepblue,.ost-cobalt) #osbar{
+  background:var(--od-face);border-top:1px solid var(--od-line);color:var(--od-ink);
+  backdrop-filter:none;height:var(--os-bar-h,36px);padding:0 8px;gap:4px}
+html.os:is(.ost-swirl,.ost-obsidian,.ost-rolling,.ost-gecko,.ost-deepblue,.ost-cobalt) #osstart{
+  background:var(--os-accent);color:#0b0b0b;border-radius:5px;padding:0 12px;font-weight:700;font-size:12.5px}
+html.os:is(.ost-swirl,.ost-obsidian,.ost-rolling,.ost-gecko,.ost-deepblue,.ost-cobalt) #osstart .osi-ic{
+  width:18px;height:18px;border-radius:5px}
+html.os:is(.ost-swirl,.ost-obsidian,.ost-rolling,.ost-gecko,.ost-deepblue,.ost-cobalt) .osb{
+  height:calc(100% - 8px);border-radius:6px;color:var(--od-ink);border:1px solid transparent}
+html.os:is(.ost-swirl,.ost-obsidian,.ost-rolling,.ost-gecko,.ost-deepblue,.ost-cobalt) .osb:hover{background:var(--od-face2);border-color:var(--od-line)}
+html.os:is(.ost-swirl,.ost-obsidian,.ost-rolling,.ost-gecko,.ost-deepblue,.ost-cobalt) .osb.on{
+  background:var(--od-face2);border-color:color-mix(in srgb,var(--os-accent) 60%,transparent)}
+html.os:is(.ost-swirl,.ost-obsidian,.ost-rolling,.ost-gecko,.ost-deepblue,.ost-cobalt) .osb.on::after{background:var(--os-accent)}
+html.os:is(.ost-swirl,.ost-obsidian,.ost-rolling,.ost-gecko,.ost-deepblue,.ost-cobalt) #osclock{color:var(--od-ink)}
+html.os:is(.ost-swirl,.ost-obsidian,.ost-rolling,.ost-gecko,.ost-deepblue,.ost-cobalt) #osmenu{
+  border:1px solid var(--od-line);border-radius:9px;background:var(--od-face);color:var(--od-ink);
+  backdrop-filter:blur(16px);box-shadow:0 20px 56px rgba(0,0,0,.55)}
+html.os:is(.ost-swirl,.ost-obsidian,.ost-rolling,.ost-gecko,.ost-deepblue,.ost-cobalt) #osmenu input{
+  background:var(--od-face2);border:1px solid var(--od-line);border-radius:7px;color:var(--od-ink)}
+html.os:is(.ost-swirl,.ost-obsidian,.ost-rolling,.ost-gecko,.ost-deepblue,.ost-cobalt) .osm-g{
+  color:color-mix(in srgb,var(--od-ink) 55%,transparent)}
+html.os:is(.ost-swirl,.ost-obsidian,.ost-rolling,.ost-gecko,.ost-deepblue,.ost-cobalt) .osm-it{color:var(--od-ink);border-radius:7px}
+html.os:is(.ost-swirl,.ost-obsidian,.ost-rolling,.ost-gecko,.ost-deepblue,.ost-cobalt) .osm-it:hover{
+  background:var(--os-accent);border-color:var(--os-accent);color:#0b0b0b}
+html.os:is(.ost-swirl,.ost-obsidian,.ost-rolling,.ost-gecko,.ost-deepblue,.ost-cobalt) #osmenu .osm-ft{
+  background:var(--od-face2);border-top:1px solid var(--od-line)}
+html.os:is(.ost-swirl,.ost-obsidian,.ost-rolling,.ost-gecko,.ost-deepblue,.ost-cobalt) #osfold,
+html.os:is(.ost-swirl,.ost-obsidian,.ost-rolling,.ost-gecko,.ost-deepblue,.ost-cobalt) #ostoday{border-radius:10px}
+/* Gecko Teal keeps its bar along the top, so its menu opens under it */
+html.os.ost-gecko #osmenu{top:calc(var(--os-bar-h,34px) + 6px);bottom:auto}
+
+/* =====================================================================
+   the System look picker
+   ===================================================================== */
+.ost-fam{margin:14px 0 6px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
+.ost-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:10px}
+.ost-card{display:flex;flex-direction:column;gap:0;padding:0;border:2px solid var(--line);border-radius:10px;background:var(--panel2);color:var(--text);cursor:pointer;overflow:hidden;text-align:left}
+.ost-card:hover{border-color:var(--acc)}
+.ost-card.on{border-color:var(--acc);box-shadow:0 0 0 2px color-mix(in srgb,var(--acc) 30%,transparent)}
+.ost-prev{display:flex;flex-direction:column;gap:3px;padding:8px 8px 0;height:74px;background:var(--ost-sw,linear-gradient(160deg,#20304a,#0c1420));overflow:hidden}
+.ost-prev i{display:block;font-style:normal}
+.ost-prev .pw{display:flex;flex-direction:column;border-radius:3px 3px 0 0;overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,.45)}
+.ost-prev .pwt{display:flex;align-items:center;gap:2px;height:9px;padding:0 3px}
+.ost-prev .pwt em{width:4px;height:4px;border-radius:1px;background:currentColor;opacity:.8}
+.ost-prev .pwt b{margin-left:auto;width:14px;height:3px;background:currentColor;opacity:.55;border-radius:1px}
+.ost-prev .pwb{height:16px;background:rgba(255,255,255,.72)}
+.ost-prev .pbar{display:flex;align-items:center;gap:3px;height:11px;padding:0 3px;margin-top:auto}
+.ost-prev .pbar s{width:7px;height:7px;border-radius:1px;background:currentColor;opacity:.85}
+.ost-prev .pbar u{width:5px;height:5px;border-radius:1px;background:currentColor;opacity:.6}
+.ost-prev .pbar .ps{margin-left:auto;width:12px;height:3px;background:currentColor;opacity:.6;border-radius:1px}
+.ost-card b{padding:7px 9px;font:600 12px/1.25 inherit}
+.ost-card span{padding:0 9px 8px;font-size:10.5px;line-height:1.3;color:var(--mute)}
+
+@media(max-width:900px){
+  html.os.ost-centred #osbar #osapps{position:static;transform:none;display:flex;min-width:0;overflow-x:auto}
+  html.os.ost-centred #osmenu{width:calc(100vw - 12px)}
+  html.os.ost-flattiles #osmenu,html.os.ost-gridshell #osmenu{padding:16px 14px 0}
+  html.os.ost-flattiles #osmenu .osm-list,html.os.ost-gridshell #osmenu .osm-list{grid-template-columns:repeat(auto-fill,minmax(120px,1fr))}
+  html.os:is(.ost-greybox,.ost-greygrad,.ost-slateblue,.ost-millennia) #osmenu{width:calc(100vw - 8px)}
+  html.os.ost-skyblue #osmenu{width:calc(100vw - 8px)}
+  html.os.ost-orangetop #osmenu,html.os.ost-gecko #osmenu{width:calc(100vw - 12px);left:6px;transform:none}
+}

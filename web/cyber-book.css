@@ -1,0 +1,28 @@
+/* The Cyber Codex (web/js/cyber-book.js): the Guide's holographic book, filled with terminal and language pages.
+   Everything structural comes from guide-book.css; this file adds the parts a reference book needs. */
+.cbk .gbk-content{font-family:Georgia,"Times New Roman",serif}
+.cbk .gbk-content h3{margin-top:0}
+.cbk .gbk-content pre,
+.cbk-code{font:12px/1.55 ui-monospace,"Cascadia Mono",Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;
+  background:rgba(36,26,56,.055);border:1px solid rgba(74,50,20,.16);border-left:3px solid rgba(169,124,34,.5);
+  border-radius:6px;padding:9px 11px;margin:.5em 0 .9em;color:#3d3050;max-height:340px;overflow:auto}
+.cbk .gbk-content table{display:block;max-width:100%;overflow-x:auto}
+.cbk .gbk-content table thead{white-space:nowrap}
+.cbk .gbk-content td code{white-space:pre-wrap;overflow-wrap:anywhere}
+.cbk .gbk-content ul{list-style:none;padding-left:0}
+.cbk .gbk-content ul li{position:relative;padding-left:14px;margin:.2em 0}
+.cbk .gbk-content ul li::before{content:"·";position:absolute;left:2px;color:#a97c22;font-weight:700}
+.cbk .gbk-content h4 + ul{margin-top:.2em}
+.cbk-unrun{border-left:3px solid #b26a4a;background:rgba(178,106,74,.08);padding:8px 11px;border-radius:0 6px 6px 0;margin:.6em 0}
+.cbk .gbk-content .small{font:12px/1.5 "Segoe UI",system-ui,sans-serif;color:#6b5c78}
+.cbk .gbk-cover h1{letter-spacing:-.01em}
+@media (max-width:900px){
+  .cbk .gbk-content pre,.cbk-code{font-size:11.5px;max-height:260px}
+}
+/* the book has its own opening animation; it must not inherit the app's dialog fade, which the idle state pauses
+   at opacity 0 (a book opened without a click would otherwise stay invisible) */
+.gbk.cbk{animation:none}
+/* the root is a <dialog> so it can open above the terminal help window: undo the browser's dialog box styling and
+   let the book's own full-window layout and sky show through */
+dialog.gbk.cbk{margin:0;padding:0;border:0;width:100%;height:100%;max-width:none;max-height:none;inset:0}
+dialog.gbk.cbk::backdrop{background:transparent}

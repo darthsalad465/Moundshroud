@@ -34,7 +34,7 @@ module.exports = async ok => {
     return e;
   };
   const A = { play: { games: {} }, toast() { } };
-  const ctx = vm.createContext({ A, ls: { get: (k, d) => d, set() { } }, esc: s => String(s), btoa: s => Buffer.from(s, 'binary').toString('base64'), atob: s => Buffer.from(s, 'base64').toString('binary'),
+  const ctx = vm.createContext({ A, TerminalUnix: require(path.join(root, 'web', 'js', 'terminal-unix.js')), ls: { get: (k, d) => d, set() { } }, esc: s => String(s), btoa: s => Buffer.from(s, 'binary').toString('base64'), atob: s => Buffer.from(s, 'base64').toString('binary'),
     document: { querySelector: () => null, getElementById: () => null, createElement: () => stub('') }, window: { getSelection: () => ({ toString: () => '' }) }, setTimeout: () => 0, clearTimeout() { }, setInterval: () => 0, clearInterval() { }, Math, console });
   vm.runInContext(rd('web/js/cyber-games.js'), ctx, { filename: 'cyber-games.js' });
   const g = A.play.games.terminal;
@@ -78,14 +78,17 @@ module.exports = async ok => {
         /FLAG\{base64_is_not_encryption\}/.test(runCmd('cat message.b64 | base64 -d')) &&
         /hello/.test(runCmd('echo hello | base64 | base64 -d')));
       runCmd('mission 5');
+      const m5Mode = runCmd('ls -l vault.txt'), m5Locked = runCmd('cat vault.txt'),
+        m5Chmod = runCmd('chmod 644 vault.txt'), m5After = runCmd('ls -l vault.txt'), m5Read = runCmd('cat vault.txt');
       ok('cyber games: ls -l <file> shows permissions and chmod 644 unlocks vault.txt',
-        /----------/.test(runCmd('ls -l vault.txt')) &&
-        /readable/.test(runCmd('chmod 644 vault.txt')) &&
-        /FLAG\{permissions_matter\}/.test(runCmd('cat vault.txt')));
+        /----------/.test(m5Mode) && /Permission denied/.test(m5Locked) && !/Permission denied/.test(m5Chmod) &&
+        /-rw-r--r--/.test(m5After) && /FLAG\{permissions_matter\}/.test(m5Read));
       runCmd('mission 6');
+      const m6Found = runCmd('find / -name ".vault*"'), m6Locked = runCmd('cat /opt/data/backups/.vault_2026'),
+        m6Chmod = runCmd('chmod u+r /opt/data/backups/.vault_2026'), m6Mode = runCmd('ls -l /opt/data/backups/.vault_2026');
       ok('cyber games: Mission 6 full pipeline (find + chmod u+r + cat | base64 -d) works',
-        /\.vault_2026/.test(runCmd('find / -name ".vault*"')) &&
-        /readable/.test(runCmd('chmod u+r /opt/data/backups/.vault_2026')) &&
+        /\.vault_2026/.test(m6Found) && /Permission denied/.test(m6Locked) && !/Permission denied/.test(m6Chmod) &&
+        /-r--------/.test(m6Mode) &&
         /FLAG\{you_are_a_terminal_wizard\}/.test(runCmd('cat /opt/data/backups/.vault_2026 | base64 -d')));
     } else ok('cyber games: the terminal input answers the Enter key', false, 'no input handler');
   }

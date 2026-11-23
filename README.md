@@ -1,6 +1,6 @@
 # Moundshroud
 
-**Install on Windows 10 or 11 (x64).** Download the `Moundshroud-Setup` executable from [GitHub Releases](https://github.com/darthsalad465/Moundshroud/releases/latest), run the setup wizard, then open **Moundshroud** from Start. You can remove it from Windows Settings under **Apps**. The installer includes the desktop window and server. Local AI chat requires Ollama and a downloaded model. The desktop edition omits ARTEX.
+**Install on Windows 10 or 11 (x64).** Download the `Moundshroud-Setup` executable from [GitHub Releases](https://github.com/darthsalad465/Moundshroud/releases/latest), run the setup wizard, then open **Moundshroud** from Start. You can remove it from Windows Settings under **Apps**. The installer includes the desktop window and server. It also brings the app's own copy of Ollama and the small Qwen 3.5 model family, so local AI chat works without installing anything else. The desktop edition omits ARTEX.
 
 Moundshroud is a Windows desktop assistant that brings local AI, research tools, creative work, and everyday utilities into one app. It runs its interface in Microsoft Edge app mode and uses a small Node.js server on your own PC. With Ollama and a local model installed, AI chat can run on-device. Online services are optional and controlled through the app’s settings.
 
@@ -87,7 +87,7 @@ Internet features are controlled in Settings. Review each feature before enablin
 - Windows 10 or Windows 11, 64-bit.
 - Node.js LTS. The server has no npm package-install step; the repository is tested with Node.js 24.
 - Microsoft Edge for the app window.
-- Ollama and at least one compatible local model for on-device AI. Setup can offer to install Ollama and download a small starter model.
+- An internet connection during setup, to fetch the app's own Ollama and the small Qwen 3.5 models (0.8B and 2B). After that, AI chat runs on this PC and nothing else has to be installed.
 - Enough disk space for the models and optional offline libraries you choose. These downloads can be many gigabytes.
 
 LibreOffice and additional local engines enable some optional features. Setup can offer Kiwix, which is needed to read downloaded `.zim` offline books. Optional components can also be installed later from the relevant app section or setup scripts.
@@ -97,7 +97,7 @@ LibreOffice and additional local engines enable some optional features. Setup ca
 ### Packaged release
 
 1. Extract the program archive and the matching data archive into the **same folder**. Do not run Moundshroud from inside a ZIP file.
-2. Run `Setup-Moundshroud.bat` and follow its prompts. It checks for Node.js and Ollama, can download a starter model and Kiwix, and creates a Moundshroud shortcut.
+2. Run `Setup-Moundshroud.bat` and follow its prompts. It checks for Node.js, downloads the app's own Ollama and the small Qwen 3.5 models, can fetch Kiwix, and creates a Moundshroud shortcut.
 3. Open Moundshroud with the desktop or Start menu shortcut, or press **Ctrl+Alt+A**.
 4. In the app, open **Settings → Run a self-test** to check the installation.
 5. To add offline books and other optional resources, use **Prepare → Stock up** and check the size before downloading.

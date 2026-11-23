@@ -4,25 +4,42 @@
   const read = (key, fallback = '') => ls.get(prefix + key, fallback);
   const write = (key, value) => ls.set(prefix + key, value);
   const themes = [['abyss', 'Abyss'], ['glacier', 'Glacier'], ['ember', 'Ember'], ['violet', 'Violet']];
+  /* wallpapers bought in the Cosmetics shop are as valid here as the four that came free */
+  const ownedWallpapers = () => {
+    try { return (A.cyberCosmetics && A.cyberCosmetics.ownedWallpapers && A.cyberCosmetics.ownedWallpapers()) || []; }
+    catch (error) { return []; }
+  };
+  const wallpaperList = () => themes.concat(ownedWallpapers());
+  /* the few things outside apps need from a mounted desktop: what it is wearing, and how to change it */
+  const lookApi = {};
   const interfaces = [['studio', 'Studio', 'Glass panels and a centered dock'], ['operator', 'Operator', 'Amber highlights and a compact side dock'], ['workstation', 'Workstation', 'High-contrast blue with a traditional taskbar']];
+  const accents = [['auto', 'Default'], ['#9edcff', 'Ice'], ['#ffd387', 'Amber'], ['#8ef0b0', 'Mint'], ['#d8baff', 'Violet'], ['#ff9fb0', 'Rose']];
   const { cases: extraCases, collections, utilities, guide } = A.cyberDesktopData;
   const incidentCases = ['mail-triage', 'remote-session', 'endpoint-alert', 'recovery'];
   const shellTools = { SQLite: 'sql', PowerShell: 'powershell', strings: 'bash', TShark: 'network', tcpdump: 'network' };
   const apps = {
     terminal: ['›_', 'Terminal'], tools: ['◇', 'Security Labs'], files: ['▤', 'Files'],
     browser: ['◎', 'Moundshroud Browser'], notes: ['✎', 'Notes'], settings: ['⚙', 'Settings'],
-    guide: ['?', 'Desktop Guide'], catalog: ['◈', 'Kali Tools'], local: ['◉', 'Guest Browser'],
+    guide: ['?', 'Desktop Guide'], catalog: ['◈', 'Kali Tools'],
     incidents: ['▥', 'Incident Desk'], utility: ['#', 'Evidence Utilities'],
-    tutorial: ['▷', 'Tutorial'], remote: ['▣', 'Remote Sessions']
+        vm: ['⧉', 'Cyber VM'], games: ['▶', 'Games'], sysmon: ['▦', 'System Monitor'],
+    calc: ['=', 'Calculator'], mail: ['✉', 'Mail'], bank: ['¤', 'Bank'], photos: ['❖', 'Photos'],
+    tutorial: ['▷', 'Tutorial'], remote: ['▣', 'Remote Sessions'],
+    walkthrough: ['⌖', 'Walkthrough'], cosmetics: ['✦', 'Cosmetics shop']
   };
-  const dockApps = ['terminal', 'remote', 'browser', 'incidents', 'files', 'notes', 'guide', 'settings'];
+  const dockApps = ['terminal', 'vm', 'games', 'browser', 'mail', 'bank', 'photos', 'remote', 'incidents', 'files', 'notes', 'settings'];
+  const defaultDock = dockApps.slice();
+  const defaultIcons = ['vm', 'terminal', 'browser', 'walkthrough', 'games', 'files', 'notes', 'mail', 'bank', 'photos', 'settings'];
   const lessons = [
     ['Boot and sign in', 'settings', ['Choose Virtual Disk to keep your files. Choose Live USB for a fresh practice session.', 'Type Moundshroud in the password box and press Sign in.', 'Pick an app from Applications or select it in the dock.']],
     ['Arrange windows', 'notes', ['Open Notes and Terminal. Both windows stay open. Click a visible window to bring it forward.', 'Drag the title bar to move a window. Drag its lower-right corner to resize it.', 'Use − to minimize, □ to maximize or restore, and × to close. Click a running app in the dock to bring it back.']],
     ['Open a remote practice session', 'remote', ['Open Remote Sessions. Choose an exercise and difficulty, then press Generate case.', 'Click a computer card to open its own window. Open Files to read records or Console to run local practice commands.', 'Compare the reports. Return to Remote Sessions to verify the computer name and reference.']],
     ['Use the Terminal Playground', 'terminal', ['Open Terminal. In Sandbox choose Bash / Linux and type pwd, then press Enter.', 'Type ls to list files. The examples panel gives you commands to try.', 'Switch to Puzzles or Labyrinth for a challenge. Use Help to learn what the current shell understands.']],
     ['Work a case and write a report', 'incidents', ['Open Incident Desk and select a case.', 'Read the case and its evidence. Pick the response you think fits and press Check answer.', 'Add a completed finding to Notes. Use Next incident phase to continue.']],
-    ['Search the browsers', 'browser', ['Open Moundshroud Browser in the dock. Search for a topic or use the + button to add a tab.', 'Use Back and Forward to return to earlier pages.', 'Choose Guest Browser from Applications to search the included help pages.']],
+    ['Browse the fake internet', 'browser', ['Open Moundshroud Browser in the dock and read your mail: some messages carry a link to a site.', 'Type a site address in the browser box, or click a link in a message, and the page opens here.', 'Type any words instead of an address to search every generated site: Moundshroud Search lists them all, and the address is search.moundshroud.example.', 'Sites are generated as you go. About one in eight of them (in sketchy categories like giveaways, casinos, shady downloads, and grey markets) are scam/pop-up traps, and the anti-malware window is the way out.']],
+    ['Follow a walkthrough', 'walkthrough', ['Open Walkthrough from the desktop and paste an address from the fake internet, or an IP from the practice network (10.20.30.21).', 'Each chapter gives the exact request or command and a button that runs it here; the answer appears underneath it.', 'Nothing in it pays the bank on purpose. The Cosmetics shop is where the money the rest of the desktop earns gets spent.']],
+    ['Boot the Cyber VM', 'vm', ['Open Cyber VM from the dock and press Start VM.', 'Inside the guest, press Open hacking range to work the simulated targets.', 'Never start an attack tool on the host: here the host gets compromised and you have to restore the snapshot.']],
+    ['Play something', 'games', ['Open Games from the dock or the desktop.', 'Choose Minefield, Cable Snake, Block Collapse or Memory Row.', 'Arrow keys move in the games; right-click flags a mine.']],
     ['Change the desktop', 'settings', ['Open Settings and select a desktop interface.', 'Pick a wallpaper, or use Import an image to choose a PNG, JPEG, or WebP.', 'Use the outer Fullscreen button to fill the screen. Press Escape to return.']]
   ];
   const cases = [
@@ -78,7 +95,7 @@
           <form class="cd-login-card"><div class="cd-login-icon"><img src="/web/logo-64.png" alt=""></div>
             <h2>Sign in to Cyber Desktop</h2><p>moundshroud <span>·</span> <span data-session></span></p>
             <label>Guest password<input name="password" type="password" autocomplete="off" required aria-describedby="cd-password-help"></label>
-            <p id="cd-password-help" class="cd-password-help">Demo password <code>Moundshroud</code>. Always use stronger, unique passwords for real accounts.</p>
+            <p id="cd-password-help" class="cd-password-help">Demo password <code>Moundshroud</code>. You can turn this boot password off in Settings. Always use stronger, unique passwords for real accounts.</p>
             <button class="cd-primary" type="submit">Sign in</button><p data-login-error role="alert" hidden>Incorrect password.</p>
             <button type="button" data-action="restart">Return to boot menu</button>
           </form>
@@ -94,10 +111,12 @@
             <button type="button" data-action="lock">Lock screen</button><button type="button" data-action="restart">Restart</button><button type="button" data-action="shutdown">Shut down</button>
           </nav>
           <div class="cd-workspace">
+            <div class="cd-icons" aria-label="Desktop icons"></div>
+            <div class="cd-widgets"><div class="cd-widget" data-widget="clock"><b></b><span></span></div><div class="cd-widget" data-widget="sys"><span>Practice machine</span><b data-vm-badge>—</b><button type="button" data-app="vm">Open Cyber VM</button></div></div>
             <div class="cd-hero"><div class="cd-orbit" aria-hidden="true">◈</div><div><span>OFFLINE SECURITY WORKSPACE</span><h1>Cyber Desktop</h1><p>Terminal practice and security labs</p></div></div>
-            <div class="cd-windows"></div>
           </div>
           <nav class="cd-dock" aria-label="Dock"></nav>
+          <div class="cd-windows"></div>
         </section>
       </div>
     </div>`;
@@ -118,14 +137,19 @@
     const terminalQueue = [];
     const liveTerminalSaves = new Map();
     let liveTerminalBytes = 0;
-    let theme, interfaceMode, customWallpaper, profile, notes, results, selectedCase, browserHistory, browserIndex;
+    let theme, interfaceMode, customWallpaper, profile, notes, results, selectedCase;
+    /* apps the guest has deleted: the app list, the dock and the desktop all skip them until Settings puts them back */
+    let removedApps = new Set();
+    let showIcons = true, vivid = true, accent = '', requirePassword = true;
     let releaseBrowser, breachLabRelease, selectedUtility = 'digest', labQuery = '', sessionVersion = 0, wallpaperRequest = 0;
     let tutorial = false, lesson = 0, step = 0, caseEgg = false;
     let remote;
+    let dockList = [], iconList = [], iconPos = {}, iconDrag = null, iconDraggedAt = 0, dockDragId = '';
 
-    for (const [menu, ids] of [[$('.cd-app-menu-apps'), Object.keys(apps)], [$('.cd-dock'), dockApps]]) {
-      for (const id of ids) menu.append(appButton(id, apps[id]));
-    }
+    loadShell();
+    refreshAppMenu();
+    syncDock();
+    renderIcons();
     function appButton(id, [icon, label]) {
       const item = document.createElement('button');
       item.type = 'button';
@@ -139,9 +163,153 @@
       item.append(glyph, caption);
       return item;
     }
+
+    /* ---------- the shell itself: a taskbar you arrange, and desktop icons you can drag ---------- */
+    function readList(key, fallback) {
+      if (live) return fallback.slice();
+      const ids = String(read(key) || '').split(',').filter(id => Object.hasOwn(apps, id));
+      return ids.length ? ids : fallback.slice();
+    }
+    function loadShell() {
+      dockList = readList('dock', defaultDock);
+      iconList = readList('icon_list', defaultIcons);
+      try { iconPos = live ? {} : JSON.parse(read('icon_pos') || '{}'); } catch (error) { iconPos = {}; }
+      if (!iconPos || typeof iconPos !== 'object' || Array.isArray(iconPos)) iconPos = {};
+      removedApps = new Set(live ? [] : String(read('removed_apps') || '').split(',').filter(id => Object.hasOwn(apps, id)));
+      removedApps.delete('settings');
+    }
+    /* a function declaration, not a const: the dock and the icons are drawn below before this line would run */
+    function installed(id) { return Object.hasOwn(apps, id) && !removedApps.has(id); }
+    function refreshAppMenu() {
+      const list = $('.cd-app-menu-apps');
+      if (!list) return;
+      list.replaceChildren();
+      for (const id of Object.keys(apps)) if (installed(id)) list.append(appButton(id, apps[id]));
+      renderMenuTools('');
+    }
+    /* deleting an app is reversible: it leaves the app list, the dock and the desktop, and Settings keeps the full list */
+    function removeApp(id) {
+      if (!Object.hasOwn(apps, id) || id === 'settings') return;
+      if (slots.has(id)) dismissWindow(id, true);
+      removedApps.add(id);
+      dockList = dockList.filter(item => item !== id);
+      iconList = iconList.filter(item => item !== id);
+      delete iconPos[id];
+      saveShell();
+      if (!live) write('removed_apps', [...removedApps].join(','));
+      refreshAppMenu();
+      syncDock();
+      renderIcons();
+      const panel = slots.get('settings');
+      if (panel) renderApp('settings', panel.body);
+      A.toast(apps[id][1] + ' deleted. Settings › Applications brings it back.', 5000);
+    }
+    function restoreApp(id, quiet) {
+      if (!Object.hasOwn(apps, id) || !removedApps.delete(id)) return;
+      if (!live) write('removed_apps', [...removedApps].join(','));
+      refreshAppMenu();
+      syncDock();
+      renderIcons();
+      const panel = slots.get('settings');
+      if (panel) renderApp('settings', panel.body);
+      if (!quiet) A.toast(apps[id][1] + ' is back in Applications.', 4000);
+    }
+    function saveShell() {
+      if (live) return;
+      write('dock', dockList.join(','));
+      write('icon_list', iconList.join(','));
+      write('icon_pos', JSON.stringify(iconPos));
+    }
+    function syncDock() {
+      const dock = $('.cd-dock');
+      if (!dock) return;
+      const pinned = dockList.filter(id => installed(id));
+      const extra = [...slots.keys()].filter(id => !pinned.includes(id) && installed(id));
+      dock.replaceChildren();
+      for (const id of pinned) { const item = appButton(id, apps[id]); item.draggable = true; dock.append(item); }
+      for (const id of extra) dock.append(appButton(id, slots.get(id).app));
+      markActive(active);
+    }
+    function iconPlace(index) { return { x: 10 + Math.floor(index / 7) * 88, y: 10 + (index % 7) * 76 }; }
+    function placeIcon(element, pos) {
+      element.style.left = Math.max(0, Math.round(+pos.x || 0)) + 'px';
+      element.style.top = Math.max(0, Math.round(+pos.y || 0)) + 'px';
+    }
+    function renderIcons() {
+      const icons = $('.cd-icons');
+      if (!icons) return;
+      icons.replaceChildren();
+      iconList.forEach((id, index) => {
+        if (!installed(id)) return;
+        const item = appButton(id, apps[id]);
+        placeIcon(item, iconPos[id] || iconPlace(index));
+        icons.append(item);
+      });
+    }
+    function toggleDock(id) {
+      if (!apps[id]) return;
+      const at = dockList.indexOf(id);
+      if (at >= 0) dockList.splice(at, 1); else dockList.push(id);
+      saveShell();
+      syncDock();
+      const settings = slots.get('settings');
+      if (settings) renderApp('settings', settings.body);
+      A.toast(at >= 0 ? apps[id][1] + ' unpinned from the taskbar' : apps[id][1] + ' pinned to the taskbar');
+    }
+    function toggleDesktop(id) {
+      if (!apps[id]) return;
+      const at = iconList.indexOf(id);
+      if (at >= 0) iconList.splice(at, 1);
+      else { iconList.push(id); delete iconPos[id]; }
+      saveShell();
+      renderIcons();
+      const settings = slots.get('settings');
+      if (settings) renderApp('settings', settings.body);
+      A.toast(at >= 0 ? apps[id][1] + ' removed from the desktop' : apps[id][1] + ' added to the desktop');
+    }
+    let shellCtx = null;
+    function closeShellMenu() { shellCtx?.remove(); shellCtx = null; }
+    /* right-click on a dock icon, a desktop icon or an Applications entry: pin it, unpin it, or put it on the desktop */
+    function shellMenu(event, id) {
+      if (!apps[id]) return;
+      event.preventDefault();
+      event.stopPropagation();
+      closeShellMenu();
+      const pinned = dockList.includes(id), onDesktop = iconList.includes(id), running = slots.has(id);
+      const box = desktop.getBoundingClientRect();
+      shellCtx = document.createElement('div');
+      shellCtx.className = 'cd-ctx';
+      shellCtx.setAttribute('role', 'menu');
+      shellCtx.innerHTML = '<button type="button" data-ctx="open">' + apps[id][0] + ' Open ' + apps[id][1] + '</button>' +
+        '<button type="button" data-ctx="dock">' + (pinned ? '📌 Unpin from taskbar' : '📌 Pin to taskbar') + '</button>' +
+        '<button type="button" data-ctx="desktop">' + (onDesktop ? '🖥 Remove from desktop' : '🖥 Add to desktop') + '</button>' +
+        (id === 'settings' ? '' : '<button type="button" data-ctx="remove">🗑 Delete this app</button>') +
+        (running ? '<button type="button" data-ctx="close">✕ Close its window</button>' : '');
+      desktop.append(shellCtx);
+      shellCtx.style.left = Math.min(Math.max(4, event.clientX - box.left), Math.max(4, box.width - 210)) + 'px';
+      shellCtx.style.top = Math.min(Math.max(4, event.clientY - box.top), Math.max(4, box.height - 140)) + 'px';
+      shellCtx.addEventListener('click', choose => {
+        const item = choose.target.closest('[data-ctx]');
+        if (!item) return;
+        const what = item.dataset.ctx;
+        closeShellMenu();
+        if (what === 'open') openApp(id);
+        else if (what === 'dock') toggleDock(id);
+        else if (what === 'desktop') toggleDesktop(id);
+        else if (what === 'remove') removeApp(id);
+        else if (what === 'close') dismissWindow(id, true);
+      });
+      shellCtx.querySelector('[data-ctx="open"]').focus();
+    }
     renderMenuTools('');
+    /* the desktop icons are rendered by renderIcons(): they can be dragged anywhere and removed from the desktop. */
     function applyAppearance() {
       shell.dataset.interface = interfaceMode;
+      const icons = $('.cd-icons');
+      if (icons) icons.hidden = !showIcons;
+      shell.classList.toggle('cd-noanim', !vivid);
+      if (/^#[0-9a-f]{6}$/i.test(accent)) shell.style.setProperty('--acc', accent);
+      else shell.style.removeProperty('--acc');
       screen.dataset.theme = theme;
       if (/^data:image\/jpeg;base64,[a-z0-9+/=]+$/i.test(customWallpaper)) {
         screen.style.setProperty('--cd-wallpaper', 'url("' + customWallpaper + '")');
@@ -154,14 +322,22 @@
       tutorial = !live && read('tutorial') === '1';
       interfaceMode = live ? 'studio' : read('interface', 'studio');
       if (!interfaces.some(([id]) => id === interfaceMode)) interfaceMode = 'studio';
+      showIcons = live ? true : read('icons', '1') !== '0';
+      vivid = live ? true : read('motion', '1') !== '0';
+      /* the boot password is a saved choice for the virtual disk; a live USB session is temporary and always starts with it */
+      requirePassword = live ? true : read('boot_password', '1') !== '0';
+      accent = live ? '' : read('accent', '');
       customWallpaper = live ? '' : read('custom_wallpaper');
       theme = live ? 'abyss' : read('wallpaper', 'abyss');
-      if (!themes.some(([id]) => id === theme) && !(theme === 'custom' && customWallpaper)) theme = 'abyss';
+      if (!wallpaperList().some(([id]) => id === theme) && !(theme === 'custom' && customWallpaper)) theme = 'abyss';
       profile = live ? 'all' : read('profile', 'all');
       if (!Object.hasOwn(profiles, profile)) profile = 'all';
       notes = live ? '' : read('notes');
       try { results = new Set(live ? [] : JSON.parse(read('results', '[]'))); }
       catch (error) { results = new Set(); }
+      loadShell();
+      syncDock();
+      renderIcons();
       applyAppearance();
     }
     currentSettings();
@@ -169,6 +345,15 @@
       const now = new Date();
       clock.dateTime = now.toISOString();
       clock.textContent = new Intl.DateTimeFormat(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(now);
+      const badge = $('[data-vm-badge]');
+      if (badge) {
+        const on = !!A.cyberExtras?.state.running;
+        badge.textContent = on ? 'Cyber VM running' : 'Cyber VM stopped';
+        badge.className = on ? 'cd-ok' : 'cd-bad';
+      }
+      const wClock = $('[data-widget="clock"] b'), wDate = $('[data-widget="clock"] span');
+      if (wClock) wClock.textContent = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(now);
+      if (wDate) wDate.textContent = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'short', day: 'numeric' }).format(now);
     }
     function startClock() {
       clearInterval(timer);
@@ -185,6 +370,12 @@
       $('[data-action="applications"]').setAttribute('aria-expanded', 'false');
       $('[data-action="power-menu"]').setAttribute('aria-expanded', 'false');
     }
+    function enterDesktop() {
+      for (const label of host.querySelectorAll('[data-session]')) label.textContent = live ? 'Live USB' : 'Virtual disk';
+      showStage(desktop);
+      dockBrowser();
+      $('[data-action="applications"]').focus();
+    }
     function signIn() {
       form.reset();
       $('[data-login-error]').hidden = true;
@@ -195,6 +386,7 @@
     function resetGuest(poweredOff, focus = true) {
       sessionVersion++;
       closeMenus();
+      closeShellMenu();
       undockBrowser();
       if (terminalPort) terminalPort.close();
       terminalPort = null;
@@ -210,10 +402,12 @@
       selectedUtility = 'digest';
       labQuery = '';
       lesson = step = 0;
+      A.cyberExtras?.reset();
+      $('[data-hacked]')?.remove();
       caseEgg = false;
       markActive('');
-      browserHistory = ['home'];
-      browserIndex = 0;
+      A.cyberVirus?.stop();
+      closeShellMenu();
       showStage(boot);
       boot.classList.toggle('cd-off', poweredOff);
       $('.cd-power').hidden = !poweredOff;
@@ -236,7 +430,7 @@
       }
       for (const button of dock.querySelectorAll('[data-app]')) {
         const slot = slots.get(button.dataset.app);
-        if (!slot && !dockApps.includes(button.dataset.app)) { button.remove(); continue; }
+        if (!slot && !dockList.includes(button.dataset.app)) { button.remove(); continue; }
         button.setAttribute('aria-pressed', String(button.dataset.app === id));
         button.classList.toggle('cd-running', !!slot);
         button.classList.toggle('cd-minimized', !!slot?.window.hidden);
@@ -282,6 +476,8 @@
         launch.textContent = '🛡️ Breach Lab';
       };
       const open = () => {
+        /* the range is an attack tool: on the host it compromises the host. Only the Cyber VM may run it. */
+        if (!A.cyberExtras?.state.running) { showHacked(); return; }
         if (!overlay.hidden) { close(); return; }
         overlay.hidden = false;
         overlay.innerHTML = '<div class="cd-content" style="padding-top:8px"><div data-breach-host>Loading your offline library targets…</div></div>';
@@ -344,6 +540,24 @@
         <button type="button" data-action="close" title="Close" aria-label="Close">×</button>
       </div></header><div class="cd-app-body"></div><button class="cd-resize" type="button" aria-label="Resize window with arrow keys"></button>`;
       window.querySelector('.cd-title > span').textContent = app.join('  ');
+      if (id === 'browser') {
+        /* only the Cyber Desktop's browser has this button: moundshell opens over everything, full screen included */
+        const controls = window.querySelector('.cd-title > div');
+        const shellButton = document.createElement('button');
+        shellButton.type = 'button';
+        shellButton.dataset.action = 'shell';
+        shellButton.textContent = '🐚';
+        shellButton.title = 'Open moundshell, in front of everything, even in full screen';
+        shellButton.setAttribute('aria-label', 'Open moundshell');
+        shellButton.addEventListener('click', event => {
+          event.stopPropagation();
+          /* `window` here is this desktop's own window section, so the app's shell is looked up on globalThis */
+          const shell = globalThis.AppShell;
+          if (shell) shell.open();
+          else A.toast('The shell is still loading. Try again in a moment.', 4000);
+        });
+        controls.insertBefore(shellButton, controls.firstChild);
+      }
       const slot = { app, window, body: window.querySelector('.cd-app-body'), order: 0 };
       slots.set(id, slot);
       windows.append(window);
@@ -363,6 +577,11 @@
               applyAppearance();
               terminalPort.postMessage({ type: 'tutorial', enabled: tutorial });
               for (const message of terminalQueue.splice(0)) terminalPort.postMessage(message);
+              /* the offline libraries this browser holds become targets in the terminal's pentest range */
+              A.api('/api/lib/books').then(r => {
+                if (!terminalReady || terminalPort !== channel.port1) return;
+                terminalPort.postMessage({ type: 'libraries', books: (r && r.books) || [] });
+              }).catch(() => { });
             } else if (data?.type === 'activate') {
               if (!desktop.hidden && !slot.window.hidden) markActive('terminal');
             } else if (data?.type === 'ai') {
@@ -392,6 +611,8 @@
     function openApp(id, refresh = false, remotePC) {
       const app = slots.get(id)?.app || (remotePC ? ['▣', remotePC.hostname] : Object.hasOwn(apps, id) && apps[id]);
       if (!app) return;
+      /* something that needs a deleted app (a link in the mail, a guide button) brings it back rather than failing */
+      if (removedApps.has(id)) restoreApp(id, true);
       closeMenus();
       const slot = ensureApp(id, app);
       slot.window.hidden = false;
@@ -402,8 +623,12 @@
       else if (id !== 'terminal' && (refresh || !slot.body.hasChildNodes() || id === 'incidents' || id === 'settings')) renderApp(id, slot.body);
       slot.window.querySelector('[data-action="minimize"]').focus();
     }
+    /* Maximize really fills the screen: the window is pinned over the whole browser viewport by CSS, panel and dock
+       included, so nothing else on the page shows until it is restored or minimized. The window's own geometry
+       lives in its custom properties, so restoring simply drops the class and the inline overrides. */
     function toggleMaximize(slot) {
       const maximized = slot.window.classList.toggle('cd-maximized');
+      for (const name of ['left', 'top', 'width', 'height']) slot.window.style[name] = '';
       const button = slot.window.querySelector('[data-action="maximize"]');
       button.setAttribute('aria-pressed', String(maximized));
       button.setAttribute('aria-label', maximized ? 'Restore window' : 'Maximize');
@@ -420,6 +645,8 @@
           terminalReady = false;
           terminalQueue.length = 0;
         }
+        slot.body._cleanup?.();
+        slot.body._cleanup = null;
         slot.window.remove();
         slots.delete(id);
       } else slot.window.hidden = true;
@@ -505,21 +732,81 @@
         input.value = '';
       }
     }
+    /* what the guest apps in cyber-extras.js may do: open another app, refresh the widgets, call the hack consequence */
+    /* what the guest apps in cyber-extras.js may do: open another app, refresh the widgets, call the hack consequence,
+       or catch the fake pop-up virus (a phishing link does that instead of taking the whole machine). */
+    /* open a generated site in this desktop's browser: the one the mail or moundshell links to */
+    function openSite(url) {
+      const raw = String(url == null ? '' : url).trim();
+      if (/^(?:https?:\/\/)?(?:www\.)?moundhub\.com\/?$/i.test(raw) || raw === '/web/moundhub.html') {
+        openApp('browser');
+        const goHub = () => { if (A.lib?.hub) A.lib.hub(); };
+        goHub();
+        setTimeout(goHub, 250);
+        return true;
+      }
+      const at = A.cyberWeb?.locate(raw) || A.cyberWeb?.visit?.(raw);
+      if (!at) return false;
+      openApp('browser');
+      const go = () => { if (A.lib?.openSite) A.lib.openSite('https://' + at.site.host + at.path); };
+      go();
+      setTimeout(go, 250);
+      return true;
+    }
+    /* the Cosmetics shop and the Bank use these calls: read the look, set it, open an app or website */
+    lookApi.current = () => ({ wallpaper: theme, accent });
+    lookApi.wallpaper = value => applyWallpaper(value);
+    lookApi.accent = value => {
+      accent = /^#[0-9a-f]{6}$/i.test(value) ? value : '';
+      if (!live) write('accent', accent);
+      applyAppearance();
+    };
+    lookApi.open = id => openApp(id);
+    lookApi.openSite = url => openSite(url);
+    const extraCtx = {
+      open: id => openApp(id), refresh: () => time(), hacked: reason => showHacked(reason),
+      infect: () => A.cyberVirus?.start(desktop, { reason: 'phish' }), toast: message => A.toast(message),
+      openSite, install: id => restoreApp(id, true), live: () => live
+    };
     function renderApp(id, body) {
+      body._cleanup?.();
+      body._cleanup = null;
+      /* the practice bank: what the puzzles, the breach lab and the case desk pay into */
+      if (id === 'bank' && A.cyberBank) {
+        body._cleanup = A.cyberBank.app(body) || null;
+        return;
+      }
+      if (A.cyberExtras && Object.hasOwn(A.cyberExtras, id) && typeof A.cyberExtras[id] === 'function') {
+        body._cleanup = A.cyberExtras[id](body, extraCtx) || null;
+        return;
+      }
       if (id === 'settings') {
         body.innerHTML = `<div class="cd-content"><h2>Desktop interface</h2><div class="cd-case-grid">${interfaces.map(([value, name, summary]) =>
           `<button type="button" data-interface-choice="${value}" aria-pressed="${value === interfaceMode}"><b>${name}</b><small>${summary}</small></button>`).join('')}</div>
-          <h2>Wallpaper</h2><div class="cd-wallpapers">${(customWallpaper ? [...themes, ['custom', 'Imported']] : themes).map(([value, name]) =>
+          <h2>Wallpaper</h2><p>Everything you own, including what the Cosmetics shop unlocked.</p><div class="cd-wallpapers">${(customWallpaper ? [...wallpaperList(), ['custom', 'Imported']] : wallpaperList()).map(([value, name]) =>
           `<button type="button" data-wallpaper="${value}" aria-pressed="${value === theme}"><span data-theme="${value}"></span>${name}</button>`).join('')}</div>
           <label>Import an image <input type="file" data-wallpaper-file accept="image/png,image/jpeg,image/webp"></label><p data-wallpaper-status role="status"></p>
+          <h2>Desktop</h2><label><input type="checkbox" data-icons-setting ${showIcons ? 'checked' : ''}> Show desktop icons</label>
+          <label><input type="checkbox" data-motion-setting ${vivid ? 'checked' : ''}> Animated background</label>
+          <p>Accent colour</p><div class="cd-accents">${accents.map(([value, name]) =>
+            `<button type="button" data-accent="${value}" aria-pressed="${(value === 'auto' ? '' : value) === accent}"><span style="background:${value === 'auto' ? 'linear-gradient(135deg,#8fd9ff,#d8baff)' : value}"></span>${name}</button>`).join('')}</div>
+          <h2>Applications</h2><p>Untick an app to delete it from this desktop. Nothing is lost: every app stays in this list, so tick it again to bring it back.</p>
+          <div class="cd-dock-list">${Object.keys(apps).map(id => `<label${installed(id) ? '' : ' class="cd-app-removed"'}><input type="checkbox" data-app-setting="${id}" ${installed(id) ? 'checked' : ''} ${id === 'settings' ? 'disabled title="Settings cannot be deleted"' : ''}><span aria-hidden="true">${apps[id][0]}</span> ${apps[id][1]}</label>`).join('')}</div>
+          <h2>Taskbar</h2><p>Tick the apps that sit in the dock. Right-click a dock icon to unpin it, drag dock icons to reorder them, and right-click a desktop icon or an Applications entry to pin it.</p>
+          <div class="cd-dock-list">${Object.keys(apps).filter(installed).map(id => '<label><input type="checkbox" data-dock-setting="' + id + '"' + (dockList.includes(id) ? ' checked' : '') + '><span aria-hidden="true">' + apps[id][0] + '</span> ' + apps[id][1] + '</label>').join('')}</div>
+          <button type="button" data-action="dock-reset">Restore the default taskbar</button>
+          <h2>Desktop icons</h2><p>Drag icons anywhere on the desktop, or right-click one to pin it to the taskbar or remove it.</p>
+          <button type="button" data-action="icons-reset">Restore the default icons</button>
           <h2>Lab profile</h2><p>Choose the cases displayed in Security Labs.</p>
           <label>Case collection<select data-profile>${Object.entries(profiles).map(([value, [name]]) =>
             `<option value="${value}" ${value === profile ? 'selected' : ''}>${name}</option>`).join('')}</select></label>
           <h2>Beginner help</h2><label><input type="checkbox" data-tutorial-setting ${tutorial ? 'checked' : ''}> Tutorial mode</label>
           <p>Show short, step-by-step instructions while exploring the terminal and labs.</p><button type="button" data-app="tutorial">Open walkthroughs</button>
+          <h2>Sign-in &amp; boot</h2><p>${live ? 'This is a <b>Live USB</b> session: it is temporary, so it always asks for the guest password when it boots. Turn it off here and this session will not ask again until you restart it.' : 'Turn this off to skip the guest password screen the next time the Cyber Desktop boots from the virtual disk.'}</p><label><input type="checkbox" data-boot-password-setting ${requirePassword ? 'checked' : ''}> Ask for a password when booting up</label>
+          <p>${live ? 'The saved setting for the virtual disk is not changed from here.' : 'The live USB always asks again; only the virtual disk remembers this choice.'}</p>
           <h2>System</h2><dl><dt>Session</dt><dd>${live ? 'Live USB · temporary' : 'Virtual disk · saved locally'}</dd><dt>Platform</dt><dd>Browser simulation</dd></dl></div>`;
       } else if (id === 'notes') {
-        body.innerHTML = '<div class="cd-content cd-notes"><label for="cd-note">Investigation notes</label><textarea id="cd-note" spellcheck="true" maxlength="100000" placeholder="Record findings and next steps…"></textarea><p>' +
+        body.innerHTML = '<div class="cd-content cd-notes"><label for="cd-note">Investigation notes</label><textarea id="cd-note" spellcheck="true" maxlength="100000" placeholder="Record findings and next steps…"></textarea><div class="cd-note-actions"><button type="button" data-action="notes-copy">📋 Copy note</button></div><p>' +
           (live ? 'Notes clear on reboot in live mode.' : 'Notes save locally as you type.') + '</p></div>';
         body.querySelector('textarea').value = notes;
       } else if (id === 'files') {
@@ -527,8 +814,6 @@
           cases.map(([key, , title]) => `<button type="button" data-case="${key}"><i aria-hidden="true">▤</i><b>${key}.txt</b><small>${title}</small></button>`).join('') + '</div></div>';
       } else if (id === 'tools') {
         renderTools(body);
-      } else if (id === 'local') {
-        renderBrowser(body);
       } else if (id === 'guide') {
         body.innerHTML = `<div class="cd-content"><h2>Desktop Guide</h2>
           <div class="cd-guide-grid">${guide.map(([title, explanation, target, label]) =>
@@ -599,39 +884,12 @@
       const query = labQuery.trim().toLowerCase();
       for (const option of body.querySelectorAll('[data-case]')) option.hidden = !option.textContent.toLowerCase().includes(query);
     }
-    const browserPages = {
-      home: ['Guest home', 'Open a local page for help with the terminal, boot modes, or evidence review.'],
-      terminal: ['Terminal guide', 'Open Terminal from the dock. Use Sandbox for free play and practice jobs, Puzzles for generated and custom puzzles, and Labyrinth for connected rooms. The Help panel documents the active shell.'],
-      boot: ['Boot and storage', 'Virtual disk mode saves guest progress in this browser profile. Live USB mode starts fresh and discards its workspace when the guest restarts.'],
-      evidence: ['Evidence review', 'Open Security Labs to review bundled cases. Copy an artifact into Bash for command-line analysis. Completed findings can be added to Notes.']
-    };
-    function renderBrowser(body) {
-      const page = browserHistory[browserIndex];
-      const [title, description] = browserPages[page] || [];
-      body.innerHTML = `<div class="cd-browser-bar"><button type="button" data-action="browser-back" aria-label="Back" ${browserIndex <= 0 ? 'disabled' : ''}>←</button>
-        <button type="button" data-action="browser-forward" aria-label="Forward" ${browserIndex >= browserHistory.length - 1 ? 'disabled' : ''}>→</button>
-        <button type="button" data-page="home" aria-label="Home">⌂</button>
-        <form data-browser-search><input aria-label="Search guest pages" name="query" placeholder="Search guest pages" autocomplete="off"><button type="submit">Go</button></form></div>
-        <div class="cd-content"><h2></h2><p data-browser-description></p><div class="cd-case-grid"></div></div>`;
-      body.querySelector('h2').textContent = title || 'Search results';
-      body.querySelector('[data-browser-description]').textContent = description || 'Guest pages matching “' + page.query + '”';
-      const matching = Object.entries(browserPages).filter(([key, details]) =>
-        key !== 'home' && (!page.query || details.join(' ').toLowerCase().includes(page.query.toLowerCase())));
-      if (page === 'home' || page.query) {
-        body.querySelector('.cd-case-grid').innerHTML = matching.length ? matching.map(([key, [label]]) =>
-          `<button type="button" data-page="${key}"><i aria-hidden="true">◎</i><b>${label}</b></button>`).join('') : '<p>No matching pages.</p>';
-      }
-    }
-    function openPage(page) {
-      browserHistory.splice(browserIndex + 1, Infinity, page);
-      browserIndex++;
-      renderBrowser(slots.get('local').body);
-    }
     function updateFullscreen() {
       const expanded = document.fullscreenElement === shell || shell.classList.contains('cd-expanded');
       fullscreenButton.textContent = expanded ? '↙ Exit fullscreen' : '⛶ Fullscreen';
       fullscreenButton.setAttribute('aria-pressed', String(expanded));
       shell.classList.toggle('cd-is-fullscreen', expanded);
+      document.documentElement.classList.toggle('cd-fs-on', expanded);
     }
     async function toggleFullscreen() {
       if (document.fullscreenElement === shell) await document.exitFullscreen();
@@ -643,8 +901,31 @@
       updateFullscreen();
     }
 
+    /* Starting pretend hacking on the host instead of inside the Cyber VM: in this simulation, the host is owned. */
+    function showHacked(reason) {
+      if ($('[data-hacked]') || desktop.hidden) return;
+      const phish = reason === 'phish';
+      const lost = phish ? ['mail passwords', 'session tokens', 'bank details', 'photos/', 'notes.txt', 'guest.img']
+        : ['notes.txt', 'case-files/', 'passwords.kdbx', 'photos/', 'mail/', 'results.json', 'guest.img'];
+      const overlay = document.createElement('div');
+      overlay.className = 'cd-hacked';
+      overlay.dataset.hacked = '1';
+      overlay.innerHTML = `<div class="cd-hacked-card" role="alertdialog" aria-label="Host compromised">
+        <b>⚠ HOST COMPROMISED</b>
+        <h2>You have been hacked</h2>
+        <p>${phish ? 'You followed a link in a phishing message. It asked you to re-verify your account, you did, and the machine belonged to someone else: the stolen session opened your mail, your notes and the photo folder.' : 'You started pretend hacking on the host instead of inside the Cyber VM. On a real machine that is exactly how a practice session becomes an incident: the tool ran with your permissions, the payload spread, and the machine belongs to someone else now.'}</p>
+        <ul class="cd-hacked-list">${lost.map(name => '<li>' + name + ' — encrypted</li>').join('')}</ul>
+        <p>${phish ? 'Nothing in that message was real. Check the sender domain, the urgency and the request for credentials, report it, then verify through a channel you already trust.' : 'Inside the Cyber VM this would have been a throwaway diff disk. Nothing outside the guest would have been touched.'}</p>
+        <div class="cd-hacked-actions"><button type="button" data-action="hacked-reboot" class="cd-primary">Restore snapshot and reboot</button>
+          <button type="button" data-action="hacked-learn">How do I avoid this?</button></div>
+        <p class="cd-hacked-note" data-hacked-note hidden>${phish ? 'Mail asking you to sign in through a link is the oldest trick there is. Open the site by typing its address yourself, and never enter a password you were asked for in an email.' : 'Boot the <b>Cyber VM</b> app first, then press <b>Open hacking range</b> inside it. Attack tools belong in the guest, never on the host.'}</p>
+        <button type="button" data-action="shutdown">⏻ Shut down</button></div>`;
+      screen.append(overlay);
+      overlay.querySelector('[data-action="hacked-reboot"]').focus();
+    }
     function click(event) {
       if (event.target.closest('#p-web')) return;
+      if (Date.now() - iconDraggedAt < 400 && event.target.closest('.cd-icons')) return;
       const button = event.target.closest('button');
       if (!button) return;
       const data = button.dataset;
@@ -653,7 +934,8 @@
       if (data.boot) {
         live = data.boot === 'live';
         currentSettings();
-        signIn();
+        if (requirePassword) signIn();
+        else enterDesktop();
       } else if (data.app) {
         openApp(data.app);
       } else if (data.terminalShell) {
@@ -667,10 +949,13 @@
         if (!live) write('interface', interfaceMode);
         applyAppearance();
         for (const option of host.querySelectorAll('[data-interface-choice]')) option.setAttribute('aria-pressed', String(option === button));
+      } else if (data.accent) {
+        accent = data.accent === 'auto' ? '' : data.accent;
+        if (!live) write('accent', accent);
+        applyAppearance();
+        for (const option of host.querySelectorAll('[data-accent]')) option.setAttribute('aria-pressed', String(option === button));
       } else if (data.case) {
         showEvidence(data.case);
-      } else if (data.page) {
-        openPage(data.page);
       } else {
         switch (data.action) {
           case 'fullscreen': toggleFullscreen(); break;
@@ -691,6 +976,16 @@
           case 'minimize': dismissWindow(windowId, false); break;
           case 'close': dismissWindow(windowId, true); break;
           case 'maximize': markActive(windowId); toggleMaximize(slots.get(windowId)); break;
+          case 'hacked-reboot': resetGuest(false); break;
+          case 'hacked-learn': $('[data-hacked-note]').hidden = false; break;
+          case 'dock-reset': dockList = defaultDock.slice().filter(installed); saveShell(); syncDock(); renderApp('settings', slots.get('settings').body); A.toast('Default taskbar restored'); break;
+          case 'icons-reset': iconList = defaultIcons.slice().filter(installed); iconPos = {}; saveShell(); renderIcons(); renderApp('settings', slots.get('settings').body); A.toast('Default desktop icons restored'); break;
+          case 'notes-copy': {
+            const text = notes || '';
+            if (!text.trim()) { A.toast('The note is empty — nothing to copy.'); break; }
+            A.copy(text);
+            break;
+          }
           case 'case-list':
             selectedCase = '';
             renderTools(slots.get('tools').body);
@@ -720,8 +1015,7 @@
             openApp('notes');
             break;
           }
-          case 'browser-back': browserIndex--; renderBrowser(slots.get('local').body); break;
-          case 'browser-forward': browserIndex++; renderBrowser(slots.get('local').body); break;
+
         }
       }
     }
@@ -777,6 +1071,72 @@
       const slot = windowFor(event.target);
       resizeWindow(slot, windowBounds(slot), ...steps[event.key]);
     }, { signal });
+    /* ---- desktop icons: drag them anywhere, and remember where they landed ---- */
+    const iconArea = $('.cd-icons');
+    iconArea.addEventListener('pointerdown', event => {
+      const button = event.target.closest('[data-app]');
+      if (!button || event.button !== 0) return;
+      const box = button.getBoundingClientRect(), area = iconArea.getBoundingClientRect();
+      iconDrag = { button, id: button.dataset.app, pointer: event.pointerId, x: event.clientX, y: event.clientY, ox: box.left - area.left, oy: box.top - area.top, moved: false };
+      try { button.setPointerCapture(event.pointerId); } catch (error) { }
+    }, { signal });
+    iconArea.addEventListener('pointermove', event => {
+      if (!iconDrag || iconDrag.pointer !== event.pointerId) return;
+      const dx = event.clientX - iconDrag.x, dy = event.clientY - iconDrag.y;
+      if (!iconDrag.moved && Math.hypot(dx, dy) < 4) return;
+      iconDrag.moved = true;
+      iconDrag.button.classList.add('cd-dragging');
+      placeIcon(iconDrag.button, { x: Math.max(0, iconDrag.ox + dx), y: Math.max(0, iconDrag.oy + dy) });
+    }, { signal });
+    const endIconDrag = () => {
+      if (!iconDrag) return;
+      const { button, id, moved } = iconDrag;
+      button.classList.remove('cd-dragging');
+      if (moved) {
+        iconPos[id] = { x: parseInt(button.style.left, 10) || 0, y: parseInt(button.style.top, 10) || 0 };
+        saveShell();
+        iconDraggedAt = Date.now();
+      }
+      iconDrag = null;
+    };
+    iconArea.addEventListener('pointerup', endIconDrag, { signal });
+    iconArea.addEventListener('pointercancel', endIconDrag, { signal });
+    iconArea.addEventListener('contextmenu', event => { const item = event.target.closest('[data-app]'); if (item) shellMenu(event, item.dataset.app); }, { signal });
+    /* a drag never opens the app under it */
+    host.addEventListener('click', event => {
+      if (Date.now() - iconDraggedAt < 400 && event.target.closest('.cd-icons')) { event.preventDefault(); event.stopPropagation(); }
+    }, { capture: true, signal });
+
+    /* ---- the dock: reorder by dragging, right-click to unpin ---- */
+    const dockArea = $('.cd-dock');
+    dockArea.addEventListener('contextmenu', event => { const item = event.target.closest('[data-app]'); if (item) shellMenu(event, item.dataset.app); }, { signal });
+    dockArea.addEventListener('dragstart', event => {
+      const item = event.target.closest('[data-app]');
+      if (!item) return;
+      dockDragId = item.dataset.app;
+      item.classList.add('cd-dragging');
+      try { event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', dockDragId); } catch (error) { }
+    }, { signal });
+    dockArea.addEventListener('dragover', event => { if (dockDragId) event.preventDefault(); }, { signal });
+    dockArea.addEventListener('drop', event => {
+      event.preventDefault();
+      const target = event.target.closest('[data-app]');
+      const moving = dockDragId || event.dataTransfer?.getData('text/plain');
+      dockDragId = '';
+      if (!moving || !target || target.dataset.app === moving) return;
+      const from = dockList.indexOf(moving);
+      if (from < 0) dockList.push(moving);
+      const to = dockList.indexOf(target.dataset.app);
+      if (to < 0) return;
+      dockList.splice(to, 0, ...dockList.splice(from < 0 ? dockList.length - 1 : from, 1));
+      saveShell();
+      syncDock();
+    }, { signal });
+    dockArea.addEventListener('dragend', () => { dockDragId = ''; dockArea.querySelectorAll('.cd-dragging').forEach(item => item.classList.remove('cd-dragging')); }, { signal });
+    /* the Applications list can pin apps too */
+    applications.addEventListener('contextmenu', event => { const item = event.target.closest('[data-app]'); if (item) shellMenu(event, item.dataset.app); }, { signal });
+    desktop.addEventListener('pointerdown', event => { if (shellCtx && !shellCtx.contains(event.target)) closeShellMenu(); }, { signal });
+
     host.addEventListener('click', click, { signal });
     host.addEventListener('submit', async event => {
       if (event.target.closest('#p-web')) return;
@@ -788,14 +1148,13 @@
           return;
         }
         form.reset();
-        showStage(desktop);
-        dockBrowser();
-        $('[data-action="applications"]').focus();
+        enterDesktop();
       } else if (event.target.hasAttribute('data-assessment')) {
         const [key, , , , , , answer, finding] = cases.find(row => row[0] === selectedCase);
         const correct = event.target.elements.answer.value === String(answer);
         $('[data-assessment-result]').textContent = correct ? finding : 'Review the evidence and try again.';
         if (!correct) return;
+        if (!results.has(key)) A.cyberBank?.caseClosed((cases.find(row => row[0] === key) || [, key])[1]);
         results.add(key);
         if (!live) write('results', JSON.stringify([...results]));
         caseEgg = false;
@@ -806,9 +1165,6 @@
         $('[data-action="record"]').hidden = false;
         const next = $('[data-next-phase]');
         if (next) next.hidden = false;
-      } else if (event.target.hasAttribute('data-browser-search')) {
-        const query = event.target.elements.query.value.trim();
-        if (query) openPage({ query });
       } else if (event.target.hasAttribute('data-utility-form')) {
         const utilityForm = event.target;
         const output = utilityForm.querySelector('[data-utility-result]');
@@ -840,6 +1196,25 @@
         renderApp('utility', slots.get('utility').body);
         $('[data-utility-form] textarea').value = texts;
         $('[data-utility-select]').focus();
+      } else if (event.target.hasAttribute('data-icons-setting')) {
+        showIcons = event.target.checked;
+        if (!live) write('icons', showIcons ? '1' : '0');
+        applyAppearance();
+      } else if (event.target.hasAttribute('data-motion-setting')) {
+        vivid = event.target.checked;
+        if (!live) write('motion', vivid ? '1' : '0');
+        applyAppearance();
+      } else if (event.target.hasAttribute('data-boot-password-setting')) {
+        requirePassword = event.target.checked;
+        if (!live) write('boot_password', requirePassword ? '1' : '0');
+        A.toast(live
+          ? (requirePassword ? 'This live USB session will ask for the password when it reboots. The virtual disk setting is unchanged.' : 'This live USB session will skip the password until it reboots. The virtual disk setting is unchanged.')
+          : (requirePassword ? 'Cyber Desktop will ask for the guest password on boot.' : 'Cyber Desktop boot password turned off — next boot will skip the password.'));
+      } else if (event.target.hasAttribute('data-app-setting')) {
+        if (event.target.checked) restoreApp(event.target.dataset.appSetting);
+        else removeApp(event.target.dataset.appSetting);
+      } else if (event.target.hasAttribute('data-dock-setting')) {
+        toggleDock(event.target.dataset.dockSetting);
       } else if (event.target.hasAttribute('data-tutorial-setting')) {
         tutorial = event.target.checked;
         if (!live) write('tutorial', tutorial ? '1' : '0');
@@ -872,24 +1247,37 @@
     }, { signal });
     document.addEventListener('fullscreenchange', updateFullscreen, { signal });
     document.addEventListener('keydown', event => {
-      if (event.key !== 'Escape' || !host.contains(document.activeElement)) return;
+      if (event.key !== 'Escape') return;
+      if (A.cur !== 'cyber' && !shell.classList.contains('cd-expanded')) return;
+      /* let higher overlays (moundshell, open dialogs, terminal fullscreen) handle Escape first */
+      if (globalThis.AppShell?.isOpen?.() || A.termFS?.active?.() || document.querySelector('dialog[open], #setx:not([hidden]), .srcview')) return;
       const focused = document.activeElement;
-      const menuButton = applications.contains(focused) ? $('[data-action="applications"]')
-        : powerMenu.contains(focused) ? $('[data-action="power-menu"]') : null;
+      const menuButton = host.contains(focused)
+        ? (applications.contains(focused) ? $('[data-action="applications"]') : powerMenu.contains(focused) ? $('[data-action="power-menu"]') : null)
+        : null;
+      const maxSlot = [...slots.values()]
+        .filter(s => !s.window.hidden && s.window.classList.contains('cd-maximized'))
+        .sort((a, b) => (b.order || 0) - (a.order || 0))[0];
       if (shell.classList.contains('cd-expanded')) {
+        event.preventDefault();
         shell.classList.remove('cd-expanded');
         updateFullscreen();
         fullscreenButton.focus();
+      } else if (maxSlot) {
+        event.preventDefault();
+        toggleMaximize(maxSlot);
       } else if (menuButton) {
         menuButton.focus();
       }
       closeMenus();
+      closeShellMenu();
     }, { signal });
     host._onHide = () => {
       clearInterval(timer);
       closeMenus();
       undockBrowser();
       shell.classList.remove('cd-expanded');
+      document.documentElement.classList.remove('cd-fs-on');
       if (document.fullscreenElement === shell) document.exitFullscreen().catch(() => {});
       updateFullscreen();
     };
@@ -906,5 +1294,14 @@
       events.abort();
     };
   }
-  A.cyberDesktop = { mount };
+  A.cyberDesktop = {
+    mount,
+    api: {
+      current: () => (lookApi.current ? lookApi.current() : { wallpaper: '', accent: '' }),
+      wallpaper: value => lookApi.wallpaper && lookApi.wallpaper(value),
+      accent: value => lookApi.accent && lookApi.accent(value),
+      open: id => lookApi.open && lookApi.open(id),
+      openSite: url => lookApi.openSite && lookApi.openSite(url)
+    }
+  };
 })();

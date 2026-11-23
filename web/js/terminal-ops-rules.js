@@ -931,6 +931,37 @@ const TerminalOps = (function () {
       sleep: () => ({ out: '' })
     };
 
+    /* Every command the shared kit knows (cp, mv, rm, mkdir, touch, filesystem and system tools, the shell's own
+       builtins) answers here too. This shell's own versions always win. */
+    {
+      const Shared = typeof TerminalSharedCommands !== 'undefined' ? TerminalSharedCommands
+        : (typeof module !== 'undefined' && module.exports ? require('./terminal-commands-shared.js') : null);
+      if (Shared) Shared.fill(cmds, {
+        shell: 'bash', user: curUser(), host: hostOf[st.host],
+        cwd: () => path(),
+        read: p => readPath(String(p)),
+        write: (p, txt) => {
+          const parts = resolve(String(p));
+          let n = tree();
+          for (let i = 0; i < parts.length - 1; i++) { if (!isDirNode(n[parts[i]])) n[parts[i]] = {}; n = n[parts[i]]; }
+          n[parts[parts.length - 1]] = { text: String(txt == null ? '' : txt) };
+        },
+        remove: p => { const parts = resolve(String(p)); const parent = walk(parts.slice(0, -1)); if (isDirNode(parent)) delete parent[parts[parts.length - 1]]; },
+        list: p => {
+          const n = walk(resolve(String(p)));
+          if (n === undefined || !isDirNode(n)) return { err: true, names: [] };
+          return { names: Object.keys(n).sort(), dirs: Object.keys(n).filter(k => isDirNode(n[k])) };
+        },
+        mkdir: p => {
+          const parts = resolve(String(p));
+          let n = tree();
+          for (const part of parts) { if (!isDirNode(n[part])) n[part] = {}; n = n[part]; }
+          return '';
+        },
+        chdir: p => { const n = walk(resolve(String(p))); if (!isDirNode(n)) return false; cwd[st.host] = resolve(String(p)); return true; }
+      });
+    }
+
     /* ---------------- chain and pipeline parsing */
     function splitChain(s) {
       const parts = []; let cur = '', q = null;

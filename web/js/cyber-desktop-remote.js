@@ -94,6 +94,8 @@
           solved = data.get('host') === scenario.target && data.get('answer').trim().toUpperCase() === scenario.reference;
           status = solved ? 'Finding verified. Case complete.' : 'Check the report marked Follow-up required and try again.';
           if (!solved) { host.querySelector('[data-remote-status]').textContent = status; return; }
+          /* a verified finding pays the practice bank once per generated case */
+          try { A.cyberBank?.once('remote:' + scenario.seed + ':' + scenario.target, 30, 'Remote session verified: ' + scenario.target, 'case', 'cases'); } catch (e) { }
         }
         draw();
       };

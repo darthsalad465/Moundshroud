@@ -391,6 +391,7 @@
         okay = round.options[answered] === round.correct;
         S.rounds++; if (okay) { S.correct++; S.streak++; S.best = Math.max(S.best, S.streak); } else S.streak = 0;
         save(id);
+        if (okay) A.cyberBank?.puzzleSolved('cynetgames', { diff: 3 });
         host.querySelector('#ctgq').innerHTML = question();
         host.querySelector('[data-act="next"]')?.focus?.();
       });

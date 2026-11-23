@@ -15,7 +15,7 @@
 
   function init(body) {
     const F = A.faith, bib = () => F.bible(), books = () => bib().books, scopeId = () => ls.get('pb_scope', 'all');
-    const st = { cards: [], last: '' }, trShort = () => F.trLabel ? F.trLabel() : (F.tr() === 'dr' ? 'Douay-Rheims' : 'WEB'), showNotes = () => ls.get('pb_notes', '1') !== '0', size = () => +ls.get('pb_size', '18');
+    const st = { cards: [], last: '' }, trShort = () => F.trLabel ? F.trLabel() : (F.tr() === 'dr' ? 'Douay-Rheims' : 'KJV'), showNotes = () => ls.get('pb_notes', '1') !== '0', size = () => +ls.get('pb_size', '18');
     body.innerHTML = '<div class="scroll pad" style="flex:1" id="pbsc"><div class="pb-wrap"><h2 style="margin:0 0 4px">📖 Bible</h2><div class="mute small" style="margin-bottom:10px">Look up anything like an online Bible, or go somewhere at random. Everything is stored on this PC.</div>' +
       '<div class="pb-card"><div class="pb-row"><input id="pbq" type="text" placeholder="Type a verse or place: John 3:16-18 · Psalm 23 · Romans 8:28-39; Isaiah 40:31 · Genesis · or words like “love your enemies”" style="flex:1;min-width:260px;padding:9px 14px;border-radius:999px"><button class="pri" id="pbgo">Go</button></div>' +
       '<div class="pb-row" style="margin-top:10px"><button class="ib" id="pbrv">🎲 Random verse</button><button class="ib" id="pbrc">🎲 Random chapter</button><button class="ib" id="pbrb">🎲 Random book</button><button class="ib" id="pbvd">🕊️ Verse of the day</button><span class="small mute" style="margin-left:4px">from</span><select id="pbsc2" class="ib"></select></div>' +

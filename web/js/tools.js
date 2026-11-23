@@ -34,6 +34,11 @@
   /* ---- repositories: paste a GitHub link, download it once, index every page ---- */
   function repos(b, my) {
     b.innerHTML = '<div class="scroll pad" style="flex:1"><h2>📦 Repositories</h2>' +
+      '<div class="card" style="max-width:900px;margin:4px 0 14px"><div class="row" style="gap:8px;flex-wrap:wrap"><b style="flex:1">🖥 Repositories on this PC</b><button class="ib" id="rladd">＋ Add a folder</button><button class="pri" id="rlscan">Scan now</button></div>' +
+      '<div class="small mute" style="margin-top:4px;line-height:1.5">Every folder that is a git repository (it holds a <b>.git</b>), with a way to look inside it or open it in File Explorer. Folders are only read; nothing here is changed or run.</div>' +
+      '<div class="small" id="rlroots" style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center"></div>' +
+      '<div id="rllist" style="margin-top:6px"><div class="small mute">Loading…</div></div></div>' +
+      '<h3 style="margin:14px 0 4px">⬇ From GitHub</h3>' +
       '<div class="mute small" style="max-width:760px;line-height:1.5">Paste any GitHub link and Moundshroud downloads it once (a shallow copy, in <b>data\\refs</b>) and reads every page into your files index. After that, ask about it in Chat with <b>Use my files</b> ticked, or search it in My Files. The download needs internet; after that it all works offline.</div>' +
       '<div class="row" style="margin:12px 0;gap:8px;flex-wrap:wrap"><input id="rpin" type="text" placeholder="https://github.com/owner/repo   (or just owner/repo)" style="flex:2;min-width:240px"><button class="pri" id="rpgo">Download &amp; index</button></div>' +
       '<div class="small" id="rpst"></div><div id="rplist" style="margin-top:10px;max-width:900px"></div></div>';
@@ -74,6 +79,73 @@ const paint = async () => {
       if (busy && !timer) timer = setInterval(paint, 1500);
       if (!busy && timer) { clearInterval(timer); timer = null; }
     };
+    /* ---------- repositories already on this PC: find them, look inside them, open them ---------- */
+    let localCache = [];
+    const pathUp = p => { const m = /^(.*)[\\/][^\\/]+$/.exec(p); return m ? m[1] : ''; };
+    const pathName = p => String(p).replace(/[\\/]+$/, '').split(/[\\/]/).pop() || String(p);
+    const pathSame = (a, b) => String(a).replace(/[\\/]+$/, '').toLowerCase() === String(b).replace(/[\\/]+$/, '').toLowerCase();
+    async function viewRepo(repo) {
+      let cur = repo.path;
+      A.dlg('<div class="hd"><b>👁 ' + A.esc(repo.name) + '</b></div><div class="bd">' +
+        '<div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:8px"><button class="ib" id="rlvup">↑ Up</button><button class="ib" id="rlvopen">📂 Open in Explorer</button><span class="sp"></span><button class="pri" id="rlvx">Close</button></div>' +
+        '<div class="small mute" id="rlvpath" style="word-break:break-all;margin-bottom:6px"></div>' +
+        '<div id="rlvlist" style="max-height:50vh;overflow:auto"></div><div id="rlvfile" style="margin-top:8px"></div></div>', true);
+      const up = document.getElementById('rlvup'), out = document.getElementById('rlvfile'), listBox = document.getElementById('rlvlist');
+      document.getElementById('rlvx').onclick = A.closeDlg;
+      document.getElementById('rlvopen').onclick = async () => { const r = await A.api('/api/local-repos/open', { path: cur }); if (r && r.error) A.toast(r.error, 6000); };
+      up.onclick = () => { if (pathSame(cur, repo.path)) return; const p = pathUp(cur); if (p && p.length > 2 && p.length < cur.length) go(p); };
+      async function go(p) {
+        if (!listBox) return;
+        listBox.innerHTML = '<div class="small mute">Reading…</div>';
+        const r = await A.api('/api/coding/list', { path: p, limit: 400 }).catch(() => null);
+        if (!listBox.isConnected) return;
+        if (!r || r.error) { listBox.innerHTML = '<div class="small warn">' + A.esc((r && r.error) || 'That folder could not be read.') + '</div>'; return; }
+        cur = r.path; out.innerHTML = '';
+        document.getElementById('rlvpath').textContent = cur;
+        up.disabled = pathSame(cur, repo.path);
+        const rows = (r.entries || []).filter(x => x.name !== '.git').map(x => '<div class="row" style="padding:5px 0;border-top:1px solid var(--line);gap:8px;cursor:pointer" ' + (x.dir ? 'data-ldir' : 'data-lfile') + '="' + A.esc(x.path) + '"><span>' + (x.dir ? '📁' : '📄') + '</span><span style="flex:1;min-width:0;word-break:break-all">' + A.esc(x.name) + '</span><span class="small mute">' + (x.dir ? 'folder' : 'file') + '</span></div>').join('');
+        listBox.innerHTML = rows || '<div class="small mute">This folder is empty.</div>';
+        if (r.more) listBox.innerHTML += '<div class="small mute" style="margin-top:4px">Showing the first entries; open the folder in Explorer to see them all.</div>';
+      }
+      listBox.onclick = async e => {
+        const d = e.target.closest('[data-ldir]'), f = e.target.closest('[data-lfile]');
+        if (d) return go(d.dataset.ldir);
+        if (!f) return;
+        const chosen = f.dataset.lfile;
+        out.innerHTML = '<div class="small mute">Opening ' + A.esc(pathName(chosen)) + '…</div>';
+        const r = await A.api('/api/coding/read', { path: chosen }).catch(() => null);
+        if (!out.isConnected) return;
+        const bad = !r || r.error, text = bad ? '' : String(r.text || ''), cut = text.length > 200000, where = bad ? chosen : r.path;
+        out.innerHTML = '<div class="row" style="gap:8px;flex-wrap:wrap"><b style="flex:1;word-break:break-all">📄 ' + A.esc(pathName(where)) + '</b><span class="small mute">' + (bad ? 'not a text file' : text.length.toLocaleString() + ' characters' + (r.mtime ? ' · changed ' + A.fmtAgo(r.mtime) : '')) + '</span><button class="ib" id="rlvfo">Open in its app</button></div>' +
+          (bad ? '<div class="small mute">' + A.esc((r && r.error) || 'That file could not be read.') + ' It can still be opened in the app that owns it.</div>'
+            : '<pre class="small" style="max-height:38vh;overflow:auto;white-space:pre-wrap;word-break:break-word;margin:6px 0 0">' + A.esc(text.slice(0, 200000)) + '</pre>' + (cut ? '<div class="small mute">Only the first 200,000 characters are shown.</div>' : ''));
+        const fo = document.getElementById('rlvfo');
+        if (fo) fo.onclick = async () => { const x = await A.api('/api/local-repos/open', { path: where }); if (x && x.error) A.toast(x.error, 6000); };
+      };
+      go(repo.path);
+    }
+    async function localDraw(rescan) {
+      const box = document.getElementById('rllist'); if (!box) return;
+      let st = await A.api('/api/local-repos').catch(() => null);
+      if (!st || st.error) { box.innerHTML = '<div class="small warn">Could not read the list of repositories on this PC.</div>'; return; }
+      if (!st.at) rescan = true;
+      if (rescan) {
+        box.innerHTML = '<div class="small mute">Looking through ' + (st.roots || []).map(A.esc).join(', ') + ' for folders with a .git… this takes a few seconds.</div>';
+        const r = await A.api('/api/local-repos/scan', {}).catch(() => null);
+        if (r && !r.error) st = r;
+      }
+      if (!document.getElementById('rllist')) return;
+      localCache = st.repos || [];
+      const rootsBox = document.getElementById('rlroots');
+      if (rootsBox) rootsBox.innerHTML = '<span class="mute">Looking in:</span>' +
+        (st.roots || []).map(r => '<span class="chip" style="border-color:var(--line)">' + A.esc(r) + ((st.extraRoots || []).some(x => pathSame(x, r)) ? ' <span data-lrootrm="' + A.esc(r) + '" title="Stop looking here" style="cursor:pointer;opacity:.7">✕</span>' : '') + '</span>').join('') +
+        ((st.drives || []).length ? '<span class="mute" style="width:100%;margin-top:4px">Other drives (add one to look in it):</span>' + st.drives.map(d => '<button class="ib" data-lrootadd="' + A.esc(d) + '">＋ ' + A.esc(d) + '</button>').join('') : '');
+      const n = localCache.length;
+      box.innerHTML = n ? '<div class="small mute" style="margin-bottom:4px">' + n + ' repositor' + (n === 1 ? 'y' : 'ies') + (st.at ? ' · looked ' + A.fmtAgo(st.at) : '') + '</div>' +
+        localCache.map((x, i) => '<div class="row" style="padding:8px 0;border-top:1px solid var(--line);align-items:flex-start;gap:8px;flex-wrap:wrap"><div style="flex:1;min-width:200px"><b>' + A.esc(x.name) + '</b> <span class="small mute">' + [x.branch ? '🌿 ' + A.esc(x.branch) : '', x.remote ? A.esc(x.remote) : '', x.at ? 'changed ' + A.fmtAgo(x.at) : ''].filter(Boolean).join(' · ') + '</span><div class="small mute" style="word-break:break-all">' + A.esc(x.path) + '</div></div><button class="ib" data-lview="' + i + '">👁 View</button><button class="pri" data-lopen="' + i + '">📂 Open</button></div>').join('') +
+        (st.truncated ? '<div class="small mute" style="margin-top:6px">The scan stopped early to stay quick, so a deep folder may not have been reached. Add the folder that holds your repositories, or scan again.</div>' : '')
+        : '<div class="small mute" style="padding:4px 0">' + (st.at ? 'No git repositories were found in the folders above.' : 'Not looked yet.') + ' Add the folder that holds them, or run a scan.</div>';
+    }
     document.getElementById('rpgo').onclick = async () => {
       const v = document.getElementById('rpin').value.trim(), st = document.getElementById('rpst');
       if (!v) return A.toast('Paste a GitHub link first.');
@@ -85,6 +157,13 @@ const paint = async () => {
     };
     b.onclick = async e => {
       const add = e.target.closest('[data-int]'), d = e.target.closest('[data-dl]'), f = e.target.closest('[data-rf]'), rm = e.target.closest('[data-rm]');
+      const lv = e.target.closest('[data-lview]'), lo = e.target.closest('[data-lopen]'), lrs = e.target.closest('#rlscan'), ladd = e.target.closest('#rladd'), lra = e.target.closest('[data-lrootadd]'), lrr = e.target.closest('[data-lrootrm]');
+      if (lv) { const repo = localCache[+lv.dataset.lview]; if (repo) viewRepo(repo); return; }
+      if (lo) { const repo = localCache[+lo.dataset.lopen]; if (repo) { const r = await A.api('/api/local-repos/open', { path: repo.path }); if (r && r.error) A.toast(r.error, 6000); } return; }
+      if (lrs) { localDraw(true); return; }
+      if (ladd) { const r = await A.api('/api/pick-folder', {}); if (r && r.path) { await A.api('/api/local-repos/root', { path: r.path }); localDraw(true); } return; }
+      if (lra) { await A.api('/api/local-repos/root', { path: lra.dataset.lrootadd }); localDraw(true); return; }
+      if (lrr) { await A.api('/api/local-repos/root/remove', { path: lrr.dataset.lrootrm }); localDraw(false); return; }
       if (add) { const r = await A.api('/api/refs'); const repo = (r.refs || []).find(x => x.slug === add.dataset.int && x.installed); if (repo) integrationDialog(repo); else A.toast('Download that repository first.'); }
       else if (d) { const r = await A.api('/api/refs/install', { slug: d.dataset.dl }); if (r.error) A.toast(r.error, 6000); paint(); }
       else if (e.target.closest('[data-rsf]')) { const r = await A.api('/api/refs/check', { slug: e.target.closest('[data-rsf]').dataset.rsf }); if (r.error) A.toast(r.error, 6000); paint(); }
@@ -92,6 +171,7 @@ const paint = async () => {
       else if (rm) { if (!(await A.confirm('Delete this repository from this PC? You can download it again later.'))) return; const r = await A.api('/api/refs/remove', { slug: rm.dataset.rm }); if (r.error) A.toast(r.error, 6000); paint(); }
     };
     paint();
+    localDraw();
   }
 
   /* ---- 🛡 File safety: what is risky about this file or folder (lib/safety.js does the looking) ---- */

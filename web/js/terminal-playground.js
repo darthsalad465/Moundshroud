@@ -61,9 +61,24 @@
       puzSessions: puzzleSessions,
       puzEditor: null,
       scen: null,
+      learn: ls.get('tpg_learn', 'true') !== 'false',
+      learnAt: {},
+      learnOpen: false,
+      lm: null,
       coachOpen: ls.get('tpg_coach_open', 'true') !== 'false'
     };
     if (PUZ && !PUZ.DIFFS[S.puzDiff]) S.puzDiff = 'medium';
+
+    /* Every shell remembers its own colour for the prompt and the lines you typed, so your own input is always the
+       same easy-to-spot colour even when the shell's output is not. */
+    const COLOR_KEY = 'tpg_user_color_', DEFAULT_USER_COLOR = '#7fd1ff';
+    const userColor = () => {
+      try { return localStorage.getItem(COLOR_KEY + S.shell) || DEFAULT_USER_COLOR; } catch (e) { return DEFAULT_USER_COLOR; }
+    };
+    const setUserColor = value => {
+      try { localStorage.setItem(COLOR_KEY + S.shell, value); } catch (e) { }
+      paintOut(); paintPrompt();
+    };
 
     const logKey = id => (S.mode === 'lab' ? 'lab:' + id : S.mode === 'puzzle' ? 'puz:' + id : id);
     const harnesses = new Map();
@@ -74,9 +89,51 @@
       useExample: command => {
         const input = $('tpgin');
         if (input) { input.value = command; input.oninput?.(); input.focus(); }
-      }
+      },
+      /* the dropdown in the help window reads any shell's manual without changing the shell you are typing in */
+      shellChoices: () => shells.map(sh => ({ key: sh.id, name: sh.name, group: sh.range ? 'Security ranges' : sh.group || 'Shells' })),
+      pickShell: (id, topic) => openManual(topic || '', id),
+      /* the help window's search can look through every sandbox shell at once */
+      allShells: () => shells.map(sh => ({ key: sh.id, name: sh.name, shell: sh }))
     });
-    const openManual = query => manual?.open(current(), S.mode, palette(), query, buildHelpContext());
+    /* The help window's playground runs on its own throwaway shell, built from the current one each time help opens.
+       Reading and writing both work there, so lessons still teach the real effect, but nothing typed in help can
+       change the sandbox, a job, a puzzle or a real file. */
+    const HELP_FACTORY = {
+      bash: () => TP.makeBash && TP.makeBash(), powershell: () => TP.makePowershell && TP.makePowershell(),
+      cmd: () => TP.makeCmd && TP.makeCmd(), python: () => TP.makePython && TP.makePython(),
+      node: () => TP.makeNode && TP.makeNode(), sql: () => TP.makeSql && TP.makeSql(),
+      git: () => TP.makeGit && TP.makeGit(), docker: () => TP.makeDocker && TP.makeDocker(),
+      network: () => TP.makeNetwork && TP.makeNetwork(), crypto: () => TP.makeCrypto && TP.makeCrypto(),
+      pentest: () => TP.makePentest && TP.makePentest(), remote: () => TP.makeRemoteRange && TP.makeRemoteRange()
+    };
+    function helpCopy(sh) {
+      const make = HELP_FACTORY[sh.id];
+      if (!make || !sh.snapshot || !sh.restore) return null;
+      try {
+        const copy = make();
+        if (!copy || typeof copy.run !== 'function') return null;
+        /* a deep copy, so the help shell never shares a file object with the live one */
+        copy.restore(JSON.parse(JSON.stringify(sh.snapshot())));
+        return copy;
+      } catch (e) { return null; }
+    }
+    const openManual = (query, readId) => {
+      /* picking a shell in the window's dropdown changes what is being read, never the terminal underneath */
+      const reading = readId && readId !== S.shell ? byId(readId) : null;
+      const sh = reading || current();
+      const copy = helpCopy(sh);
+      if (copy) {
+        copy.playNote = 'Runs on a throwaway copy of this shell’s files. Reading, writing and deleting all work here, and nothing typed can change your own terminal or any real file.';
+        copy.playHint = 'Type any command below and press Run. This playground works on a copy, so you can try a delete or a redirect safely.';
+      }
+      /* if this shell cannot be copied, say so plainly instead of promising safety */
+      const plain = copy ? copy : Object.assign({}, sh, {
+        playNote: 'This shell could not be copied, so commands here run on your own sandbox. Avoid deletes in this window.',
+        playHint: 'Type a command below and press Run. Because this shell could not be copied, a delete here would also delete it in your terminal.'
+      });
+      manual?.open(plain, reading ? 'sandbox' : S.mode, reading ? [] : palette(), query, reading ? null : buildHelpContext());
+    };
 
     function mcodeContext(mode, id) {
       const shell = byId(id), location = 'Terminal Playground / ' + mode + ' / ' + shell.name;
@@ -278,7 +335,7 @@
       const log = curLog();
       if (log.length > 480) log.splice(0, log.length - 480);
       out.innerHTML = log.map(l => {
-        const col = l.k === 'cmd' ? '#7fd1ff' : l.k === 'dim' ? '#8593a3' : l.k === 'ok' ? '#6ee7a0' : '#cfe9d6';
+        const col = l.k === 'cmd' ? userColor() : l.k === 'dim' ? '#8593a3' : l.k === 'ok' ? '#6ee7a0' : '#cfe9d6';
         return '<span style="color:' + col + '">' + String(l.t).split('\n').map(esc).join('\n') + '</span>';
       }).join('\n');
       out.scrollTop = out.scrollHeight;
@@ -370,7 +427,7 @@
       if (p) {
         p.textContent = currentPrompt();
         const harness = harnesses.get(logKey(S.shell));
-        if (p.style) p.style.color = harness?.open() ? harness.color() : '#6ee7a0';
+        if (p.style) p.style.color = harness?.open() ? harness.color() : userColor();
       }
     }
 
@@ -445,6 +502,8 @@
     }
 
     function paintMeta() {
+      const rw = $('tpgrwd');
+      if (rw && window.TerminalRewards) rw.innerHTML = TerminalRewards.chip();
       const sh = current();
       const t = $('tpgtitle');
       const a = $('tpgabout');
@@ -847,6 +906,95 @@
       '</div>';
     }
 
+    /* ---- 🎓 Learn: a short course in Sandbox, the staged trail of the current puzzle or room otherwise ---- */
+    function learnCourse() {
+      const TL = window.TerminalLearn;
+      if (!TL) return null;
+      if (S.mode === 'puzzle') { const s = puzSession(S.shell); return s ? TL.challenge(s.puzzle, s) : null; }
+      if (S.mode === 'lab') { const s = labSession(S.shell); return s ? TL.challenge(s.room()) : null; }
+      return TL.course(S.shell);
+    }
+    function learnPanel() {
+      const course = learnCourse();
+      if (!course || !Array.isArray(course.steps) || !course.steps.length) return '';
+      const key = logKey(S.shell) + ':learn';
+      const at = Math.max(0, Math.min(S.learnAt[key] ?? 0, course.steps.length - 1));
+      S.learnAt[key] = at;
+      const challenge = S.mode !== 'sandbox';
+      const shown = course.steps.slice(0, at + 1);
+      return '<div id="tpglearn" style="' + box + ';padding:9px 10px;margin-bottom:8px">' +
+        '<div class="row" style="gap:6px;align-items:center"><b class="small">🎓 ' + (challenge ? 'Walkthrough' : 'Learn') + ' · ' + esc(course.title) + '</b><span style="flex:1"></span><span class="small mute">' + (at + 1) + '/' + course.steps.length + '</span></div>' +
+        '<p class="small mute" style="margin:4px 0 6px;line-height:1.45">' + esc(course.intro) + '</p>' +
+        shown.map((step, index) => '<div style="border-top:1px solid var(--line);padding:6px 0">' +
+          '<div class="small" style="font-weight:600">' + (index + 1) + '. ' + esc(step.title) + '</div>' +
+          '<div class="small" style="line-height:1.45;margin-top:2px">' + esc(step.text) + '</div>' +
+          (step.command ? '<button class="ib" data-learn-cmd="' + esc(step.command) + '" style="margin-top:4px;font-size:11px;padding:2px 7px">Put on prompt</button>' : '') +
+        '</div>').join('') +
+        '<div class="row" style="gap:5px;margin-top:6px;flex-wrap:wrap">' +
+          (at + 1 < course.steps.length ? '<button class="pri" data-learn-next style="font-size:11.5px;padding:3px 8px">Next step →</button>' : '<span class="small mute">All steps shown.</span>') +
+          (at > 0 ? '<button class="ib" data-learn-reset style="font-size:11px;padding:3px 7px">Start over</button>' : '') +
+          (challenge ? '<button class="ib" data-learn-hint style="font-size:11px;padding:3px 7px" title="Ask the terminal for the same nudge">Type hint</button>' : '') +
+        '</div>' +
+        '<div class="small mute" style="margin-top:4px;font-size:10.5px;line-height:1.4">' + (challenge ? 'These are the same staged nudges as `hint` — never the answer. `walkthrough` is the deliberate full reveal.' : 'A short course for this shell. Every step is a real command in the sandbox.') + '</div>' +
+      '</div>';
+    }
+
+    /* ---- 🎓 Learn More: a separate no-stakes workshop, not the hint ladder ---------------------------------- */
+    function lmData() {
+      const TL = window.TerminalLearn;
+      if (!TL || !TL.course) return null;
+      const course = TL.course(S.shell);
+      if (!course || !Array.isArray(course.steps)) return null;
+      const steps = course.steps.filter(step => step && step.command);
+      return steps.length ? { course, steps } : null;
+    }
+    function lmChoices(course, step) {
+      const pool = course.steps.map(item => item.command).filter(cmd => cmd && cmd !== step.command);
+      const picks = [];
+      for (let i = 0; picks.length < 2 && i < pool.length; i++) {
+        const cmd = pool[(S.lm.step * 2 + i + 1) % pool.length];
+        if (cmd && !picks.includes(cmd)) picks.push(cmd);
+      }
+      while (picks.length < 2) picks.push(picks.length ? 'help' : 'pwd');
+      picks.splice(S.lm.step % 3, 0, step.command);
+      return picks;
+    }
+    function learnMoreHTML() {
+      const data = lmData();
+      if (!data) return '';
+      const { course, steps } = data;
+      if (!S.lm || S.lm.shell !== S.shell) S.lm = { shell: S.shell, step: 0, picked: null, right: 0, finished: false };
+      const total = steps.length;
+      const idx = Math.max(0, Math.min(S.lm.step, total - 1));
+      const step = steps[idx];
+      const finished = S.lm.finished;
+      const choices = finished ? [] : lmChoices(course, step);
+      return '<div class="tpg-learnmore" role="dialog" aria-modal="true" aria-label="Learn More workshop">' +
+        '<div class="tpg-lm-card">' +
+          '<div class="tpg-lm-head"><div><b>🎓 Learn More · ' + esc(course.title) + '</b><div class="small mute">A separate workshop. Nothing here touches your terminal, and no points or Elo are earned.</div></div><button class="ib" data-lm-close>✕ Exit</button></div>' +
+          (finished
+            ? '<div class="tpg-lm-done"><div style="font-size:34px">🏁</div><h3>Workshop complete</h3><p>' + S.lm.right + ' of ' + total + ' right. Nothing was scored — this was practice.</p>' +
+              '<p class="small mute">Ready for the real thing? Close this workshop and earn points and Elo in Puzzles, the Labyrinth, jobs or Help missions.</p>' +
+              '<div class="row" style="gap:6px"><button class="ib" data-lm-restart>↻ Run it again</button><button class="pri" data-lm-close>Back to the terminal</button></div></div>'
+            : '<div class="tpg-lm-progress"><span style="width:' + Math.round(((idx + (S.lm.picked == null ? 0 : 1)) / total) * 100) + '%"></span></div>' +
+              '<div class="small mute" style="margin:2px 0 10px">Exercise ' + (idx + 1) + ' of ' + total + ' · ' + esc(step.title) + '</div>' +
+              '<p class="tpg-lm-ask">' + esc(step.text) + '</p>' +
+              '<p class="small mute" style="margin:8px 0 6px">Which line would do that in ' + esc(S.shell) + '?</p>' +
+              '<div class="tpg-lm-choices">' + choices.map((cmd, i) => {
+                const picked = S.lm.picked != null;
+                const right = cmd === step.command;
+                const tone = picked ? (right ? ' ok' : (i === S.lm.picked ? ' bad' : '')) : '';
+                return '<button class="tpg-lm-choice' + tone + '" data-lm-choice="' + i + '" data-ok="' + (right ? '1' : '0') + '"' + (picked ? ' disabled' : '') + '><code>' + esc(cmd) + '</code></button>';
+              }).join('') + '</div>' +
+              (S.lm.picked != null ? '<div class="tpg-lm-feedback ' + (choices[S.lm.picked] === step.command ? 'ok' : 'bad') + '">' +
+                (choices[S.lm.picked] === step.command ? '✅ Yes — that is the move.' : '❌ Not quite. The line for this is <code>' + esc(step.command) + '</code>.') +
+                '<div class="small mute" style="margin-top:4px">' + esc(step.text) + '</div>' +
+                '<div class="row" style="gap:6px;margin-top:8px"><button class="pri" data-lm-next>' + (idx + 1 < total ? 'Next exercise →' : 'Finish workshop') + '</button></div></div>' : '') +
+              '<div class="small mute" style="margin-top:10px;font-size:10.5px">Learn More is deliberately separate from `hint`: hints stay in the terminal and stay vague. This workshop is for practice only.</div>'
+          ) +
+        '</div></div>';
+    }
+
     function jobPanel(shell) {
       const jobs = shell.jobs?.();
       if (!jobs) return '';
@@ -861,6 +1009,9 @@
     }
 
     function draw() {
+      /* A redraw rebuilds the terminal box, so note whether the terminal was filling the screen before the old one is
+         replaced: the new box must be given full screen again, and a stale callback must not drop it between commands. */
+      const wasFs = S.fs || !!($('tpgbox') && $('tpgbox').classList.contains('term-fs'));
       const sh = current();
       const lab = S.mode === 'lab';
       const puz = S.mode === 'puzzle';
@@ -877,7 +1028,7 @@
               '<button class="ib' + (lab ? ' on' : '') + '" data-mode="lab"' + (supportsLab(S.shell) ? '' : ' title="The Labyrinth covers the ten standard terminals"') + (supportsLab(S.shell) ? '' : ' aria-disabled="true"') + '>🌀 Labyrinth</button>' +
             '</div>' +
           '</div>' +
-          '<div class="row" style="gap:8px;align-items:center;margin-top:6px"><span id="tpggroup" class="small mute"></span><span style="flex:1"></span><span id="tpgcount" class="small mute"></span></div>' +
+                      '<div class="row" style="gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap"><span id="tpggroup" class="small mute"></span><span style="flex:1"></span>' + (window.TerminalRewards ? '<span id="tpgrwd">' + TerminalRewards.chip() + '</span>' : '') + '<span id="tpgcount" class="small mute"></span></div>' +
           '<p class="small" id="tpgabout" style="margin:4px 0 0;line-height:1.5"></p>' +
         '</div>' +
         '<div style="display:grid;grid-template-columns:190px minmax(0,1fr) 315px;gap:8px;align-items:start" id="tpggrid">' +
@@ -889,7 +1040,7 @@
           '</div>' +
           '<div style="display:flex;flex-direction:column;gap:8px;min-width:0">' +
             '<div id="tpgbox" class="term-fs-box" style="background:#05070b;border:1px solid var(--line);border-radius:10px;padding:10px 12px">' +
-              '<div class="row" style="gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px"><b id="tpgtitle" class="small"></b><span style="flex:1"></span>' + (manual ? '<button class="ib" data-act="manual" title="Open the Help Terminal">Help</button>' : '') + '<button class="ib" data-act="curios" title="Open the discovery journal">Curios</button><button class="ib" id="tpgclear" title="Clear what is on screen (the sandbox keeps its state)">Clear</button><button class="ib" id="tpgreset" title="' + (lab ? 'Start the descent over at depth 1' : puz ? 'Generate a new puzzle' : 'Restore the current workspace') + '">' + (lab ? 'Restart' : puz ? 'New Puzzle' : 'Reset') + '</button><button class="ib" id="tpgfs" title="Fullscreen terminal (Esc to exit)">⛶ Fullscreen</button></div>' +
+              '<div class="row" style="gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px"><b id="tpgtitle" class="small"></b><span style="flex:1"></span>' + (manual ? '<button class="ib" data-act="manual" title="Open the Help Terminal">Help</button>' : '') + '<button class="ib" data-act="learn" title="Open the separate Learn More workshop (practice only, no points)">🎓 Learn More</button><button class="ib" data-act="curios" title="Open the discovery journal">Curios</button><button class="ib" id="tpgclear" title="Clear what is on screen (the sandbox keeps its state)">Clear</button><button class="ib" id="tpgreset" title="' + (lab ? 'Start the descent over at depth 1' : puz ? 'Generate a new puzzle' : 'Restore the current workspace') + '">' + (lab ? 'Restart' : puz ? 'New Puzzle' : 'Reset') + '</button><label class="small mute" style="display:inline-flex;align-items:center;gap:3px;margin-left:2px" title="Colour of your own typing and the prompt in this shell"><input type="color" id="tpgusercol" aria-label="Colour for your own commands in this shell" style="width:26px;height:22px;padding:0;border:1px solid var(--line);border-radius:5px;background:transparent;cursor:pointer"></label><button class="ib" id="tpgfs" title="Fullscreen terminal (Esc to exit)">⛶ Fullscreen</button></div>' +
               '<pre id="tpgout" class="term-fs-out" style="margin:0;height:min(46vh,390px);overflow:auto;' + mono + ';font-size:12.5px;line-height:1.55;white-space:pre-wrap;word-break:break-word;user-select:text;-webkit-user-select:text;cursor:text"></pre>' +
               '<div class="row term-fs-prompt-row" style="gap:6px;align-items:center;margin-top:8px;border-top:1px solid rgba(255,255,255,.06);padding-top:8px">' +
                 '<span id="tpgprompt" style="' + mono + ';font-size:12.5px;color:#6ee7a0;white-space:nowrap"></span>' +
@@ -909,6 +1060,7 @@
           '</div>' +
           '<div>' +
             (lab ? labPanel() : puz ? puzzlePanel() : '<div id="tpgjobs" style="' + box + ';padding:8px 10px;margin-bottom:8px"></div>' + (scenarioShell() ? scenarioPanel() : '')) +
+            (window.TerminalRewards ? TerminalRewards.panel() : '') +
             '<div style="' + box + ';padding:8px;margin-top:' + (lab || puz ? '8px' : '0') + '">' +
               '<input id="tpgsearch" placeholder="Search commands…" autocomplete="off" style="width:100%;box-sizing:border-box;margin-bottom:6px;font-size:12px">' +
               '<div class="small mute" style="margin-bottom:4px">' + (lab ? 'ROOM COMMANDS' : puz ? 'PUZZLE COMMANDS' : 'COMMAND EXAMPLES · ' + esc(sh.group.toUpperCase())) + '</div>' +
@@ -916,7 +1068,8 @@
             '</div>' +
           '</div>' +
         '</div>' +
-        '</div>';
+        '</div>' +
+        (S.learnOpen ? learnMoreHTML() : '');
       if (manual) el.insertAdjacentHTML?.('beforeend', '<div data-terminal-manual></div>');
       paintMeta();
       paintPalette();
@@ -985,6 +1138,12 @@
         search.value = S.filter;
         search.oninput = () => { S.filter = search.value; paintPalette(); };
       }
+      const ucol = $('tpgusercol');
+      if (ucol) {
+        ucol.value = userColor();
+        ucol.oninput = () => setUserColor(ucol.value);
+        ucol.title = 'Colour of your own typing and the prompt in ' + current().name;
+      }
       if (S.puzEditor && S.mode === 'puzzle') setupPuzzleEditor();
       const pcat = $('puzcat');
       if (pcat) {
@@ -1006,7 +1165,10 @@
           system: 'You are a concise helper inside a sandboxed terminal playground. Explain commands, say what a puzzle or room is asking for, and suggest the next command. Keep answers short. Nothing you say runs anything, so never claim to have run a command.'
         });
       }
-      if (S.fs && A.termFS) A.termFS.apply($('tpgbox'), true, $('tpgfs'), () => { S.fs = false; });
+      if (wasFs && A.termFS) {
+        S.fs = true;
+        A.termFS.apply($('tpgbox'), true, $('tpgfs'), () => { S.fs = false; });
+      }
     }
 
     function groupHTML() {
@@ -1456,6 +1618,36 @@
     el.onclick = e => {
       const modeBtn = e.target.closest('[data-mode]');
       if (modeBtn) return switchMode(modeBtn.dataset.mode);
+      if (e.target.closest('[data-lm-close]')) { S.learnOpen = false; return draw(); }
+      if (e.target.closest('[data-lm-restart]')) { S.lm = { shell: S.shell, step: 0, picked: null, right: 0, finished: false }; return draw(); }
+      if (e.target.closest('[data-lm-next]')) {
+        const data = lmData();
+        if (data && S.lm && S.lm.step + 1 >= data.steps.length) S.lm.finished = true;
+        else if (S.lm) S.lm.step += 1;
+        if (S.lm) S.lm.picked = null;
+        return draw();
+      }
+      const lmChoice = e.target.closest('[data-lm-choice]');
+      if (lmChoice) {
+        if (!S.lm || S.lm.picked != null) return;
+        S.lm.picked = Number(lmChoice.dataset.lmChoice) || 0;
+        if (lmChoice.dataset.ok === '1') S.lm.right += 1;
+        return draw();
+      }
+      const learnCmd = e.target.closest('[data-learn-cmd]');
+      if (learnCmd) {
+        const input = $('tpgin');
+        if (input) { input.value = learnCmd.dataset.learnCmd; input.oninput?.(); input.focus(); }
+        return;
+      }
+      if (e.target.closest('[data-learn-next]')) {
+        const key = logKey(S.shell) + ':learn';
+        const course = learnCourse();
+        S.learnAt[key] = Math.min((S.learnAt[key] ?? 0) + 1, (course?.steps?.length || 1) - 1);
+        return draw();
+      }
+      if (e.target.closest('[data-learn-reset]')) { S.learnAt[logKey(S.shell) + ':learn'] = 0; return draw(); }
+      if (e.target.closest('[data-learn-hint]')) { exec('hint', true); return; }
       const tab = e.target.closest('[data-shell]');
       if (tab) return switchShell(tab.dataset.shell);
       const pd = e.target.closest('[data-pdiff]');
@@ -1506,6 +1698,11 @@
       else if (b.dataset.job) exec('job ' + b.dataset.job, true);
       else if (b.dataset.act === 'curios') exec('curios', true);
       else if (b.dataset.act === 'manual') openManual('');
+      else if (b.dataset.act === 'learn') {
+        S.learnOpen = !S.learnOpen;
+        if (S.learnOpen) S.lm = { shell: S.shell, step: 0, picked: null, right: 0, finished: false };
+        draw();
+      }
       else if (b.dataset.act === 'coachhelp') openManual(coachReports[logKey(S.shell)]?.manual || '');
       else if (b.dataset.act === 'coachtry') {
         const command = coachReports[logKey(S.shell)]?.commands?.[Number(b.dataset.step)];

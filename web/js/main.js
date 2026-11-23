@@ -14,10 +14,24 @@
   /* history popover */
   const hb = document.createElement('button'); hb.className = 'ib'; hb.id = 'hist'; hb.innerHTML = '&#128340;'; hb.title = 'Chat history'; hb.dataset.pop = '1';
   $('newc').parentNode.insertBefore(hb, $('newc'));
-  hb.onclick = () => {
+  /* the recent-chat list: deleting one chat redraws the list in place, so the menu stays open and
+     several can be removed in a row (it used to close on the first ✕) */
+  const recentChats = () => {
     const l = A.chat.history();
-    const p = A.pop(hb, l.length ? '<div class="grp" style="margin-top:0">Recent chats</div>' + l.slice(0, 30).map(c => '<div class="hit row" data-id="' + esc(c.id) + '"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(c.title) + '</span><span class="mute small" data-rm="1" title="Delete">&times;</span></div>').join('') : '<div class="mute small">No saved chats yet.</div>');
-    p.onclick = e => { const h = e.target.closest('.hit'); if (!h) return; if (e.target.dataset.rm) { A.chat.remove(h.dataset.id); A.closePop(); } else { A.closePop(); A.chat.load(h.dataset.id); } };
+    return l.length ? '<div class="grp" style="margin-top:0">Recent chats</div>' + l.slice(0, 30).map(c => '<div class="hit row" data-id="' + esc(c.id) + '"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(c.title) + '</span><span class="mute small" data-rm="1" title="Delete">&times;</span></div>').join('') : '<div class="mute small">No saved chats yet.</div>';
+  };
+  const showRecentChats = () => {
+    const p = A.pop(hb, recentChats()); p.dataset.kind = 'history';
+    p.onclick = e => {
+      const h = e.target.closest('.hit'); if (!h) return;
+      e.stopPropagation();
+      if (e.target.dataset.rm) { A.chat.remove(h.dataset.id); A.toast('Chat deleted'); showRecentChats(); return; }
+      A.closePop(); A.chat.load(h.dataset.id);
+    };
+  };
+  hb.onclick = () => {
+    if ($('pop').style.display === 'block' && $('pop').dataset.kind === 'history') return A.closePop();
+    showRecentChats();
   };
 
   /* settings */

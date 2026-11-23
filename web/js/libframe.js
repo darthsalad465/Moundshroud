@@ -23,6 +23,8 @@
   });
   function post(fr, cmd, extra, wantReply) {
     return new Promise(res => {
+      /* MoundHub and generated fake-internet sites have no library bridge, so nothing is posted into them */
+      if (fr && (fr._hub || fr._fake)) return res(null);
       const w = fr && fr.contentWindow; if (!w) return res(null);
       const m = Object.assign({ lf: 1, cmd }, extra || {});
       if (wantReply) { const id = ++seq; m.id = id; waiting[id] = res; setTimeout(() => { if (waiting[id]) { delete waiting[id]; res(null); } }, 4000); } else res(true);
@@ -38,6 +40,7 @@
       css: t => post(fr, 'css', { css: t }), zoom: z => post(fr, 'zoom', { z }), restore: s => post(fr, 'restore', { s }),
       find: (q, back) => post(fr, 'find', { q, back: !!back }, true), clearFind: () => post(fr, 'clearFind'), print: () => post(fr, 'print'),
       reload: () => post(fr, 'reload'), stop: () => post(fr, 'stop'), text: () => post(fr, 'text', null, true).then(t => t || ''), snap: () => post(fr, 'snap', null, true), focus: () => post(fr, 'focus'),
+      source: () => post(fr, 'source', null, true).then(t => t || ''),
       go: u => { fr.src = src(u); }
     };
     return fr;

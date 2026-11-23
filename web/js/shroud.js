@@ -106,14 +106,16 @@
     const step = now => { inkNow(); if (now - t0 < 380) inkT = requestAnimationFrame(step); else { el.classList.remove('live'); ink(); } };
     inkT = requestAnimationFrame(step); setTimeout(() => { el.classList.remove('live'); ink(); }, 420);
   };
-  const row = (n, sub, idx) => '<button type="button" data-tab="' + n + '"' + (sub ? ' class="nsub"' : '') + ' style="--i:' + (idx || 0) + '" title="' + esc(A.tabs[n].label) + '"><span class="ni">' + (IC[n] ? svg(IC[n]) : esc(A.NAVIC[n] || '•')) + '</span><span class="nl">' + esc(A.tabs[n].label) + '</span></button>';
+  /* each app's drawn logo keeps the colour it wears on the desktop (A.tint), so a page is the same colour everywhere */
+  const tintCss = n => (A.tint ? ' style="color:' + A.tint(n) + '"' : '');
+  const row = (n, sub, idx) => '<button type="button" data-tab="' + n + '"' + (sub ? ' class="nsub"' : '') + ' style="--i:' + (idx || 0) + '" title="' + esc(A.tabs[n].label) + '"><span class="ni"' + tintCss(n) + '>' + (IC[n] ? svg(IC[n]) : esc(A.NAVIC[n] || '•')) + '</span><span class="nl">' + esc(A.tabs[n].label) + '</span></button>';
   const build = () => {
     const seen = {}, open = opens(), cur = A.groupOf(A.cur);
     let h = '<i class="nink" aria-hidden="true"></i>', idx = 0;
     A.order.filter(n => !A.tabs[n].hidden).forEach(n => {
       const gid = A.groupOf(n); if (!gid) { h += row(n, 0, idx++); return; } if (seen[gid]) return; seen[gid] = 1;
       const g = A.NAVGROUPS.find(x => x.id === gid), isOpen = open.includes(gid) || cur === gid; if (cur === gid && !open.includes(gid)) autoOpen.add(gid);
-      h += '<button type="button" class="ngh" data-grp="' + gid + '" style="--i:' + (idx++) + '" aria-expanded="' + isOpen + '" title="' + esc(g.label) + '"><span class="ni">' + (IC[gid] ? svg(IC[gid]) : g.icon) + '</span><span class="nl">' + esc(g.label) + '</span>' + svg(IC.chev, 'nx') + '</button>' +
+      h += '<button type="button" class="ngh" data-grp="' + gid + '" style="--i:' + (idx++) + '" aria-expanded="' + isOpen + '" title="' + esc(g.label) + '"><span class="ni"' + tintCss(gid) + '>' + (IC[gid] ? svg(IC[gid]) : g.icon) + '</span><span class="nl">' + esc(g.label) + '</span>' + svg(IC.chev, 'nx') + '</button>' +
         '<div class="ngl' + (isOpen ? ' open' : '') + '" data-g="' + gid + '"><div class="ngi">' + g.tabs.filter(t => A.tabs[t] && !A.tabs[t].hidden).map((t, si) => row(t, 1, si)).join('') + '</div></div>';
     });
     nav.innerHTML = h; nav.setAttribute('aria-label', 'Pages');

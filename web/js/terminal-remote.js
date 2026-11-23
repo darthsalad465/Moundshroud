@@ -273,8 +273,16 @@
       ['exploit', 'print the whole chain']
     ].map(x => ({ ex: x[0], d: x[1] }));
 
+    /* the range's own commands, as opposed to the tools it imitates */
+    const rangeCommands = ['status', 'objectives', 'targets', 'hosts', 'exploit', 'autopwn', 'reset-range', 'help'];
+    const rangeNote = 'This command belongs to the simulated remote-access range: it reports or resets the engagement, which lives only in this page. A real Linux or Windows host has no such command.';
+
     return {
       id: 'remote', name: 'Pentest (remote)', icon: '🖥', group: 'Security', range: true,
+      commandNames: () => ['status', 'objectives', 'targets', 'hosts', 'nmap', 'enum4linux', 'smbclient', 'cat', 'type',
+        'ls', 'ssh', 'crackmapexec', 'cme', 'impacket-psexec', 'psexec.py', 'xfreerdp', 'hydra', 'medusa', 'patator',
+        'msfconsole', 'msf', 'searchsploit', 'exploit', 'autopwn', 'reset-range', 'clear', 'help'],
+      appCommands: Object.fromEntries(rangeCommands.map(name => [name, rangeNote])),
       about: 'Practice remote access to the fictional PCs of an invented company: scan, enumerate SMB, read a leaked password, sign in over SSH, test the admin credential and open a SYSTEM shell on the file server. ' +
         'Every host, account, share, password and flag is made up and lives in this page — offline, no network, nothing real is touched. Only ever use these techniques on machines you own or may test.',
       prompt, secret: () => !!pending, run, commands,

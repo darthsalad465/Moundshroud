@@ -234,7 +234,10 @@ console.log('chess rules');
     ok('library: the app lets that address be shown in a frame (and nothing else new)', outside.length === 1 && outside[0] === 'https://www.youtube-nocookie.com', outside.join(' '));
     ok('library: a library page opened on the app’s own address is walled off without scripts', /hd\['content-security-policy'\] = "sandbox; default-src 'none'/.test(srv));
     const lib = rd('web/js/lib.js'), br = rd('web/lib-bridge.js');
-    ok('library: the Browser tab never reaches into a page directly', !/contentDocument|contentWindow/.test(lib) && /A\.libframe\.attach\(fr/.test(lib));
+    /* library pages (their own address) are only ever spoken to through libframes' messages. Pages on the app's own
+       address (MoundHub, a library the person imported) may be read directly: their title and page source, and the
+       right-click the Browser menu takes over. */
+    ok('library: the Browser tab never reaches into a library page directly', /A\.libframe\.attach\(fr/.test(lib) && /if \(!A\.libframe\.isLib\(e\.u\)\)/.test(lib) && /__moundCtx/.test(lib));
     ok('library: the page helper only answers the Moundshroud window', /e\.source !== window\.parent \|\| e\.origin !== APP/.test(br) && /postMessage\(Object\.assign\(\{ lf: 1 \}, o\), APP\)/.test(br));
   }
   /* daily copies stay on this PC unless chosen otherwise */
@@ -575,8 +578,10 @@ try {
     try { await require('./openwhip-test.js')(ok); } catch (e) { ok('the OpenWhip integration test loads', false, e.message); }
     try { await require('./terminal-commands-test.js')(ok); } catch (e) { ok('the terminal simulation commands test loads', false, e.message); }
     try { await require('./terminal-ranges-test.js')(ok); } catch (e) { ok('the security ranges test loads', false, e.message); }
+    try { await require('./cyber-moundshell-websites-test.js')(ok); } catch (e) { ok('the cyber moundshell websites test loads', false, e.message); }
     try { await require('./notes-safety-test.js')(ok); } catch (e) { ok('the notes safety test loads', false, e.message); }
     try { await require('./mcode-terminal-test.js')(ok); } catch (e) { ok('the mcode simulated terminal test loads', false, e.message); }
+    try { await require('./repos-test.js')(ok); } catch (e) { ok('the repositories test loads', false, e.message); }
     try { await require('./pt-test.js')(ok); } catch (e) { ok('the Packet Tracer simulator test loads', false, e.message); }
     try { const MT = require(path.join(__dirname, '..', 'lib', 'mail.js'))._t, pw = 'tést "pw" ✓', blob = await MT.protectPw(pw); ok('mail: Windows keeps the password protected and gives it back', !blob.includes('pw') && await MT.unprotectPw(blob) === pw); } catch (e) { ok('mail: Windows keeps the password protected', false, e.message); }
     console.log('\n' + pass + ' passed, ' + fail + ' failed');

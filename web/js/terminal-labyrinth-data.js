@@ -187,37 +187,55 @@
       else if (flags.includes('n')) lines = lines.map((l, i) => String(i + 1).padStart(6) + '\t' + l);
       return lines.join('\n');
     };
-    C.head = (a, stdin) => {
-      let n = 10, files = [];
+    /* the last newline in a file ends its last line; it does not start a blank one */
+    const linesOf = text => {
+      const rows = String(text == null ? '' : text).split('\n');
+      if (rows.length && rows[rows.length - 1] === '') rows.pop();
+      return rows;
+    };
+    const extentOf = a => {
+      let lines = 10, bytes = null, from = null; const files = [];
       for (let i = 0; i < a.length; i++) {
-        if (a[i] === '-n') n = parseInt(a[++i], 10) || 10;
-        else if (/^-n\d+$/.test(a[i])) n = parseInt(a[i].slice(2), 10) || 10;
-        else if (/^-\d+$/.test(a[i])) n = parseInt(a[i].slice(1), 10) || 10;
-        else if (!a[i].startsWith('-')) files.push(a[i]);
+        const t = a[i];
+        if (t === '-n') { const v = a[++i] || ''; if (/^\+\d+$/.test(v)) from = parseInt(v.slice(1), 10) || 1; else lines = parseInt(v, 10) || 10; }
+        else if (t === '-c') bytes = parseInt(a[++i], 10) || 0;
+        else if (/^-n\+\d+$/.test(t)) from = parseInt(t.slice(2), 10) || 1;
+        else if (/^-n-?\d+$/.test(t)) lines = Math.abs(parseInt(t.slice(2), 10)) || 10;
+        else if (/^-c\d+$/.test(t)) bytes = parseInt(t.slice(2), 10) || 0;
+        else if (/^-\d+$/.test(t)) lines = parseInt(t.slice(1), 10) || 10;
+        else if (!t.startsWith('-')) files.push(t);
       }
+      return { n: lines, bytes, from, files };
+    };
+    C.head = (a, stdin) => {
+      const { n, bytes, files } = extentOf(a);
       const r = files.length ? read(files[0]) : { text: stdin || '' };
-      return r.err ? 'head: ' + r.err : r.text.split('\n').slice(0, n).join('\n');
+      if (r.err) return 'head: ' + r.err;
+      if (bytes != null) return [...String(r.text)].slice(0, bytes).join('');
+      return linesOf(r.text).slice(0, n).join('\n');
     };
     C.tail = (a, stdin) => {
-      let n = 10, files = [];
-      for (let i = 0; i < a.length; i++) {
-        if (a[i] === '-n') n = parseInt(a[++i], 10) || 10;
-        else if (/^-n\d+$/.test(a[i])) n = parseInt(a[i].slice(2), 10) || 10;
-        else if (/^-\d+$/.test(a[i])) n = parseInt(a[i].slice(1), 10) || 10;
-        else if (!a[i].startsWith('-')) files.push(a[i]);
-      }
+      const { n, bytes, from, files } = extentOf(a);
       const r = files.length ? read(files[0]) : { text: stdin || '' };
-      return r.err ? 'tail: ' + r.err : r.text.split('\n').slice(-n).join('\n');
+      if (r.err) return 'tail: ' + r.err;
+      if (bytes != null) return [...String(r.text)].slice(-bytes).join('');
+      if (from != null) return linesOf(r.text).slice(from - 1).join('\n');
+      return linesOf(r.text).slice(-n).join('\n');
     };
     C.grep = (a, stdin) => {
       let flags = '', rest = [];
       for (const x of a) { if (x.startsWith('-') && x.length > 1) flags += x.slice(1); else rest.push(x); }
       const pat = rest.shift();
-      if (pat == null) return 'usage: grep [-inr] <pattern> [file...]';
+      if (pat == null) return 'usage: grep [-invrcolqH] <pattern> [file...]';
       let re; try { re = new RegExp(pat, flags.includes('i') ? 'i' : ''); } catch (e) { return 'grep: bad pattern'; }
-      const hits = [];
-      const scan = (t, label) => String(t).split('\n').forEach((l, i) => {
-        if (re.test(l) !== flags.includes('v')) hits.push((label && rest.length ? label + ':' : '') + (flags.includes('n') ? (i + 1) + ':' : '') + l);
+      const hits = [], names = [];
+      const showLabel = flags.includes('H') || (rest.length > 1 && !flags.includes('h'));
+      const scan = (t, label) => linesOf(t).forEach((l, i) => {
+        if (re.test(l) !== flags.includes('v')) {
+          if (label && !names.includes(label)) names.push(label);
+          const body = flags.includes('o') && !flags.includes('v') ? (l.match(re) || [''])[0] : l;
+          hits.push((label && showLabel ? label + ':' : '') + (flags.includes('n') ? (i + 1) + ':' : '') + body);
+        }
       });
       if (!rest.length) { if (stdin == null) return 'grep: no input'; scan(stdin, ''); }
       else for (const f of rest) {
@@ -235,28 +253,37 @@
           scan(result.text, f);
         }
       }
+      if (flags.includes('q')) return '';
+      if (flags.includes('l')) return names.join('\n');
       return flags.includes('c') ? String(hits.length) : hits.join('\n');
     };
     C.find = a => {
-      const ni = a.findIndex(x => x === '-name' || x === '-iname');
-      const pat = ni >= 0 ? a[ni + 1] : '*';
-      const ti = a.findIndex(x => x === '-type');
-      const wantType = ti >= 0 ? a[ti + 1] : null;
-      const start = a.find((x, i) => !x.startsWith('-') && (ni < 0 || i !== ni + 1) && (ti < 0 || i !== ti + 1)) || '.';
-      const n = walk(tree, resolve(start));
-      if (!isDir(n)) return "find: '" + start + "': No such file or directory";
-      const re = new RegExp('^' + pat.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$', ni >= 0 && a[ni] === '-iname' ? 'i' : '');
-      return listTree(n, start === '.' ? '.' : start, [])
-        .filter(([p, node]) => (!wantType || (wantType === 'f' ? !isDir(node) : isDir(node))) && re.test(p.split('/').pop()))
-        .map(([p]) => p).join('\n');
+      const SH = window.TerminalSharedCommands;
+      if (!SH || typeof SH.find !== 'function') return '';
+      return SH.find(a, {
+        walk: p => walk(tree, resolve(p)),
+        isDir,
+        size: n => (isDir(n) ? 4096 : textOf(n).length + 1),
+        mode: n => Unix.mode(n, isDir(n)),
+        remove: p => { const parts = resolve(p); const parent = walk(tree, parts.slice(0, -1)); if (isDir(parent)) delete parent[parts[parts.length - 1]]; },
+        exec: (words, stdin) => {
+          const fn = C[words[0]];
+          if (typeof fn !== 'function') return 'find: ' + words[0] + ': command not found';
+          return String(fn(words.slice(1), stdin) ?? '');
+        },
+        user: 'explorer'
+      });
     };
     C.wc = (a, stdin) => {
       const flags = a.filter(x => x.startsWith('-')).join('');
-      const f = a.find(x => !x.startsWith('-'));
+      const files = a.filter(x => !x.startsWith('-'));
+      const f = files[0];
       const t = f ? (read(f).err ? '' : read(f).text) : (stdin || '');
-      if (flags.includes('w')) return String(t.trim() ? t.trim().split(/\s+/).length : 0);
-      if (flags.includes('c') || flags.includes('m')) return String(t.length);
-      return String(t === '' ? 0 : t.split('\n').length).padStart(6);
+      const columns = [];
+      if (flags.includes('l') || !flags) columns.push(String((t.match(/\n/g) || []).length));
+      if (flags.includes('w') || !flags) columns.push(String(t.trim() ? t.trim().split(/\s+/).length : 0));
+      if (flags.includes('c') || flags.includes('m') || !flags) columns.push(String(t.length));
+      return columns.join(' ') + (f ? ' ' + f : '');
     };
     C.sort = (a, stdin) => {
       let sep = null, keyCol = null, numeric = false, rev = false, uniq = false;
@@ -275,7 +302,7 @@
       const f = a.find((x, i) => !x.startsWith('-') && !skip.has(i));
       const t = f ? (read(f).text || '') : (stdin || '');
       const fieldOf = line => keyCol == null ? line : (sep ? line.split(sep) : line.trim().split(/\s+/))[keyCol - 1] || '';
-      let l = t.split('\n').sort((x, y) => {
+      let l = linesOf(t).sort((x, y) => {
         const fx = fieldOf(x), fy = fieldOf(y);
         if (numeric) return (parseFloat(fx.trim()) || 0) - (parseFloat(fy.trim()) || 0);
         return fx < fy ? -1 : fx > fy ? 1 : 0;
@@ -285,9 +312,24 @@
       return l.join('\n');
     };
     C.uniq = (a, stdin) => {
+      const flags = a.filter(x => x.startsWith('-')).join('');
       const f = a.find(x => !x.startsWith('-'));
       const t = f ? (read(f).text || '') : (stdin || '');
-      const l = t.split('\n'); return l.filter((x, i) => x !== l[i - 1]).join('\n');
+      const rows = [];
+      const group = [];
+      const flush = () => {
+        if (!group.length) return;
+        const count = group.length;
+        if (flags.includes('u') && count !== 1) return;
+        if (flags.includes('d') && count < 2) return;
+        rows.push(flags.includes('c') ? String(count).padStart(7) + ' ' + group[0] : group[0]);
+      };
+      for (const line of linesOf(t)) {
+        if (group.length && line !== group[0]) { flush(); group.length = 0; }
+        group.push(line);
+      }
+      flush();
+      return rows.join('\n');
     };
     C.cut = (a, stdin) => {
       let d = ' ', fSpec = '1';
@@ -302,7 +344,7 @@
       const t = file ? (read(file).text || '') : (stdin || '');
       const rangeM = fSpec.match(/^(\d+)-(\d*)$/);
       const idx = parseInt(fSpec, 10) || 1;
-      return t.split('\n').map(l => {
+      return linesOf(t).map(l => {
         const parts = l.split(d);
         if (rangeM) return parts.slice((+rangeM[1] || 1) - 1, rangeM[2] ? +rangeM[2] : undefined).join(d);
         return parts[idx - 1] || '';
@@ -382,15 +424,38 @@
     };
     const srcOf = (files, stdin) => files.length ? (() => { const rs = files.map(read); const err = rs.find(x => x.err); return err ? { err: err.err } : { text: rs.map(x => x.text).join('\n') }; })() : (stdin != null ? { text: stdin } : { err: 'missing input' });
     C.echo = a => (a[0] === '-n' ? a.slice(1) : a).join(' ');
-    C.printf = a => { let fmt = String(a[0] || '').replace(/\\n/g, '\n').replace(/\\t/g, '\t'), idx = 1; return fmt.replace(/%[sdif]/g, () => String(a[idx++] ?? '')); };
+    /* printf repeats its format while arguments remain, which is how `printf '%s\n' a b` prints two lines */
+    C.printf = a => {
+      const args = a.slice();
+      if (args[0] === '--') args.shift();
+      if (!args.length) return 'printf: usage: printf FORMAT [ARGUMENT]...';
+      const unescape = s => String(s).replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\r/g, '\r').replace(/\\a/g, '\u0007').replace(/\\b/g, '\b').replace(/\\f/g, '\f').replace(/\\v/g, '\v').replace(/\\\\/g, '\\');
+      const format = unescape(args.shift());
+      let at = 0;
+      const once = () => format.replace(/%(?:%|([sbcdufixXo]))/g, (whole, spec) => {
+        if (!spec) return '%';
+        const value = at < args.length ? args[at++] : '';
+        if (spec === 's') return String(value);
+        if (spec === 'b') return unescape(value);
+        if (spec === 'c') return String(value).charAt(0);
+        if (spec === 'd' || spec === 'i' || spec === 'u') return String(parseInt(value, 10) || 0);
+        if (spec === 'f') return (parseFloat(value) || 0).toFixed(6);
+        if (spec === 'x' || spec === 'X') { const hex = (parseInt(value, 10) || 0).toString(16); return spec === 'X' ? hex.toUpperCase() : hex; }
+        if (spec === 'o') return (parseInt(value, 10) || 0).toString(8);
+        return String(value);
+      });
+      let out = once(), guard = 0;
+      while (at < args.length && /%[sbcdufixXo]/.test(format) && guard++ < 500) out += once();
+      return out;
+    };
     C.ll = a => C.ls(['-la'].concat(a));
     C.la = a => C.ls(['-a'].concat(a));
     C.dir = a => C.ls(a);
     C.more = (a, s) => C.cat(a, s);
     C.less = (a, s) => C.cat(a, s);
     C.rev = (a, s) => { const r = srcOf(a.filter(x => !x.startsWith('-')), s); return r.err ? 'rev: ' + r.err : r.text.split('\n').map(l => [...l].reverse().join('')).join('\n'); };
-    C.tac = (a, s) => { const r = srcOf(a.filter(x => !x.startsWith('-')), s); return r.err ? 'tac: ' + r.err : r.text.split('\n').reverse().join('\n'); };
-    C.nl = (a, s) => { const r = srcOf(a.filter(x => !x.startsWith('-')), s); return r.err ? 'nl: ' + r.err : r.text.split('\n').map((l, i) => String(i + 1).padStart(6) + '\t' + l).join('\n'); };
+    C.tac = (a, s) => { const r = srcOf(a.filter(x => !x.startsWith('-')), s); return r.err ? 'tac: ' + r.err : linesOf(r.text).reverse().join('\n'); };
+    C.nl = (a, s) => { const r = srcOf(a.filter(x => !x.startsWith('-')), s); return r.err ? 'nl: ' + r.err : linesOf(r.text).map((l, i) => String(i + 1).padStart(6) + '\t' + l).join('\n'); };
     C.strings = (a, s) => { const r = srcOf(a.filter(x => !x.startsWith('-')), s); return r.err ? 'strings: ' + r.err : (r.text.match(/[\x20-\x7e]{4,}/g) || []).join('\n'); };
     C.tr = (a, s) => {
       if (s == null) return 'tr: missing input';
@@ -431,7 +496,7 @@
       if (!m) return 'awk: try {print $1, $2}';
       const flds = m[1].split(',').map(x => x.trim()), r = srcOf(files, s);
       if (r.err) return 'awk: ' + r.err;
-      return r.text.split('\n').map(l => { const p = sep === ' ' ? l.trim().split(/\s+/) : l.split(sep); return flds.map(f => f === '$0' ? l : /^\$\d+$/.test(f) ? (p[+f.slice(1) - 1] || '') : f.replace(/^"|"$/g, '')).join(' '); }).join('\n');
+      return linesOf(r.text).map(l => { const p = sep === ' ' ? l.trim().split(/\s+/) : l.split(sep); return flds.map(f => f === '$0' ? l : /^\$\d+$/.test(f) ? (p[+f.slice(1) - 1] || '') : f.replace(/^"|"$/g, '')).join(' '); }).join('\n');
     };
     C.paste = a => {
       const dIdx = a.indexOf('-d'), sep = dIdx >= 0 ? (a[dIdx + 1] || '\t') : '\t';
@@ -471,8 +536,20 @@
     C.man = a => C.help(a);
     C.seq = a => { const ns = a.map(Number), [s0, e0] = ns.length === 1 ? [1, ns[0]] : [ns[0], ns[1]], o = []; for (let i = s0; i <= e0 && o.length < 100; i++) o.push(String(i)); return o.join('\n'); };
     C.expr = a => { try { return String(new Function('return (' + a.join(' ').replace(/[^0-9+\-*/%().\s]/g, '') + ')')()); } catch (e) { return 'expr: syntax error'; } };
-    C.basename = a => String(a[0] || '').split('/').pop() || '/';
+    C.basename = a => {
+      const p = String(a[0] || '').replace(/\/+$/, '');
+      let name = p.split('/').pop() || '/';
+      if (a[1] && name.endsWith(a[1]) && name !== a[1]) name = name.slice(0, -a[1].length);
+      return name;
+    };
     C.dirname = a => String(a[0] || '').split('/').slice(0, -1).join('/') || '.';
+    /* an absolute path, whether the argument is a file or a directory */
+    C.realpath = a => {
+      const p = a.find(x => !x.startsWith('-')) || '.';
+      if (walk(tree, resolve(p)) === undefined) return 'realpath: ' + p + ': No such file or directory';
+      return '/' + resolve(p).join('/');
+    };
+    C.readlink = a => C.realpath(a);
     C.true = () => '';
     C.false = () => '';
     C.sleep = () => '';
@@ -521,7 +598,7 @@
       return textOf(n);
     };
     const C = {};
-    C['get-location'] = () => 'Path\n----\nC:\\labyrinth' + (cwd.length ? '\\' + cwd.join('\\') : '');
+    C['get-location'] = () => 'Path\n----\nC:' + (cwd.length ? '\\' + cwd.join('\\') : '\\');
     C['set-location'] = a => {
       const target = a.find(x => !x.startsWith('-')) || '\\';
       const res = walkCanon(tree, resolve(target), true);
@@ -588,7 +665,7 @@
     C.tree = a => {
       const target = a.find(x => !x.startsWith('/'));
       const n = walk(tree, resolve(target || ''), true);
-      const here = 'C:\\labyrinth' + (cwd.length ? '\\' + cwd.join('\\') : '');
+      const here = 'C:' + (cwd.length ? '\\' + cwd.join('\\') : '\\');
       if (!isDir(n)) return 'Invalid path - ' + String(target || here).toUpperCase();
       return window.TerminalPlayground.winTreeListing(n, here, a);
     };
@@ -597,6 +674,25 @@
       if (TP && TP.formatHelp) return TP.formatHelp('powershell', a);
       return 'PowerShell room: Get-ChildItem, Set-Location, Get-Location, Get-Content, Select-String, Measure-Object, Sort-Object, Select-Object, Test-Path';
     };
+    const putWin = (p, text, append) => {
+      const parts = resolve(p);
+      let n = tree;
+      for (let i = 0; i < parts.length - 1; i++) { if (!isDir(n[parts[i]])) n[parts[i]] = {}; n = n[parts[i]]; }
+      const key = parts[parts.length - 1], old = n[key];
+      n[key] = append && old !== undefined && !isDir(old) ? textOf(old) + '\n' + text : String(text == null ? '' : text);
+    };
+    const removeWin = p => { const parts = resolve(p); const parent = parts.length ? walk(tree, parts.slice(0, -1), true) : undefined; if (parent && typeof parent === 'object') delete parent[parts[parts.length - 1]]; };
+    const mkdirWin = p => { const parts = resolve(p); let n = tree; for (const part of parts) { if (!isDir(n[part])) n[part] = {}; n = n[part]; } return ''; };
+    const listWin = p => { const n = walk(tree, resolve(p), true); if (n === undefined || !isDir(n)) return { err: true }; return { names: Object.keys(n), dirs: Object.keys(n).filter(k => isDir(n[k])) }; };
+    /* the same Windows kit the other Windows boxes use, so PowerShell here is not a five-command shell */
+    if (window.TerminalWindowsCommands) {
+      window.TerminalWindowsCommands.install(C, {
+        shell: 'powershell', host: 'LABYRINTH', user: 'explorer',
+        pwd: () => 'C:' + (cwd.length ? '\\' + cwd.join('\\') : '\\'),
+        read: p => { const t = read(p); return t == null ? { err: p + ': not found' } : { text: t }; },
+        write: putWin, remove: removeWin, list: listWin, mkdir: mkdirWin, history: () => []
+      });
+    }
     const aliases = { ls: 'get-childitem', dir: 'get-childitem', gci: 'get-childitem', cat: 'get-content', gc: 'get-content', cd: 'set-location', sl: 'set-location', pwd: 'get-location', gl: 'get-location', type: 'get-content', sls: 'select-string', measure: 'measure-object', sort: 'sort-object', select: 'select-object', echo: 'write-output' };
     return { C, aliases, resolve, read };
   }
@@ -616,7 +712,7 @@
       return parts;
     };
     const read = p => { const n = walk(tree, resolve(p), true); return n === undefined || isDir(n) ? null : textOf(n); };
-    const disp = () => 'C:\\labyrinth' + (cwd.length ? '\\' + cwd.join('\\') : '');
+    const disp = () => 'C:' + (cwd.length ? '\\' + cwd.join('\\') : '\\');
     const C = {};
     C.dir = a => {
       const flags = a.filter(x => x.startsWith('/')).join(' ').toLowerCase();
@@ -683,6 +779,25 @@
       if (TP && TP.formatHelp) return TP.formatHelp('cmd', a);
       return 'CMD room: dir [/a] [/s /b], cd, type, more, findstr, find, sort, tree, echo, whoami, hostname, ver';
     };
+    /* ipconfig, tasklist, net, sc, reg, copy/del/move and the rest of a real cmd.exe, against this room's disk */
+    if (window.TerminalWindowsCommands) {
+      window.TerminalWindowsCommands.install(C, {
+        shell: 'cmd', host: 'LABYRINTH', user: 'explorer',
+        pwd: () => 'C:' + (cwd.length ? '\\' + cwd.join('\\') : '\\'),
+        read: p => { const t = read(p); return t == null ? { err: p + ': not found' } : { text: t }; },
+        write: (p, text, append) => {
+          const parts = resolve(p);
+          let n = tree;
+          for (let i = 0; i < parts.length - 1; i++) { if (!isDir(n[parts[i]])) n[parts[i]] = {}; n = n[parts[i]]; }
+          const key = parts[parts.length - 1], old = n[key];
+          n[key] = append && old !== undefined && !isDir(old) ? textOf(old) + '\n' + text : String(text == null ? '' : text);
+        },
+        remove: p => { const parts = resolve(p); const parent = parts.length ? walk(tree, parts.slice(0, -1), true) : undefined; if (parent && typeof parent === 'object') delete parent[parts[parts.length - 1]]; },
+        list: p => { const n = walk(tree, resolve(p), true); if (n === undefined || !isDir(n)) return { err: true }; return { names: Object.keys(n), dirs: Object.keys(n).filter(k => isDir(n[k])) }; },
+        mkdir: p => { const parts = resolve(p); let n = tree; for (const part of parts) { if (!isDir(n[part])) n[part] = {}; n = n[part]; } return ''; },
+        history: () => []
+      });
+    }
     return { C, resolve, read };
   }
 
@@ -691,6 +806,10 @@
     const t = tier(d);
     const tree = {};
     const cwd = [];
+    /* Windows rooms are a workstation you have broken into: the node's own files sit in the user's profile and the
+       rest of the machine (Desktop, Documents, Downloads, AppData, Program Files, Windows) is there too */
+    const win = shell === 'powershell' || shell === 'cmd';
+    const winUser = 'explorer';
     const rootWord = pick(r, ['vault', 'depot', 'archive', 'relay', 'gallery']);
     put(tree, 'README.txt', 'Labyrinth node ' + d + '\nThis room holds one key. Read the objective above and use the shell.');
     put(tree, 'var/log/events.log', [
@@ -713,7 +832,7 @@
       put(tree, dir + '/notes.txt', 'nothing important');
       const readCmd = shell === 'bash' ? 'cat ' + dir + '/' + file : shell === 'powershell' ? 'Get-Content ' + dir + '\\' + file : 'type ' + dir + '\\' + file;
       walkthrough = shell === 'bash' ? ['ls -la', readCmd] : shell === 'powershell' ? ['Get-ChildItem -Force', readCmd] : ['dir /a', readCmd];
-      brief = 'The key sits in a directory whose name starts with a dot. Hidden entries do not show without asking for them.\nThen read ' + dir + '/' + file + '.';
+      brief = 'Something in this room was put where you were not meant to look. The plain listing walks straight past it, because the name it keeps begins with a full stop. Ask the shell to show what is normally hidden, and read what waits in there.';
       hint = 'bash: ls -la    PowerShell: Get-ChildItem -Force    cmd: dir /a';
     } else if (kind === 'grep') {
       const marker = pick(r, ['state=locked', 'result=denied', 'status=revoked']);
@@ -730,7 +849,7 @@
       walkthrough = shell === 'bash' ? ['grep ' + pat + ' ' + file]
         : shell === 'powershell' ? ['Select-String -Pattern ' + pat + ' -Path ' + file]
         : ['findstr ' + pat + ' ' + file];
-      brief = 'One line of ' + file + ' carries the key; every other token is a decoy. The line to trust is the one marked ' + marker + '.';
+      brief = 'The logs are full of quiet lines that claim everything was fine, and one that admits something went wrong. Only that line carries the key; the words beside it are bait. Let the shell do the reading rather than your eyes.';
       hint = shell === 'bash' ? 'grep ' + pat + ' ' + file : shell === 'powershell' ? 'Select-String -Pattern ' + pat + ' -Path ' + file : 'findstr ' + pat + ' ' + file;
     } else if (kind === 'assemble') {
       const parts = [ans.slice(0, 6), ans.slice(6, 13), ans.slice(13)];
@@ -740,7 +859,7 @@
       put(tree, 'fragments/order.txt', 'part1 then part2 then part3');
       const rd = f => shell === 'bash' ? 'cat ' + f : shell === 'powershell' ? 'Get-Content ' + f.replace(/\//g, '\\') : 'type ' + f.replace(/\//g, '\\');
       walkthrough = [rd('fragments/part1.txt'), rd('fragments/part2.txt'), rd('fragments/part3.txt')];
-      brief = 'The key was cut into three fragments under fragments/. Read them in the order the room tells you and join them with no spaces.';
+      brief = 'The key did not survive whole. It was cut apart, the pieces left in more than one place, and a small note left with them that still remembers the order they went in. Gather the pieces, follow the note, and mend the key with nothing left between the joins.';
       hint = 'cat fragments/part1.txt fragments/part2.txt fragments/part3.txt';
     } else if (kind === 'nested') {
       const a = pick(r, ['srv', 'opt', 'data']) + '/' + rootWord + '-' + (10 + r(80));
@@ -752,7 +871,7 @@
       walkthrough = shell === 'bash' ? ['find . -name "*.key"', 'cat ./' + a + '/' + b + '/' + file]
         : shell === 'powershell' ? ['Get-ChildItem -Recurse -Filter *.key', 'Get-Content ' + (a + '/' + b + '/' + file).replace(/\//g, '\\')]
         : ['dir /s /b', 'type ' + (a + '/' + b + '/' + file).replace(/\//g, '\\')];
-      brief = 'The key is buried somewhere under ' + a.split('/')[0] + ' in a nested directory. One decoy key exists elsewhere. Find every .key file, then read the one under ' + a + '.';
+      brief = 'Down here the folders are folded inside one another, and more than one file will claim to be the key. The true one is kept furthest from where you start. Hunt down every key the disk holds before you trust any of them.';
       hint = shell === 'bash' ? 'find . -name "*.key"' : shell === 'powershell' ? 'Get-ChildItem -Recurse -Filter *.key' : 'dir /s /b';
     } else if (kind === 'encoded') {
       const mode = t >= 5 && r(2) ? 'hex' : t >= 3 && r(2) ? 'base64' : 'rot13';
@@ -760,7 +879,7 @@
       const file = 'sealed.' + (mode === 'hex' ? 'hex' : mode === 'base64' ? 'b64' : 'rot');
       put(tree, file, enc);
       walkthrough = ['cat ' + file, mode === 'hex' ? 'xxd -r ' + enc : mode === 'base64' ? 'base64 -d ' + enc : 'rot13 ' + enc];
-      brief = 'sealed.' + (mode === 'hex' ? 'hex' : mode === 'base64' ? 'b64' : 'rot') + ' holds the key under a single ' + (mode === 'hex' ? 'hex' : mode === 'base64' ? 'Base64' : 'ROT13') + ' layer. Decode it.';
+      brief = 'One file in this room will not read as words. Its name ends the way a sealed thing does, and it wears a single wrapper to keep you out. Peel that wrapper once and the key is underneath.';
       hint = walkthrough[1];
     } else {
       const n = 3 + t + r(5);
@@ -771,7 +890,7 @@
       put(tree, 'var/log/access.log', shuffle(lines, r).join('\n'));
       answer = String(n);
       walkthrough = ['grep -c ' + marker + ' var/log/access.log'];
-      brief = 'Count how many requests in var/log/access.log were DENIED. Submit the number as the key.';
+      brief = 'This key is a number, not a word. The traffic log lists many visitors and only some of them were turned away at the door. Count the refused ones and answer with the number alone.';
       hint = 'grep -c DENIED var/log/access.log';
     }
 
@@ -794,13 +913,37 @@
       for (let i = 0; i < n; i++) { const [rel, text] = pick(r, clutter)(); put(tree, rel, text); }
     }
 
+    /* two quiet notes left on the machine: the trail starts in the files, not in the answer */
+    if (window.TerminalHints) {
+      const notes = TerminalHints.noteTexts({ hint, hints: [hint], walkthrough, answer });
+      put(tree, 'Desktop/start-here.txt', notes.start);
+      put(tree, 'Documents/trail.txt', notes.trail);
+    }
+
+    if (win) {
+      const roomKeys = Object.keys(tree);
+      const profile = window.TerminalPC
+        ? TerminalPC.windows({ user: winUser, host: 'LABYRINTH', seed: ((d * 2654435761) ^ 0x1a2b) >>> 0, leaf: F }) : {};
+      TerminalPC.merge(tree, profile);
+      const home = {};
+      for (const k of roomKeys) { home[k] = tree[k]; delete tree[k]; }
+      tree.Users = tree.Users || {};
+      tree.Users[winUser] = TerminalPC.merge(tree.Users[winUser] || {}, home);
+      cwd.length = 0; cwd.push('Users', winUser);
+    } else if (window.TerminalPC) {
+      const profile = TerminalPC.linux({ user: 'explorer', host: 'labyrinth', seed: ((d * 2654435761) ^ 0x51d3) >>> 0, leaf: F });
+      TerminalPC.merge(profile, tree);
+      for (const k of Object.keys(tree)) delete tree[k];
+      Object.assign(tree, profile);
+    }
+
     const bash = bashCommands(tree, cwd);
     const ps = psCommands(tree, cwd);
     const cmd = cmdCommands(tree, cwd);
     const api = shell === 'bash' ? bash : shell === 'powershell' ? ps : cmd;
-    const prompt = shell === 'bash' ? () => 'explorer@labyrinth:/' + cwd.join('/') + '$ '
-      : shell === 'powershell' ? () => 'PS C:\\labyrinth' + (cwd.length ? '\\' + cwd.join('\\') : '') + '> '
-      : () => 'C:\\labyrinth' + (cwd.length ? '\\' + cwd.join('\\') : '') + '>';
+        const prompt = shell === 'bash' ? () => 'explorer@labyrinth:/' + cwd.join('/') + '$ '
+      : shell === 'powershell' ? () => 'PS C:' + (cwd.length ? '\\' + cwd.join('\\') : '\\') + '> '
+      : () => 'C:' + (cwd.length ? '\\' + cwd.join('\\') : '\\') + '> ';
     const palette = shell === 'bash'
       ? [['ls -la', 'list hidden entries'], ['cat <file>', 'read a file'], ['grep -rin <text> .', 'search recursively'], ['find . -name "*.key"', 'locate key files'], ['base64 -d <text>', 'decode Base64'], ['xxd -r <hex>', 'decode hex'], ['rot13 <text>', 'rotate letters']]
       : shell === 'powershell'
@@ -812,17 +955,60 @@
     const listDir = dir => { const n = walk(tree, api.resolve(dir)); return isDir(n) ? Object.keys(n) : []; };
     const isWin = shell === 'powershell' || shell === 'cmd';
     const expandWords = seg => G.expandShellWords ? G.expandShellWords(seg, listDir, isWin) : seg.split(/\s+/).filter(Boolean);
+    /* $HOME, ${HOME} and $((2+3)) are part of the shell, not of any one command */
+    const roomVars = () => {
+      const env = {};
+      try {
+        for (const entry of String(api.C.env ? api.C.env() : '').split('\n')) {
+          const cut = entry.indexOf('=');
+          if (cut > 0) env[entry.slice(0, cut)] = entry.slice(cut + 1);
+        }
+      } catch (e) { /* the Windows shells keep their own variables */ }
+      return env;
+    };
+    const expandRoomVars = text => {
+      const source = String(text);
+      let out = '', quote = null;
+      for (let i = 0; i < source.length; i++) {
+        const ch = source[i];
+        if (ch === "'" && quote !== '"') { quote = quote === "'" ? null : "'"; out += ch; continue; }
+        if (ch === '"' && quote !== "'") { quote = quote === '"' ? null : '"'; out += ch; continue; }
+        if (ch === '\\' && quote !== "'" && i + 1 < source.length) { out += ch + source[i + 1]; i++; continue; }
+        if (ch === '$' && quote !== "'") {
+          const sum = /^\$\(\(([^()]*)\)\)/.exec(source.slice(i));
+          if (sum) {
+            let value = '';
+            try { value = String(new Function('return (' + sum[1].replace(/[^0-9+\-*/%().\s]/g, '') + ')')()); } catch (e) { value = ''; }
+            out += value;
+            i += sum[0].length - 1;
+            continue;
+          }
+          const name = /^\$\{([A-Za-z_][A-Za-z0-9_]*)\}|^\$([A-Za-z_][A-Za-z0-9_]*)/.exec(source.slice(i));
+          if (name) {
+            const env = roomVars();
+            const key = name[1] || name[2];
+            out += Object.hasOwn(env, key) ? env[key] : '';
+            i += name[0].length - 1;
+            continue;
+          }
+        }
+        out += ch;
+      }
+      return out;
+    };
     const runRoom = (raw, subDepth) => {
       const line = String(raw == null ? '' : raw).trim();
       if (!line) return '';
       const outs = [];
       const chainSeps = shell === 'cmd' ? ['&&', '&'] : [';', '&&', '||'];
       for (let chain of splitTop(line, chainSeps)) {
+        if (shell === 'bash') chain = expandRoomVars(chain);
         if (shell === 'bash' && G.expandSub) chain = G.expandSub(chain, (inner, d2) => runRoom(inner, d2), subDepth || 0);
-        chain = chain.replace(/\s*2>\s*\/dev\/null/g, '').trim();
+        /* `2>/dev/null` and `2>&1` are diagnostics redirects, never output redirects */
+        chain = chain.replace(/\s*(?:2|1)?>\s*\/dev\/null/g, ' ').replace(/\s*2>&1/g, ' ').trim();
         let redirect = null;
         if (shell === 'bash' && api.writeFile) {
-          const rm = chain.match(/(>>?)\s*(\S+)\s*$/);
+          const rm = chain.match(/(?:^|\s)(>>?)\s*(\S+)\s*$/);
           if (rm) { redirect = { append: rm[1] === '>>', file: rm[2] }; chain = chain.slice(0, rm.index).trim(); }
         }
         let stdin = null, out = '';
@@ -858,8 +1044,8 @@
         .map(([path, node]) => [path.slice(1), textOf(node)])),
       title: 'Labyrinth ' + d + ' · ' + rootWord,
       run: runRoom, cmds: api.C, aliases: api.aliases || {}, resolve: api.resolve,
-      rootPath: shell === 'bash' ? '/' : 'C:/labyrinth',
-      cwdPath: () => shell === 'bash' ? '/' + cwd.join('/') : ['C:/labyrinth', ...cwd].join('/'),
+      rootPath: shell === 'bash' ? '/' : 'C:/Users/' + winUser,
+      cwdPath: () => shell === 'bash' ? '/' + cwd.join('/') : ['C:', ...cwd].join('/'),
       snapshot: () => ({ tree, cwd, prevCwd: api.previousDirectory?.(), modes: TerminalUnix.saveModes(tree, isDir) }),
       restore: state => {
         G.replaceSavedObject(tree, state.tree);

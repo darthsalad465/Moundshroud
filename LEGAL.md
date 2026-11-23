@@ -6,7 +6,7 @@ real and what is invented, and what the app does with your data.
 ## Everything in the sandboxes is fiction
 
 The terminal playground, Scenario Lab, Puzzle Studio, the Labyrinth, Terminal Ops, Live Fire, Remote Access, the
-Cyber Academy lessons and the app shell are **simulations**. Every item below is generated or invented, and none of it
+Cyber Academy lessons and the moundshell are **simulations**. Every item below is generated or invented, and none of it
 describes a real person, company, agency, device or event:
 
 - names, usernames, job titles, email addresses and chat handles
@@ -26,7 +26,7 @@ The terminals are JavaScript simulations of a filesystem and a shell. They do no
 - run a real program, container or service
 - create real credentials, hashes of real secrets, or working malware
 
-Network commands (`ping`, `curl`, `nmap`, `ssh`, `nc`, `traceroute`, …) print fabricated output. In the app shell they
+Network commands (`ping`, `curl`, `nmap`, `ssh`, `nc`, `traceroute`, …) print fabricated output. In the moundshell they
 report only what your own browser can observe locally — platform, CPU count, screen size, language, time zone, online
 state — and the active tools are deliberately inert. No offensive-security content here is operational: nothing you
 type can be aimed at a system that exists.
@@ -35,7 +35,7 @@ type can be aimed at a system that exists.
 
 - The app server listens on loopback. Chats, notes, files and settings live in the app's `data/` folder or in your
   browser's local storage.
-- The app shell keeps every edit you make in your own browser (`localStorage`). It never writes to the app's source
+- The moundshell keeps every edit you make in your own browser (`localStorage`). It never writes to the app's source
   files, so one person's shell session cannot change the app for anyone else.
 - Nothing is uploaded, sold or shared by the app itself. Optional online features are off unless you switch them on,
   and the 🔒 Privacy section of Settings lists exactly what each one sends.
@@ -44,6 +44,10 @@ type can be aimed at a system that exists.
 
 Bundled libraries keep their own licences and attribution under `web/vendor/`. Their copyright notices are part of the
 distribution and must not be removed. Moundshroud's own code is under the MIT licence in `LICENSE`.
+
+Moundshroud brings its own copy of **Ollama** (MIT licence), which runs the AI models locally, and of the small **Qwen 3.5**
+model family (Apache-2.0 licence). Setup downloads them into the app's `runtime\ollama` folder and Ollama's usual model
+folder. Those components stay under their own licences and are not covered by Moundshroud's MIT licence.
 
 ## Using this responsibly
 

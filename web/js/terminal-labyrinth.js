@@ -18,7 +18,8 @@
           ? v.checkpoint : 0,
         best: Number.isFinite(v.best) ? Math.max(1, v.best | 0) : 1,
         runs: Number.isFinite(v.runs) ? v.runs | 0 : 0,
-        hints: Math.max(0, v.hints | 0), failures: Math.max(0, v.failures | 0),
+        hints: Math.max(0, v.hints | 0), hintStage: Math.max(0, v.hintStage | 0),
+        failures: Math.max(0, v.failures | 0),
         workspace: v.workspace
       };
     } catch (e) { return { seed: null, depth: 1, best: 1, runs: 0, checkpoint: 0 }; }
@@ -52,8 +53,17 @@
       if (difficulty === 'medium') options.category = 'pipeline';
       if (difficulty === 'hard') options.category = ['corrupt_shards', 'forensic_corr', 'pipeline'][puzzleSeed % 3];
       if (difficulty === 'insane') options.category = ['breadcrumb', 'corrupt_shards', 'forensic_corr'][puzzleSeed % 3];
+      /* Deep floors sometimes stop being about your own files and become a break-in on a fake machine that belongs to
+         a person, a company or (deeper still) a government office. Still one key, still every secret invented here. */
+      if (depth >= 12 && puzzleSeed % 3 === 0) options.category = 'intrusion';
     }
     const puzzle = studio.generate(options);
+    /* the opening text states the objective only: the how-to lives in the room's own files and in `hint`, not in the
+       briefing. A file room has already moved its extra text into notes/briefing.txt, so this is a no-op for it. */
+    {
+      const paras = String(puzzle.brief || '').split(/\n\s*\n/);
+      if (paras.length > 1) puzzle.brief = paras[0];
+    }
     if (reversedKeys(depth)) puzzle.brief = String(puzzle.brief || '') + '\n\n⟲ Depth 200+: when you find the key, type it BACKWARDS: solve <key reversed>.';
     if (extraLayers(depth)) puzzle.brief = String(puzzle.brief || '') + '\n\n🜂 Deep floor: keys here carry ' + extraLayers(depth) + ' extra encoding layer' + (extraLayers(depth) > 1 ? 's' : '') + ' (counted in the layer numbers above).';
     return Object.assign(puzzle, { depth, kind: puzzle.kind || puzzle.category.replace(/_/g, ' ') });
@@ -66,6 +76,8 @@
     let best = state.best;
     let runs = state.runs;
     let hints = state.hints || 0;
+    /* how many staged nudges this room has shown; the key itself is never one of them */
+    let hintStage = state.hintStage || 0;
     let failures = state.failures || 0;
     let checkpoint = state.checkpoint;
     let room = makeCheckpoint(shell, depth, seed, checkpoint);
@@ -73,7 +85,7 @@
 
     const save = () => {
       try {
-        localStorage.setItem(keyFor(shell), JSON.stringify({ seed, depth, best, runs, checkpoint, hints, failures, workspace: room.snapshot?.() }));
+        localStorage.setItem(keyFor(shell), JSON.stringify({ seed, depth, best, runs, checkpoint, hints, hintStage, failures, workspace: room.snapshot?.() }));
         return true;
       } catch (e) { }
       return false;
@@ -105,6 +117,7 @@
         checkpoint++;
         room = makeCheckpoint(shell, depth, seed, checkpoint);
         hints = 0;
+        hintStage = 0;
         save();
         return '✓ Checkpoint opened.\n\n' + checkpointLabel() + ' · ' + rating() + '\n\n' + room.brief;
       }
@@ -115,6 +128,7 @@
       checkpoint = 0;
       room = makeCheckpoint(shell, depth, seed, checkpoint);
       hints = 0;
+      hintStage = 0;
       save();
       return [
         '',
@@ -129,7 +143,16 @@
     }
 
     function completeCheckpoint() {
-      return { out: nextRoom(), solved: true, depth };
+      const clearedAt = depth, usedHints = hints;
+      const text = nextRoom();
+      let reward = null;
+      try {
+        reward = window.TerminalRewards && window.TerminalRewards.award('lab', { depth: clearedAt, reached: depth, hints: usedHints });
+      } catch (e) { }
+      return {
+        out: text + (reward ? '\n  ⭐ +' + reward.points + ' points · 🏅 +' + reward.elo + ' Elo' + (reward.badges.length ? ' · ' + reward.badges.map(b => b.icon + ' ' + b.name).join(', ') : '') : ''),
+        solved: true, depth
+      };
     }
 
     function run(rawLine) {
@@ -150,7 +173,7 @@
           '',
           '── LABYRINTH COMMANDS ──',
           '  solve <answer>                        unlock the next checkpoint or descend',
-          '  hint                                  show a clue for the current room',
+          '  hint                                  one staged clue at a time (never the answer)',
           '  depth                                 display current depth, tier, and stats',
           '  map                                   view all Labyrinth depth tiers',
           '  mcode <passphrase>                    open the mcode helper (find the hidden mcode.txt note first; from depth 5)',
@@ -179,12 +202,20 @@
         };
       }
       if (name === 'hint') {
+        const stages = window.TerminalHints?.stages ? window.TerminalHints.stages(room) : [];
+        if (!stages.length) stages.push({ title: 'Read the room', text: room.hint || 'read every file in the room; the answer is in one of them' });
+        const at = Math.min(hintStage, stages.length - 1);
+        const stage = stages[at];
         hints++;
+        hintStage = Math.min(stages.length, hintStage + 1);
         save();
-        return { out: 'hint · ' + (room.hint || 'read every file in the room; the answer is in one of them') };
+        const more = hintStage < stages.length
+          ? '\n  (' + (stages.length - hintStage) + ' more stage' + (stages.length - hintStage === 1 ? '' : 's') + ' — type hint again; the answer is never given)'
+          : '\n  (that was the last nudge. The key is in the room; hint never prints it.)';
+        return { out: 'hint ' + (at + 1) + '/' + stages.length + ' · ' + stage.title + '\n  ' + stage.text + (stage.command ? '\n  try: ' + stage.command : '') + more };
       }
       if (name === 'reset' || name === 'restart') {
-        depth = 1; checkpoint = 0; best = Math.max(best, 1); runs = 0; seed = newSeed(); hints = 0; failures = 0;
+        depth = 1; checkpoint = 0; best = Math.max(best, 1); runs = 0; seed = newSeed(); hints = 0; hintStage = 0; failures = 0;
         room = makeCheckpoint(shell, depth, seed, checkpoint);
         save();
         return { out: 'the stair resets. depth 1.\n\n' + welcome(), reset: true };

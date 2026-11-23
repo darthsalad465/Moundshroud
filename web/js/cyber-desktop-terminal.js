@@ -1,11 +1,11 @@
 // The opaque iframe gets only guest terminal saves over a private message port.
 (() => {
   const scripts = [
-    'interp', 'terminal-unix', 'terminal-playground-data', 'terminal-playground-data2',
+    'cyber-crack', 'interp', 'terminal-unix', 'terminal-commands-shared', 'terminal-windows-commands', 'terminal-pc-profile', 'terminal-playground-data', 'terminal-playground-data2',
     'terminal-playground-data3', 'terminal-playground-curios', 'terminal-playground-jobs',
     'terminal-scenarios', 'terminal-sandbox-python', 'terminal-manual-content', 'terminal-manual-beginner',
-    'terminal-manual', 'terminal-command-coach', 'terminal-labyrinth-data',
-    'terminal-labyrinth-data2', 'terminal-labyrinth', 'terminal-puzzles',
+    'terminal-hints', 'terminal-learn', 'terminal-manual-explain', 'terminal-manual', 'terminal-command-coach', 'terminal-labyrinth-data',
+    'terminal-rewards', 'terminal-labyrinth-data2', 'terminal-labyrinth', 'terminal-puzzles',
     'terminal-pentest', 'terminal-remote',
     'mcode-custom', 'mcode-swarm', 'mcode-whip', 'terminal-playground-mcode', 'terminal-playground'
   ];
@@ -165,6 +165,11 @@
             }
             if (data?.type === 'storage-error') {
               window.A.toast('The virtual disk is full or unavailable.');
+              return;
+            }
+            if (data?.type === 'libraries' && Array.isArray(data.books)) {
+              /* the offline libraries this browser holds become targets for the pentest range */
+              window.TerminalPlayground?.setPentestLibraries?.(data.books);
               return;
             }
             if (data?.type === 'shell' && ['bash', 'network', 'powershell', 'sql'].includes(data.shell)) {

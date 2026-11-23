@@ -558,12 +558,30 @@ A.modelOrder = (() => {
       a.btn.classList.remove('on');
     }
     setHtml(false);
+    if (a && a.btn && document.contains(a.btn)) { try { a.btn.focus({ preventScroll: true }); } catch (e) { } }
     if (a && typeof a.onExit === 'function') { try { a.onExit(); } catch (e) { } }
+  }
+  /* While a terminal fills the screen, Enter belongs to the terminal. A key press with a button focused
+     clicks that button again (the browser's own behaviour), which is how Enter used to leave fullscreen
+     or re-run whichever toolbar button was last used: half of the terminal screens never put focus back
+     in the prompt. So fullscreen gives focus to the prompt, the monitor button gives it back, and any
+     toolbar button clicked while fullscreen hands the keys back to the terminal afterwards. */
+  const promptField = box => box && (box.querySelector('.term-fs-prompt-row input:not([type=color]), .term-fs-prompt-row textarea') || box.querySelector('input:not([type=color]), textarea'));
+  function focusPrompt(box, from) {
+    if (!box) return;
+    const a = document.activeElement;
+    if (a && a !== from && (/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName || '') || a.isContentEditable)) return;   // never take the keys off a field someone is typing in
+    const t = promptField(box); if (!t) return;
+    try { t.focus({ preventScroll: true }); } catch (e) { try { t.focus(); } catch (e2) { } }
   }
   function apply(box, on, btn, onExit) {
     if (!box) return false;
     if (on) {
-      if (active && active.box !== box) exit();
+      /* A terminal that redraws rebuilds its own box, so the box it was showing is no longer in the page. That is a
+         redraw, not another terminal taking the screen: tearing the old one down here exited full screen and switched
+         the terminal's own fullscreen flag off, which is how solving a Labyrinth floor used to drop out of full screen. */
+      const redraw = !!(active && active.box !== box && !document.contains(active.box));
+      if (active && active.box !== box && !redraw) exit();
       box.classList.add('term-fs');
       active = { box, btn, onExit };
       setHtml(true);
@@ -590,6 +608,7 @@ A.modelOrder = (() => {
             ev.stopPropagation();
             if (document.fullscreenElement) { try { document.exitFullscreen().catch(() => {}); } catch (e) { } }
             else { try { document.documentElement.requestFullscreen().catch(() => {}); } catch (e) { } }
+            focusPrompt(box, osBtn);        // the monitor button must not keep Enter for itself
           };
           bar.insertBefore(osBtn, btn);
         }
@@ -598,6 +617,8 @@ A.modelOrder = (() => {
         osBtn.remove();
       }
     }
+    if (on) focusPrompt(box, btn);
+    else if (btn && document.contains(btn)) { try { btn.focus({ preventScroll: true }); } catch (e) { } }
     return !!on;
   }
   function toggle(box, btn, onExit) {
@@ -613,6 +634,17 @@ A.modelOrder = (() => {
       exit();
     }
   }, true);
+  /* a toolbar button clicked while the terminal fills the screen hands the keys back to the prompt,
+     including a button that redraws the screen (the new box is looked up again after the redraw) */
+  document.addEventListener('click', e => {
+    const box = document.querySelector('.term-fs-box.term-fs'); if (!box) return;
+    const b = e.target.closest && e.target.closest('button, [role="button"]');
+    if (!b || !box.contains(b)) return;
+    setTimeout(() => {
+      const now = document.querySelector('.term-fs-box.term-fs');
+      if (now) focusPrompt(now, b);
+    }, 0);
+  });
   document.addEventListener('fullscreenchange', syncOsButtons);
   if (A.on) A.on('tab:hide', () => { if (active) exit(); });
   A.termFS = { apply, toggle, exit, active: () => !!active };
@@ -645,7 +677,10 @@ A.modelOrder = (() => {
     return on;
   }
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && on) { e.preventDefault(); e.stopImmediatePropagation(); set(false); }
+    if (e.key === 'Escape' && on) {
+      if (document.querySelector('.srcview, #ctxm')) return;
+      e.preventDefault(); e.stopImmediatePropagation(); set(false);
+    }
   }, true);
   document.addEventListener('fullscreenchange', () => { if (on && native && !document.fullscreenElement) set(false); });
   if (A.on) A.on('tab:hide', () => { if (on) set(false); });

@@ -891,6 +891,37 @@ const RemoteAccess = (function () {
     cmds.sleep = () => ({ out: '' });
     cmds.man = a => a[0] ? cmds.help([a[0]]) : cmds.help();
 
+    /* the rest of the everyday shell (cp, mv, rm, mkdir, touch, tools, builtins): filled from the shared kit,
+       never over the commands this sandbox defines itself */
+    {
+      const Shared = typeof TerminalSharedCommands !== 'undefined' ? TerminalSharedCommands
+        : (typeof module !== 'undefined' && module.exports ? require('./terminal-commands-shared.js') : null);
+      if (Shared) Shared.fill(cmds, {
+        shell: 'bash', user, host,
+        cwd: () => path(),
+        read: p => readPath(String(p)),
+        write: (p, txt) => {
+          const parts = resolve(String(p));
+          let n = tree;
+          for (let i = 0; i < parts.length - 1; i++) { if (!isDir(n[parts[i]])) n[parts[i]] = {}; n = n[parts[i]]; }
+          n[parts[parts.length - 1]] = { text: String(txt == null ? '' : txt) };
+        },
+        remove: p => { const parts = resolve(String(p)); const parent = walk(parts.slice(0, -1)); if (isDir(parent)) delete parent[parts[parts.length - 1]]; },
+        list: p => {
+          const n = walk(resolve(String(p)));
+          if (n === undefined || !isDir(n)) return { err: true, names: [] };
+          return { names: Object.keys(n).sort(), dirs: Object.keys(n).filter(k => isDir(n[k])) };
+        },
+        mkdir: p => {
+          const parts = resolve(String(p));
+          let n = tree;
+          for (const part of parts) { if (!isDir(n[part])) n[part] = {}; n = n[part]; }
+          return '';
+        },
+        chdir: p => { const n = walk(resolve(String(p))); if (!isDir(n)) return false; cwd = resolve(String(p)); return true; }
+      });
+    }
+
     function run(line) {
       const raw = String(line == null ? '' : line).trim();
       if (!raw) return '';

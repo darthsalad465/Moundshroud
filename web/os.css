@@ -1,0 +1,196 @@
+/* The desktop look (web/js/os-shell.js). The wallpaper and the taskbar are the page; the app itself is a window
+   that opens over them and can be minimised, maximised, dragged and closed. Everything is scoped to html.os,
+   so turning the look off in Settings › Appearance puts the app back exactly as it was. The lock screen sits
+   outside html.os because it is used with the look off too. */
+
+html.os{--os-wall:linear-gradient(160deg,#0b1220,#0e1726 55%,#070b12)}
+html.os body{display:block!important;padding:0!important;gap:0;overflow:hidden;background:var(--os-wall,#0b1220)!important;background-color:#0b1220!important;background-attachment:fixed!important}
+/* hide the page's own top nav, but never navs inside an app surface such as the Cyber Desktop dock or menus */
+html.os nav:not(.cd-shell nav,.cd-shell nav *,.tpg-manual nav,.tpg-manual nav *){display:none!important}
+html.os #shfold{display:none!important}
+html.os .shs{display:none!important}
+
+/* ---------- the app window: the page you are on, with its own title bar ---------- */
+html.os{--os-bar-h:60px;--os-accent:#8b7cff;--os-icon:44px;--os-cellw:92px;--os-cellh:84px}
+#oswin{position:fixed;z-index:7200;display:flex;flex-direction:column;min-width:320px;min-height:220px;border:1px solid rgba(255,255,255,.16);border-radius:12px;background:var(--bg);box-shadow:0 34px 90px rgba(0,0,0,.62),0 0 0 1px rgba(0,0,0,.35);overflow:hidden;transition:box-shadow .2s}
+/* a maximised window is the whole screen, taskbar included, the way a full-screen app covers the panel */
+#oswin.maxed{border:0;border-radius:0;box-shadow:none;transition:none}
+#oswin.drag{transition:none}
+html.os-motion-off #oswin{transition:none}
+#oswin.drag{transition:none;box-shadow:0 40px 110px rgba(0,0,0,.7)}
+#oswin > header{flex:none;height:48px;padding:0 8px 0 12px!important;gap:7px;border:0!important;border-bottom:1px solid rgba(255,255,255,.1)!important;border-radius:0!important;background:rgba(18,22,34,.95)!important;backdrop-filter:blur(22px) saturate(1.2);box-shadow:none!important;cursor:default}
+#oswin > header .mark{width:28px!important;height:28px!important;flex:none}
+#oswin > header > b{font-size:13px!important;letter-spacing:.2px;opacity:.9}
+#oswin > header .sp{flex:1}
+#oswin > main{flex:1;min-width:0;min-height:0;position:relative;overflow:hidden;border:0!important;border-radius:0!important;background:var(--bg)!important;box-shadow:none!important;z-index:auto!important}
+/* the window's own title bar, above the page's toolbar, so the three controls are never crowded out */
+#oswbar{flex:none;display:flex;align-items:center;gap:8px;height:36px;padding:0 5px 0 8px;border-bottom:1px solid rgba(255,255,255,.1);background:rgba(12,16,26,.98);backdrop-filter:blur(22px) saturate(1.2);cursor:default;user-select:none;touch-action:none}
+#ostitle{display:flex;align-items:center;gap:7px;flex:1 1 auto;min-width:0;height:100%;padding:0 6px;font-size:12.5px;font-weight:600;color:#dfe5f7;white-space:nowrap;overflow:hidden}
+#ostitle > span{overflow:hidden;text-overflow:ellipsis}
+#ostitle .osi-ic{width:20px;height:20px;flex:none;border-radius:5px;background:rgba(255,255,255,.07);font-size:12px}
+#ostitle .osi-ic svg{width:12px;height:12px}
+#oswctl{display:flex;gap:2px;margin-left:auto;flex:none;position:relative;z-index:6}
+#oswctl button{width:36px;height:26px;display:grid;place-items:center;border:0;border-radius:6px;background:transparent;color:#cfd6ea;font:600 12px/1 inherit;cursor:pointer}
+#oswctl button:hover{background:rgba(255,255,255,.14);color:#fff}
+#oswctl button[data-w="close"]:hover{background:#d94156;color:#fff}
+/* the desktop is showing: the window is put away, the wallpaper and icons are the page */
+html.os.os-desk #oswin{display:none}
+/* When any inner surface takes over full screen (Cyber Desktop, Browser, Terminal, Code Stage), step the OS window
+   chrome aside so the outer Minimise/Maximise/Close controls never overlap or intercept the fullscreen window's own
+   top-right buttons. Leaving full screen (button or Esc) brings the OS title bar and taskbar straight back. */
+html.os:is(.page-fs-on,.term-fs-on,.cd-fs-on) #oswin,
+html.os:has(.cd-expanded,.cs-wrap.cs-max) #oswin{overflow:visible!important}
+html.os:is(.page-fs-on,.term-fs-on,.cd-fs-on) :is(#oswbar,#oswin > header,#oswin .osz,#osbar),
+html.os:has(.cd-expanded,.cs-wrap.cs-max) :is(#oswbar,#oswin > header,#oswin .osz,#osbar){display:none!important;pointer-events:none!important}
+/* Focus modes inside the OS window: keep #pfx below #oswbar so it never overlaps #oswctl [▁ ▢ ✕], hide the inner
+   app header in afocus, and keep #afx clear of the bottom taskbar */
+html.os.pfocus #pfx{top:44px!important;right:12px!important}
+html.os.os-bar-top.pfocus #pfx{top:calc(var(--os-bar-h,34px) + 44px)!important}
+html.os.afocus #oswin > header{display:none!important}
+html.os.afocus:not(.os-bar-top) #afx{bottom:calc(var(--os-bar-h,60px) + 10px)!important}
+
+/* ---------- icons on the wallpaper: anywhere, dragged with the mouse ---------- */
+#osicons{position:fixed;inset:0 0 var(--os-bar-h,60px) 0;z-index:3;pointer-events:none}
+html.os-bar-top #osicons{inset:var(--os-bar-h,60px) 0 0 0}
+.osi{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:5px;width:var(--os-cellw,92px);height:var(--os-cellh,84px);padding:7px 4px 5px;border:1px solid transparent;border-radius:10px;background:transparent;color:#eef2ff;font:600 11.5px/1.2 inherit;text-align:center;cursor:default;pointer-events:auto;touch-action:none;user-select:none;overflow:hidden}
+.osi:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.18)}
+.osi.on{background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.26)}
+.osi.sel{background:color-mix(in srgb,var(--os-accent,#8b7cff) 38%,rgba(255,255,255,.09));border-color:color-mix(in srgb,var(--os-accent,#8b7cff) 70%,#fff)}
+.osi.idrag{opacity:.82;z-index:20;cursor:grabbing}
+/* every app's logo has its own colour (web/js/app-tint.js): the tile is a wash of it, the drawn icon is the colour itself */
+.osi-ic{display:grid;place-items:center;width:var(--os-icon,44px);height:var(--os-icon,44px);flex:none;border-radius:10px;font-size:calc(var(--os-icon,44px) * .52);line-height:1;color:var(--tint,#cdd6f4);background:linear-gradient(160deg,color-mix(in srgb,var(--tint,#8b7cff) 30%,rgba(0,0,0,.6)),color-mix(in srgb,var(--tint,#8b7cff) 14%,rgba(0,0,0,.55)));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--tint,#8b7cff) 38%,transparent)}
+.osi-ic svg{filter:drop-shadow(0 1px 1px rgba(0,0,0,.45))}
+.os-tint{display:grid;place-items:center;width:22px;height:22px;flex:none;line-height:1}
+.os-tint svg{width:20px;height:20px}
+#osapps{display:flex;align-items:center;gap:4px;min-width:0}
+#osstart .osb-la{font-weight:700}
+.osi-ic svg{width:calc(var(--os-icon,44px) * .56);height:calc(var(--os-icon,44px) * .56)}
+/* two whole lines of the app's name, then "…": a long name is never cut through the middle of a word on one line */
+.osi b{display:-webkit-box;width:100%;max-width:100%;overflow:hidden;white-space:normal;overflow-wrap:break-word;hyphens:auto;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:var(--os-label,11.5px);line-height:1.18;text-shadow:0 1px 3px rgba(0,0,0,.8)}
+html.os-no-labels .osi b{display:none}
+.osi.folder .osi-ic{background:linear-gradient(180deg,#f0c860,#d79b2b);color:#2a1c02;box-shadow:inset 0 -2px 0 rgba(0,0,0,.16)}
+.osi.folder .osi-ic svg,.osi.folder .osi-ic span{color:#2a1c02}
+
+/* ---------- a folder opened from the desktop ---------- */
+#osfold{position:fixed;z-index:7300;display:flex;flex-direction:column;width:min(520px,calc(100vw - 140px));max-height:min(70vh,560px);border:1px solid rgba(255,255,255,.18);border-radius:12px;background:rgba(18,22,34,.97);backdrop-filter:blur(20px);box-shadow:0 30px 80px rgba(0,0,0,.6);color:var(--text);overflow:hidden}
+#osfold .osf-hd{display:flex;align-items:center;gap:8px;padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.1);font-size:13px;font-weight:600;cursor:move;user-select:none;touch-action:none}
+#osfold .osf-hd button{margin-left:auto;border:0;background:transparent;color:var(--mute);font-size:14px;cursor:pointer;border-radius:6px;padding:2px 7px}
+#osfold .osf-hd button:hover{background:rgba(255,255,255,.12);color:var(--text)}
+#osfold .osf-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px;padding:10px;overflow:auto}
+#osfold .osf-it{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 6px;border:1px solid transparent;border-radius:10px;background:transparent;color:var(--text);font:600 12px/1.25 inherit;cursor:pointer;text-align:center}
+#osfold .osf-it:hover{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.14)}
+
+/* ---------- the taskbar ---------- */
+#osbar{position:fixed;left:0;right:0;bottom:0;height:var(--os-bar-h,60px);display:flex;align-items:center;gap:4px;padding:0 8px;z-index:7000;background:rgba(12,16,26,.88);backdrop-filter:blur(26px) saturate(1.3);border-top:1px solid rgba(255,255,255,.12);color:#e9edff;font-family:inherit}
+html.os-bar-top #osbar{top:0;bottom:auto;border-top:0;border-bottom:1px solid rgba(255,255,255,.12)}
+html.os-no-clock #osclock{display:none}
+#osbar .sp{flex:1}
+.osb{display:flex;align-items:center;gap:7px;height:44px;min-width:46px;padding:0 10px;border:1px solid transparent;border-radius:9px;background:transparent;color:#e9edff;font:500 12.5px/1 inherit;cursor:pointer;position:relative}
+.osb:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.16)}
+.osb.on{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.24)}
+.osb.on::after{content:"";position:absolute;left:50%;bottom:3px;width:16px;height:2px;margin-left:-8px;border-radius:2px;background:var(--os-accent,#8b7cff)}
+.osb .osi-ic{width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,.08);font-size:17px}
+#osstart{font-weight:700;padding:0 14px;gap:8px}
+#osstart .osi-ic{background:linear-gradient(135deg,var(--os-accent,#8b7cff),#46d7c8);color:#0a0c12}
+/* the moundshell is fixed to the bar: it never shrinks away and cannot be unpinned */
+#osshell{flex:0 0 auto;font-size:17px;padding:0 12px}
+#osdeskbtn{width:12px;min-width:12px;height:44px;padding:0;border-radius:4px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06)}
+#osdeskbtn:hover{background:rgba(255,255,255,.2)}
+#osclock{display:flex;flex-direction:column;align-items:flex-end;justify-content:center;min-width:92px;padding:0 8px;font:500 11.5px/1.3 inherit;color:#dbe2ff;cursor:default;text-align:right}
+#osclock b{font-size:12.5px;font-weight:600}
+
+/* ---------- the Start menu ---------- */
+#osmenu{position:fixed;left:8px;bottom:calc(var(--os-bar-h,60px) + 8px);width:min(560px,calc(100vw - 16px));max-height:min(74vh,680px);display:none;flex-direction:column;z-index:8100;border-radius:14px;border:1px solid rgba(255,255,255,.14);background:rgba(15,19,30,.97);backdrop-filter:blur(28px) saturate(1.2);box-shadow:0 30px 80px rgba(0,0,0,.62);color:var(--text);overflow:hidden}
+#osmenu.on{display:flex}
+html.os-bar-top #osmenu{top:calc(var(--os-bar-h,60px) + 8px);bottom:auto}
+#osmenu .osm-hd{padding:12px 12px 8px}
+#osmenu input{width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);border-radius:9px;padding:9px 12px}
+#osmenu .osm-list{overflow:auto;padding:2px 8px 10px;min-height:0}
+.osm-g{margin:10px 6px 3px;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--mute)}
+.osm-it{display:flex;align-items:center;gap:10px;width:100%;padding:7px 9px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--text);font:500 13px/1.3 inherit;text-align:left;cursor:pointer}
+.osm-it:hover{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.12)}
+.osm-it .osi-ic{width:26px;height:26px;background:rgba(255,255,255,.07);font-size:14px}
+#osmenu .osm-ft{display:flex;gap:6px;flex-wrap:wrap;padding:9px 10px;border-top:1px solid rgba(255,255,255,.1);background:rgba(0,0,0,.18)}
+
+@keyframes osPop{from{opacity:0;transform:translateY(16px) scale(.98)}to{opacity:1;transform:none}}
+
+/* ---------- the lock screen ---------- */
+#oslock{position:fixed;inset:0;z-index:9000;display:grid;place-items:center;padding:20px;background:var(--os-wall,#0b1220);background-color:#070b12}
+#oslock::before{content:"";position:absolute;inset:0;background:rgba(6,9,16,.58);backdrop-filter:blur(18px) saturate(1.1)}
+.osk{position:relative;width:min(384px,calc(100vw - 32px));padding:26px 24px 20px;border-radius:16px;border:1px solid rgba(255,255,255,.16);background:rgba(16,20,32,.92);box-shadow:0 30px 90px rgba(0,0,0,.6);color:#f2f5ff;text-align:center;animation:osPop .32s cubic-bezier(.16,1,.3,1)}
+.osk-ic{display:grid;place-items:center;width:56px;height:56px;margin:0 auto 10px;border-radius:16px;background:linear-gradient(135deg,#8b7cff,#46d7c8);color:#0a0c12;font-size:26px;font-weight:800}
+.osk h2{margin:0 0 2px;font-size:20px;letter-spacing:.2px}
+.osk .osk-sub{font-size:12px;color:#a9b2cc;margin-bottom:16px}
+.osk input{width:100%;padding:11px 13px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.07);color:#f2f5ff;font-size:15px;text-align:center;letter-spacing:2px}
+.osk input:focus{outline:none;border-color:#8b7cff;box-shadow:0 0 0 3px rgba(139,124,255,.22)}
+.osk .osk-go{width:100%;margin-top:10px;padding:11px;border:0;border-radius:10px;background:linear-gradient(135deg,#8b7cff,#5a8bff);color:#0a0c12;font-weight:700;font-size:14px;cursor:pointer}
+.osk .osk-go:disabled{opacity:.6}
+.osk .osk-err{min-height:18px;margin-top:8px;font-size:12px;color:#ff9aa8}
+.osk .osk-hint{margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,.12);font-size:11.5px;line-height:1.5;color:#a9b2cc}
+.osk .osk-hint b{color:#ffe9a3}
+.osk .osk-hint code{background:rgba(255,255,255,.1);padding:0 4px;border-radius:4px}
+#oslock.shake .osk{animation:osShake .4s}
+@keyframes osShake{10%,90%{transform:translateX(-2px)}30%,70%{transform:translateX(4px)}50%{transform:translateX(-5px)}}
+
+/* ---------- small dialogs of its own (wallpaper, password) ---------- */
+.osmo{position:fixed;inset:0;z-index:9500;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(4,7,14,.68);backdrop-filter:blur(8px)}
+.osmo-c{width:min(660px,96vw);max-height:88vh;overflow:auto;padding:16px 18px;border-radius:16px;border:1px solid var(--line);background:var(--panel);color:var(--text);box-shadow:0 30px 90px #000a}
+.osmo-c h3{margin:0 0 4px;font-size:16px}
+.osmo-c .osmo-x{float:right;border:0;background:transparent;color:var(--mute);font-size:18px;cursor:pointer;border-radius:6px;padding:0 6px}
+.osmo-c .osmo-x:hover{color:var(--text);background:var(--panel2)}
+.osw-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:10px;margin-top:10px}
+.osw{padding:6px;border:2px solid var(--line);border-radius:12px;background:var(--panel2);color:var(--text);font:500 12px/1.3 inherit;text-align:left;cursor:pointer}
+.osw:hover{border-color:var(--acc)}
+.osw.on{border-color:var(--acc);box-shadow:0 0 0 2px rgba(139,124,255,.25)}
+.osw span{display:block;height:62px;margin-bottom:6px;border-radius:8px;border:1px solid rgba(255,255,255,.14);background-size:cover;background-position:center}
+.osf-btns{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
+.oslbl{display:block;margin:10px 0 3px;font-size:12.5px;font-weight:600}
+.osmo input[type=password],.osmo input[type=text]{width:100%;padding:9px 11px;border-radius:9px;border:1px solid var(--line);background:var(--panel2);color:var(--text)}
+
+/* ---------- window resize grips ---------- */
+#oswin .osz{position:absolute;z-index:4;touch-action:none}
+#oswin .osz.w{left:0;top:8px;bottom:8px;width:6px;cursor:ew-resize}
+#oswin .osz.e{right:0;top:8px;bottom:8px;width:6px;cursor:ew-resize}
+#oswin .osz.s{left:8px;right:8px;bottom:0;height:6px;cursor:ns-resize}
+#oswin .osz.sw{left:0;bottom:0;width:14px;height:14px;cursor:nesw-resize}
+#oswin .osz.se{right:0;bottom:0;width:14px;height:14px;cursor:nwse-resize}
+#oswin.maxed .osz{display:none}
+
+/* ---------- desktop settings dialog ---------- */
+.osgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(196px,1fr));gap:10px 14px;margin-top:12px}
+.osfield{display:flex;flex-direction:column;gap:6px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}
+.osfield > b{font-size:12px;font-weight:600}
+.osfield .small{line-height:1.35}
+.osseg{display:flex;gap:4px;flex-wrap:wrap}
+.osseg button{padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--text);font:500 12px/1 inherit;cursor:pointer}
+.osseg button.on{border-color:var(--os-accent,#8b7cff);background:color-mix(in srgb,var(--os-accent,#8b7cff) 26%,transparent)}
+.ossw{display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer}
+.ossw input{accent-color:var(--os-accent,#8b7cff)}
+.osacc{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.osacc .ossw2{width:24px;height:24px;border-radius:50%;border:2px solid rgba(255,255,255,.25);padding:0;cursor:pointer}
+.osacc .ossw2.on{border-color:#fff;box-shadow:0 0 0 2px var(--os-accent,#8b7cff)}
+.osacc input[type=color]{width:36px;height:26px;padding:0;border:1px solid var(--line);border-radius:6px;background:transparent}
+.osrange{display:flex;align-items:center;gap:8px}
+.osrange input{flex:1;accent-color:var(--os-accent,#8b7cff)}
+.osrange output{min-width:44px;text-align:right;font-size:11.5px;color:var(--mute)}
+
+/* ---------- narrow windows: the desktop stays, just tighter, and the window keeps its three controls ---------- */
+@media(max-width:900px){
+  #oswin{min-width:0;min-height:0;border-radius:10px}
+  #oswbar{height:34px}
+  #oswctl button{width:32px;height:26px}
+  #osbar{gap:2px;padding:0 4px;overflow-x:auto;scrollbar-width:none}
+  #osbar::-webkit-scrollbar{height:0}
+  .osb{height:40px;min-width:38px;padding:0 7px;gap:5px}
+  #osapps{gap:2px;min-width:0;overflow-x:auto;scrollbar-width:none}
+  #osstart{padding:0 9px;gap:0;font-size:0}
+  #osstart .osi-ic{width:26px;height:26px;font-size:16px}
+  #osdeskbtn{height:40px}
+  #osmenu{right:4px;left:4px;width:auto;max-width:360px}
+  #osfold{left:8px!important;width:calc(100vw - 16px);max-height:70vh}
+  #ostoday{right:8px;left:8px;width:auto}
+}
+@media(prefers-reduced-motion:reduce){
+  #ostoday,.osk{animation:none}
+  #oswin{transition:none}
+}

@@ -15,12 +15,16 @@
 <link rel="stylesheet" href="/web/motion.css">
 <link rel="stylesheet" href="/web/flair.css">
 <link rel="stylesheet" href="/web/shroud.css">
+<link rel="stylesheet" href="/web/os.css">
+<link rel="stylesheet" href="/web/os-themes.css">
 <link rel="stylesheet" href="/web/chat-ui.css">
 <link rel="stylesheet" href="/web/collections.css">
 <link rel="stylesheet" href="/web/storybook.css">
 <link rel="stylesheet" href="/web/guide-book.css">
+<link rel="stylesheet" href="/web/cyber-book.css">
 <link rel="stylesheet" href="/web/terminal-manual.css">
 <link rel="stylesheet" href="/web/terminal-command-coach.css">
+<link rel="stylesheet" href="/web/fit.css">
 <link rel="stylesheet" href="/web/bible-book.css">
 <link rel="stylesheet" href="/web/vendor/micro/uplot.min.css">
 <link rel="stylesheet" href="/web/vendor/micro/temml.min.css">
@@ -130,7 +134,7 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
   <button class="ib" id="gs" title="Search everything, or run a command (Ctrl+K)">&#128269;</button>
   <select id="model" title="Model"></select>
   <button class="ib" id="newc" title="New chat (Ctrl+N)">&#9998; New</button>
-  <button class="ib" id="appsh" type="button" title="App shell — a bash shell over this app, sandboxed to your browser">&#128026;</button>
+  <button class="ib" id="appsh" type="button" title="moundshell — a bash shell over this app, sandboxed to your browser">&#128026;</button>
   <button class="ib" id="cog" title="Settings">&#9881;</button>
 </header>
 <nav id="nav"></nav>
@@ -248,6 +252,7 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
 <script defer src="/web/js/styles.js"></script>
 <script defer src="/web/js/custom.js"></script>
 <script defer src="/web/js/core.js"></script>
+<script defer src="/web/js/looks.js"></script>
 <script defer src="/web/js/state-keep.js"></script>
 <script defer src="/web/js/i18n-data.js"></script>
 <script defer src="/web/js/i18n.js"></script>
@@ -355,6 +360,7 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
 <script defer src="/web/js/code-stage.js"></script>
 <script defer src="/web/js/code-scratch.js"></script>
 <script defer src="/web/js/code-challenges.js"></script>
+<script defer src="/web/js/ansi-screen.js"></script>
 <script defer src="/web/js/code-lessons.js"></script>
 <script defer src="/web/js/cyberlab.js"></script>
 <script defer src="/web/js/cyber-tools.js"></script>
@@ -407,6 +413,8 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
 <script defer src="/web/js/play-help.js"></script>
 <script defer src="/web/js/terminal-unix.js"></script>
 <script defer src="/web/js/terminal-commands-shared.js"></script>
+<script defer src="/web/js/terminal-windows-commands.js"></script>
+<script defer src="/web/js/terminal-pc-profile.js"></script>
 <script defer src="/web/js/cyber-games.js"></script>
 <script defer src="/web/js/cyber-website-lab.js"></script>
 <script defer src="/web/js/cyber-academy.js"></script>
@@ -434,7 +442,14 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
 <script defer src="/web/js/terminal-playground-mcode.js"></script>
 <script defer src="/web/js/terminal-manual-content.js"></script>
 <script defer src="/web/js/terminal-manual-beginner.js"></script>
+<script defer src="/web/js/terminal-shell-language.js"></script>
+<script defer src="/web/js/terminal-rewards.js"></script>
+<script defer src="/web/js/terminal-hints.js"></script>
+<script defer src="/web/js/terminal-learn.js"></script>
+<script defer src="/web/js/terminal-manual-explain.js"></script>
 <script defer src="/web/js/terminal-manual.js"></script>
+<script defer src="/web/js/terminal-missions.js"></script>
+<script defer src="/web/js/terminal-output-coach.js"></script>
 <script defer src="/web/js/terminal-command-coach.js"></script>
 <script defer src="/web/js/terminal-labyrinth-data.js"></script>
 <script defer src="/web/js/terminal-labyrinth-data2.js"></script>
@@ -573,6 +588,7 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
 <script defer src="/web/js/context-menu.js"></script>
 <script defer src="/web/js/guide.js"></script>
 <script defer src="/web/js/guide-book.js"></script>
+<script defer src="/web/js/cyber-book.js"></script>
 <script defer src="/web/js/bible-book.js"></script>
 <script defer src="/web/js/appmap.js"></script>
 <script defer src="/web/js/whatsnew.js"></script>
@@ -587,6 +603,13 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
 <script defer src="/web/js/cyber-desktop-data.js"></script>
 <script defer src="/web/js/cyber-desktop-remote.js"></script>
 <script defer src="/web/js/cyber-desktop-breach.js"></script>
+<script defer src="/web/js/cyber-web-universe.js"></script>
+<script defer src="/web/js/cyber-desktop-virus.js"></script>
+<script defer src="/web/js/cyber-bank.js"></script>
+<script defer src="/web/js/cyber-mail.js"></script>
+<script defer src="/web/js/cyber-extras.js"></script>
+<script defer src="/web/js/cyber-cosmetics.js"></script>
+<script defer src="/web/js/cyber-walkthrough.js"></script>
 <script defer src="/web/js/cyber-desktop.js"></script>
 <script defer src="/web/js/relocate.js"></script>
 <script defer src="/web/js/net.js"></script>
@@ -595,8 +618,10 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
 <script defer src="/web/js/regroup.js"></script>
 <link rel="stylesheet" href="/web/section-tools.css">
 <script type="module" src="/web/js/section-tools.mjs"></script>
+<script defer src="/web/js/app-tint.js"></script>
 <script defer src="/web/js/shroud.js"></script>
 <script defer src="/web/js/openwhip.js"></script>
+<script defer src="/web/js/os-shell.js"></script>
 <script defer src="/web/js/main.js"></script>
 <script defer src="/web/js/guard.js"></script>
 <script defer src="/web/js/privacy.js"></script>
@@ -605,6 +630,7 @@ html.idle #boot,html.idle #boot *{animation-play-state:running!important}
 <script defer src="/web/js/updates.js"></script>
 <script defer src="/web/js/walk.js"></script>
 <script defer src="/web/js/appedit.js"></script>
+<script defer src="/web/js/repo-store.js"></script>
 <script defer src="/web/js/app-shell.js"></script>
 <script>/* the splash plays its awakening choreography, then parts as the workspace cascades into place underneath */
 (function(){var t0=Date.now(),b0=document.getElementById('boot');if(b0){window.OA_BOOT_HTML=b0.innerHTML;b0.onclick=function(){off(true)};}

@@ -296,6 +296,16 @@
       }
       if (/^create\s+(?:unique\s+)?index\b/i.test(q)) return 'CREATE INDEX';
       if (/^drop\s+index\b/i.test(q)) return 'DROP INDEX';
+      if (/^vacuum$/i.test(q) || /^analyze$/i.test(q) || /^reindex$/i.test(q)) return q.toUpperCase();
+      if (/^savepoint\s+/i.test(q)) return 'SAVEPOINT';
+      if (/^release\s+/i.test(q)) return 'RELEASE';
+      if (/^attach\b/i.test(q)) return 'ATTACH';
+      if (/^detach\b/i.test(q)) return 'DETACH';
+      if (/^create\s+(?:unique\s+)?index\b/i.test(q)) return 'CREATE INDEX';
+      if (/^create\s+(?:or\s+replace\s+)?trigger\b/i.test(q)) return 'CREATE TRIGGER';
+      if (/^(grant|revoke)\b/i.test(q)) return q.split(/\s+/)[0].toUpperCase();
+      if (/^rename\s+table\b/i.test(q)) return 'RENAME TABLE';
+      if (/^comment\s+on\b/i.test(q)) return 'COMMENT';
       if (/^create\s+view\s+(\w+)\s+as\s+([\s\S]+)$/i.test(q)) {
         const m = q.match(/^create\s+view\s+(\w+)\s+as\s+([\s\S]+)$/i);
         views[m[1].toLowerCase()] = db.users;
@@ -325,6 +335,20 @@
       about: 'A small relational engine over three tables. Real SELECT/INSERT/UPDATE/DELETE with WHERE, LIKE, ORDER BY and LIMIT, rendered as a result grid.',
       prompt: () => 'sql> ',
       run,
+      /* every statement this engine accepts, so the help lists the whole dialect and not only the written pages */
+      commandNames: () => ['select', 'insert', 'update', 'delete', 'create', 'create table', 'create index', 'create view',
+        'create trigger', 'alter', 'drop', 'truncate', 'show', 'describe', 'pragma', 'begin', 'commit', 'rollback',
+        'savepoint', 'release', 'explain', 'use', 'reset', 'help', 'vacuum', 'analyze', 'reindex', 'attach', 'detach',
+        'grant', 'revoke', 'rename table', 'comment', 'where', 'order by', 'group by', 'having', 'distinct', 'join',
+        'union', 'limit', 'offset', 'count', 'sum', 'avg', 'min', 'max', 'in', 'between', 'like', 'as', 'case'],
+      appCommands: {
+        reset: 'reset is this sandbox’s own command: it puts the seed rows back. SQL itself has no reset statement.',
+        help: 'help is this prompt’s own command; standard SQL has no help statement.',
+        use: 'USE is MySQL’s way to pick a database. This sandbox accepts it and answers “Database changed”, but standard SQL has no USE statement.',
+        describe: 'DESCRIBE is the MySQL and Oracle way to list a table’s columns. SQLite spells it PRAGMA table_info(table); both work here.',
+        pragma: 'PRAGMA is SQLite’s inspection command (PRAGMA table_info(users)). Other databases use DESCRIBE or read the system catalog instead.',
+        show: 'SHOW TABLES and SHOW DATABASES come from MySQL. SQLite keeps the same answer in sqlite_master; this sandbox accepts both spellings.'
+      },
       snapshot: () => ({ db, transaction: snapshot }),
       restore: saved => { if (saved.db) { db = saved.db; snapshot = saved.transaction || null; } },
       commands: [
@@ -340,6 +364,21 @@
         ['INSERT INTO users VALUES (5, \'alex\', \'engineer\', 1);', 'insert a row'],
         ['UPDATE orders SET status = \'paid\' WHERE id = 1002;', 'update matching rows'],
         ['DELETE FROM orders WHERE status = \'refunded\';', 'delete matching rows'],
+        ['SELECT COUNT(*) FROM users;', 'how many rows'],
+        ['SELECT SUM(total) FROM orders;', 'a total'],
+        ['SELECT role, COUNT(*) AS n FROM users GROUP BY role;', 'group and count'],
+        ['SELECT DISTINCT role FROM users;', 'one row per role'],
+        ['SELECT * FROM orders ORDER BY total DESC LIMIT 3;', 'the three biggest orders'],
+        ['SELECT u.name, o.total FROM users u JOIN orders o ON u.id = o.user_id;', 'join two tables'],
+        ["SELECT * FROM users WHERE role IN ('admin', 'analyst');", 'match a list'],
+        ['SELECT * FROM orders WHERE total BETWEEN 50 AND 250;', 'match a range'],
+        ['SELECT 2 + 2 AS ans;', 'arithmetic in a select'],
+        ['CREATE INDEX idx_role ON users(role);', 'an index'],
+        ['CREATE VIEW engineers AS SELECT * FROM users;', 'a saved query'],
+        ['DROP VIEW engineers;', 'remove it'],
+        ['SAVEPOINT here;', 'a point to roll back to'],
+        ['VACUUM;', 'tidy the database'],
+        ['EXPLAIN SELECT * FROM users;', 'how the query will run'],
         ['RESET;', 'restore the seed data']
       ].map(x => ({ ex: x[0], d: x[1] }))
     };
@@ -359,6 +398,8 @@
     const hash = () => (0xabc0000 + (++tick) * 7919).toString(16).padStart(7, '0');
     const branchCommits = () => S.branches[S.branch] || [];
     const out = [];
+    /* filled from the verb table the moment the shell builds it, so the help can list every verb git here answers to */
+    let gitVerbs = [];
 
     function run(line) {
       const raw = String(line == null ? '' : line).trim();
@@ -515,16 +556,73 @@
       g.clear = () => '';
       g.resetSandbox = () => { reset(); return 'git sandbox reset — repository gone'; };
       g['reset-sandbox'] = g.resetSandbox;
+      /* the rest of git’s toolbox: every verb below answers in the sandbox, most of them with the short output the
+         real command prints when there is nothing surprising to report */
+      g['count-objects'] = () => 'count: 0\nsize: 0\nin-pack: ' + S.commits.length + '\nsize-pack: ' + (S.commits.length * 2) + ' KiB';
+      g['show-ref'] = () => Object.keys(S.branches).map(b => (S.branches[b].slice(-1)[0] || '0000000') + ' refs/heads/' + b).join('\n');
+      g['for-each-ref'] = () => Object.keys(S.branches).map(b => (S.branches[b].slice(-1)[0] || '0000000') + ' commit\trefs/heads/' + b).join('\n');
+      g['update-ref'] = () => '';
+      g['symbolic-ref'] = () => 'refs/heads/' + S.branch;
+      g['hash-object'] = () => hash();
+      g['mktag'] = () => hash();
+      g['mktree'] = () => hash();
+      g['write-tree'] = () => hash();
+      g['commit-tree'] = () => hash();
+      g['read-tree'] = () => '';
+      g['ls-remote'] = () => S.remote ? (branchCommits().slice(-1)[0] || '0000000') + '\tHEAD\n' + (branchCommits().slice(-1)[0] || '0000000') + '\trefs/heads/main' : 'fatal: no remote configured';
+      g.instaweb = () => 'Starting gitweb ... browsing the repository at http://127.0.0.1:1234 (sandbox)';
+      g.maintenance = () => 'Performing incremental maintenance on the sandbox repository: done.';
+      g.repack = () => 'Enumerating objects: done.\nCounting objects: 100% done.\nCompressing objects: 100% done.';
+      g['pack-refs'] = () => '';
+      g['prune-packed'] = () => '';
+      g['verify-commit'] = () => 'gpg: no signature found in the sandbox (unsigned commit)';
+      g['verify-tag'] = () => 'gpg: no signature found in the sandbox (unsigned tag)';
+      g['verify-pack'] = () => 'pack\t-\t0 objects';
+      g.whatchanged = () => S.commits.slice().reverse().map(c => c.hash + ' ' + c.msg + '\n\n ' + c.files.join(' ')).join('\n\n') || 'fatal: your current branch does not have any commits yet';
+      g['diff-tree'] = () => (branchCommits().slice(-1)[0] || '0000000') + (S.commits.length ? '\n:100644 100644 4b825dc 0000000 M\t' + (S.commits.slice(-1)[0].files[0] || 'app.js') : '');
+      g['rev-list'] = () => branchCommits().slice().reverse().join('\n') || 'fatal: bad revision';
+      g['merge-base'] = () => branchCommits()[0] || 'fatal: no common commit';
+      g['name-rev'] = () => (branchCommits().slice(-1)[0] || '0000000') + ' ' + S.branch;
+      g['check-ignore'] = () => a ? a.replace(/^-\w+\s*/, '') : Object.keys(S.files)[0] || '';
+      g['check-attr'] = () => (a.split(/\s+/)[0] || 'app.js') + ': text: unspecified';
+      g.rerere = () => '';
+      g.stripspace = () => '(text passed through with repeated blank lines removed)';
+      g.replace = () => '';
+      g['range-diff'] = () => '1: 0000000 = 1: 0000000 ' + ((S.commits.slice(-1)[0] || {}).msg || 'commit');
+      g['request-pull'] = () => 'The following changes since commit ' + (branchCommits()[0] || '0000000') + ':\n\n  ' + ((S.commits.slice(-1)[0] || {}).msg || 'work') + '\n\nare available in the Git repository at:\n\n  ' + (S.remote || 'C:/Users/dev/project') + '\n';
+      g['send-email'] = () => '(the sandbox writes the patch to a file instead of sending mail)';
+      g['sparse-checkout'] = () => 'sparse-checkout: no patterns set';
+      g.difftool = () => 'no diff tool is configured for the sandbox — compare the output of git diff instead';
+      g.mergetool = () => 'no merge tool is configured for the sandbox — edit the file and run git add';
+      g['filter-branch'] = () => 'WARNING: git-filter-branch is deprecated; the sandbox declines to rewrite history';
+      g.column = () => (branchCommits().slice(-1)[0] || '0000000') + ' ' + S.branch;
+      g.bundle = () => 'The bundle contains these commits:\n' + (a || 'repo.bundle') + '\n\n(created)';
+      g['pack-objects'] = () => '';
+      g.var = () => 'GIT_AUTHOR_IDENT=dev <dev@dev-box> 1771000000 +0000\nGIT_COMMITTER_IDENT=dev <dev@dev-box> 1771000000 +0000';
+      g['update-index'] = () => '';
+      g['checkout-index'] = () => '';
+      gitVerbs = Object.keys(g).filter(name => /^[a-z][a-z0-9-]*$/.test(name));
       const fn = g[cmd];
       if (!fn) return 'git: \'' + (cmd || '') + '\' is not a git command. See help.';
       try { return fn(); } catch (e) { return 'git: ' + (e && e.message || e); }
     }
 
+    /* build the verb table once now, so the help can list every verb before the first command is typed */
+    run('git --version');
     return {
       id: 'git', name: 'Git', icon: '🌿', group: 'Tools',
       about: 'A working repository: init, stage, commit, branch, merge, stash, tag and push. Commit hashes advance and status reflects what you actually staged.',
       prompt: () => 'dev@dev-box:~/project (git:' + S.branch + ')$ ',
       run,
+      /* every git verb this shell implements, read from the verb table itself */
+      commandNames: () => gitVerbs.map(verb => 'git ' + verb),
+      appCommands: {
+        'git clear': 'clear is not a git verb. This shell accepts it to wipe the screen, a convenience this sandbox adds.',
+        'git reset-sandbox': 'reset-sandbox is this sandbox’s own shorthand for starting the repository over, not a git command.',
+        'git help': 'git help is real, but here it prints the playground’s own short list rather than opening the git documentation.',
+        'git version': 'git version is real; the version it prints here is the sandbox’s, not an installed git — this repository lives in the app, not on disk.'},
+
+
       snapshot: () => ({ repo: S, tick }),
       restore: saved => { if (saved.repo) { S = saved.repo; tick = saved.tick | 0; } },
       commands: [
@@ -549,6 +647,33 @@
         ['git tag v1.0', 'tag the current commit'],
         ['git reset --hard', 'throw away local changes'],
         ['git config --global user.name', 'the configured identity'],
+        ['git show', 'the latest commit and its files'],
+        ['git blame app.js', 'who last touched each line'],
+        ['git reflog', 'every place HEAD has been'],
+        ['git shortlog', 'commits grouped by author'],
+        ['git describe', 'the nearest tag'],
+        ['git rev-parse --abbrev-ref HEAD', 'just the branch name'],
+        ['git ls-files', 'every file git tracks or has staged'],
+        ['git grep TODO', 'search the tracked files'],
+        ['git clean -n', 'what a clean would remove'],
+        ['git cat-file -p HEAD', 'read the commit object itself'],
+        ['git cherry-pick 0000000', 'copy one commit onto this branch'],
+        ['git rebase main', 'replay this branch on top of main'],
+        ['git fetch', 'download without merging'],
+        ['git bisect start', 'begin a hunt for a bad commit'],
+        ['git worktree', 'where the checkouts live'],
+        ['git submodule', 'nested repositories'],
+        ['git stash list', 'saved stashes'],
+        ['git stash apply', 'restore without dropping it'],
+        ['git tag -l', 'every tag'],
+        ['git remote -v', 'the configured remote'],
+        ['git count-objects -v', 'how much the object store holds'],
+        ['git show-ref', 'branch refs and their commits'],
+        ['git symbolic-ref HEAD', 'the ref HEAD points at'],
+        ['git hash-object app.js', 'the object id a file would get'],
+        ['git maintenance run', 'pack and tidy the repository'],
+        ['git verify-commit HEAD', 'check a commit signature'],
+        ['git var -l', 'the identity git would use'],
         ['help', 'all supported git verbs'],
         ['git reset-sandbox', 'start the repository over']
       ].map(x => ({ ex: x[0], d: x[1] }))
@@ -664,7 +789,7 @@
           return 'TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE\nImages          ' + images.length + '         2         608MB     128MB\nContainers      ' + containers.length + '         ' + containers.filter(c => /Up/.test(c.status)).length + '         14MB      0B\nLocal Volumes   2         2         84MB      0B';
         }
         case 'container': return run('docker ' + (w[2] === 'ls' ? 'ps ' + w.slice(3).join(' ') : w[2] === 'prune' ? 'system prune' : w.slice(2).join(' ')));
-        case 'image': return run('docker ' + (w[2] === 'ls' ? 'images' : w[2] === 'rm' ? 'rmi ' + w.slice(3).join(' ') : w.slice(2).join(' ')));
+        case 'image': return run('docker ' + (w[2] === 'ls' ? 'images' : w[2] === 'rm' ? 'rmi ' + w.slice(3).join(' ') : w[2] === 'prune' ? 'prune' : w.slice(2).join(' ')));
         case 'build': case 'buildx': return ['[+] Building 2.4s (8/8) FINISHED', ' => [internal] load build definition from Dockerfile', ' => [1/3] FROM node:20-alpine', ' => [2/3] COPY package*.json ./', ' => [3/3] RUN npm ci --omit=dev', ' => exporting to image', ' => => naming to docker.io/library/app:1.5'].join('\n');
         case 'pull': {
           const [repo, tag = 'latest'] = (target || 'alpine').split(':');
@@ -693,12 +818,35 @@
           if (cs === 'ps') return run('docker ps');
           if (cs === 'logs') return run('docker logs');
           if (cs === 'build') return run('docker build .');
+          if (cs === 'pull') return 'Pulling web... done\nPulling db... done';
+          if (cs === 'restart') return '[+] Restarting 2/2\n ✔ Container app-web-1  Started\n ✔ Container app-db-1   Started';
+          if (cs === 'stop') return '[+] Stopping 2/2\n ✔ Container app-web-1  Stopped\n ✔ Container app-db-1   Stopped';
+          if (cs === 'start') return '[+] Running 2/2\n ✔ Container app-web-1  Started\n ✔ Container app-db-1   Started';
+          if (cs === 'scale') return '[+] Running 2/2\n ✔ Container app-web-1  Scaled\n ✔ Container app-db-1   Scaled';
           if (cs === 'config') return 'services:\n  web:\n    image: app:1.4\n    ports: ["8080:8080"]\n  db:\n    image: postgres:16';
           return '[+] Running 2/2\n ✔ Container app-web-1  ' + (cs === 'down' ? 'Removed' : cs) + '\n ✔ Container app-db-1   ' + (cs === 'down' ? 'Removed' : cs);
         }
         case 'context': return 'NAME      DESCRIPTION                   DOCKER ENDPOINT\ndefault * Current DOCKER_HOST           unix:///var/run/docker.sock';
         case 'swarm': return 'Swarm: inactive (sandbox)';
         case 'service': case 'stack': case 'secret': return 'Docker ' + sub + ' (sandbox): no active swarm services';
+        case 'prune': return 'Deleted stopped containers.\nTotal reclaimed space: 0B';
+        case 'builder': {
+          const bsub = w[2] || 'ls';
+          if (bsub === 'prune') return 'Total reclaimed space: 0B';
+          if (bsub === 'build') return run('docker build ' + w.slice(3).join(' '));
+          return 'ID              NAME          SIZE        LAST ACCESSED\ne4f1c7a2b9034d  app-build     41.2MB      2 days ago';
+        }
+        case 'config': {
+          const cfg = w[2] || 'ls';
+          if (cfg === 'create' || cfg === 'rm') return (w[3] || 'app.yml');
+          return 'ID              NAME      CREATED\nk9d3f1a2b8c4d  app.yml   2 days ago';
+        }
+        case 'manifest': return 'no manifest list: ' + (target || 'app:1.4') + ' is a single image (sandbox)';
+        case 'plugin': return 'ID              NAME      DESCRIPTION                ENABLED\n5a1b2c3d4e5f6a  sample    A sample docker plugin     false';
+        case 'scan': return 'Testing image ' + (target || 'app:1.4') + '\n\nNo vulnerable packages found (sandbox scan).';
+        case 'trust': return 'Signing and verification is disabled in this sandbox.';
+        case 'checkpoint': return 'checkpoint: no checkpoints exist for ' + (target || 'app-web-1');
+        case 'node': return 'ID    HOSTNAME   STATUS    AVAILABILITY   MANAGER STATUS\n(no swarm nodes — this sandbox is not part of a swarm)';
         case 'version': case '-v': case '--version': return 'Client: Docker Engine 26.1.4\nServer: Docker Engine 26.1.4';
         case 'help': case '--help': case '-h': return G.formatHelp('docker', rest);
         default: return 'docker: \'' + sub + '\' is not a docker command. See \'docker --help\'.';
@@ -709,6 +857,22 @@
       about: 'A container runtime with real state: list, run, stop, remove, inspect, logs, build and compose. The container table changes as you work.',
       prompt: () => 'dev@dev-box:~$ ',
       run,
+      /* every docker subcommand the switch below answers */
+      commandNames: () => ['ps', 'images', 'run', 'create', 'stop', 'kill', 'start', 'restart', 'unpause', 'pause', 'rm', 'rmi',
+        'tag', 'rename', 'logs', 'exec', 'attach', 'stats', 'top', 'port', 'diff', 'cp', 'commit', 'history', 'search',
+        'prune', 'builder', 'builder ls', 'builder prune', 'builder build', 'config', 'config ls', 'config create', 'config rm',
+        'manifest', 'manifest inspect', 'plugin', 'plugin ls', 'scan', 'trust', 'checkpoint', 'node', 'node ls',
+        'container ls', 'container prune', 'image ls', 'image prune', 'network ls', 'network create', 'network rm',
+        'network inspect', 'volume ls', 'volume create', 'volume rm', 'volume inspect', 'system df', 'system prune',
+        'system info', 'compose up', 'compose down', 'compose ps', 'compose logs', 'compose build', 'compose config',
+        'compose pull', 'compose restart', 'compose stop', 'compose start', 'compose scale', 'buildx build', 'context ls',
+        'service ls', 'stack ls', 'stack deploy', 'secret ls',
+        'login', 'logout', 'events', 'wait', 'update', 'export', 'save', 'import', 'load', 'info', 'system', 'container',
+        'image', 'build', 'buildx', 'pull', 'push', 'network', 'volume', 'inspect', 'compose', 'context', 'swarm', 'service',
+        'stack', 'secret', 'version', 'help'].map(name => 'docker ' + name),
+      appCommands: {
+        reset: 'reset is this sandbox’s own command: it puts the pretend containers and images back. Docker itself has no reset.'
+      },
       snapshot: () => ({ images, containers }),
       restore: saved => {
         if (Array.isArray(saved.images)) images = saved.images;
@@ -733,7 +897,34 @@
         ['docker volume ls', 'volumes'],
         ['docker compose up -d', 'bring up the stack'],
         ['docker compose down', 'tear it down'],
-        ['docker version', 'client and server versions']
+        ['docker version', 'client and server versions'],
+        ['docker rm -f web', 'force-remove a container'],
+        ['docker rename app-db-1 db', 'give a container a new name'],
+        ['docker port app-web-1', 'which host port maps where'],
+        ['docker top app-web-1', 'the processes inside the container'],
+        ['docker stats', 'live cpu and memory per container'],
+        ['docker diff app-web-1', 'files changed since the image'],
+        ['docker cp app-web-1:/tmp/log.txt .', 'copy a file out of a container'],
+        ['docker commit app-web-1 app:1.6', 'save a container as an image'],
+        ['docker tag app:1.6 app:latest', 'give an image another name'],
+        ['docker history nginx:1.25-alpine', 'the layers that built an image'],
+        ['docker search nginx', 'look a name up in the registry'],
+        ['docker system df', 'how much space containers use'],
+        ['docker system prune', 'remove stopped containers'],
+        ['docker volume create app_data', 'make a volume'],
+        ['docker volume inspect app_pgdata', 'where the volume lives'],
+        ['docker network create app_net', 'make a network'],
+        ['docker compose config', 'the compose file, resolved'],
+        ['docker compose pull', 'fetch the stack images'],
+        ['docker compose restart', 'restart the stack'],
+        ['docker compose scale web=3', 'run three copies'],
+        ['docker builder prune', 'clean the build cache'],
+        ['docker scan app:1.4', 'look for known vulnerabilities'],
+        ['docker context ls', 'which engine you are talking to'],
+        ['docker manifest inspect app:1.4', 'the image manifest'],
+        ['docker plugin ls', 'installed plugins'],
+        ['docker node ls', 'swarm nodes'],
+        ['docker prune', 'remove every stopped container']
       ].map(x => ({ ex: x[0], d: x[1] }))
     };
   };
@@ -787,6 +978,31 @@
         case 'hydra': return 'Hydra (sandbox simulation): offline training only — no live brute-force performed.';
         case 'wg': case 'openvpn': return 'interface: wg0\n  listening port: 51820\n  peer: sandbox-gateway (10.8.0.1/32)';
         case 'hostname': return 'probe.internal';
+        case 'dnsenum': return ['dnsenum VERSION:1.2.6', '', '----- ' + host + ' -----', '', "Host's Addresses:", host + '. ' + address, '', 'Name Servers:', 'ns1.' + host + '. ' + address, '', 'Brute forcing with subdomains.txt:', 'www.' + host + '. ' + address, 'mail.' + host + '. ' + address].join('\n');
+        case 'dnsrecon': return '[*] Performing General Enumeration of Domain: ' + host + '\n[-] DNSSEC is not configured for ' + host + '\n[*] \t A ' + host + ' ' + address + '\n[*] \t NS ns1.' + host + ' ' + address + '\n[*] Enumerating SRV Records\n[+] 0 Records Found';
+        case 'nbtscan': return 'Doing NBT name scan for addresses from ' + host + '\n\nIP address       NetBIOS Name     Server    User             MAC address\n' + host + '     DEV-BOX          <server>  MOUNDSHROUD      52:54:00:12:34:56';
+        case 'arp-scan': return 'Interface: eth0, type: EN10MB, MAC: 52:54:00:12:34:56, IPv4: 10.0.0.5\nStarting arp-scan 1.10.0 with 1 hosts\n' + host + '\t52:54:00:9a:bc:de\t(Unknown: locally administered)\n\n1 packets received by filter, 0 packets dropped';
+        case 'netdiscover': return ' Currently scanning: Finished!   |   Screen View: Unique Hosts\n 1 Captured ARP Req/Rep packets, from 1 hosts.\n\n   IP            At MAC Address     Count     Len  MAC Vendor\n ' + host + '   52:54:00:12:34:56      1      60  Unknown';
+        case 'smbmap': return '[+] IP: ' + host + '\n\n\tDisk\tPermissions\tComment\n\t----\t-----------\t-------\n\tIPC$\tREAD ONLY\tRemote IPC\n\tshare\tREAD, WRITE\tTeam share';
+        case 'crackmapexec': case 'nxc': return 'SMB         ' + host + '   445    DEV-BOX          [*] Windows 10 Build 19045 x64 (name:DEV-BOX) (domain:internal) (signing:False) (SMBv1:False)';
+        case 'nuclei': return '[INF] Templates loaded: 512\n[critical] [CVE-2021-41773] ' + host + ' — path traversal in the sample web server\n[high] [tech-detect] ' + host + ' — nginx 1.18.0\n[INF] 2 findings (sandbox)';
+        case 'wpscan': return 'Scan Aborted: WordPress not detected on ' + host + ' (sandbox)';
+        case 'zmap': return 'Feb 12 06:58:10.104 [INFO] zmap: output module: csv\nFeb 12 06:58:12.004 [INFO] 22/tcp: 1 hosts scanned, 1 up';
+        case 'ssh-keyscan': return host + ' SSH-2.0-OpenSSH_8.2p1 Ubuntu-4ubuntu0.5\n' + host + ' ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyFingerprint';
+        case 'swaks': return '=== Trying ' + host + ':25...\n=== Connected to ' + host + '.\n<-  220 ' + host + ' ESMTP Postfix\n ->  EHLO probe\n<-  250-' + host + '\n ->  MAIL FROM:<probe@internal>\n<-  250 2.1.0 Ok\n ->  RCPT TO:<' + (w.find(x => /@/.test(x)) || 'root@' + host) + '>\n<-  250 2.1.5 Ok\n ->  DATA\n<-  354 End data with <CR><LF>.<CR><LF>\n ->  .\n<-  250 2.0.0 Ok: queued as 4F1B2C\n=== Connection closed (sandbox — no mail sent)';
+        case 'tftp': return 'tftp> connect ' + host + '\ntftp> get config.bak\nReceived 1024 bytes in 0.1 seconds (sandbox)';
+        case 'tcptraceroute': return 'Selected device eth0\nTracing the path to ' + host + ' on TCP port 80\n 1  10.0.0.9  0.412 ms\n 2  10.0.1.1  1.204 ms\n 3  ' + host + '  2.010 ms';
+        case 'nping': return 'SENT (0.0412s) TCP 10.0.0.5:49822 > ' + host + ':80\nRCVD (0.0420s) TCP ' + host + ':80 > 10.0.0.5:49822\n\nMax rtt: 0.8ms | Min rtt: 0.8ms | Avg rtt: 0.8ms';
+        case 'iperf3': return 'Connecting to host ' + host + ', port 5201\n[ ID] Interval           Transfer     Bitrate\n[  5]   0.00-3.00   sec   330 MBytes   922 Mbits/sec   sender\n[  5]   0.00-3.00   sec   330 MBytes   922 Mbits/sec   receiver';
+        case 'smtp-user-enum': return 'Scanning ' + host + ' for users\n[+] ' + host + ': admin exists\n[+] ' + host + ': root exists\n[-] ' + host + ': nobody gave no response (sandbox)';
+        case 'onesixtyone': return 'Scanning 1 hosts, 2 communities\n' + host + ' [public] Linux dev-box 5.15.0\n' + host + ' [private] Linux dev-box 5.15.0';
+        case 'enum4linux-ng': return '[*] Target: ' + host + '\n[+] Domain name: INTERNAL\n[+] Hostname: DEV-BOX\n[+] SMB signing: not required\n[+] Shares: IPC$, share\n[*] Enumerated (sandbox)';
+        case 'ldapwhoami': return 'dn:cn=moundshroud,dc=internal,dc=local';
+        case 'psql': case 'mysql': return 'Connected to database "sandbox" on ' + host + ' (simulated)\nType \\q to quit; no real server is contacted.';
+        case 'redis-cli': return host + ':6379> PING\nPONG';
+        case 'tcpflow': return 'tcpflow: listening on eth0 — 2 flows written to 010.000.000.005.49822-020.042.065.090.00443.flow';
+        case 'ssldump': return 'New TCP connection #1: 10.0.0.5(49822) <-> ' + host + '(443)\n1 1  0.0012 (0.0012)  C>S  Handshake\n1 2  0.0040 (0.0028)  S>C  Handshake\n1 3  0.0041 (0.0001)  S>C  ChangeCipherSpec';
+        case 'mitmproxy': return 'Proxy server listening at http://127.0.0.1:8080\n[sandbox] no traffic is intercepted on this machine';
         case 'grep': {
           if (stdin == null) return 'grep: pipe output into grep (e.g. nmap 10.0.0.5 | grep open)';
           const pat = w.find(x => !x.startsWith('-')) || '';
@@ -812,6 +1028,20 @@
       about: 'The recon and connectivity toolbox: nmap, ping, dig, curl, traceroute, sockets, TLS handshakes and ssh — all with realistic output.',
       prompt: () => 'net@probe:~$ ',
       run,
+      /* the tools this prompt really parses, so none of them is missing from the help */
+      commandNames: () => ['nmap', 'masscan', 'ping', 'hping3', 'dig', 'nslookup', 'host', 'resolvectl', 'curl', 'wget',
+        'traceroute', 'tracepath', 'mtr', 'netstat', 'ss', 'ip', 'ifconfig', 'iwconfig', 'route', 'arp', 'ethtool', 'nmcli',
+        'whois', 'openssl', 'ssh', 'nc', 'ncat', 'netcat', 'socat', 'telnet', 'ftp', 'sftp', 'scp', 'rsync', 'tcpdump',
+        'tshark', 'iptables', 'nft', 'ufw', 'firewall-cmd', 'nikto', 'gobuster', 'ffuf', 'dirb', 'whatweb', 'enum4linux',
+        'smbclient', 'rpcclient', 'snmpwalk', 'ldapsearch', 'hydra', 'wg', 'openvpn', 'hostname', 'grep', 'dnsenum',
+        'dnsrecon', 'nbtscan', 'arp-scan', 'netdiscover', 'smbmap', 'crackmapexec', 'nxc', 'nuclei', 'wpscan', 'zmap',
+        'ssh-keyscan', 'swaks', 'tftp', 'tcptraceroute', 'nping', 'iperf3', 'smtp-user-enum', 'onesixtyone',
+        'enum4linux-ng', 'ldapwhoami', 'psql', 'mysql', 'redis-cli', 'tcpflow', 'ssldump', 'mitmproxy',
+        'clear', 'cls', 'reset', 'help'],
+      appCommands: {
+        reset: 'reset is this sandbox’s own command: it clears the pretend session. None of the real tools on this prompt has a reset.',
+        help: 'help is this prompt’s own command; it prints the sandbox’s reference, not a system manual page.'
+      },
       commands: [
         ['nmap -sV 10.0.0.5', 'service and version scan'],
         ['ping 10.0.0.5', 'ICMP reachability'],
@@ -825,6 +1055,27 @@
         ['whois example.internal', 'domain registration'],
         ['openssl s_client -connect api.internal:443', 'TLS handshake and chain'],
         ['ssh dev@10.0.0.5', 'remote shell (simulated)'],
+        ['dnsenum api.internal', 'every DNS record the domain shows'],
+        ['dnsrecon -d api.internal', 'enumeration with a summary'],
+        ['nbtscan 10.0.0.5', 'NetBIOS names on a host'],
+        ['arp-scan 10.0.0.0/24', 'who answers on the local network'],
+        ['netdiscover', 'passive neighbour discovery'],
+        ['smbmap -H 10.0.0.5', 'share permissions'],
+        ['crackmapexec smb 10.0.0.5', 'host, domain and signing in one line'],
+        ['nuclei -u http://10.0.0.5', 'template-based findings'],
+        ['ssh-keyscan 10.0.0.5', 'a host key without logging in'],
+        ['swaks --to root@10.0.0.5 --server 10.0.0.5', 'a full SMTP conversation'],
+        ['tcptraceroute 10.0.0.5 80', 'the path to one service'],
+        ['nping --tcp -p 80 10.0.0.5', 'timed probe with round trips'],
+        ['iperf3 -c 10.0.0.5', 'throughput measurement'],
+        ['smtp-user-enum -M VRFY -U users.txt 10.0.0.5', 'which mail users exist'],
+        ['onesixtyone 10.0.0.5 public', 'SNMP community test'],
+        ['enum4linux-ng 10.0.0.5', 'domain and share summary'],
+        ['ldapwhoami -H ldap://10.0.0.5', 'who the directory thinks you are'],
+        ['redis-cli 10.0.0.5 ping', 'talk to a cache server'],
+        ['tcpflow -i eth0', 'save each TCP flow to a file'],
+        ['ssldump -i eth0 -k key.pem', 'read a TLS handshake'],
+        ['mitmproxy -p 8080', 'a proxy, listening only'],
         ['help', 'every command this sandbox supports']
       ].map(x => ({ ex: x[0], d: x[1] }))
     };
@@ -944,6 +1195,110 @@
           return [...text].map(c => /[a-z]/.test(c) ? String.fromCharCode((c.charCodeAt(0) - 97 + ((n % 26) + 26)) % 26 + 97)
             : /[A-Z]/.test(c) ? String.fromCharCode((c.charCodeAt(0) - 65 + ((n % 26) + 26)) % 26 + 65) : c).join('');
         }
+        case 'rot5': return [...input].map(c => /[0-9]/.test(c) ? String.fromCharCode(48 + (c.charCodeAt(0) - 48 + 5) % 10) : c).join('');
+        case 'rot18': return [...input].map(c => /[a-z]/i.test(c) ? String.fromCharCode((c <= 'Z' ? 65 : 97) + (c.charCodeAt(0) - (c <= 'Z' ? 65 : 97) + 13) % 26)
+          : /[0-9]/.test(c) ? String.fromCharCode(48 + (c.charCodeAt(0) - 48 + 5) % 10) : c).join('');
+        case 'a1z26': {
+          if (dec) return input.trim().split(/[\s,-]+/).filter(Boolean).map(n => String.fromCharCode(96 + parseInt(n, 10))).join('');
+          return [...input.toUpperCase()].filter(c => /[A-Z]/.test(c)).map(c => c.charCodeAt(0) - 64).join(' ');
+        }
+        case 'bacon': {
+          const bits = 'ABCDEFGHIJKLMNOPQRST';  /* I and J share a box, U and V share a box, as in Bacon’s cipher */
+          if (dec) return input.replace(/[^ab]/gi, '').match(/.{5}/g)?.map(chunk => bits[parseInt(chunk.replace(/a/gi, '0').replace(/b/gi, '1'), 2)] || '?').join('') || '';
+          return [...input.toUpperCase()].filter(c => /[A-Z]/.test(c)).map(c => {
+            let i = bits.indexOf(c); if (i < 0) i = c === 'J' ? 8 : c === 'V' ? 19 : 0;
+            return i.toString(2).padStart(5, '0').replace(/0/g, 'A').replace(/1/g, 'B');
+          }).join(' ');
+        }
+        case 'railfence': {
+          const rails = Math.max(2, Math.min(8, parseInt(w.find(x => /^\d+$/.test(x)) || '3', 10)));
+          const text = w.filter(x => !/^\d+$/.test(x)).join(' ') || stdin || '';
+          if (dec) {
+            const pattern = [...text].map((_, i) => { const cycle = (rails - 1) * 2; const pos = i % cycle; return pos < rails ? pos : cycle - pos; });
+            const counts = Array(rails).fill(0); pattern.forEach(r => counts[r]++);
+            const chunks = []; let at = 0;
+            for (let r = 0; r < rails; r++) { chunks[r] = text.slice(at, at + counts[r]); at += counts[r]; }
+            const cursor = Array(rails).fill(0);
+            return pattern.map(r => chunks[r][cursor[r]++]).join('');
+          }
+          const rows = Array.from({ length: rails }, () => []);
+          let rail = 0, step = 1;
+          for (const c of text) { rows[rail].push(c); if (rail === 0) step = 1; else if (rail === rails - 1) step = -1; rail += step; }
+          return rows.map(row => row.join('')).join('');
+        }
+        case 'affine': {
+          const key = w.find(x => /^\d+,\d+$/.test(x)) || '5,8';
+          const [a, b] = key.split(',').map(Number);
+          const text = w.filter(x => x !== key).join(' ') || stdin || '';
+          return [...text].map(c => {
+            if (!/[a-z]/i.test(c)) return c;
+            const base = c <= 'Z' ? 65 : 97, x = c.charCodeAt(0) - base;
+            return String.fromCharCode(base + ((a * x + (dec ? -b : b)) % 26 + 26) % 26);
+          }).join('');
+        }
+        case 'polybius': {
+          const grid = 'ABCDEFGHIKLMNOPQRSTUVWXYZ';
+          if (dec) return input.trim().split(/\s+/).filter(Boolean).map(pair => grid[(parseInt(pair[0], 10) - 1) * 5 + parseInt(pair[1], 10) - 1] || '?').join('');
+          return [...input.toUpperCase()].filter(c => /[A-Z]/.test(c)).map(c => {
+            const i = grid.indexOf(c === 'J' ? 'I' : c);
+            return (Math.floor(i / 5) + 1) + '' + (i % 5 + 1);
+          }).join(' ');
+        }
+        case 'tapcode': {
+          const grid = 'ABCDEFGHIKLMNOPQRSTUVWXYZ';
+          if (dec) return input.trim().split(/\s+/).filter(Boolean).map(pair => grid[(parseInt(pair[0], 10) - 1) * 5 + parseInt(pair[1], 10) - 1] || '?').join('');
+          return [...input.toUpperCase()].filter(c => /[A-Z]/.test(c)).map(c => {
+            const i = grid.indexOf(c === 'J' ? 'I' : c);
+            return '.'.repeat(Math.floor(i / 5) + 1) + ' ' + '.'.repeat(i % 5 + 1);
+          }).join('   ');
+        }
+        case 'base36': {
+          return [...input].map(c => c.charCodeAt(0).toString(36)).join('-');
+        }
+        case 'base62': {
+          const alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+          const digits = [0];
+          for (const c of [...input]) {
+            let carry = c.charCodeAt(0);
+            for (let j = 0; j < digits.length; j++) { carry += digits[j] << 8; digits[j] = carry % 62; carry = (carry / 62) | 0; }
+            while (carry) { digits.push(carry % 62); carry = (carry / 62) | 0; }
+          }
+          return digits.reverse().map(d => alphabet[d]).join('');
+        }
+        case 'crockford': {
+          const alphabet = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+          return [...input].map(c => { const code = c.charCodeAt(0); return alphabet[(code >> 5) & 31] + alphabet[code & 31]; }).join('');
+        }
+        case 'quotedprintable': {
+          if (dec) return input.replace(/=([0-9A-F]{2})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16))).replace(/=\r?\n/g, '');
+          return [...input].map(c => { const code = c.charCodeAt(0); return code >= 33 && code <= 126 && c !== '=' ? c : '=' + code.toString(16).toUpperCase().padStart(2, '0'); }).join('');
+        }
+        case 'uuencode': {
+          if (dec) return input.split(/\r?\n/).filter(line => line && !/^(begin|end)\b/i.test(line)).map(line => [...line].slice(1).map(c => String.fromCharCode((c.charCodeAt(0) - 32) & 63)).join('')).join('');
+          const chunk = b64e(input);
+          return 'begin 644 data\n' + chunk.replace(/(.{60})/g, '$1\n') + '\nend';
+        }
+        case 'hashid': {
+          const n = String(input).trim().length;
+          const guess = n === 32 ? 'MD5, NTLM, MD4 or LM' : n === 40 ? 'SHA-1 or MySQL5' : n === 64 ? 'SHA-256 or SHA3-256' : n === 128 ? 'SHA-512 or Whirlpool' : n === 8 ? 'CRC32 or FNV-1a 32' : 'unrecognised length';
+          return 'Hash length ' + n + ' hex characters\nPossible types: ' + guess;
+        }
+        case 'bcrypt': return '$2b$12$' + Array.from({ length: 53 }, () => 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789./'[Math.floor(Math.random() * 64)]).join('') + '\n(simulated — this hash is generated here, not by a real bcrypt library)';
+        case 'pbkdf2': {
+          const rounds = parseInt(w.find(x => /^\d+$/.test(x)) || '100000', 10);
+          return hashSim('sha256', input + ':' + rounds) + '\niterations: ' + rounds + ', salt: sandbox-salt (simulated)';
+        }
+        case 'totp': case 'hotp': {
+          const secret = (w.find(x => !x.startsWith('-')) || 'sandbox').trim();
+          const step = cmd === 'totp' ? Math.floor(Date.now() / 30000) : (parseInt(w.find(x => /^\d+$/.test(x)) || '0', 10));
+          return String(parseInt(hashSim('sha256', secret + ':' + step).slice(0, 8), 16) % 1000000).padStart(6, '0') + (cmd === 'totp' ? '\n(valid for ' + (30 - Math.floor((Date.now() / 1000) % 30)) + 's — simulated)' : '');
+        }
+        case 'passphrase': {
+          const words = ['harbor', 'lantern', 'copper', 'meadow', 'falcon', 'quartz', 'ember', 'willow', 'signal', 'orbit', 'pepper', 'canyon', 'velvet', 'thunder', 'marble', 'river', 'cobalt', 'saffron', 'glacier', 'tundra'];
+          const n = Math.max(2, Math.min(12, parseInt(w.find(x => /^\d+$/.test(x)) || '4', 10)));
+          return Array.from({ length: n }, () => words[Math.floor(Math.random() * words.length)]).join('-');
+        }
+        case 'dns': return 'xn--' + [...input].map(c => /[0-9a-z]/i.test(c) ? c.toLowerCase() : c.charCodeAt(0).toString(36)).join('').slice(0, 60);
         case 'md5': case 'sha1': case 'sha256': case 'sha512': case 'crc32': return hashSim(cmd, input);
         case 'hmac': return hashSim('sha256', (w[0] || 'key') + ':' + (w.slice(1).join(' ') || stdin || ''));
         case 'uuid': return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16); });
@@ -981,6 +1336,23 @@
       about: 'Base64, hex, binary, URL encoding, ROT13, Caesar, Morse and JWT decoding — all computed live, so you can paste anything and see what it really is.',
       prompt: () => 'codec$ ',
       run,
+      /* every codec name this prompt answers, so the help covers the whole toolbox */
+      commandNames: () => ['base64', 'base64url', 'base32', 'base58', 'hex', 'xxd', 'binary', 'decimal', 'dec', 'ascii',
+        'octal', 'oct', 'ord', 'chr', 'url', 'html', 'unicode', 'rot13', 'rot47', 'atbash', 'vigenere', 'xor', 'nato',
+        'reverse', 'rev', 'upper', 'lower', 'morse', 'jwt', 'caesar', 'md5', 'sha1', 'sha256', 'sha512', 'crc32', 'hmac',
+        'uuid', 'random', 'entropy', 'freq', 'strings', 'echo', 'len', 'rot5', 'rot18', 'a1z26', 'bacon', 'railfence',
+        'affine', 'polybius', 'tapcode', 'base36', 'base62', 'crockford', 'quotedprintable', 'uuencode', 'hashid',
+        'bcrypt', 'pbkdf2', 'totp', 'hotp', 'passphrase', 'dns', 'clear', 'cls', 'reset', 'help'],
+      appCommands: (() => {
+        const own = 'This is one of the Encoding toolbox’s own tools: it exists in this sandbox, not as a program on a normal Linux machine.';
+        const names = ['base64url', 'base32', 'base58', 'binary', 'decimal', 'dec', 'ascii', 'octal', 'oct', 'ord', 'chr',
+          'url', 'html', 'unicode', 'rot47', 'atbash', 'vigenere', 'xor', 'nato', 'upper', 'lower', 'morse', 'jwt',
+          'caesar', 'md5', 'sha1', 'sha256', 'sha512', 'crc32', 'hmac', 'uuid', 'random', 'entropy', 'freq', 'len',
+          'rot5', 'rot18', 'a1z26', 'bacon', 'railfence', 'affine', 'polybius', 'tapcode', 'base36', 'base62',
+          'crockford', 'quotedprintable', 'uuencode', 'hashid', 'bcrypt', 'pbkdf2', 'totp', 'hotp', 'passphrase', 'dns',
+          'clear', 'cls', 'reset', 'help'];
+        return Object.fromEntries(names.map(name => [name, own]));
+      })(),
       commands: [
         ['base64 "the password is hunter2"', 'Base64 encode'],
         ['base64 -d dGhlIHBhc3N3b3JkIGlzIGh1bnRlcjI=', 'Base64 decode'],
@@ -997,6 +1369,30 @@
         ['reverse "terminal"', 'reverse a string'],
         ['jwt eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJkZXYiLCJyb2xlIjoiYWRtaW4ifQ.abc123', 'decode a JWT without verifying it'],
         ['len "terminal"', 'count characters'],
+        ['rot5 "phone 1234567"', 'ROT5 shifts only the digits'],
+        ['rot18 "Uryyb 123!"', 'ROT13 on letters and ROT5 on digits'],
+        ['a1z26 "abc"', 'letters as numbers'],
+        ['a1z26 -d 1 2 3', 'numbers back to letters'],
+        ['bacon "bacon"', 'A/B five-bit code'],
+        ['railfence 3 "attack at dawn"', 'zigzag transposition'],
+        ['railfence -d 3 aaac ttka tnw', 'rail fence, decoded'],
+        ['affine 5,8 "hello"', 'affine shift'],
+        ['polybius "code"', 'the old five by five grid'],
+        ['tapcode "sos"', 'knock code pairs'],
+        ['base36 "42"', 'base36 digits'],
+        ['base62 "hi"', 'base62 for URL shorteners'],
+        ['crockford "hi"', 'Crockford base32 (no I, L, O or U)'],
+        ['quotedprintable "café"', 'email-safe encoding'],
+        ['uuencode "hi"', 'the old begin 644 format'],
+        ['hashid 5d41402abc4b2a76b9719d911017c592', 'what kind of hash is this?'],
+        ['pbkdf2 "hunter2" 100000', 'a slow, salted digest'],
+        ['bcrypt "hunter2"', 'a bcrypt-shaped hash'],
+        ['totp "hunter2"', 'a six-digit code for now'],
+        ['hotp "hunter2"', 'the counter-based code'],
+        ['passphrase 4', 'four random words'],
+        ['dns "déjàvu"', 'punycode for an international name'],
+        ['entropy "aaaaaaaaaaaaaaaa"', 'low entropy, and why'],
+        ['freq "hello hub"', 'letter frequencies'],
         ['help', 'every encoding this sandbox supports']
       ].map(x => ({ ex: x[0], d: x[1] }))
     };

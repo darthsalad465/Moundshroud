@@ -161,6 +161,7 @@
       '<div id="tdalert"></div>' +
       '<div class="td-grid" style="margin-top:14px">' +
       '<div class="td-card" id="tdsp" style="grid-column:1/-1">' + (s ? '<h4>✝️ Spiritual</h4><div class="td-big" style="color:' + s.col + '">' + esc2(s.n) + '</div><div class="small mute">Vestment colour ' + esc2(s.c) + (fe.length ? ' · ' + esc2(fe.map(x => x.n).join(', ')) : '') + '</div><div class="small mute" style="margin-top:8px">Loading the verse of the day...</div>' : '<h4>✝️ Spiritual</h4>') + '</div>' +
+      '<p class="small mute" id="tddisc" style="grid-column:1/-1;margin:-2px 4px 0">⚠️ Remember AI can make mistakes</p>' +
       '<div class="td-card" id="tdmu" style="grid-column:1/-1"><h4>🎼 Music</h4></div>' +
       '<div class="td-card" id="tdday"><h4>📅 Your day</h4><div class="mute small">Loading...</div></div>' +
       '<div class="td-card" id="tdhist"><h4>🕰️ This day in history</h4></div>' +

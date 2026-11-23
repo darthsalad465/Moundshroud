@@ -336,6 +336,11 @@
       owned.push(m.id);
       save();
       api.submit(owned.length * 100);
+      /* a mission owned pays the practice bank once; the core five on one site also count as owning that site */
+      try {
+        A.cyberBank?.once('weblab:' + state.site + ':' + m.id, 40, 'Website lab mission: ' + text(m.title, state), 'lab');
+        if (CORE.every(c => owned.includes(c.id))) A.cyberBank?.once('weblab:' + state.site + ':owned', 200, 'Practice site fully owned: ' + state.site, 'target', 'targets');
+      } catch (e) { }
       grow();
       draw();
       const msg = $('wlmsg');

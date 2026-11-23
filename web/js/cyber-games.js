@@ -34,7 +34,11 @@
       const K = ok ? (hinted ? 16 : 32) : 22;
       const delta = Math.round(K * ((ok ? 1 : 0) - expected));
       rating = Math.max(600, Math.min(2800, rating + (ok ? Math.max(4, delta) : Math.min(-4, delta))));
-      if (ok) { solved++; streak++; if (streak > best) best = streak; }
+      /* a solved puzzle pays into the Cyber Desktop's practice bank: more for a harder tier, half if a hint was used */
+      if (ok) {
+        solved++; streak++; if (streak > best) best = streak;
+        A.cyberBank?.puzzleSolved(key, { diff: puzzleDiff, hinted: !!hinted });
+      }
       else { streak = 0; }
       save();
       return delta;

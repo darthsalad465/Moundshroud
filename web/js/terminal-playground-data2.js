@@ -47,8 +47,11 @@
     return [line(cols, true), line(cols.map(c => '-'.repeat(c.length)), true)]
       .concat(objs.map(o => line(cols.map(c => o[c] == null ? '' : o[c]), true))).join('\n');
   };
-  const winTreeBase = () => ({
-    'C:': {
+  const winTreeBase = () => {
+    /* a real Windows profile: Desktop, Documents, Downloads, AppData, Program Files and the rest, shared by
+       every Windows sandbox in the app (see terminal-pc-profile.js) */
+    const profile = window.TerminalPC ? TerminalPC.windows({ user: 'moundshroud', host: 'DEV-BOX', seed: 0x77c0de }) : {};
+    const base = {
       Users: {
         moundshroud: {
           'notes.txt': 'meeting notes\n- patch window Thursday\n- rotate the service account\n',
@@ -62,8 +65,9 @@
       Windows: { System32: { drivers: {}, 'cmd.exe': '(exe)', 'notepad.exe': '(exe)', 'netstat.exe': '(exe)' } },
       ProgramData: { 'update.log': 'update check ok\n' },
       Backup: {}
-    }
-  });
+    };
+    return { 'C:': window.TerminalPC ? TerminalPC.merge(profile, base) : base };
+  };
   /* the deep lore layer, merged into the Windows profile so PowerShell and cmd get essays, app notes and secrets too */
   const winTree = () => G.mergeLoreInto(winTreeBase(), ['C:', 'Users', 'moundshroud'], true, 0x77c0de);
 
@@ -402,6 +406,21 @@
       'reset': () => { tree = winTree(); cwd = ['C:', 'Users', 'moundshroud']; proc = seedProc(); services = seedServices(); return 'PowerShell sandbox reset'; },
       'help': (a) => G.formatHelp('powershell', a)
     };
+    /* fill in every cmdlet this sandbox never defined (Get-Volume, Get-Date -Format, Test-NetConnection, …) */
+    if (window.TerminalWindowsCommands) {
+      window.TerminalWindowsCommands.install(commands, {
+        shell: 'powershell', host: 'DEV-BOX', user: 'moundshroud', pwd: showPath,
+        read: p => { const t = readFile(p); return t == null ? { err: p + ': not found' } : { text: t }; },
+        write: (p, text, append) => {
+          const prev = append ? (readFile(p) || '') : '';
+          writeFile(p, prev ? prev.replace(/\n$/, '') + '\n' + text : text);
+        },
+        remove: p => { const parts = resolve(p); const parent = walk(parts.slice(0, -1)); if (parent) delete parent[parts[parts.length - 1]]; },
+        list: p => { const n = walk(resolve(p)); if (n === undefined || typeof n !== 'object') return { err: true }; return { names: Object.keys(n), dirs: Object.keys(n).filter(k => n[k] && typeof n[k] === 'object') }; },
+        mkdir: p => { const parts = resolve(p); let n = tree; for (const part of parts) { if (!n[part] || typeof n[part] !== 'object') n[part] = {}; n = n[part]; } return ''; },
+        history: () => hist.slice()
+      });
+    }
 
     function applyPipe(value, seg) {
       const w = winTokens(seg);
@@ -527,6 +546,15 @@
       cwdPath: showPath,
       rootPath: 'C:/Users/moundshroud',
       run,
+      /* Every cmdlet this PowerShell answers to, and every short name it accepts for one, so the help window lists
+         the whole shell even for cmdlets nobody wrote a page for. */
+      commandNames: () => Object.keys(commands),
+      commandAliases: () => aliases,
+      autoAdded: 'This name runs in the sandbox because the Windows shells share one command kit; it is not one of the cmdlets PowerShell’s own reference documents. On a real Windows PC it may be a separate program rather than a cmdlet.',
+      appCommands: {
+        reset: 'reset is this sandbox’s own command: it puts the pretend Windows disk back the way it started. Real PowerShell has no reset command — close the window and open a new one instead.',
+        'exit-sandbox': 'exit-sandbox belongs to this sandbox, not to PowerShell: it ends the simulated session instead of closing a real window.'
+      },
       snapshot: () => ({ tree, cwd, proc, services, aliases, psVars, dirStack, execPolicy, hist: hist.slice(-250) }),
       restore: saved => {
         if (!saved.tree || !Array.isArray(saved.cwd)) return;
@@ -560,6 +588,56 @@
         ['Get-NetTCPConnection', 'list TCP connections and owning pids'],
         ['Invoke-WebRequest https://api.internal/health', 'make an HTTP request'],
         ['Get-ComputerInfo', 'host and OS information'],
+        ['Get-Date', 'the date and time'],
+        ['Get-Random -Minimum 1 -Maximum 7', 'a random number'],
+        ['Start-Sleep -Seconds 1', 'wait a second'],
+        ['Get-Host', 'the host and its version'],
+        ['Get-ExecutionPolicy', 'which scripts may run'],
+        ['Get-Module', 'loaded modules'],
+        ['Get-Variable', 'the variables in this session'],
+        ['Set-Variable -Name site -Value lab', 'make a variable'],
+        ['Get-Alias', 'every short name'],
+        ['Get-History', 'your commands'],
+        ['Get-ChildItem -Recurse', 'the whole tree'],
+        ['Get-ChildItem -Filter *.txt', 'only text files'],
+        ['Get-Content notes.txt | Select-String patch', 'search inside a file'],
+        ['Get-Item notes.txt', 'one item and its properties'],
+        ['Resolve-Path notes.txt', 'the full path'],
+        ['Get-FileHash notes.txt', 'a file checksum'],
+        ['Compress-Archive notes.txt notes.zip', 'make a zip'],
+        ['Get-Service | Where-Object Status -eq Running', 'only running services'],
+        ['Get-Process | Measure-Object', 'how many processes'],
+        ['Get-Process | Group-Object ProcessName', 'group them by name'],
+        ['Get-CimInstance Win32_OperatingSystem', 'OS details'],
+        ['Get-WmiObject Win32_LogicalDisk', 'disks, the old WMI way'],
+        ['Get-WinEvent -MaxEvents 3 -LogName System', 'recent events'],
+        ['Get-ScheduledTask', 'scheduled jobs'],
+        ['Get-LocalUser', 'local accounts'],
+        ['Get-Acl notes.txt', 'who may read it'],
+        ['Get-Hotfix', 'installed updates'],
+        ['Get-NetAdapter', 'network adapters'],
+        ['Get-NetIPAddress', 'addresses'],
+        ['Get-NetRoute', 'routes'],
+        ['Get-NetFirewallRule', 'firewall rules'],
+        ['Resolve-DnsName api.internal', 'a DNS lookup'],
+        ['Test-NetConnection api.internal -Port 443', 'can this port be reached'],
+        ['Test-Connection dev-box', 'ping from PowerShell'],
+        ['Invoke-RestMethod https://api.internal/health', 'a parsed JSON answer'],
+        ['Get-PSDrive', 'drives and free space'],
+        ['Get-Volume', 'volumes'],
+        ['Get-Disk', 'physical disks'],
+        ['Get-Printer', 'printers'],
+        ['Get-SmbShare', 'shared folders'],
+        ['Get-Culture', 'language and region'],
+        ['Get-TimeZone', 'the time zone'],
+        ['Get-Uptime', 'how long the box has been up'],
+        ['Write-Host "hello" -ForegroundColor Green', 'print in colour'],
+        ['Write-Warning "careful"', 'a warning'],
+        ['Write-Verbose "detail"', 'verbose output'],
+        ['ConvertTo-Json "{a:1}"', 'a value as JSON'],
+        ['Get-Command Get-Net*', 'cmdlets by wildcard'],
+        ['Get-ChildItem | Sort-Object Name', 'sort the listing by name'],
+        ['Get-ChildItem | Select-Object -Last 2', 'the last two entries'],
         ['Clear-Host', 'clear the screen'],
         ['Reset', 'restore the Windows sandbox']
       ].map(x => ({ ex: x[0], d: x[1] }))
@@ -826,6 +904,18 @@
     C.cls = () => '';
     C.help = a => G.formatHelp('cmd', a);
     C.reset = () => { tree = winTree(); cwd = ['C:', 'Users', 'moundshroud']; return 'cmd sandbox reset'; };
+    /* the rest of cmd.exe that this sandbox never had (net, sc, reg, wevtutil, more PowerShell-era tools, …) */
+    if (window.TerminalWindowsCommands) {
+      window.TerminalWindowsCommands.install(C, {
+        shell: 'cmd', host: 'DEV-BOX', user: 'moundshroud', pwd: showPath,
+        read: p => { const t = read(p); return t == null ? { err: p + ': not found' } : { text: t }; },
+        write: (p, text, append) => cmdWrite(p, text, append),
+        remove: p => { const parts = resolve(p); const parent = walk(parts.slice(0, -1)); if (parent) delete parent[parts[parts.length - 1]]; },
+        list: p => { const n = walk(resolve(p)); if (!n || typeof n !== 'object') return { err: true }; return { names: Object.keys(n), dirs: Object.keys(n).filter(k => n[k] && typeof n[k] === 'object') }; },
+        mkdir: p => { const parts = resolve(p); let n = tree; for (const part of parts) { if (!n[part] || typeof n[part] !== 'object') n[part] = {}; n = n[part]; } return ''; },
+        history: () => []
+      });
+    }
 
     function run(line) {
       const raw = String(line == null ? '' : line).trim();
@@ -857,6 +947,15 @@
       cwdPath: showPath,
       rootPath: 'C:/Users/moundshroud',
       run,
+      /* the batch-era names this prompt answers to, including the older spellings of its own commands */
+      commandNames: () => Object.keys(C),
+      commandAliases: () => ({
+        chdir: 'cd', md: 'mkdir', rd: 'rmdir', ren: 'rename', erase: 'del', xcopy: 'copy'
+      }),
+      autoAdded: 'This name runs in the sandbox because the Windows shells share one command kit; it is not a command Command Prompt’s own reference documents. Most of them are PowerShell cmdlets, which this cmd prompt also accepts.',
+      appCommands: {
+        reset: 'reset is this sandbox’s own command: it restores the pretend C: drive. Command Prompt has no reset command.'
+      },
       snapshot: () => ({ tree, cwd, cmdEnv, cmdStack }),
       restore: saved => {
         if (!saved.tree || !Array.isArray(saved.cwd)) return;
@@ -889,6 +988,53 @@
         ['where notepad', 'locate an executable'],
         ['set', 'environment variables'],
         ['cls', 'clear the screen'],
+        ['dir /a', 'everything, including hidden files'],
+        ['dir /s', 'every subfolder too'],
+        ['cd ..', 'go up one folder'],
+        ['copy notes.txt notes.bak', 'copy a file'],
+        ['xcopy Scripts C:\\Backup\\Scripts /E', 'copy a whole folder'],
+        ['robocopy Scripts C:\\Backup\\Scripts /E', 'the newer copy tool'],
+        ['attrib notes.txt', 'file attributes'],
+        ['icacls notes.txt', 'who may read the file'],
+        ['fc notes.txt notes.txt', 'compare two files'],
+        ['findstr /i ship runbook.txt', 'search ignoring case'],
+        ['sort runbook.txt', 'sort the lines'],
+        ['where cmd', 'locate a program'],
+        ['set SITE=lab', 'make an environment variable'],
+        ['path', 'the search path'],
+        ['title My Terminal', 'name the window'],
+        ['color 0A', 'change the colours'],
+        ['ver', 'the Windows version'],
+        ['vol', 'volume label and serial'],
+        ['hostname', 'the computer name'],
+        ['whoami /groups', 'your groups'],
+        ['systeminfo', 'host, OS and memory details'],
+        ['tasklist /v', 'processes with windows and memory'],
+        ['ping -n 2 dev-box', 'two pings'],
+        ['ipconfig /all', 'every adapter in detail'],
+        ['netstat -ano', 'sockets with process ids'],
+        ['arp -a', 'the neighbour cache'],
+        ['route print', 'the routing table'],
+        ['tracert dev-box', 'the path to a host'],
+        ['nslookup dev-box', 'a DNS lookup'],
+        ['getmac', 'MAC addresses'],
+        ['net user', 'local accounts'],
+        ['net share', 'shared folders'],
+        ['sc query', 'services and their state'],
+        ['schtasks', 'scheduled tasks'],
+        ['reg query HKLM\\Software', 'read the registry'],
+        ['driverquery', 'loaded drivers'],
+        ['doskey /history', 'your commands'],
+        ['mklink link.txt notes.txt', 'make a shortcut'],
+        ['subst X: C:\\Users', 'a drive letter for a folder'],
+        ['assoc .txt', 'what opens .txt files'],
+        ['ftype txtfile', 'the command for .txt files'],
+        ['clip < notes.txt', 'copy a file to the clipboard'],
+        ['timeout /t 1', 'wait a second'],
+        ['certutil -hashfile notes.txt MD5', 'a file checksum'],
+        ['wevtutil el', 'the event logs'],
+        ['gpresult /r', 'applied group policy'],
+        ['powercfg /batteryreport', 'a battery report'],
         ['help', 'every command this sandbox supports'],
         ['reset', 'restore the Windows sandbox']
       ].map(x => ({ ex: x[0], d: x[1] }))
@@ -946,6 +1092,94 @@
       zlib: { crc32: s => parseInt(pyHash('md5', s).slice(0, 8), 16) },
       codecs: { encode: (s, enc) => enc === 'rot_13' ? [...String(s)].map(c => /[a-z]/i.test(c) ? String.fromCharCode((c <= 'Z' ? 65 : 97) + (c.charCodeAt(0) - (c <= 'Z' ? 65 : 97) + 13) % 26) : c).join('') : String(s) }
     };
+    /* a tiny pretend disk, so open() and the csv module have something to read */
+    const pyFiles = { 'notes.txt': 'alpha,1\nbravo,2\ncharlie,3\n', 'README.md': '# python sandbox\n' };
+    /* the standard-library modules this interpreter answers; every name here can be imported by name */
+    Object.assign(MODS, {
+      heapq: {
+        heapify: a => { a.sort((x, y) => x - y); return null; },
+        heappush: (a, x) => { a.push(x); a.sort((x, y) => x - y); return null; },
+        heappop: a => { a.sort((x, y) => x - y); return a.shift(); },
+        nlargest: (n, a) => a.slice().sort((x, y) => y - x).slice(0, n),
+        nsmallest: (n, a) => a.slice().sort((x, y) => x - y).slice(0, n)
+      },
+      bisect: {
+        bisect_left: (a, x) => a.filter(v => v < x).length,
+        bisect_right: (a, x) => a.filter(v => v <= x).length,
+        bisect: (a, x) => a.filter(v => v < x).length,
+        insort: (a, x) => { a.push(x); a.sort((p, q) => p - q); return null; }
+      },
+      copy: { copy: x => (Array.isArray(x) ? x.slice() : Object.assign({}, x)), deepcopy: x => JSON.parse(JSON.stringify(x)) },
+      decimal: { Decimal: x => Number(x) },
+      fractions: { Fraction: (a, b) => (b == null ? Number(a) : Number(a) / Number(b)) },
+      calendar: {
+        isleap: y => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0,
+        month: (y, m) => new Date(y, m - 1, 1).toLocaleString('en-US', { month: 'long' }),
+        monthrange: (y, m) => [new Date(y, m - 1, 1).getDay(), new Date(y, m, 0).getDate()],
+        weekday: (y, m, d) => new Date(y, m - 1, d).getDay()
+      },
+      textwrap: {
+        wrap: (t, w = 70) => String(t).split(/\s+/).filter(Boolean).reduce((lines, word) => {
+          const last = lines[lines.length - 1];
+          if (last != null && (last + ' ' + word).length <= w) lines[lines.length - 1] = last + ' ' + word;
+          else lines.push(word);
+          return lines;
+        }, []),
+        fill: (t, w = 70) => MODS.textwrap.wrap(t, w).join('\n'),
+        shorten: (t, w = 70) => String(t).length <= w ? String(t) : String(t).slice(0, Math.max(0, w - 3)) + '...'
+      },
+      pprint: { pformat: x => JSON.stringify(x, null, 2), pprint: x => JSON.stringify(x, null, 2) },
+      platform: { system: () => 'Linux', release: () => '5.15.0-sandbox', machine: () => 'x86_64', platform: () => 'linux', python_version: () => '3.12.2', node: () => 'dev-box' },
+      operator: { add: (a, b) => a + b, sub: (a, b) => a - b, mul: (a, b) => a * b, truediv: (a, b) => a / b, floordiv: (a, b) => Math.floor(a / b), mod: (a, b) => a % b, eq: (a, b) => a === b, lt: (a, b) => a < b, gt: (a, b) => a > b, itemgetter: k => o => o[k] },
+      shlex: {
+        split: s => String(s).match(/'[^']*'|"[^"]*"|\S+/g)?.map(x => x.replace(/^['"]|['"]$/g, '')) || [],
+        quote: s => "'" + String(s).replace(/'/g, "'\\''") + "'"
+      },
+      hmac: { new: (key, msg) => ({ hexdigest: () => pyHash('sha256', String(key) + ':' + String(msg)) }) },
+      csv: {
+        reader: src => String(typeof src === 'string' ? src : src && src.read ? src.read() : '').split(/\r?\n/).filter(Boolean).map(line => line.split(',')),
+        writer: () => ({ writerows: rows => rows.map(row => row.join(',')).join('\n') })
+      }
+    });
+    Object.assign(MODS.math, {
+      tau: Math.PI * 2, atan2: Math.atan2, asin: Math.asin, acos: Math.acos, atan: Math.atan,
+      sinh: Math.sinh, cosh: Math.cosh, tanh: Math.tanh, trunc: Math.trunc,
+      isqrt: n => Math.floor(Math.sqrt(n)), hypot: (a, b) => Math.hypot(a, b),
+      degrees: r => r * 180 / Math.PI, radians: d => d * Math.PI / 180,
+      prod: a => a.reduce((x, y) => x * y, 1),
+      comb: (n, k) => { let r = 1; for (let i = 1; i <= k; i++) r = r * (n - k + i) / i; return Math.round(r); },
+      perm: (n, k) => { let r = 1; for (let i = 0; i < k; i++) r *= n - i; return r; },
+      isclose: (a, b, rel = 1e-9) => Math.abs(a - b) <= rel * Math.max(Math.abs(a), Math.abs(b))
+    });
+    Object.assign(MODS.random, {
+      randrange: (a, b, step = 1) => { const lo = b == null ? 0 : a, hi = b == null ? a : b; return lo + Math.floor(Math.random() * Math.ceil((hi - lo) / step)) * step; },
+      uniform: (a, b) => a + Math.random() * (b - a),
+      sample: (a, n) => a.slice().sort(() => Math.random() - 0.5).slice(0, n),
+      seed: () => null,
+      getrandbits: n => Math.floor(Math.random() * Math.pow(2, Math.min(n, 52)))
+    });
+    Object.assign(MODS.itertools, {
+      product: (...arrs) => arrs.reduce((acc, arr) => acc.flatMap(prefix => arr.map(x => prefix.concat([x]))), [[]]),
+      permutations: (a, r = a.length) => MODS.itertools.product(...Array(r).fill(a)).filter(p => new Set(p).size === p.length),
+      combinations: (a, r) => MODS.itertools.permutations(a, r).map(p => p.slice().sort((x, y) => a.indexOf(x) - a.indexOf(y))).filter((p, i, all) => all.findIndex(q => q.join() === p.join()) === i),
+      islice: (a, start, stop) => a.slice(start, stop == null ? undefined : stop)
+    });
+    Object.assign(MODS.statistics, {
+      variance: a => { const m = MODS.statistics.mean(a); return a.reduce((t, x) => t + (x - m) ** 2, 0) / (a.length - 1); },
+      stdev: a => Math.sqrt(MODS.statistics.variance(a)),
+      pstdev: a => { const m = MODS.statistics.mean(a); return Math.sqrt(a.reduce((t, x) => t + (x - m) ** 2, 0) / a.length); },
+      mode: a => { const m = {}; for (const x of a) m[x] = (m[x] || 0) + 1; return Number(Object.keys(m).sort((x, y) => m[y] - m[x])[0]); }
+    });
+    Object.assign(MODS.time, {
+      perf_counter: () => Date.now() / 1000,
+      strftime: () => new Date().toISOString().slice(0, 19).replace('T', ' '),
+      localtime: () => ({ tm_year: new Date().getFullYear(), tm_mon: new Date().getMonth() + 1, tm_mday: new Date().getDate(), tm_hour: new Date().getHours(), tm_min: new Date().getMinutes(), tm_sec: new Date().getSeconds() })
+    });
+    Object.assign(MODS.os, { getenv: (k, d) => MODS.os.environ[k] ?? d, sep: '/', cpu_count: () => 8, uname: () => ({ system: 'Linux', node: 'dev-box', release: '5.15.0-sandbox', machine: 'x86_64' }) });
+    Object.assign(MODS.string, { printable: '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~ \t\n\r\x0b\x0c', whitespace: ' \t\n\r\x0b\x0c', capwords: s => String(s).replace(/\b\w/g, c => c.toUpperCase()) });
+    Object.assign(MODS.base64, { b32encode: s => b64e(s), b16encode: s => [...String(s)].map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join('').toUpperCase() });
+    Object.assign(MODS.datetime, { timedelta: (days = 0, seconds = 0) => ({ days, seconds }) });
+    Object.assign(MODS.sys, { exit: () => { throw new Error('SystemExit: the sandbox keeps running — use reset to clear it'); }, version_info: [3, 12, 2], path: ['/usr/lib/python3.12'] });
     const H = {
       len: x => (x == null ? 0 : typeof x === 'string' || Array.isArray(x) ? x.length : Object.keys(x).length),
       sum: a => a.reduce((x, y) => x + y, 0),
@@ -1002,6 +1236,30 @@
       hasattr: (o, k) => Boolean(o && k in o),
       setattr: (o, k, v) => { if (o) o[k] = v; return null; },
       __rep: pyRepeat,
+      print: (...a) => a.map(x => (typeof x === 'string' ? x : repr(x))).join(' '),
+      input: prompt => { H.__prompt = prompt == null ? '' : String(prompt); return ''; },
+      open: p => {
+        const path = String(p);
+        return { path, read: () => pyFiles[path] ?? '', write: text => { pyFiles[path] = String(text); return String(text).length; }, close: () => null, __enter__: () => H.open(path), __exit__: () => null };
+      },
+      help: topic => G.formatHelp('python', topic == null ? '' : String(topic)),
+      exit: () => { throw new Error('SystemExit: the sandbox keeps running — use reset to clear it'); },
+      quit: () => { throw new Error('SystemExit: the sandbox keeps running — use reset to clear it'); },
+      iter: a => Array.from(a || []),
+      next: (a, d) => { const list = Array.from(a || []); return list.length ? list[0] : d === undefined ? null : d; },
+      slice: (a, b, c) => Array.from(a || []).slice(b, c),
+      frozenset: a => Array.from(new Set(Array.from(a || []))),
+      bytearray: x => String(x || ''),
+      memoryview: x => String(x || ''),
+      ascii: x => JSON.stringify(String(x)),
+      object: () => ({}),
+      property: f => f,
+      staticmethod: f => f,
+      classmethod: f => f,
+      issubclass: (a, b) => H.type(a) === String(b) || H.type(a).includes(String(b)),
+      delattr: (o, k) => { if (o) delete o[k]; return null; },
+      complex: (r = 0, i = 0) => ({ re: Number(r), im: Number(i), toString: () => Number(r) + (Number(i) < 0 ? '-' : '+') + Math.abs(Number(i)) + 'j' }),
+      __import__: name => MODS[String(name)] || (() => { throw new Error("ModuleNotFoundError: No module named '" + name + "'"); })(),
       math: MODS.math,
       json: MODS.json
     };
@@ -1139,6 +1397,12 @@
       about: 'A Python REPL with variables, f-strings, comprehensions, builtins and loops. Expressions are evaluated for real; printing works the way you expect.',
       prompt: () => '>>> ',
       run,
+      /* the builtins this interpreter really implements, so the help lists every name it understands */
+      commandNames: () => Object.keys(H).concat(Object.keys(MODS).map(name => 'import ' + name)),
+      appCommands: {
+        clear: 'clear is a convenience of this Python prompt: it empties the namespace. Real Python removes one name with del and leaves the interpreter with exit().',
+        reset: 'reset is the sandbox’s own command, the same as clear. There is no reset in Python.'
+      },
       snapshot: () => ({ vars: G.snapshotVariables(vars), hist: hist.slice(-250) }),
       restore: saved => {
         G.replaceSavedObject(vars, saved.vars);
@@ -1162,6 +1426,39 @@
         ['print("x is", x)', 'print several values'],
         ['import math', 'make the math module available'],
         ['math.sqrt(144)', 'call into math'],
+        ['list(range(2, 10, 3))', 'a range with a step'],
+        ['set([1, 1, 2])', 'a set drops duplicates'],
+        ['"abcabc".count("b")', 'count a character'],
+        ['divmod(17, 5)', 'quotient and remainder'],
+        ['binary_string = bin(13)', 'binary, hex and oct spellings'],
+        ['hex(255), oct(8)', 'several values on one line'],
+        ['import random', 'make the random module available'],
+        ['random.randint(1, 6)', 'roll a die'],
+        ['random.sample([1, 2, 3, 4], 2)', 'pick two at random'],
+        ['import heapq', 'a ready-made module page'],
+        ['heapq.nsmallest(2, [9, 4, 7])', 'the two smallest values'],
+        ['import statistics', 'the statistics module'],
+        ['statistics.mean([2, 4, 9])', 'a mean'],
+        ['statistics.stdev([2, 4, 4, 4, 5, 5, 7, 9])', 'a standard deviation'],
+        ['import textwrap', 'text wrapping'],
+        ['textwrap.fill("one two three four", 9)', 'wrap a sentence to nine columns'],
+        ['import bisect', 'binary-search helpers'],
+        ['bisect.bisect_left([1, 3, 5], 3)', 'where a value belongs in a sorted list'],
+        ['import calendar', 'the calendar module'],
+        ['calendar.isleap(2024)', 'a leap-year test'],
+        ['import itertools', 'building blocks for loops'],
+        ['itertools.combinations([1, 2, 3], 2)', 'every pair'],
+        ['import operator', 'operators as functions'],
+        ['operator.itemgetter("a")({"a": 1})', 'get one key'],
+        ['import shlex', 'shell-style word splitting'],
+        ['shlex.split(\'echo "a b"\')', 'keep quoted words whole'],
+        ['open("notes.txt").read()', 'read a pretend file'],
+        ['name = input("who goes there? ")', 'prompt for a value'],
+        ['import hmac', 'keyed hashing'],
+        ['hmac.new("k", "m").hexdigest()', 'a keyed digest'],
+        ['import csv', 'read and write rows'],
+        ['csv.reader(open("notes.txt").read())', 'every row of a csv file'],
+        ['print("printed from a builtin")', 'print is a builtin function here'],
         ['clear', 'clear the namespace (reset)']
       ].map(x => ({ ex: x[0], d: x[1] })),
       clearLabel: 'reset'
@@ -1217,7 +1514,7 @@
     const procObj = { platform: 'win32', arch: 'x64', pid: 4210, version: 'v20.11.0', versions: { node: '20.11.0', v8: '11.3.244' }, argv: ['node'], env: { USERNAME: 'moundshroud', COMPUTERNAME: 'DEV-BOX', NODE_ENV: 'development' }, cwd: () => 'C:\\Users\\moundshroud', hrtime: () => [0, 12000], memoryUsage: () => ({ rss: 42106880, heapUsed: 12451840 }), exit: code => '(sandbox process.exit(' + (code || 0) + ') intercepted — host unaffected)' };
     const req = m => {
       const k = String(m || '').replace(/^node:/, '');
-      if (k === 'os') return { platform: () => 'win32', arch: () => 'x64', cpus: () => [{ model: 'Virtual CPU' }, { model: 'Virtual CPU' }], hostname: () => 'dev-box', homedir: () => 'C:\\Users\\moundshroud', tmpdir: () => 'C:\\Temp', totalmem: () => 17179869184, freemem: () => 9840000000, EOL: '\r\n' };
+      if (k === 'os') return { platform: () => 'win32', arch: () => 'x64', cpus: () => [{ model: 'Virtual CPU' }, { model: 'Virtual CPU' }], hostname: () => 'dev-box', homedir: () => 'C:\\Users\\moundshroud', tmpdir: () => 'C:\\Temp', totalmem: () => 17179869184, freemem: () => 9840000000, EOL: '\r\n', type: () => 'Windows_NT', release: () => '10.0.22631', uptime: () => 84120, loadavg: () => [0.12, 0.08, 0.04], networkInterfaces: () => ({ Ethernet0: [{ address: '10.0.0.5', netmask: '255.255.255.0', family: 'IPv4', mac: '52:54:00:12:34:56', internal: false }] }) };
       if (k === 'path') return { join: (...a) => a.join('/').replace(/\/+/g, '/'), resolve: (...a) => '/' + a.join('/').replace(/^\/+/, ''), basename: p => String(p).split(/[\\/]/).pop(), dirname: p => String(p).split(/[\\/]/).slice(0, -1).join('/') || '.', extname: p => { const b = String(p).split(/[\\/]/).pop(); const i = b.lastIndexOf('.'); return i > 0 ? b.slice(i) : ''; }, sep: '/' };
       if (k === 'crypto') return {
         randomUUID: () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16); }),
@@ -1243,6 +1540,18 @@
       if (k === 'dns') return { lookup: (h, cb) => cb && cb(null, '10.0.0.5', 4) };
       if (k === 'http' || k === 'https') return { STATUS_CODES: { 200: 'OK', 404: 'Not Found', 500: 'Internal Server Error' } };
       if (k === 'net') return { isIP: s => /^\d+(\.\d+){3}$/.test(s) ? 4 : 0 };
+      if (k === 'stream') return { PassThrough: class { constructor() { this.chunks = []; } write(chunk) { this.chunks.push(String(chunk)); return true; } end() {} on() { return this; } pipe(dest) { return dest; } } };
+      if (k === 'string_decoder') return { StringDecoder: class { decode(bytes) { return String(bytes ?? ''); } } };
+      if (k === 'tty') return { isatty: () => false };
+      if (k === 'perf_hooks') return { performance: { now: () => Date.now(), timeOrigin: 0 } };
+      if (k === 'module') return { builtinModules: ['fs', 'path', 'os', 'crypto', 'util', 'events', 'http', 'stream'], createRequire: () => req };
+      if (k === 'readline') return { createInterface: () => ({ on() { return this; }, close() {}, question(_q, cb) { if (cb) cb(''); } }) };
+      if (k === 'worker_threads') return { isMainThread: true, workerData: null };
+      if (k === 'timers') return { setTimeout: f => (typeof f === 'function' ? f() : undefined), setInterval: () => undefined, clearTimeout: () => undefined };
+      if (k === 'v8') return { getHeapStatistics: () => ({ used_heap_size: 12451840, heap_size_limit: 4294967296 }) };
+      if (k === 'cluster') return { isPrimary: true, isMaster: true, fork: () => ({ pid: 4211 }) };
+      if (k === 'punycode') return { toASCII: s => String(s), toUnicode: s => String(s) };
+      if (k === 'dgram') return { createSocket: () => ({ send() {}, on() { return this; }, close() {} }) };
       if (k === 'zlib') return { gzipSync: s => FakeBuffer.from(s) };
       if (k === 'child_process') return { execSync: c => '(sandbox exec: ' + c + ')' };
       return {};
@@ -1266,12 +1575,33 @@
         Function: () => { throw new Error('Sandbox blocked Function constructor'); }
       };
       const bKeys = Object.keys(blocked);
-      const names = Object.keys(vars).filter(n => !bKeys.includes(n));
+      /* the globals every Node script can use without require(): timers, performance, text codecs, URL and the
+         blob-atob pair. They are separate parameters, so a user variable of the same name never shadows them. */
+      const extra = {
+        setTimeout: fn2 => (typeof fn2 === 'function' ? fn2() : undefined),
+        setImmediate: fn2 => (typeof fn2 === 'function' ? fn2() : undefined),
+        clearTimeout: () => undefined,
+        clearImmediate: () => undefined,
+        queueMicrotask: fn2 => { if (typeof fn2 === 'function') fn2(); },
+        structuredClone: x => JSON.parse(JSON.stringify(x)),
+        performance: { now: () => Date.now(), timeOrigin: 0 },
+        TextEncoder: class { encode(s) { return Array.from(String(s)).map(c => c.charCodeAt(0)); } },
+        TextDecoder: class { decode(bytes) { return Array.from(bytes || []).map(code => String.fromCharCode(code)).join(''); } },
+        AbortController: class { constructor() { this.signal = { aborted: false, addEventListener() {} }; } abort() { this.signal.aborted = true; } },
+        URL: typeof URL !== 'undefined' ? URL : function (u) { this.href = String(u); },
+        URLSearchParams: typeof URLSearchParams !== 'undefined' ? URLSearchParams : function () {},
+        atob: s => (typeof atob === 'function' ? atob(String(s)) : b64d(String(s))),
+        btoa: s => (typeof btoa === 'function' ? btoa(String(s)) : b64e(String(s))),
+        Intl: typeof Intl !== 'undefined' ? Intl : { NumberFormat: () => ({ format: n => String(n) }) },
+        global: {}
+      };
+      const extraNames = Object.keys(extra);
+      const names = Object.keys(vars).filter(n => !bKeys.includes(n) && !extraNames.includes(n));
       // Inject loop iteration breaker into while/for/do loops so infinite loops can never freeze the app
       const safeExpr = String(expr).replace(/\b(while\s*\([^)]*\)|for\s*\([^)]*\))\s*\{/g, '$1 { if (++__steps > 50000) throw new Error("Sandbox execution limit exceeded (infinite loop blocked)"); ');
       const body = '"use strict"; let __steps = 0; ' + (isStmt ? safeExpr : 'return (' + safeExpr + '\n);');
-      const fn = new Function(...bKeys, ...names, 'console', 'JSON', 'Math', 'Date', 'Buffer', 'require', 'process', 'setTimeout', '__dirname', '__filename', body);
-      return fn(...bKeys.map(k => blocked[k]), ...names.map(n => vars[n]), fakeConsole, JSON, Math, Date, FakeBuffer, req, procObj, fn2 => (typeof fn2 === 'function' ? fn2() : undefined), 'C:\\Users\\moundshroud', 'C:\\Users\\moundshroud\\repl.js');
+      const fn = new Function(...bKeys, ...names, ...extraNames, 'console', 'JSON', 'Math', 'Date', 'Buffer', 'require', 'process', '__dirname', '__filename', body);
+      return fn(...bKeys.map(k => blocked[k]), ...names.map(n => vars[n]), ...extraNames.map(n => extra[n]), fakeConsole, JSON, Math, Date, FakeBuffer, req, procObj, 'C:\\Users\\moundshroud', 'C:\\Users\\moundshroud\\repl.js');
     };
 
     function run(line) {
@@ -1315,6 +1645,18 @@
       about: 'A JavaScript REPL with a real evaluator: template strings, arrays, objects, JSON, Math, and a stubbed require() for os, path and crypto.',
       prompt: () => '> ',
       run,
+      /* the globals and REPL dot-commands this prompt knows; language keywords and methods are the language, not the shell */
+      commandNames: () => ['console', 'buffer', 'json', 'math', 'date', 'url', 'urlsearchparams', 'process', 'require', 'global',
+        'settimeout', 'setimmediate', 'cleartimeout', 'clearimmediate', 'queuemicrotask', 'structuredclone', 'performance',
+        'textencoder', 'textdecoder', 'abortcontroller', 'atob', 'btoa', 'intl', '__dirname', '__filename',
+        'fs', 'os', 'path', 'crypto', 'util', 'events', 'assert', 'zlib', 'child_process', 'stream', 'string_decoder',
+        'querystring', 'http', 'https', 'dns', 'timers', 'perf_hooks', 'module', 'readline', 'worker_threads', 'net',
+        'tty', 'v8', 'cluster', 'punycode', 'dgram',
+        'clear', 'reset', 'help', '.help', '.clear', '.break', '.exit', '.save', '.load', '.editor'],
+      appCommands: {
+        clear: 'clear is a convenience of this Node prompt, the same as .clear; Node’s own REPL spells it .clear.',
+        reset: 'reset is the sandbox’s own command, the same as .clear. Node’s REPL has no reset.'
+      },
       snapshot: () => ({
         vars: G.snapshotVariables(vars), vfs, counts, env: G.snapshotVariables(procObj.env), hist: hist.slice(-250)
       }),
@@ -1341,6 +1683,23 @@
         ['console.log("hi", 42)', 'print to the console'],
         ['require("os").platform()', 'a stubbed core module'],
         ['require("path").join("a", "b")', 'path helpers'],
+        ['setTimeout(() => console.log("later"), 0)', 'a callback, run once'],
+        ['structuredClone({ a: [1, 2] })', 'a deep copy'],
+        ['performance.now() > 0', 'a monotonic clock reading'],
+        ['new TextEncoder().encode("hi")', 'text to bytes'],
+        ['btoa("hi")', 'base64 from a string'],
+        ['require("os").hostname()', 'the machine name'],
+        ['require("os").networkInterfaces()', 'network adapters'],
+        ['require("fs").writeFileSync("out.txt", "hello")', 'write a virtual file'],
+        ['require("fs").readFileSync("out.txt", "utf8")', 'read it back'],
+        ['require("path").extname("app.js")', 'the file extension'],
+        ['require("crypto").randomUUID()', 'a random UUID'],
+        ['require("assert").strictEqual(1, 1)', 'an assertion that passes'],
+        ['require("util").format("%s=%d", "n", 2)', 'printf-style formatting'],
+        ['Object.entries({ a: 1 })', 'pairs from an object'],
+        ['[].concat([1, 2]).length', 'how many items'],
+        ['Array.from({ length: 3 }, (_, i) => i)', 'build an array'],
+        ['global', 'the global object here'],
         ['clear', 'reset the context']
       ].map(x => ({ ex: x[0], d: x[1] }))
     };

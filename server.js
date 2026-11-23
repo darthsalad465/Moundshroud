@@ -1,7 +1,7 @@
 // Offline assistant suite - local server. Talks only to Ollama and Kiwix on this PC. No outside connections.
 // Lifecycle: started by the hotkey listener when you open the window; shuts itself (and everything it started) down when the window closes.
 const http = require('http'), fs = require('fs'), path = require('path'), cp = require('child_process'), os = require('os'), crypto = require('crypto');
-const U = require('./lib/util'), docs = require('./lib/docs'), kiwix = require('./lib/kiwix'), websearch = require('./lib/websearch'), voice = require('./lib/voice'), store = require('./lib/store'), extra = require('./lib/extra'), thesaurus = require('./lib/thesaurus'), rhyme = require('./lib/rhyme'), pcmod = require('./lib/pc'), office = require('./lib/office'), prep = require('./lib/prep'), appfiles = require('./lib/appfiles'), webpages = require('./lib/webpages'), refs = require('./lib/refs'), embed = require('./lib/embed'), cams = require('./lib/cams'), safety = require('./lib/safety'), appedit = require('./lib/appedit'), codeWorkspace = require('./lib/code-workspace');
+const U = require('./lib/util'), docs = require('./lib/docs'), kiwix = require('./lib/kiwix'), websearch = require('./lib/websearch'), voice = require('./lib/voice'), store = require('./lib/store'), extra = require('./lib/extra'), thesaurus = require('./lib/thesaurus'), rhyme = require('./lib/rhyme'), spell = require('./lib/spell'), pcmod = require('./lib/pc'), office = require('./lib/office'), prep = require('./lib/prep'), appfiles = require('./lib/appfiles'), webpages = require('./lib/webpages'), refs = require('./lib/refs'), embed = require('./lib/embed'), cams = require('./lib/cams'), safety = require('./lib/safety'), appedit = require('./lib/appedit'), codeWorkspace = require('./lib/code-workspace'), localrepos = require('./lib/localrepos');
 
 const safe = require('./lib/safe');
 const problems = require('./lib/problems');
@@ -36,6 +36,7 @@ const nativeapps = require('./lib/nativeapps');
 const juiceshop = require('./lib/juiceshop');
 const modellab = require('./lib/modellab');
 const modelOrder = require('./lib/model-order');
+const ollamaBundle = require('./lib/ollama-bundle');          /* the AI engine and the small Qwen family that come with the app */
 const lmstudioSync = require('./lib/lmstudio-sync');
 const finetune = require('./lib/finetune');
 const practice = require('./lib/practice');
@@ -49,7 +50,8 @@ fs.mkdirSync(DATA, { recursive: true });
 const PORT = +process.env.MOUNDSHROUD_PORT || +process.env.ATLAS_PORT || 47231, OLLAMA = { host: '127.0.0.1', port: 11434 };
 const LIBPORT = PORT + 9;                       // the offline library's own address (see the end of this file); the window works it out the same way
 try { require('./lib/migrate').run(); } catch (e) { }                      // one-time tidy-ups left over from the rename
-const OLLAMA_EXE =path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Ollama', 'ollama.exe');
+/* the app's own copy of the engine (runtime\ollama) when it is here, otherwise the normal Windows install */
+const OLLAMA_EXE = ollamaBundle.exe();
 const CHATS = path.join(DATA, 'chats.json');
 const started = Date.now();
 /* Is the code on the disk newer than this running copy? With phone access on, the server used to stay up through every
@@ -115,7 +117,7 @@ function ensureOllama(cb) {
     if (up) return cb(true);
     if (!starting) {
       starting = new Promise(resolve => {
-        try { spawnedOllama = cp.spawn(OLLAMA_EXE, ['serve'], { stdio: 'ignore', windowsHide: true, env: { ...process.env, OLLAMA_KEEP_ALIVE: '3m' } }); spawnedOllama.on('exit', () => { spawnedOllama = null; }); }
+        try { spawnedOllama = cp.spawn(ollamaBundle.exe(), ['serve'], { stdio: 'ignore', windowsHide: true, env: { ...process.env, OLLAMA_KEEP_ALIVE: '3m' } }); spawnedOllama.on('exit', () => { spawnedOllama = null; }); }
         catch (e) { return resolve(false); }
         let n = 0; const t = setInterval(() => ollamaUp(u => { if (u || ++n > 80) { clearInterval(t); resolve(u); } }), 500);
       }).finally(() => { starting = null; });
@@ -176,6 +178,8 @@ function ollamaJson(method, pth, payload) {
 }
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.geojson': 'application/geo+json', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff': 'font/woff', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.wasm': 'application/wasm', '.txt': 'text/plain; charset=utf-8', '.map': 'application/json', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.ogg': 'audio/ogg', '.mp3': 'audio/mpeg', '.zip': 'application/zip', '.whl': 'application/zip', '.tar': 'application/x-tar', '.mp4': 'video/mp4', '.webm': 'video/webm' };      /* .zip/.whl: the Python sandbox's standard library and packages (web/vendor/pyodide) */
 const CHESSBOOKS = path.join(__dirname, 'nomad', 'chessbooks');
+const myLibraryStore = require('./lib/mylibrary');                                                                  /* libraries imported by the user, by their page source */
+const myLibrary = (() => { let store = null; return () => (store || (store = myLibraryStore.create(DATA))); })();
 const bibleLib = require('./lib/bible').create(DATA, path.join(WEB, 'data'));      /* Spiritual > Bible Expert: passage search (SQLite full-text index data\bible-index.db) over the built-in texts, data\christian-texts\ and data\bible\ */
 /* the picture model: the compact ready-made q8 copy (3.9 GB) when it is there, else the original (6.5 GB, made compact in memory each time) */
 /* pictures, music, voices and video: the engines live in lib/media.js; teams and swarms in lib/swarm.js */
@@ -510,6 +514,21 @@ async function handleAppRequest(req, res) {
       if (!playground.validate(input)) {
         return json(res, 400, { ok: false, error: 'Choose a supported language, up to 200 KB of code, and up to 100 KB of input.' });
       }
+      /* A run can ask for live output: one JSON object per line as the program prints, then the final result. That is
+         what lets the Playground show a program while it is still running instead of only after it exits. */
+      if (input && input.stream) {
+        res.writeHead(200, {
+          'Content-Type': 'application/x-ndjson; charset=utf-8',
+          'Cache-Control': 'no-store, max-age=0',
+          'X-Accel-Buffering': 'no',
+        });
+        let closed = false;
+        const send = obj => { if (closed) return; try { res.write(JSON.stringify(obj) + '\n'); } catch (e) { } };
+        res.once('close', () => { closed = true; });
+        const result = await playground.run(input, ctl.signal, (stream, text) => send({ stream, text }));
+        if (!closed) { send({ done: true, result }); try { res.end(); } catch (e) { } }
+        return;
+      }
       const result = await playground.run(input, ctl.signal);
       if (!ctl.signal.aborted) return json(res, 200, result);
       return;
@@ -710,6 +729,9 @@ if (url === '/api/models') {
       .on('error', () => json(res, 200, { ollama: false, cloud: cs.on, defaultModel: def, models: modelOrder.sortModels(cloudList, def), provider: cs.provider, hardware: hw }));
   });
 }
+/* ---- the AI engine and the small Qwen family that come with the app (lib/ollama-bundle.js) ---- */
+if (url === '/api/ollama') return json(res, 200, Object.assign(await ollamaBundle.status(), { job: ollamaBundle.state() }));
+if (url === '/api/ollama/setup' && req.method === 'POST') return ensureOllama(() => json(res, 200, { ok: true, job: ollamaBundle.setup() }));
 /* ---- every AI model on this PC, each with a use (lib/model-uses.js) ---- */
 if (url === '/api/models/all' && req.method === 'GET') {
   try { return json(res, 200, Object.assign({ ok: true }, await modelUses.catalog({ fresh: q.get('fresh') === '1' }))); }
@@ -1004,6 +1026,20 @@ if (url === '/api/chat' && req.method === 'POST') {
     if (url === '/api/lib/classics') return kiwix.classics().then(d => json(res, 200, d)).catch(e => json(res, 200, { shelves: [], items: [], error: String(e.message || e) }));
     if (url === '/api/lib/wikibooks') return kiwix.wikibooks(q.get('q') || '').then(d => json(res, 200, d)).catch(e => json(res, 200, { books: [], error: String(e.message || e) }));
     if (url === '/api/lib/books') return json(res, 200, { available: kiwix.available(), books: kiwix.books() });
+    /* ---- libraries you import yourself, by their page source (lib/mylibrary.js) ---- */
+    if (url === '/api/lib/mine') return json(res, 200, { libraries: myLibrary().list() });
+    if (url === '/api/lib/mine/import' && req.method === 'POST') {
+      const body = await jbody(req, 3e6);
+      return json(res, 200, myLibrary().save({ title: body.title, html: body.html }));
+    }
+    if (url === '/api/lib/mine/remove' && req.method === 'POST') { const body = await jbody(req, 1e4); return json(res, 200, myLibrary().remove(body.id)); }
+    if (url.startsWith('/api/lib/mine/')) {
+      const hit = /^\/api\/lib\/mine\/([a-z0-9-]{1,60})\.html$/i.exec(url);
+      const page = hit && myLibrary().page(hit[1]);
+      if (!page) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('That imported library is not here any more.'); }
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': page.length, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+      return res.end(page);
+    }
     if (url === '/api/lib/context' && req.method === 'POST') {
       const { q: qq, only, n } = await jbody(req, 1e5);
       try { return json(res, 200, { sources: await kiwix.context(String(qq || ''), n || 4, only) }); } catch (e) { return json(res, 200, { sources: [] }); }
@@ -1064,7 +1100,9 @@ if (url === '/api/chat' && req.method === 'POST') {
     if (url === '/api/app/list') return json(res, 200, { files: appfiles.list(q.get('dir') || '') });
     /* ---- editing the app's own files from inside it: every save keeps the old version (lib/appedit.js) ---- */
     if (url === '/api/appedit/list') return json(res, 200, appedit.list(q.get('dir') || ''));
-    if (url === '/api/appedit/shell') return json(res, 200, appedit.shell({ meta: q.get('meta') === '1' }));
+    if (url === '/api/appedit/shell') return json(res, 200, appedit.shell({ meta: q.get('meta') === '1', brief: q.get('brief') === '1' }));
+    /* the mound shell reads file contents in batches, so a huge vendor library never holds up opening it */
+    if (url === '/api/appedit/shellfiles' && req.method === 'POST') { const b = await jbody(req, 4e6); return json(res, 200, appedit.shell({ files: Array.isArray(b.files) ? b.files : [] })); }
     if (url === '/api/appedit/edited') return json(res, 200, { edited: appedit.edited() });
     if (url === '/api/appedit/read' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, appedit.read(String(b.path || ''))); }
     if (url === '/api/appedit/check' && req.method === 'POST') { const b = await jbody(req, 2e6); return json(res, 200, appedit.check(String(b.path || ''), b.text)); }
@@ -1207,6 +1245,12 @@ if (url === '/api/chat' && req.method === 'POST') {
       return json(res, r.error ? 400 : 200, r);
     }
     if (url === '/api/refs/remove' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, refs.remove(String(b.slug || ''))); }
+    /* ---- repositories already on this PC: find them, look inside them, open them in Explorer (lib/localrepos.js) ---- */
+    if (url === '/api/local-repos') return json(res, 200, localrepos.status());
+    if (url === '/api/local-repos/scan' && req.method === 'POST') return json(res, 200, await localrepos.scan());
+    if (url === '/api/local-repos/root' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, localrepos.addRoot(String(b.path || ''))); }
+    if (url === '/api/local-repos/root/remove' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, localrepos.removeRoot(String(b.path || ''))); }
+    if (url === '/api/local-repos/open' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, localrepos.open(String(b.path || ''))); }
     if (url === '/api/docs/open' && req.method === 'POST') { const b = await jbody(req, 1e5); if (!allowedPath(b.path)) return json(res, 403, { error: 'not allowed' }); cp.spawn('explorer.exe', [b.path], { detached: true, stdio: 'ignore' }).unref(); return json(res, 200, { ok: true }); }
     /* ---- the local coding agent (Gemma in Ollama): report whether it is set up, open it in its own window ---- */
     /* ---- the in-app agent: Claude Code runs hidden and the Agent tab shows the conversation (lib/harness.js) ---- */
@@ -1382,6 +1426,9 @@ if (url === '/api/chat' && req.method === 'POST') {
       const remote = String((b && b.remote) || 'origin').trim();
       const rawBranch = b && b.branch ? String(b.branch).trim() : '';
       const rawMessage = b && b.message ? String(b.message).trim().slice(0, 300) : '';
+      /* The author-only override, beside Push to GitHub in Settings. It is behind the same .author-copy gate as an
+         ordinary push, skips the safety scan and passes --no-verify so the pre-push hook cannot block it either. */
+      const override = !!(b && b.override === true);
       if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/.test(remote)) {
         return json(res, 400, { error: 'Invalid git remote name.' });
       }
@@ -1397,12 +1444,18 @@ if (url === '/api/chat' && req.method === 'POST') {
       });
       global._msGitPushBusy = true;
       try {
-        // Pre-push security gate: block push if ANY secret, private key, PII path, or forbidden data/ file is present
+        /* Pre-push security gate: every reason is collected, not just the first, so one attempt lists them all. */
+        const findingsOf = r => {
+          const list = (r && r.findings || []).map(f => f.file + (f.line ? ':' + f.line : '') + ' — ' + f.reason);
+          if (!list.length) list.push((r && r.error) || 'The scanner found a problem but gave no detail.');
+          return list;
+        };
+        const blocked = (title, r) => {
+          const problems = findingsOf(r);
+          return json(res, 400, { error: title + ' (' + problems.length + ' problem' + (problems.length === 1 ? '' : 's') + ')', problems, count: problems.length });
+        };
         const scan = secGuard.scanRepo(ROOT);
-        if (!scan.ok) {
-          const preview = (scan.findings || []).slice(0, 5).map(f => f.file + (f.line ? ':' + f.line : '') + ' (' + f.reason + ')').join('; ');
-          return json(res, 400, { error: 'Push blocked by security scanner: ' + (preview || scan.error || 'secret detected') });
-        }
+        if (!scan.ok && !override) return blocked('Push blocked by the security scanner', scan);
 
         let repoUrl = '';
         try { repoUrl = (await gitRunAsync(['config', '--get', 'remote.' + remote + '.url'], 5000)).stdout.trim(); } catch (e) {}
@@ -1420,10 +1473,9 @@ if (url === '/api/chat' && req.method === 'POST') {
         if (addAll && status) {
           await gitRunAsync(['add', '-A'], 20000);
           const stagedScan = secGuard.scanStaged(ROOT);
-          if (!stagedScan.ok) {
+          if (!stagedScan.ok && !override) {
             try { await gitRunAsync(['reset'], 8000); } catch (e2) { }
-            const preview = (stagedScan.findings || []).slice(0, 5).map(f => f.file + (f.line ? ':' + f.line : '') + ' (' + f.reason + ')').join('; ');
-            return json(res, 400, { error: 'Commit blocked by security scanner: ' + (preview || stagedScan.error || 'secret detected') });
+            return blocked('Commit blocked by the security scanner', stagedScan);
           }
           const commitMsg = rawMessage || ('Ship from Moundshroud: ' + new Date().toISOString().slice(0, 19).replace('T', ' '));
           try {
@@ -1436,21 +1488,24 @@ if (url === '/api/chat' && req.method === 'POST') {
         }
 
         let pushOut = '', forced = false;
+        /* --no-verify is the override: without it the pre-push hook runs the same scan and blocks the push */
         try {
-          const pr = await gitRunAsync(['push', remote, pushBranch], 120000);
+          const pr = await gitRunAsync(override ? ['push', '--no-verify', remote, pushBranch] : ['push', remote, pushBranch], 120000);
           pushOut = (pr.stdout + '\n' + pr.stderr).trim();
         } catch (e) {
           const why = String(e.stderr || e.stdout || e.message || '');
+          const whyLines = why.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
           if (!/non-fast-forward|fetch first|rejected|behind its remote counterpart/i.test(why)) {
-            return json(res, 500, { error: 'Git push failed: ' + why });
+            return json(res, 500, { error: 'Git push failed: ' + why, problems: whyLines });
           }
           try { await gitRunAsync(['fetch', remote, pushBranch], 60000); } catch (e2) { }
           try {
-            const pr2 = await gitRunAsync(['push', '--force-with-lease=' + pushBranch, remote, pushBranch], 120000);
+            const pr2 = await gitRunAsync(override ? ['push', '--no-verify', '--force-with-lease=' + pushBranch, remote, pushBranch] : ['push', '--force-with-lease=' + pushBranch, remote, pushBranch], 120000);
             forced = true;
             pushOut = 'Synced ' + remote + '/' + pushBranch + ' with this PC.\n' + (pr2.stdout + '\n' + pr2.stderr).trim();
           } catch (e3) {
-            return json(res, 500, { error: 'Git push failed: ' + String(e3.stderr || e3.stdout || e3.message || '') });
+            const why3 = String(e3.stderr || e3.stdout || e3.message || '');
+            return json(res, 500, { error: 'Git push failed: ' + why3, problems: why3.split(/\r?\n/).map(x => x.trim()).filter(Boolean) });
           }
         }
 
@@ -1461,9 +1516,10 @@ if (url === '/api/chat' && req.method === 'POST') {
           webUrl = webUrl.replace(/^git@github\.com:/, 'https://github.com/').replace(/\.git$/, '');
         }
         const upToDate = !committed && /everything up-to-date/i.test(pushOut);
-        return json(res, 200, { ok: true, repo: webUrl || 'unknown', branch: pushBranch, sha, committed, upToDate, forced, output: pushOut, hadChanges: !!status || !upToDate });
+        return json(res, 200, { ok: true, repo: webUrl || 'unknown', branch: pushBranch, sha, committed, upToDate, forced, override: override || false, output: pushOut, hadChanges: !!status || !upToDate });
       } catch (e) {
-        return json(res, 500, { error: 'Git operation failed: ' + String(e.stderr || e.message || e) });
+        const why = String(e.stderr || e.stdout || e.message || e);
+        return json(res, 500, { error: 'Git operation failed: ' + why, problems: why.split(/\r?\n/).map(x => x.trim()).filter(Boolean) });
       } finally {
         global._msGitPushBusy = false;
       }
@@ -1807,6 +1863,7 @@ if (url === '/api/chat' && req.method === 'POST') {
     if (url === '/api/juiceshop/status') return json(res, 200, await juiceshop.status());
     if (url === '/api/juiceshop/start' && req.method === 'POST') return json(res, 200, await juiceshop.start());
     if (url === '/api/juiceshop/stop' && req.method === 'POST') return json(res, 200, await juiceshop.stop());
+    if (url === '/api/juiceshop/pentest' && req.method === 'POST') return json(res, 200, await juiceshop.pentest());
     if (url === '/api/cyber/apps') return json(res, 200, { packettracer: nativeapps.status('packettracer') });
     if (url === '/api/cyber/launch' && req.method === 'POST') { const b = await jbody(req, 1e3).catch(() => ({})); return json(res, 200, nativeapps.launch(String(b.app || ''))); }
     if (url === '/api/cyber/mynetwork') return json(res, 200, cybertools.myNetwork());
@@ -1814,6 +1871,9 @@ if (url === '/api/chat' && req.method === 'POST') {
     if (url === '/api/cyber/connections') return json(res, 200, cybertools.connections());
     if (url === '/api/cyber/interfaces') return json(res, 200, cybertools.interfaces());
     if (url === '/api/cyber/capture' && req.method === 'POST') { const b = await jbody(req, 1e4); return json(res, 200, cybertools.capture(b)); }
+    if (url === '/api/cyber/secrets' && req.method === 'POST') { const b = await jbody(req, 1e4).catch(() => ({})); return json(res, 200, cybertools.scanSecrets(b || {})); }
+    if (url === '/api/cyber/strings' && req.method === 'POST') { const b = await jbody(req, 1e4).catch(() => ({})); return json(res, 200, cybertools.extractStrings(b || {})); }
+    if (url === '/api/cyber/hashdir' && req.method === 'POST') { const b = await jbody(req, 1e4).catch(() => ({})); return json(res, 200, cybertools.hashDir(b || {})); }
     if (req.method === 'POST' && /^\/api\/cyber\/(dns|reverse|portscan|tlscert|headers|fingerprint|whois|subdomains|ipinfo|hashid|hashmake|hashcrack|traceroute)$/.test(url)) {
       const b = await jbody(req, 2e5), k = url.slice(11);
       const M = { dns: 'dnslookup', reverse: 'reverse', portscan: 'portscan', tlscert: 'tlscert', headers: 'httpheaders', fingerprint: 'fingerprint', whois: 'whois', subdomains: 'subdomains', ipinfo: 'ipinfo', hashid: 'hashId', hashmake: 'hashMake', hashcrack: 'hashCrack', traceroute: 'traceroute' };
@@ -1883,6 +1943,11 @@ if (url === '/api/chat' && req.method === 'POST') {
       return fs.createReadStream(p).pipe(res);
     }
     if (url === '/api/rhyme') { try { return json(res, 200, rhyme.lookup(q.get('word'))); } catch (e) { return json(res, 200, { error: String(e.message) }); } }
+    /* offline spell check for the app-wide right-click Fix spelling action */
+    if (url === '/api/spell' && req.method === 'POST') {
+      const body = await jbody(req, 2e5);
+      try { return json(res, 200, spell.check(String(body.text || ''))); } catch (e) { return json(res, 200, { ok: false, issues: [], error: String(e.message || e) }); }
+    }
     if (url === '/api/thesaurus') { try { return json(res, 200, await thesaurus.lookup(q.get('word'))); } catch (e) { return json(res, 200, { error: String(e.message) }); } }
     /* ---- one search for everything ---- */
     if (url === '/api/search' && req.method === 'POST') {

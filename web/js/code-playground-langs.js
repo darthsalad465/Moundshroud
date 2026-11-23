@@ -1,8 +1,7 @@
 // Coding › Playground: the language list. Every language has an example program and says how it runs: in the app
-// (Python with Pyodide, JavaScript, HTML, SQLite), in the Playground's own interpreters (web/js/esolangs.js,
-// esolangs-words.js, minilangs.js), in Windows Sandbox for Windows-native scripts, in the optional Docker image
-// (lib/code-playground) for Linux toolchains, or not at all here, with the reason. Native code is never run as the
-// signed-in Windows user. Used by web/js/code-lessons.js and the tests.
+// (Python with Pyodide, JavaScript, HTML, SQLite) or in the Playground's own interpreters (web/js/esolangs.js,
+// esolangs-words.js, minilangs.js). This build is browser-only: native host execution is disabled outright, so no
+// program typed here can reach the PC. Used by web/js/code-lessons.js and the tests.
 (function (root) {
   'use strict';
   const R = String.raw;
@@ -12,21 +11,21 @@
     ['pc', 'Runs in a sandbox on this PC'],
     ['eso', 'Esoteric languages (built-in interpreters)'],
     ['docker', 'Runs in the Docker sandbox'],
-    ['none', 'Cannot run safely here yet'],
+    ['none', 'Cannot run here (browser-only)'],
   ];
   /* the languages the optional Docker image (lib/code-playground/run.sh) can run */
   const DOCKER = ['bash', 'powershell', 'c', 'cpp', 'holyc', 'java', 'csharp', 'go', 'rust', 'typescript', 'kotlin', 'swift', 'php', 'ruby', 'lua', 'asm'];
-  const NOTOOL = 'Its compiler or interpreter is not in a safe sandbox here, and the app does not run native code as your Windows user.';
+  const NOTOOL = 'This build runs code only inside the browser sandbox; native code is disabled.';
   const L = [
     /* ---------- in the app ---------- */
-    { id: 'python', n: 'Python', ic: '🐍', run: 'py', ce: 'py', cm: '#', how: 'Python 3 with Pyodide, inside the app. numpy and pandas load on first use.',
+    { id: 'python', n: 'Python', ic: '🐍', run: 'py', ce: 'py', cm: '#', how: 'Python 3 with Pyodide, inside the app. numpy, pandas and matplotlib load on first use, and pygame, turtle and tkinter are built in: a drawing, an animation or a window shows the frames it made under the output.',
       ex: R`def fizzbuzz(n):
     return "Fizz" * (n % 3 == 0) + "Buzz" * (n % 5 == 0) or str(n)
 
 print("Hello from Python!")
 print(", ".join(fizzbuzz(i) for i in range(1, 16)))
 ` },
-    { id: 'javascript', n: 'JavaScript', ic: '🟨', run: 'js', ce: 'js', cm: '//', how: 'Runs in a sealed worker inside the app.',
+    { id: 'javascript', n: 'JavaScript', ic: '🟨', run: 'js', ce: 'js', cm: '//', how: 'Runs in a sealed worker inside the app. Anything you draw on a canvas appears as pictures, and an animation shows the last frames it drew; tick 🖥 Show it as a web page to watch it move on the Screen.',
       ex: R`const words = ['offline', 'private', 'yours'];
 console.log('Hello from JavaScript!');
 console.log(words.map(w => w.toUpperCase()).join(' · '));
@@ -677,13 +676,19 @@ so a program is written in a music editor, not as text.
      gets an answer: app, mini, eso, pc, docker, or none with a reason. `checking` is only true until the status call
      answers. code-lessons.js and the tests both use this, so a language can never end up with a blank explanation. */
   const MINI = ['scheme', 'prolog', 'forth', 'basic'];
+  /* SAFETY INVARIANT: no Playground program ever leaves the browser. Native languages are refused even when Docker or
+     Windows Sandbox is installed, because any host-side execution would break the promise that Playground code cannot
+     touch the PC. Browser languages (Python, JavaScript, SQL, HTML, Scratch, the classic interpreters) are unaffected. */
+  const BROWSER_ONLY = true;
   /* these open the Terminal playground instead of the code editor: the shell is simulated, so it is safe and always there */
   const SHELLS = L.filter(l => l.term).reduce((all, l) => { all[l.id] = l.term; return all; }, {});
   function route(l, status) {
     if (!l) return { g: 'none', why: 'That language is not in the Playground.' };
     if (['py', 'js', 'html', 'sql', 'binary', 'scratch'].includes(l.run)) return { g: 'app' };
     if (l.run === 'eso') return { g: MINI.includes(l.id) ? 'mini' : 'eso' };
-    if (l.run === 'none') return { g: 'none', why: l.why || NOTOOL };
+    if (BROWSER_ONLY) {
+      return { g: 'none', why: 'Native languages are disabled in this build. The Playground runs everything inside the browser sandbox, so no program you type here can reach your PC.' };
+    }
     if (!status) return { g: 'none', checking: true, why: 'Checking which safe sandboxes are available…' };
     if (status.failed) {
       return { g: 'none', why: 'The safe-sandbox check could not be read. Reload the page, or open “Safe runtime setup” below.' };
@@ -700,7 +705,7 @@ so a program is written in a music editor, not as text.
     if (onPc && inDocker) return { g: 'none', why: 'Windows Sandbox is not turned on, and ' + dockerWhy.charAt(0).toLowerCase() + dockerWhy.slice(1) };
     return { g: 'none', why: l.why || NOTOOL };
   }
-  const api = { GROUPS, LANGS: L, DOCKER, SANDBOX, NOTOOL, PREVIEW_CSP, PREVIEW_CSP_SCRIPTS, previewDoc, byId, route, MINI, SHELLS };
+  const api = { GROUPS, LANGS: L, DOCKER, SANDBOX, NOTOOL, BROWSER_ONLY, PREVIEW_CSP, PREVIEW_CSP_SCRIPTS, previewDoc, byId, route, MINI, SHELLS };
   root.PlayLangs = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

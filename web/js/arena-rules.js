@@ -726,6 +726,38 @@ const LiveOps = (function () {
     cmds.true = () => ({ out: '', quiet: true });
     cmds.false = () => ({ out: '', quiet: true });
 
+    /* every command the shared kit knows, filled around this shell's own table */
+    {
+      const Shared = typeof TerminalSharedCommands !== 'undefined' ? TerminalSharedCommands
+        : (typeof module !== 'undefined' && module.exports ? require('./terminal-commands-shared.js') : null);
+      const treeOf = () => m.trees[st.host];
+      const rd = p => {
+        const n = fs.walk(st.host, fs.resolve(st.host, String(p)));
+        if (n === undefined) return { err: String(p) + ': No such file or directory' };
+        if (isDir(n)) return { err: String(p) + ': Is a directory' };
+        return { text: textOf(n) };
+      };
+      if (Shared) Shared.fill(cmds, {
+        shell: 'bash', user: hostUser(), host: st.host === 'ops' ? 'workstation' : st.host === 'web' ? 'web01' : 'db01',
+        cwd: () => '/' + fs.cwd[st.host].join('/'),
+        read: rd,
+        write: (p, txt) => {
+          const parts = fs.resolve(st.host, String(p));
+          let n = treeOf();
+          for (let i = 0; i < parts.length - 1; i++) { if (!isDir(n[parts[i]])) n[parts[i]] = {}; n = n[parts[i]]; }
+          n[parts[parts.length - 1]] = { text: String(txt == null ? '' : txt) };
+        },
+        remove: p => { const parts = fs.resolve(st.host, String(p)); const parent = fs.walk(st.host, parts.slice(0, -1)); if (isDir(parent)) delete parent[parts[parts.length - 1]]; },
+        list: p => {
+          const n = fs.walk(st.host, fs.resolve(st.host, String(p)));
+          if (!isDir(n)) return { err: true, names: [] };
+          return { names: Object.keys(n).sort(), dirs: Object.keys(n).filter(k => isDir(n[k])) };
+        },
+        mkdir: p => { const parts = fs.resolve(st.host, String(p)); let n = treeOf(); for (const part of parts) { if (!isDir(n[part])) n[part] = {}; n = n[part]; } return ''; },
+        chdir: p => { const n = fs.walk(st.host, fs.resolve(st.host, String(p))); if (!isDir(n)) return false; fs.cwd[st.host] = fs.resolve(st.host, String(p)); return true; }
+      });
+    }
+
     function stdoutOrFile(args, stdin, read) {
       if (args.length) return read(args[0]);
       if (stdin != null) return { text: stdin };
@@ -1161,6 +1193,44 @@ const LiveOps = (function () {
     cmds.free = () => ({ out: 'Mem: 8.0Gi total, 2.4Gi used, 5.6Gi avail' });
     cmds.true = () => ({ out: '' });
     cmds.false = () => ({ out: '' });
+
+    /* a small working disk for the analyst console, so file commands have somewhere to work */
+    {
+      const Shared = typeof TerminalSharedCommands !== 'undefined' ? TerminalSharedCommands
+        : (typeof module !== 'undefined' && module.exports ? require('./terminal-commands-shared.js') : null);
+      const treeOf = () => (st.files || (st.files = {
+        'notes.txt': { text: 'Incident notes\n- watch the failed logins\n- contain, then harden' },
+        'auth.log': { text: 'Feb 12 06:41:02 web01 sshd[3110]: Failed password for ' + m.sshUser + ' from ' + activeIp() + ' port 44212 ssh2' }
+      }));
+      const resolveIn = p => {
+        const raw = String(p == null || p === '' ? '.' : p).replace(/\\/g, '/');
+        const parts = [];
+        for (const seg of raw.split('/')) { if (!seg || seg === '.') continue; if (seg === '..') parts.pop(); else parts.push(seg); }
+        return parts;
+      };
+      const walkIn = parts => { let n = treeOf(); for (const s of parts) { if (!isDir(n) || !Object.hasOwn(n, s)) return undefined; n = n[s]; } return n; };
+      const readIn = p => {
+        const n = walkIn(resolveIn(p));
+        if (n === undefined) return { err: String(p) + ': No such file or directory' };
+        if (isDir(n)) return { err: String(p) + ': Is a directory' };
+        return { text: textOf(n) };
+      };
+      if (Shared) Shared.fill(cmds, {
+        shell: 'bash', user: 'soc', host: 'soc-console',
+        cwd: () => '/var/incident',
+        read: readIn,
+        write: (p, txt) => {
+          const parts = resolveIn(p);
+          let n = treeOf();
+          for (let i = 0; i < parts.length - 1; i++) { if (!isDir(n[parts[i]])) n[parts[i]] = {}; n = n[parts[i]]; }
+          n[parts[parts.length - 1]] = { text: String(txt == null ? '' : txt) };
+        },
+        remove: p => { const parts = resolveIn(p); const parent = walkIn(parts.slice(0, -1)); if (isDir(parent)) delete parent[parts[parts.length - 1]]; },
+        list: p => { const n = walkIn(resolveIn(p)); if (!isDir(n)) return { err: true, names: [] }; return { names: Object.keys(n).sort(), dirs: Object.keys(n).filter(k => isDir(n[k])) }; },
+        mkdir: p => { const parts = resolveIn(p); let n = treeOf(); for (const part of parts) { if (!isDir(n[part])) n[part] = {}; n = n[part]; } return ''; },
+        chdir: () => false
+      });
+    }
 
     function run(line) {
       const raw = String(line == null ? '' : line).trim();

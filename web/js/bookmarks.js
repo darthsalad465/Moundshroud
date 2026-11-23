@@ -53,7 +53,7 @@
       (all.length ? all.map(b => row(b, b.u === cu)).join('') : '<div class="small mute" style="padding:8px 2px;line-height:1.5">No bookmarks yet. Open a book or page, scroll to where you want to come back to, then press <b>＋ Bookmark this spot</b>.</div>') + '</div>';
     const p = A.pop(anchor, html, 'left'); if (!p) return;
     p.onclick = e => {
-      const dl = e.target.closest('[data-bd]'); if (dl) { e.stopPropagation(); remove(dl.dataset.bd); A.closePop(); A.toast('Bookmark removed'); return; }
+      const dl = e.target.closest('[data-bd]'); if (dl) { e.stopPropagation(); remove(dl.dataset.bd); menu(anchor, ctx); A.toast('Bookmark removed'); return; }
       if (e.target.closest('[data-bm=add]')) { const fr = ctx.frame ? ctx.frame() : null, b = add(fr, ctx.where, cu, ctx.title ? ctx.title() : cu); A.closePop(); A.toast('🔖 Bookmarked at ' + Math.round(b.p * 100) + '%'); if (ctx.changed) ctx.changed(); return; }
       const o = e.target.closest('[data-bo]'); if (o) { const b = list().find(x => x.id === o.dataset.bo); A.closePop(); if (b) ctx.open(b); }
     };

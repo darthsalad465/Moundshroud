@@ -1,7 +1,8 @@
 // python3 / pip inside the Terminal playground's sandbox.
 // A command typed at the sandbox prompt is read from the shell's own virtual disk and executed by the bundled Pyodide
 // runtime (web/vendor/pyodide), so real Python runs while the PC is never touched and the sandbox stays offline.
-// The library set is what ships with the app: numpy, pandas, matplotlib, pillow, plus the bundled chess package.
+// The library set is what ships with the app: numpy, pandas, matplotlib, pillow, plus the bundled chess package and the
+// headless pygame, turtle and tkinter shims.
 (() => {
   const TP = window.TerminalPlayground = window.TerminalPlayground || {};
   const VERSION = 'Python 3.12.2 (Pyodide, offline sandbox)';

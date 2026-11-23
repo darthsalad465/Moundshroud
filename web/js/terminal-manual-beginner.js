@@ -42,7 +42,7 @@
 
   add('powershell', 'get-childitem', 'Show my files', 'See the names of the files and folders where you are now.', 'Get-ChildItem',
     'You get a list of files and folders.', [], { '-Force': 'Show hidden names too.', '-Recurse': 'Look inside smaller folders too.' });
-  add('powershell', 'get-location', 'Where am I?', 'Show the path to the folder you are in.', 'Get-Location', 'You see a folder path, such as C:\\puzzle.');
+  add('powershell', 'get-location', 'Where am I?', 'Show the path to the folder you are in.', 'Get-Location', 'You see a folder path, such as C:\\Users\\solver.');
   add('powershell', 'select-string', 'Find a word', 'Show lines that match the word you give it.', '', '', [],
     { '-Pattern PATTERN': 'Give it a word or pattern to find.', '-Path PATH': 'Tell it which file to read.' });
   add('powershell', 'get-content', 'Read a file', 'Show what is written inside a file. Pick a file name from Get-ChildItem first.');

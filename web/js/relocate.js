@@ -12,7 +12,7 @@
   /* ---------- Cyber (Code Breaker, Cyber Course, Cyber Lab, CyberChef) ---------- */
   const cp = document.getElementById('p-cyber'); let cysub = ls.get('cysub', 'arena');
   /* everything about security in one place, in three groups: learn it, use the tools, play the games */
-  const CY = [['arena', '◈ Red / Blue', 'Arena'], ['switchyard', 'Switchyard', 'Arena'], ['course', '🎓 Course', 'Learn'], ['code', '💻 Coding', 'Learn'], ['workshop', 'Debug workshop', 'Learn'],['cyber', '🛡️ Cyber Lab', 'Learn'], ['vault', '🔐 Passwords', 'Tools'], ['crack', '🔓 Cracker', 'Tools'], ['kit', '🧰 Toolkit', 'Tools'], ['artex', '🤖 ARTEX', 'Tools'], ['codes', '🔓 Code Breaker', 'Tools'], ['chef', '🧰 CyberChef', 'Tools'], ['ptracer', '🧪 Packet Tracer', 'Labs'], ['sqllab', '🗃 SQL', 'Labs'], ['subnet', '🌐 Subnet', 'Labs'], ['regex', '🔍 Regex', 'Labs'], ['juice', '🧃 Juice Shop', 'Labs'], ['jwt', '🔑 JWT', 'Labs'], ['cipher', '🔐 Ciphers', 'Labs'], ['re', '🔬 Reverse', 'Labs'], ['hashlab', '#️⃣ Hash', 'Labs'], ['jsonlab', '{ } JSON', 'Labs'], ['desktop', '◈ Cyber Desktop', 'Play'], ['games', '🕶️ Cyber games', 'Play']];
+  const CY = [['arena', '◈ Red / Blue', 'Arena'], ['switchyard', 'Switchyard', 'Arena'], ['course', '🎓 Course', 'Learn'], ['code', '💻 Coding', 'Learn'], ['book', '📚 Manual book', 'Learn'], ['workshop', 'Debug workshop', 'Learn'],['cyber', '🛡️ Cyber Lab', 'Learn'], ['vault', '🔐 Passwords', 'Tools'], ['crack', '🔓 Cracker', 'Tools'], ['kit', '🧰 Toolkit', 'Tools'], ['artex', '🤖 ARTEX', 'Tools'], ['codes', '🔓 Code Breaker', 'Tools'], ['chef', '🧰 CyberChef', 'Tools'], ['ptracer', '🧪 Packet Tracer', 'Labs'], ['sqllab', '🗃 SQL', 'Labs'], ['subnet', '🌐 Subnet', 'Labs'], ['regex', '🔍 Regex', 'Labs'], ['juice', '🧃 Juice Shop', 'Labs'], ['jwt', '🔑 JWT', 'Labs'], ['cipher', '🔐 Ciphers', 'Labs'], ['re', '🔬 Reverse', 'Labs'], ['hashlab', '#️⃣ Hash', 'Labs'], ['jsonlab', '{ } JSON', 'Labs'], ['desktop', '◈ Cyber Desktop', 'Play'], ['games', '🕶️ Cyber games', 'Play']];
   let cyGame = '';
   /* the cyber games (registered with the Games tab, cat: 'cyber') run right here */
   const games = b => {
@@ -33,11 +33,23 @@
   };
   const esc = t => String(t == null ? '' : t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const chef = b => { b.innerHTML = '<div class="small mute" style="padding:6px 12px">CyberChef, the "cyber swiss-army knife": encode, decode, hash, convert and analyse data. Runs fully offline.</div><iframe src="/cyberchef/" style="flex:1;border:0;width:100%;background:#fff"></iframe>'; };
+  /* the Cyber Codex: every command, switch and pipe, and every language in the Code playground, as a book */
+  const book = b => {
+    b.innerHTML = '<div class="scroll pad" style="flex:1"><h2 style="margin:0 0 4px">📚 Manual book</h2>' +
+      '<div class="small mute" style="max-width:72ch;line-height:1.55">The <b>Cyber Codex</b>: every command, switch and pipe of every shell, and every language in the Code playground, on the same book the Guide opens. It opens on its own when you pick this tab; close it with Esc and press the button to bring it back.</div>' +
+      '<div class="row" style="margin-top:12px"><button class="pri" id="cbkopen">📖 Open the book</button></div></div>';
+    const open = () => {
+      if (A.cyberBook) A.cyberBook.open();
+      else A.toast('The book is still loading. Try again in a moment.', 3500);
+    };
+    const btn = b.querySelector('#cbkopen'); if (btn) btn.onclick = open;
+    setTimeout(open, 40);
+  };
   const cyShow = s => {
     cysub = s; ls.set('cysub', s); const bar = document.getElementById('cysub'), body = document.getElementById('cybody'); if (!bar || !body) return;
     let grp = ''; bar.innerHTML = CY.filter(x => x[0] !== 'chef' || A.caps.chef).map(x => { const h = x[2] !== grp ? (grp ? '<span style="width:1px;align-self:stretch;background:var(--line);margin:0 4px"></span>' : '') + '<span class="small mute" style="align-self:center">' + x[2] + '</span>' : ''; grp = x[2]; return h + '<button class="ib' + (x[0] === s ? ' on' : '') + '" data-s="' + x[0] + '">' + x[1] + '</button>'; }).join('');
     /* kept alive (A.keep), except the games, which stop when you leave them */
-    const R2 = { arena: A.accessExercise.render, switchyard: A.switchyard.render, workshop: A.debugWorkshop.render, course: b => A.cybercourse.render(b), code: b => A.codeLessons.render(b),codes: b => A.cbLab.render(b), cyber: b => A.cyber.render(b), vault: b => A.vault.render(b), kit: b => A.cyberTools.render(b), artex: b => A.artex.render(b), ptracer: b => A.cyberLabs.ptracer(b), sqllab: b => A.cyberLabs.sqllab(b), subnet: b => A.cyberLabs.subnet(b), regex: b => A.cyberLabs.regex(b), juice: b => A.cyberLabs.juice(b), jwt: b => A.cyberLabs.jwt(b), cipher: b => A.cyberLabs.cipher(b), hashlab: b => A.cyberLabs.hashlab(b), jsonlab: b => A.cyberLabs.jsonlab(b), re: b => A.cyberLabs.re(b), crack: b => A.cyberLabs.crack(b), games, chef, desktop: A.cyberDesktop.mount };
+    const R2 = { arena: A.accessExercise.render, switchyard: A.switchyard.render, workshop: A.debugWorkshop.render, course: b => A.cybercourse.render(b), code: b => A.codeLessons.render(b), book,codes: b => A.cbLab.render(b), cyber: b => A.cyber.render(b), vault: b => A.vault.render(b), kit: b => A.cyberTools.render(b), artex: b => A.artex.render(b), ptracer: b => A.cyberLabs.ptracer(b), sqllab: b => A.cyberLabs.sqllab(b), subnet: b => A.cyberLabs.subnet(b), regex: b => A.cyberLabs.regex(b), juice: b => A.cyberLabs.juice(b), jwt: b => A.cyberLabs.jwt(b), cipher: b => A.cyberLabs.cipher(b), hashlab: b => A.cyberLabs.hashlab(b), jsonlab: b => A.cyberLabs.jsonlab(b), re: b => A.cyberLabs.re(b), crack: b => A.cyberLabs.crack(b), games, chef, desktop: A.cyberDesktop.mount };
     A.keep(body, s, el => R2[s](el), { fresh: s === 'games' });
   };
   if (cp) {

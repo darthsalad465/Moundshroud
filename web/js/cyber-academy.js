@@ -93,11 +93,14 @@
     const ok = msg => {
       if (answered) return;
       answered = true;
+      /* every correct answer pays the Cyber Desktop's practice bank, once per step */
+      try { A.cyberBank?.once('academy:' + key + ':' + cur().id + ':' + si, 18, 'Academy step: ' + cur().title + ' · step ' + (si + 1), 'puzzle', 'puzzles'); } catch (e) { }
       const last = si + 1 >= cur().steps.length;
       $('acm').innerHTML = '<div style="color:var(--ok)"><b>✓ ' + esc(msg || 'Correct!') + '</b> <button class="pri small" id="acgo" style="margin-left:8px">' + (last ? 'Finish lesson →' : 'Continue →') + '</button></div>';
       const g = $('acgo');
       if (g) g.onclick = () => {
         if (si + 1 < cur().steps.length) { si++; renderAll(); return; }
+        try { A.cyberBank?.once('academy:' + key + ':' + cur().id + ':lesson', 60, 'Academy lesson finished: ' + cur().title, 'puzzle', 'puzzles'); } catch (e) { }
         done.add(cur().id); save();
         si = cur().steps.length;
         renderAll();

@@ -54,15 +54,23 @@
     option('-A', 'In Bash Sandbox, mark line endings. GNU cat also makes tabs and other nonprinting characters visible.')
   ], [example('cat notes.txt', 'Read the complete file.'), example('cat notes.txt | grep -n todo', 'Pass the contents to grep.')], 'Use head or tail for large files. An error such as Permission denied comes from reading the file.', core);
   for (const [name, where] of [['head', 'first'], ['tail', 'last']]) {
-    add('bash', name, name + ' [-n COUNT] [FILE]', 'Read the ' + where + ' lines of a file or of piped input. The default count is ten.', [
+    add('bash', name, name + ' [-n COUNT | -c BYTES] [FILE]', 'Read the ' + where + ' lines of a file or of piped input. The default count is ten.', [
       option('-n COUNT', 'Choose a line count.', 'For example, -n 3 selects the ' + where + ' three lines.'),
-      option('-COUNT', 'Compact Playground syntax for selecting lines.', '-3 is equivalent to -n 3 in the supplied examples.')
+      option('-c BYTES', 'Count bytes instead of lines, as in -c 20.', 'Useful for cutting a binary or a long single line.'),
+      option('-COUNT', 'Compact Playground syntax for selecting lines.', '-3 is equivalent to -n 3 in the supplied examples.'),
+      option('+N', 'With tail -n +N, start at line N instead of counting from the end.', 'tail -n +2 skips the first line.')
     ], [example(name + ' -n 3 projects/api.log', 'Shows the ' + where + ' three log entries.')], 'Following a live file is beyond the Playground’s static file view.', core);
   }
-  add('bash', 'find', 'find [DIRECTORY] [-name PATTERN] [-type f|d]', 'Walk a directory tree and print matching paths. Use find for file names and grep for the text inside files.', [
+  add('bash', 'find', 'find [DIRECTORY] [-name PATTERN] [-type f|d] [TESTS] [ACTION]', 'Walk a directory tree and print matching paths. Use find for file names and grep for the text inside files.', [
     option('-name PATTERN', 'Match a basename against a wildcard.', 'Quote a pattern like "*.log" so find receives the wildcard itself.'),
-    option('-iname PATTERN', 'Match a name without case sensitivity.'), option('-type f', 'Select regular files.'), option('-type d', 'Select directories.')
-  ], [example('find . -name "*.log"', 'Look below the current directory for filenames ending in .log.')], '', 'https://www.gnu.org/software/findutils/manual/html_mono/find.html');
+    option('-iname PATTERN', 'Match a name without case sensitivity.'), option('-type f', 'Select regular files.'), option('-type d', 'Select directories.'),
+    option('-maxdepth N, -mindepth N', 'Limit how far below the start folder find walks.', 'Use -maxdepth 1 to stay in the folder you named.'),
+    option('-path PATTERN', 'Match the whole printed path instead of just the name.', 'find . -path "*log*" finds anything whose path mentions log.'),
+    option('-size +N, -empty', 'Select by size (c bytes, k, M) or for empty files and folders.'),
+    option('-not TEST, ! TEST, -a, -o', 'Negate a test, combine two with and, or combine two with or.', 'find . -not -name "*.txt" -type f lists the files that are not text files.'),
+    option('-exec CMD {} \\;', 'Run a command for every match, with {} replaced by the path.', 'find . -name "*.md" -exec cat {} \\; reads every match.'),
+    option('-delete, -print, -printf FORMAT, -ls', 'Remove matches, or choose the output format.', 'find /tmp -name "*.tmp" -delete removes the matches. -printf "%f\\n" prints just the names.')
+  ], [example('find . -name "*.log"', 'Look below the current directory for filenames ending in .log.'), example('find . -maxdepth 1 -type f -empty', 'List the empty files directly in the current folder.')], '', 'https://www.gnu.org/software/findutils/manual/html_mono/find.html');
   add('bash', 'chmod', 'chmod [options] MODE PATH ...', 'Change permission bits. A symbolic mode selects a class, operation, and permission. An octal mode describes groups of permission bits for owner, group, and others.', [
     option('u+r', 'Add read access for the owner.', 'u selects the owner, + adds one bit, and r means read. The other bits are preserved.'),
     option('u-r, g+w, o=', 'Remove, add, or replace selected permissions.', '- removes a bit. = sets the selected class to the specified bits. a means all classes.'),

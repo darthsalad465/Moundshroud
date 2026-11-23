@@ -13,7 +13,7 @@ SETUP (about 10 minutes, plus the download time for the AI)
  2. Double-click   Setup-Moundshroud.bat
     - If Windows says "Windows protected your PC": click "More info", then "Run anyway".
       (It shows this for any program that is not from a big company. The setup is plain text you can open and read.)
-    - Say Yes when it offers to install Node.js and Ollama. They are free, standard programs.
+    - Say Yes when it offers to install Node.js. The setup then puts the app's own copy of Ollama and the small Qwen 3.5 models in place.
     - Pick the Small AI model unless your PC has a graphics card with 8 GB or more.
  3. When it finishes, Moundshroud opens. Open it any time with the "Moundshroud" shortcut or Ctrl + Alt + A.
  4. In Moundshroud: Settings (the gear) > "Run a self-test". Everything should show a green tick.

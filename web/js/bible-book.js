@@ -41,7 +41,8 @@
   /* ------------------------------------------------------------------ where the reader is */
   const saved = (() => { try { const p = JSON.parse(ls.get('bbk_pos', 'null')); return p && typeof p.b === 'number' ? p : null; } catch (e) { return null; } })();
   const st = {
-    v: (saved && VERS[saved.v]) ? saved.v : (ls.get('bbk_ver', 'kjv') in VERS ? ls.get('bbk_ver', 'kjv') : 'kjv'),
+    /* the book always opens in the King James Version, whatever was read last time; the reading position is kept */
+    v: 'kjv',
     b: saved ? Math.max(0, saved.b | 0) : 0,
     c: saved ? Math.max(0, saved.c | 0) : 0,
     size: +ls.get('bbk_size', '18') || 18

@@ -70,9 +70,10 @@ module.exports = async ok => {
   const runnerUi = rd('web/js/code-runner.js');
   ok('code runner: the HTML frame cannot open popups and uses the no-network preview',
     !/allow-popups/.test(runnerUi) && /previewDoc\(r\.html\)/.test(runnerUi) && /sandbox', 'allow-scripts allow-modals'/.test(runnerUi));
-  const lessonsUi = rd('web/js/code-lessons.js');
-  ok('coding: the Playground says nothing runs as the Windows user and previews use the CSP',
-    !/runs on this PC as your Windows user/.test(lessonsUi) && /Nothing is run as your Windows user/.test(lessonsUi) &&
+  const lessonsUi = rd('web/js/code-lessons.js'), langsUi = rd('web/js/code-playground-langs.js');
+  ok('coding: the Playground promises nothing runs as the Windows user and previews use the CSP',
+    !/runs on this PC as your Windows user/.test(lessonsUi) && /no program you type here can reach your PC/.test(langsUi) &&
+    /BROWSER_ONLY = true/.test(langsUi) &&
     /CodeStage\.(mount|doc|pictures|page)/.test(lessonsUi) && /PL\.SANDBOX/.test(lessonsUi));
 
   /* ----- the worker seal ----- */
@@ -98,19 +99,22 @@ module.exports = async ok => {
       !/undefined|null|NaN/.test(r.why))), JSON.stringify(routes.filter(({ r }) => r.g === 'none' && !(r.why && r.why.trim().length > 12)).slice(0, 3)));
   ok('playground: nothing is silently unrunnable — every language runs in a sealed route or says why it cannot',
     PLAY.LANGS.every(l => { const r = PLAY.route(l, noStatus); return sealed.has(r.g) || !!r.why; }));
-  ok('playground: while the status is loading every backend language answers "checking", never a blank reason',
-    PLAY.LANGS.filter(l => ['docker', 'local'].includes(l.run)).every(l => {
-      const r = PLAY.route(l, null); return r.g === 'none' && r.checking === true && /Checking/.test(r.why);
-    }) &&
-    PLAY.LANGS.some(l => l.run === 'local') &&
-    PLAY.LANGS.filter(l => l.run === 'none').every(l => { const r = PLAY.route(l, null); return r.g === 'none' && !r.checking && !!r.why; }));
-  ok('playground: a failed status call says so instead of "undefined"',
-    /could not be read/.test(PLAY.route(PLAY.byId('c'), Object.assign({}, noStatus, { failed: true })).why || ''));
-  ok('playground: with Docker ready the container languages route to Docker and the Windows scripts stay refused',
-    PLAY.route(PLAY.byId('c'), dockerReady).g === 'docker' && PLAY.route(PLAY.byId('batch'), dockerReady).g === 'none' &&
-    /Windows Sandbox/.test(PLAY.route(PLAY.byId('batch'), dockerReady).why));
-  ok('playground: with Windows Sandbox ready the Windows scripts route to it and Docker languages are refused',
-    PLAY.route(PLAY.byId('powershell'), sandboxReady).g === 'pc' && PLAY.route(PLAY.byId('c'), sandboxReady).g === 'none');
+  ok('playground: this browser-only build never routes a native language to the PC, whatever the status says',
+    PLAY.LANGS.filter(l => ['docker', 'local'].includes(l.run)).every(l => statuses.every(s => {
+      const r = PLAY.route(l, s); return r.g === 'none' && /disabled in this build/.test(r.why);
+    })) &&
+    PLAY.LANGS.some(l => l.run === 'local') && PLAY.LANGS.some(l => l.run === 'docker'));
+  ok('playground: a failed status call never leaves a language with a blank or "undefined" reason',
+    [null, Object.assign({}, noStatus, { failed: true })].every(s => PLAY.LANGS.every(l => {
+      const r = PLAY.route(l, s);
+      return sealed.has(r.g) || (r.g === 'none' && typeof r.why === 'string' && r.why.trim().length > 12 && !/undefined|null|NaN/.test(r.why));
+    })));
+  ok('playground: even with Docker ready, a container language is refused rather than run on this PC',
+    PLAY.route(PLAY.byId('c'), dockerReady).g === 'none' && /browser sandbox/.test(PLAY.route(PLAY.byId('c'), dockerReady).why) &&
+    PLAY.route(PLAY.byId('batch'), dockerReady).g === 'none');
+  ok('playground: even with Windows Sandbox ready, a Windows script is refused rather than run on this PC',
+    PLAY.route(PLAY.byId('powershell'), sandboxReady).g === 'none' && /browser sandbox/.test(PLAY.route(PLAY.byId('powershell'), sandboxReady).why) &&
+    PLAY.route(PLAY.byId('c'), sandboxReady).g === 'none');
 
   /* output that never stops is capped while it is produced, so a run always ends with a readable result */
   ok('interp: Python output is capped at 200 KB per stream with a truncation note',

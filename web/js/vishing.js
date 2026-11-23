@@ -127,7 +127,7 @@
   }
 
   /* ---------- the agent's voice and words ---------- */
-  function prompt(c, action) {
+  function agentPrompt(c, action) {
     const order = {
       chat: 'Answer what the caller just said. Be helpful in your own way, but do not change any account and do not give out any details yet.',
       verify: c.pending === 'callback' ? 'Say you will call them back on the number on file in the directory before you do anything. Ask if that is okay.' : 'Before going further, ask the caller to confirm their ' + label(c.pending) + '.',
@@ -216,7 +216,7 @@
       abort = new AbortController();
       const model = A.ai.localModel ? await A.ai.localModel() : '';
       const hist = c.log.slice(-8).map(l => ({ role: l.who === 'you' ? 'user' : 'assistant', content: l.t }));
-      txt = tidy(await A.ai.stream([{ role: 'system', content: prompt(c, action) }].concat(hist), null, abort.signal, { model, temp: .7 }));
+      txt = tidy(await A.ai.stream([{ role: 'system', content: agentPrompt(c, action) }].concat(hist), null, abort.signal, { model, temp: .7 }));
     } catch (e) { txt = ''; }
     if (stopped || c !== cur) return;
     if (!txt || txt.length < 4) txt = canned(c, action);

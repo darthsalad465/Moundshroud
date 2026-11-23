@@ -1662,6 +1662,31 @@
   G.MAN_ALIAS = { ll: 'ls', la: 'ls', dir: 'ls', less: 'cat', more: 'cat', view: 'cat', egrep: 'grep', fgrep: 'grep',
     hexdump: 'xxd', od: 'xxd', ncat: 'nc', killall: 'pkill', bzip2: 'gzip', xz: 'gzip', realpath: 'ln', readlink: 'ln' };
 
+  /* The same reference is used by `help` in every terminal sandbox, the Help Terminal and the moundshell, so one
+     wording change reaches all of them. Every line says what the command does in words a five-year-old could follow. */
+  const ELI5_WORDS = [
+    [/\bdirectories\b/gi, 'folders'], [/\bdirectory\b/gi, 'folder'],
+    [/\bconcatenate\b/gi, 'join together'], [/\brecursively\b/gi, 'again inside every folder'],
+    [/\bstdout\b/gi, 'the screen'], [/\bstdin\b/gi, 'the text you give it'],
+    [/\barguments?\b/gi, 'extra words'], [/\benvironment variables?\b/gi, 'saved settings'],
+    [/\bprocesses\b/gi, 'programs that are running'], [/\bprocess\b/gi, 'program that is running'],
+    [/\bpermissions?\b/gi, 'who is allowed to use it'], [/\bmetadata\b/gi, 'facts about the file'],
+    [/\brepository\b/gi, 'project folder'], [/\bcommit\b/gi, 'saved copy'],
+    [/\bcontainers?\b/gi, 'small sealed boxes that run a program'],
+    [/\bdelimiter\b/gi, 'a character that splits the line'],
+    [/\bchecksums?\b/gi, 'a fingerprint of the data'],
+    [/\bwildcard\b/gi, 'a stand-in for any letters']
+  ];
+  G.eli5 = function (text) {
+    let out = String(text == null ? '' : text);
+    for (const [re, plain] of ELI5_WORDS) out = out.replace(re, plain);
+    return out;
+  };
+  const eli5Sentence = text => {
+    const plain = G.eli5(text).trim().replace(/[.;]+$/, '');
+    return plain ? plain.charAt(0).toUpperCase() + plain.slice(1) + '.' : '';
+  };
+  G.eli5Sentence = eli5Sentence;
   G.formatHelp = function (shellId, args) {
     const sections = G.HELP_DB[shellId] || G.HELP_DB.bash;
     const topic = Array.isArray(args) ? (args[0] || '').trim().toLowerCase() : String(args || '').trim().toLowerCase();
@@ -1673,15 +1698,20 @@
       const hits = [];
       for (const [sec, items] of sections) {
         for (const [cmd, desc] of items) {
-          if (cmd.toLowerCase().includes(topic) || desc.toLowerCase().includes(topic)) {
-            hits.push('  ' + cmd.padEnd(36) + '  ' + desc);
+          if (cmd.toLowerCase().includes(topic) || desc.toLowerCase().includes(topic) || G.eli5(desc).toLowerCase().includes(topic)) {
+            hits.push('  ' + cmd.padEnd(36) + '  ' + eli5Sentence(desc));
           }
         }
       }
       if (hits.length) return 'Help matching "' + topic + '" (' + shellId + '):\n\n' + hits.join('\n');
       return 'No help entry matched "' + topic + '". Type `help` to browse the command reference.';
     }
-    const out = [shellId.toUpperCase() + ' SANDBOX COMMAND REFERENCE   (tip: `help <name>` shows a full man page: flags, examples, piping)'];
+    const out = [
+      String(shellId).toUpperCase() + ' SANDBOX COMMAND REFERENCE · EVERY COMMAND, IN THE SIMPLEST WORDS',
+      '  Type the words in the left column, then press Enter. Think of it as telling a robot helper exactly what to do.',
+      '  help <command>   all the options and an example for one command',
+      '  help             this list'
+    ];
     if (typeof G.helpContext === 'function') {
       let ctx = null;
       try { ctx = G.helpContext(shellId); } catch (e) { ctx = null; }
@@ -1690,14 +1720,27 @@
         if (ctx.objective) for (const line of String(ctx.objective).split('\n')) { if (line.trim()) out.push('  ' + line.trim()); }
         if (ctx.commands && ctx.commands.length) {
           out.push('  Commands useful here:');
-          for (const [cmd, desc] of ctx.commands) out.push('    ' + String(cmd).padEnd(34) + '  ' + desc);
+          for (const [cmd, desc] of ctx.commands) out.push('    ' + String(cmd).padEnd(34) + '  ' + eli5Sentence(desc));
         }
       }
     }
+    const listed = new Set();
     for (const [sec, items] of sections) {
       out.push('', '── ' + sec + ' ──');
-      for (const [cmd, desc] of items) out.push('  ' + cmd.padEnd(36) + '  ' + desc);
+      for (const [cmd, desc] of items) {
+        const name = String(cmd).split(/\s+/)[0].toLowerCase();
+        listed.add(name);
+        out.push('  ' + cmd.padEnd(36) + '  ' + eli5Sentence(desc));
+      }
     }
+    /* Every command the shell can run gets a line, even the ones whose full page lives only in the manual. */
+    const man = G.MAN[shellId] || {};
+    const extra = Object.keys(man).filter(key => !listed.has(key.toLowerCase())).sort();
+    if (extra.length) {
+      out.push('', '── MORE COMMANDS ──');
+      for (const key of extra) out.push('  ' + key.padEnd(36) + '  ' + eli5Sentence(man[key].s || man[key].d));
+    }
+    out.push('', 'Tip: `help <command>` opens the full page with every option and an example. The ⛶ Help button opens the Help Terminal, which has a playground inside it.');
     return out.join('\n');
   };
 
@@ -2403,7 +2446,17 @@
       tmp: {},
       usr: { bin: { app: F('# ELF 64-bit LSB pie executable, x86-64', '755') } }
     });
-    const seed = () => G.mergeLoreInto(seedBase(), ['home', 'moundshroud'], false, 0xba5eba11);
+    /* the desktop folders and standard paths a real Ubuntu workstation has, underneath the sandbox's own files */
+    const seed = () => {
+      const base = seedBase();
+      if (window.TerminalPC) {
+        const pc = TerminalPC.linux({ user: 'moundshroud', host: 'dev-box', seed: 0xba5eba11, leaf: t => F(t) });
+        const merged = TerminalPC.merge(pc, base);
+        for (const k of Object.keys(base)) delete base[k];
+        Object.assign(base, merged);
+      }
+      return G.mergeLoreInto(base, ['home', 'moundshroud'], false, 0xba5eba11);
+    };
     const reset = () => {
       lanReset();      // back on dev-box, and every office PC gets its first disk again
       fs = seed(); cwd = HOME.slice(); hist = [];
@@ -2481,9 +2534,52 @@
           n[parts[parts.length - 1]] = F(String(txt));
         },
         remove: p => { const parts = resolve(p); const parent = parts.length ? walk(parts.slice(0, -1)) : undefined; if (isDir(parent)) delete parent[parts[parts.length - 1]]; },
-        list: p => { const n = walk(resolve(p)); if (n === undefined || !isDir(n)) return { err: true, names: [] }; return { names: Object.keys(n).filter(k => k[0] !== '.').sort() }; }
+        list: p => { const n = walk(resolve(p)); if (n === undefined || !isDir(n)) return { err: true, names: [] }; return { names: Object.keys(n).filter(k => k[0] !== '.').sort(), dirs: Object.keys(n).filter(k => isDir(n[k])) }; },
+        mkdir: p => { const parts = resolve(p); let n = fs; for (const part of parts) { if (!isDir(n[part])) n[part] = {}; n = n[part]; } return ''; },
+        cwd: () => path(),
+        chdir: p => { const parts = resolve(p); const n = walk(parts); if (!isDir(n)) return false; cwd = parts; env.PWD = path(); return true; },
+        env: () => env,
+        setenv: (k, v) => { env[k] = v; },
+        setvar: (k, v) => { env[k] = v; },
+        /* eval and exec really run through this engine, exactly like a line typed at the prompt */
+        exec: text => {
+          let out = '';
+          const write = chunk => { out += chunk; };
+          executeList(String(text), null, 0, write, write);
+          return out.replace(/\n$/, '');
+        }
       });
     }
+
+    /* yara over the sandbox's own files: simple `rule Name { strings: $a = "text" condition: $a }` rules.
+       The training fixtures still answer through the lab command when no rule file exists on this disk. */
+    const fixtureYara = C.yara;
+    C.yara = a => {
+      const args = (a || []).filter(x => !String(x).startsWith('-'));
+      const flags = (a || []).join(' ');
+      if (args.length < 2) return 'usage: yara [-c|-s] <rules> <file>';
+      const ruleFile = args[0].replace(/^\.\//, ''), target = args[1];
+      const rules = read(ruleFile);
+      if (rules.err) return fixtureYara ? fixtureYara(a) : 'yara: ' + ruleFile + ': No such file or directory';
+      const subject = read(target);
+      if (subject.err) return fixtureYara ? fixtureYara(a) : 'yara: ' + target + ': No such file or directory';
+      const parsed = [...String(rules.text).matchAll(/rule\s+(\w+)\s*\{([\s\S]*?)\n?\s*\}/g)].map(match => ({
+        name: match[1],
+        strings: [...match[2].matchAll(/\$(\w+)\s*=\s*"([^"]*)"/g)].map(s => ({ id: s[1], text: s[2] }))
+      }));
+      if (!parsed.length) return fixtureYara ? fixtureYara(a) : 'yara: error: no rules found in ' + ruleFile;
+      const lines = [];
+      let matched = 0;
+      for (const rule of parsed) {
+        const hits = rule.strings.map(s => ({ ...s, offset: String(subject.text).indexOf(s.text) })).filter(s => s.offset >= 0 && s.text);
+        if (!hits.length) continue;
+        matched++;
+        lines.push(rule.name + ' ' + target);
+        if (/-s|--print-strings/.test(flags)) for (const hit of hits) lines.push('0x' + hit.offset.toString(16) + ':$' + hit.id + ': ' + hit.text);
+      }
+      if (/-c|--count/.test(flags)) return String(matched);
+      return lines.join('\n');
+    };
 
     let prevCwd = null;
     C.pwd = () => path();
@@ -2591,28 +2687,32 @@
       }
       return { stdout: lines.join('\n') + ending, stderr: errors.join('\n'), status: errors.length ? 1 : 0 };
     };
-    C.head = (a, stdin) => {
-      let n = 10, files = [];
+    /* -n counts lines, -c counts bytes; both were read as a file name before */
+    const amountOf = a => {
+      let lines = 10, bytes = null; const files = [];
       for (let i = 0; i < a.length; i++) {
-        if (a[i] === '-n') n = parseInt(a[++i], 10) || 10;
-        else if (/^-n\d+$/.test(a[i])) n = parseInt(a[i].slice(2), 10) || 10;
-        else if (/^-\d+$/.test(a[i])) n = parseInt(a[i].slice(1), 10) || 10;
-        else if (!a[i].startsWith('-')) files.push(a[i]);
+        const token = a[i];
+        if (token === '-n') lines = parseInt(a[++i], 10) || 10;
+        else if (token === '-c') bytes = parseInt(a[++i], 10) || 0;
+        else if (/^-n\d+$/.test(token)) lines = parseInt(token.slice(2), 10) || 10;
+        else if (/^-c\d+$/.test(token)) bytes = parseInt(token.slice(2), 10) || 0;
+        else if (/^-\d+$/.test(token)) lines = parseInt(token.slice(1), 10) || 10;
+        else if (!token.startsWith('-')) files.push(token);
       }
+      return { lines, bytes, files };
+    };
+    C.head = (a, stdin) => {
+      const { lines: n, bytes, files } = amountOf(a);
       const r = src(files, stdin);
       if (r.err) return failure('head: ' + r.err);
+      if (bytes != null) return [...r.text].slice(0, bytes).join('');
       return (r.text.match(/[^\n]*\n|[^\n]+$/g) || []).slice(0, n).join('');
     };
     C.tail = (a, stdin) => {
-      let n = 10, files = [];
-      for (let i = 0; i < a.length; i++) {
-        if (a[i] === '-n') n = parseInt(a[++i], 10) || 10;
-        else if (/^-n\d+$/.test(a[i])) n = parseInt(a[i].slice(2), 10) || 10;
-        else if (/^-\d+$/.test(a[i])) n = parseInt(a[i].slice(1), 10) || 10;
-        else if (!a[i].startsWith('-')) files.push(a[i]);
-      }
+      const { lines: n, bytes, files } = amountOf(a);
       const r = src(files, stdin);
       if (r.err) return failure('tail: ' + r.err);
+      if (bytes != null) return [...r.text].slice(-bytes).join('');
       return (r.text.match(/[^\n]*\n|[^\n]+$/g) || []).slice(-n).join('');
     };
     C.echo = a => {
@@ -2671,39 +2771,25 @@
       }
       return '';
     };
-    C.cp = a => {
-      const f = a.filter(x => !x.startsWith('-'));
-      const r = read(f[0] || '');
-      if (r.err) return failure('cp: ' + r.err);
-      put(resolve(f[1] || ''), F(r.text));
-      return '';
-    };
-    C.mv = a => {
-      const f = a.filter(x => !x.startsWith('-'));
-      const r = read(f[0] || '');
-      if (r.err) return failure('mv: ' + r.err);
-      const parts = resolve(f[0]);
-      const parent = walk(parts.slice(0, -1));
-      if (parent) delete parent[parts[parts.length - 1]];
-      put(resolve(f[1] || ''), F(r.text));
-      return '';
-    };
+    /* cp and mv come from the shared kit: directories, -r, several sources into a directory and
+       the ordinary error text are all handled there, once for every sandbox. */
     C.find = a => {
-      const ni = a.indexOf('-name') >= 0 ? a.indexOf('-name') : a.indexOf('-iname');
-      const pat = ni >= 0 ? a[ni + 1] : null;
-      const ti = a.indexOf('-type');
-      const wantType = ti >= 0 ? a[ti + 1] : null;
-      const start = a.find((x, i) => !x.startsWith('-') && (ni < 0 || i !== ni + 1) && (ti < 0 || i !== ti + 1)) || '.';
-      const n = walk(resolve(start));
-      if (!isDir(n)) return "find: '" + start + "': No such file or directory";
-      const re = pat ? new RegExp('^' + pat.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.') + '$', ni === a.indexOf('-iname') ? 'i' : '') : null;
-      const rows = [];
-      for (const [p, c] of listTree(n, start, [])) {
-        if (wantType === 'f' && isDir(c)) continue;
-        if (wantType === 'd' && !isDir(c)) continue;
-        if (!re || re.test(p.split('/').pop())) rows.push(p);
-      }
-      return rows.join('\n');
+      const SH = window.TerminalSharedCommands;
+      if (!SH || typeof SH.find !== 'function') return '';
+      return SH.find(a, {
+        walk: p => walk(resolve(p)),
+        isDir,
+        size: n => (isDir(n) ? 4096 : textOf(n).length + 1),
+        mode: n => Unix.mode(n, isDir(n)),
+        remove: p => { const parts = resolve(p), parent = walk(parts.slice(0, -1)); if (parent) delete parent[parts[parts.length - 1]]; },
+        exec: (words, stdin) => {
+          const fn = C[words[0]];
+          if (typeof fn !== 'function') return 'find: ' + words[0] + ': command not found';
+          const r = fn(words.slice(1), stdin);
+          return typeof r === 'string' ? r : (r && r.stdout) || '';
+        },
+        user: 'moundshroud'
+      });
     };
     C.grep = (a, stdin) => {
       let flags = '', rest = [];
@@ -2806,15 +2892,26 @@
       return writeLines(rows);
     };
     C.cut = (a, stdin) => {
-      let d = '\t', fSpec = '1';
+      let d = '\t', fSpec = '1', cSpec = null;
       const skip = new Set();
       for (let i = 0; i < a.length; i++) {
         const x = a[i];
         if (x === '-d') { d = a[++i] ?? '\t'; skip.add(i); }
         else if (x === '-f') { fSpec = a[++i] || '1'; skip.add(i); }
+        else if (x === '-c') { cSpec = a[++i] || '1'; skip.add(i); }
         else if (/^-d/.test(x) && x.length > 2) d = x.slice(2);
         else if (/^-f.+/.test(x)) fSpec = x.slice(2);
+        else if (/^-c.+/.test(x)) cSpec = x.slice(2);
       }
+      const charsOf = (line, spec) => {
+        const wanted = [];
+        for (const bit of String(spec).split(',')) {
+          const range = bit.match(/^(\d+)-(\d*)$/);
+          if (range) for (let n = parseInt(range[1], 10); n <= parseInt(range[2] || range[1], 10); n++) wanted.push(n - 1);
+          else wanted.push((parseInt(bit, 10) || 1) - 1);
+        }
+        return [...line].filter((ch, i) => wanted.includes(i)).join('');
+      };
       const files = a.filter((x, i) => !x.startsWith('-') && !skip.has(i));
       const r = src(files, stdin);
       if (r.err) return 'cut: ' + r.err;
@@ -2822,6 +2919,7 @@
       const list = fSpec.includes(',') ? fSpec.split(',').map(n => parseInt(n, 10) - 1) : null;
       const idx = parseInt(fSpec, 10) || 1;
       return r.text.split('\n').map(l => {
+        if (cSpec) return charsOf(l, cSpec);
         const parts = l.split(d);
         if (rangeM) return parts.slice((+rangeM[1] || 1) - 1, rangeM[2] ? +rangeM[2] : undefined).join(d);
         if (list) return list.map(k => parts[k] || '').join(d);
@@ -3060,9 +3158,18 @@
       return f + ': ASCII text';
     };
     C.strings = (a, stdin) => {
-      const r = src(a.filter(x => !x.startsWith('-')), stdin);
-      if (r.err) return 'strings: ' + r.err;
-      return (r.text.match(/[\x20-\x7e]{4,}/g) || []).join('\n');
+      const minAt = a.findIndex(x => x === '-n');
+      const min = minAt >= 0 ? Math.max(1, Number(a[minAt + 1]) || 4) : 4;
+      const args = a.filter((x, i) => !x.startsWith('-') && (minAt < 0 || i !== minAt + 1));
+      const extract = value => (String(value).match(new RegExp('[\\x20-\\x7e\\t]{' + min + ',}', 'g')) || []).join('\n');
+      if (!args.length) return stdin != null ? extract(stdin) : 'strings: missing file operand';
+      const out = [];
+      for (const file of args) {
+        const r = src([file], null);
+        if (r.err) return 'strings: ' + r.err;
+        out.push(extract(r.text));
+      }
+      return out.join('\n');
     };
     C.nl = (a, stdin) => { const r = src(a.filter(x => !x.startsWith('-')), stdin); return r.err ? 'nl: ' + r.err : r.text.split('\n').map((l, i) => String(i + 1).padStart(6) + '\t' + l).join('\n'); };
     C.rev = (a, stdin) => { const r = src(a.filter(x => !x.startsWith('-')), stdin); return r.err ? 'rev: ' + r.err : r.text.split('\n').map(l => [...l].reverse().join('')).join('\n'); };
@@ -3142,7 +3249,13 @@
     };
     C.readlink = a => '/' + resolve(a.find(x => !x.startsWith('-')) || '.').join('/');
     C.realpath = C.readlink;
-    C.basename = a => String(a[0] || '').replace(/\/+$/, '').split('/').pop() || '/';
+    C.basename = a => {
+      const p = String(a[0] || '').replace(/\/+$/, '');
+      let name = p.split('/').pop();
+      if (name === '') name = '/';
+      else if (a[1] && name.endsWith(a[1]) && name !== a[1]) name = name.slice(0, -a[1].length);
+      return name;
+    };
     C.dirname = a => { const p = String(a[0] || '').replace(/\/+$/, '').split('/'); p.pop(); return p.join('/') || '.'; };
     C.mktemp = a => { const p = '/tmp/tmp.' + Math.random().toString(36).slice(2, 10); put(resolve(p), a.includes('-d') ? {} : F('')); return p; };
     C.hostname = () => 'dev-box';
@@ -3246,9 +3359,24 @@
     C.xargs = (a, stdin) => {
       if (!stdin) return '';
       const items = stdin.trim().split(/\s+/).filter(Boolean);
-      const target = a[0] || 'echo', rest = a.slice(1);
+      let perRun = 0, at = 0;
+      while (at < a.length && a[at].startsWith('-')) {
+        const token = a[at++];
+        if (token === '-n' || token === '-I') { const value = a[at++]; if (token === '-n') perRun = parseInt(value, 10) || 0; }
+        else if (token === '-0') { /* NUL-separated input already split on whitespace */ }
+        else if (/^-n\d+$/.test(token)) perRun = parseInt(token.slice(2), 10) || 0;
+      }
+      const target = a[at] || 'echo', rest = a.slice(at + 1);
       const fn = C[target];
-      return fn ? fn(rest.concat(items), null) : items.join(' ');
+      const runOne = words => {
+        if (typeof fn !== 'function') return 'xargs: ' + target + ': command not found';
+        const r = fn(rest.concat(words), null);
+        return typeof r === 'string' ? r : (r && r.stdout) || '';
+      };
+      if (!perRun || perRun >= items.length) return runOne(items);
+      const rows = [];
+      for (let i = 0; i < items.length; i += perRun) rows.push(runOne(items.slice(i, i + perRun)));
+      return rows.filter(Boolean).join('\n');
     };
     C.alias = a => {
       if (!a.length) return Object.entries(aliases).map(([k, v]) => "alias " + k + "='" + v + "'").join('\n');
@@ -3851,20 +3979,28 @@
     }
 
     // Bash history expansion: !! (last command), !n (entry n), !-n (n back) and !word (latest that starts with word).
-    // Like bash, an expanded line is echoed before it runs; quotes and single ! stay literal.
+    // Like bash, an expanded line is echoed before it runs. Single quotes protect everything inside them; double
+    // quotes still expand history; a backslash escapes the next character outside single quotes.
     function expandHistory(raw) {
-      if (!/!(?:!|-?\d+|[A-Za-z_][\w.-]*)/.test(raw) || /^'.*'$/.test(raw)) return { line: raw };
-      let failed = '';
-      const line = raw.replace(/(^|[^\\'])!(!|-?\d+|[A-Za-z_][\w.-]*)/g, (all, before, ref) => {
-        if (failed) return all;
+      if (!raw.includes('!')) return { line: raw };
+      let line = '', failed = '', single = false, double = false;
+      for (let i = 0; i < raw.length; i++) {
+        const ch = raw[i];
+        if (ch === '\\' && !single && i + 1 < raw.length) { line += ch + raw[++i]; continue; }
+        if (ch === "'" && !double) { single = !single; line += ch; continue; }
+        if (ch === '"' && !single) { double = !double; line += ch; continue; }
+        if (ch !== '!' || single) { line += ch; continue; }
+        const ref = /^!(!|-?\d+|[A-Za-z_][\w.-]*)/.exec(raw.slice(i));
+        if (!ref) { line += ch; continue; }
         let hit;
-        if (ref === '!') hit = hist.at(-1);
-        else if (/^-\d+$/.test(ref)) hit = hist.at(Number(ref));
-        else if (/^\d+$/.test(ref)) hit = hist[Number(ref) - 1];
-        else hit = [...hist].reverse().find(entry => entry.startsWith(ref));
-        if (hit == null) { failed = '!' + ref; return all; }
-        return before + hit;
-      });
+        if (ref[1] === '!') hit = hist.at(-1);
+        else if (/^-\d+$/.test(ref[1])) hit = hist.at(Number(ref[1]));
+        else if (/^\d+$/.test(ref[1])) hit = hist[Number(ref[1]) - 1];
+        else hit = [...hist].reverse().find(entry => entry.startsWith(ref[1]));
+        if (hit == null) { failed = ref[0]; break; }
+        line += hit;
+        i += ref[0].length - 1;
+      }
       return failed ? { error: 'bash: ' + failed + ': event not found' } : { line, echo: line !== raw };
     }
 
@@ -4077,6 +4213,19 @@
       return h.web ? h.web : failure('curl: (7) Failed to connect to ' + m[1] + ' port 80 after 2 ms: Connection refused', 7);
     };
     C.wget = C.curl;
+    /* the menu the help window promises: the evidence files and the tools that read them */
+    C['security-tools'] = () => [
+      'BUNDLED EVIDENCE AND THE TOOLS THAT READ IT',
+      '',
+      '  /var/log/auth.log     sshd logins, including the failed ones',
+      '  /var/log/app.log      the application log',
+      '  projects/api.log      a week of API requests',
+      '  projects/deploy.sh    a deployment script',
+      '',
+      '  grep, strings, yara, jq, base64, xxd, sha256sum, openssl',
+      '',
+      'Everything here is simulated and belongs to this sandbox.'
+    ].join('\n');
     C.whoami = () => here.user;
     C.hostname = () => here.host;
     C.id = a => here.user === 'moundshroud' ? idLocal(a) : 'uid=1000(' + here.user + ') gid=1000(' + here.user + ') groups=1000(' + here.user + ')';
@@ -4106,6 +4255,8 @@
 
     return {
       id: 'bash', name: 'Bash / Linux', icon: '🐧', group: 'Unix',
+      /* every command this shell really answers to, for the help window's complete list */
+      commandNames: () => Object.keys(C),
       about: 'Bash simulation with a disposable filesystem. Compose pipelines, define functions, run loops, and execute scripts saved in the sandbox.',
       prompt: () => pendingAuth ? pendingAuth.prompt : here.user + '@' + here.host + ':' + disp() + '$ ',
       /* true while ssh or scp waits for a password: the terminal hides that line and keeps it out of history */
@@ -4200,6 +4351,106 @@
         ['scp notes.txt guest@kiosk-3:~/', 'copy a file onto another PC'],
         ['scp guest@kiosk-3:Desktop/it-ticket.txt .', 'copy a file from another PC to this one'],
         ['nmap -sV 10.0.0.5', 'service and version scan'],
+        ['basename /home/moundshroud/notes.txt', 'a file name without its folder'],
+        ['dirname /home/moundshroud/notes.txt', 'the folder part of a path'],
+        ['realpath notes.txt', 'the full path of a file'],
+        ['mktemp', 'a fresh temporary name'],
+        ['seq 3 6', 'a run of numbers'],
+        ['expr 6 7', 'shell arithmetic with expr'],
+        ['echo "2+2" | bc', 'arithmetic with bc'],
+        ['cal', 'this month as a calendar'],
+        ['date', 'the date and time now'],
+        ['nproc', 'how many CPUs the box has'],
+        ['uptime', 'how long it has been running'],
+        ['whoami', 'the account you are using'],
+        ['groups', 'the groups you belong to'],
+        ['type grep', 'how the shell would run a name'],
+        ['alias ll="ls -la"', 'make a short name'],
+        ['alias', 'every alias you made'],
+        ['unalias ll', 'remove an alias'],
+        ['history 5', 'the last five commands'],
+        ['printenv HOME', 'a single environment variable'],
+        ['tty', 'the terminal you type in'],
+        ['uname -r', 'just the kernel release'],
+        ['arch', 'the machine architecture'],
+        ['sleep 1', 'wait for a second'],
+        ['yes ok | head -3', 'repeat a word, stopped by head'],
+        ['true && echo yes', 'a command that always succeeds'],
+        ['false || echo recovered', 'a failure, and the recovery'],
+        ['test -f notes.txt && echo present', 'a file test'],
+        ['[ -d projects ] && echo directory', 'the old spelling of test'],
+        ['let n=2+3; echo $n', 'arithmetic that stores a value'],
+        ['echo $((6*7))', 'arithmetic expansion'],
+        ['printf "%s-%s\n" a b', 'printf with two parts'],
+        ['fold -w 8 notes.txt', 'wrap long lines'],
+        ['expand notes.txt', 'turn tabs into spaces'],
+        ['nl notes.txt', 'number the lines'],
+        ['rev notes.txt', 'each line backwards'],
+        ['tac notes.txt', 'the file from the bottom up'],
+        ['od -c notes.txt', 'a character dump'],
+        ['strings notes.txt', 'the printable runs in a file'],
+        ['cksum notes.txt', 'checksum and byte count'],
+        ['cmp notes.txt notes.txt', 'compare two files'],
+        ['stat notes.txt', 'size, times and permissions'],
+        ['file notes.txt', 'what kind of file it is'],
+        ['md5sum notes.txt', 'an md5 checksum'],
+        ['sha256sum notes.txt', 'a sha256 checksum'],
+        ['tree projects', 'the projects folder as a tree'],
+        ['ln -s notes.txt notes.link', 'a shortcut to a file'],
+        ['readlink notes.link', 'where a shortcut points'],
+        ['echo alpha bravo | xargs -n 1 echo', 'turn a list into separate commands'],
+        ['split notes.txt /tmp/part-', 'cut a file into pieces'],
+        ['time sleep 0.1', 'how long a command takes'],
+        ['timeout 1 sleep 3', 'stop a command that runs too long'],
+        ['getent hosts dev-box', 'look a name up in the hosts database'],
+        ['ssh-keygen -t ed25519', 'make an SSH key pair'],
+        ['nice -n 10 echo polite', 'run at a lower priority'],
+        ['pidof bash', 'the process id of a program'],
+        ['pstree', 'processes as a tree'],
+        ['vmstat', 'memory and CPU activity'],
+        ['locale', 'language settings'],
+        ['timedatectl', 'clock and time zone'],
+        ['lsmod', 'loaded kernel modules'],
+        ['lspci', 'devices on the PCI bus'],
+        ['lsusb', 'devices on the USB bus'],
+        ['sensors', 'temperatures and fan speeds'],
+        ['journalctl -n 3', 'the last few log lines'],
+        ['systemctl status sshd', 'the state of one service'],
+        ['crontab -l', 'scheduled jobs'],
+        ['lsof -i', 'which process holds a socket'],
+        ['ss -tan', 'sockets and their states'],
+        ['ip a', 'interfaces and addresses'],
+        ['ip route', 'the routing table'],
+        ['dig +short api.internal', 'just the DNS answer'],
+        ['whois example.internal', 'registration details'],
+        ['arp -a', 'the neighbour cache'],
+        ['traceroute dev-box', 'the path packets take'],
+        ['ufw status', 'the firewall state'],
+        ['openssl version', 'the TLS library version'],
+        ['install notes.txt /tmp/notes.copy', 'copy a file into place'],
+        ['dd if=notes.txt of=/tmp/notes.copy bs=1K', 'copy raw bytes'],
+        ['sync', 'flush writes to disk'],
+        ['hostid', 'the numeric id of this machine'],
+        ['loginctl', 'login sessions'],
+        ['localectl', 'keyboard and language'],
+        ['ethtool eth0', 'an adapter’s link speed'],
+        ['nmcli', 'network connections'],
+        ['modinfo e1000', 'describe a kernel module'],
+        ['smartctl -a /dev/sda', 'disk health counters'],
+        ['dpkg -l | head -3', 'installed packages, the first few'],
+        ['snap list', 'snap packages'],
+        ['pip3 list', 'python packages'],
+        ['gcc --version', 'the C compiler version'],
+        ['make --version', 'the build tool version'],
+        ['docker version', 'the container engine version'],
+        ['kubectl version', 'the cluster client version'],
+        ['yara --version', 'the pattern matcher version'],
+        ['man -k password', 'search the manual by word'],
+        ['apropos copy', 'search the descriptions'],
+        ['whatis grep', 'a one-line description'],
+        ['whereis grep', 'where a program and its page live'],
+        ['locate notes.txt', 'find a file from the index'],
+        ['mkfifo /tmp/pipe', 'make a named pipe'],
         ['help', 'every command this sandbox supports'],
         ['reset', 'restore the virtual disk']
       ].map(x => ({ ex: x[0], d: x[1] }))

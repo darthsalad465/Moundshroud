@@ -44,6 +44,7 @@
       else if (m.cmd === 'stop') window.stop();
       else if (m.cmd === 'snap') r = snap();
       else if (m.cmd === 'focus') window.focus();
+      else if (m.cmd === 'source') r = '<!DOCTYPE html>\n' + document.documentElement.outerHTML.slice(0, 600000);
     } catch (x) { r = null; }
     if (m.id) send({ ev: 'reply', id: m.id, r });
   });
@@ -55,6 +56,14 @@
   let st = 0; addEventListener('scroll', () => { clearTimeout(st); st = setTimeout(() => send({ ev: 'scroll', s: snap() }), 250); }, { passive: true });
   document.addEventListener('mouseover', e => { const a = e.target.closest && e.target.closest('a[href]'); if (!a) return send({ ev: 'hover', h: '' }); let h = ''; try { const l = new URL(a.href, location.href); h = l.origin === location.origin && /^\/wiki\//.test(l.pathname) ? (norm(a.textContent).slice(0, 70) || decodeURIComponent(l.pathname.split('/').pop())) : l.href; } catch (x) { h = a.getAttribute('href') || ''; } send({ ev: 'hover', h }); });
   document.addEventListener('mouseout', () => send({ ev: 'hover', h: '' }));
+  /* right-click belongs to the Moundshroud window again: the page's own browser menu is replaced by the app menu,
+     which can offer View page source (the page hands over its own HTML), copy link, find, print and the rest */
+  document.addEventListener('contextmenu', e => {
+    const a = e.target.closest && e.target.closest('a[href]');
+    let link = ''; if (a) { try { link = new URL(a.href, location.href).href; } catch (x) { } }
+    e.preventDefault();
+    send({ ev: 'ctx', x: e.clientX, y: e.clientY, sel: String(getSelection() || '').trim().slice(0, 600), link, url: here(), title: document.title || '' });
+  }, true);
   document.addEventListener('mouseup', e => { if (e.button === 3) { e.preventDefault(); send({ ev: 'back' }); } else if (e.button === 4) { e.preventDefault(); send({ ev: 'fwd' }); } else { const s = String(getSelection() || '').trim(); if (s.length > 2 && s.length < 600) send({ ev: 'sel', t: s }); } });
   const newTab = (e, a) => { try { const l = new URL(a.href, location.href); if (l.origin === location.origin && /^\/wiki\//.test(l.pathname)) { e.preventDefault(); send({ ev: 'newtab', url: l.pathname + l.search, title: norm(a.textContent).slice(0, 40) }); } } catch (x) { } };
   document.addEventListener('click', e => { const a = e.target.closest && e.target.closest('a[href]'); if (a && (e.ctrlKey || e.metaKey)) newTab(e, a); });
@@ -62,7 +71,7 @@
   /* shortcuts belong to the window (tabs, find, zoom, back...), so they are passed on instead of acting on the page */
   document.addEventListener('keydown', e => {
     const c = e.ctrlKey || e.metaKey, k = e.key || '';
-    const ours = (c && /^(t|w|l|f|d|r|h|p|k|n|=|\+|-|0|tab)$/i.test(k)) || (c && e.shiftKey && /^b$/i.test(k)) || (e.altKey && /^(ArrowLeft|ArrowRight|Home)$/.test(k)) || k === 'F5' || k === 'F1' || k === 'F9' || k === 'Escape';
+    const ours = (c && /^(t|w|l|f|d|r|h|p|k|n|u|=|\+|-|0|tab)$/i.test(k)) || (c && e.shiftKey && /^b$/i.test(k)) || (e.altKey && /^(ArrowLeft|ArrowRight|Home)$/.test(k)) || k === 'F5' || k === 'F1' || k === 'F9' || k === 'Escape';
     if (!ours) return; e.preventDefault();
     send({ ev: 'key', key: k, code: e.code, ctrlKey: e.ctrlKey, metaKey: e.metaKey, altKey: e.altKey, shiftKey: e.shiftKey });
   }, true);

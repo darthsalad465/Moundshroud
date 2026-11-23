@@ -33,22 +33,43 @@ if (-not $node) {
 }
 if ($node) { Say ('Node.js found: ' + (& $(if ($node -is [string]) { $node } else { $node.Source }) --version)) Green }
 
-Step '3. Ollama (runs the AI on your PC)'
-$ollama = Join-Path $env:LOCALAPPDATA 'Programs\Ollama\ollama.exe'
+Step '3. Ollama and the Qwen models (the AI that runs on your PC)'
+$bundle = Join-Path $root 'runtime\ollama'
+$ollama = Join-Path $bundle 'ollama.exe'
 if (-not (Test-Path $ollama)) {
-  Say 'Ollama is not installed. It is the free program that runs the AI model on your own computer.' Yellow
-  if (-not $SkipInstalls -and (Ask 'Install Ollama now?') -and (Winget 'Ollama.Ollama')) { Start-Sleep -Seconds 2 }
-  if (-not (Test-Path $ollama)) { $problems += 'Install Ollama (https://ollama.com/download), then run Setup-Moundshroud.bat again.'; if (-not $Auto -and -not $SkipInstalls) { Start-Process 'https://ollama.com/download' } }
+  $inst = Join-Path $env:LOCALAPPDATA 'Programs\Ollama\ollama.exe'
+  if (Test-Path $inst) { $ollama = $inst; Say 'Ollama is already installed on this PC; that copy is used.' Green }
+}
+if (-not (Test-Path $ollama)) {
+  Say 'Moundshroud brings its own copy of Ollama (the free program that runs the AI on your computer, about 1 GB).' Yellow
+  if (-not $SkipInstalls -and (Ask 'Download the app''s own copy of Ollama now?')) {
+    try {
+      $tmp = Join-Path ([IO.Path]::GetTempPath()) ('ollama-' + [guid]::NewGuid().ToString('N') + '.zip')
+      Invoke-WebRequest 'https://ollama.com/download/ollama-windows-amd64.zip' -OutFile $tmp -UseBasicParsing
+      New-Item -ItemType Directory -Force $bundle | Out-Null
+      Expand-Archive $tmp -DestinationPath $bundle -Force; Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+      if (Test-Path $ollama) { Say 'The AI engine now lives in the Moundshroud folder.' Green }
+    } catch { }
+  }
+  if (-not (Test-Path $ollama) -and -not $SkipInstalls -and (Ask 'Use the Windows installer for Ollama instead?')) {
+    if (Winget 'Ollama.Ollama') { Start-Sleep -Seconds 2; if (Test-Path (Join-Path $env:LOCALAPPDATA 'Programs\Ollama\ollama.exe')) { $ollama = Join-Path $env:LOCALAPPDATA 'Programs\Ollama\ollama.exe' } }
+  }
+  if (-not (Test-Path $ollama)) { $problems += 'The AI engine is missing. Run setup again while online, or install Ollama from https://ollama.com/download.'; if (-not $Auto -and -not $SkipInstalls) { Start-Process 'https://ollama.com/download' } }
 }
 if (Test-Path $ollama) {
-  Say 'Ollama found.' Green
+  Say 'The AI engine is ready.' Green
   if (-not $SkipModels) {
     $have = ''; try { $have = (& $ollama list 2>$null) -join ' ' } catch { }
-    if ($have -match 'qwen3\.5') { Say 'An AI model is already installed.' Green }
+    $small = @('qwen3.5:0.8b', 'qwen3.5:2b')
+    if (($small | Where-Object { $have -match [regex]::Escape($_) }).Count -eq $small.Count) { Say 'The small Qwen family is already installed.' Green }
     else {
-      Say 'Moundshroud needs at least one AI model. Choose one (you can add more later):'; Say '   1  Small  (about 2.5 GB)  works on almost any PC  [recommended to start]'; Say '   2  Standard  (about 6 GB)  smarter, wants a graphics card with 8 GB or more'; Say '   3  Both'; Say '   4  Skip for now'
+      Say 'The models that come with Moundshroud are the small Qwen 3.5 family. Choose what to download now (you can add more later):'
+      Say '   1  The small family: 0.8B + 2B  (about 4 GB)  works on almost any PC  [recommended to start]'
+      Say '   2  The whole small family: 0.8B + 2B + 4B  (about 9 GB)  sharper answers'
+      Say '   3  A bigger model instead: 9B  (about 6 GB)  wants a graphics card with 8 GB or more'
+      Say '   4  Skip for now'
       $c = if ($Auto) { '1' } else { Read-Host 'Your choice [1]' }; if (-not $c) { $c = '1' }
-      $tags = switch ($c) { '2' { @('qwen3.5:9b') } '3' { @('qwen3.5:2b', 'qwen3.5:9b') } '4' { @() } default { @('qwen3.5:2b') } }
+      $tags = switch ($c) { '2' { @('qwen3.5:0.8b', 'qwen3.5:2b', 'qwen3.5:4b') } '3' { @('qwen3.5:9b') } '4' { @() } default { @('qwen3.5:0.8b', 'qwen3.5:2b') } }
       if ($tags.Count) {
         try { Invoke-WebRequest 'http://127.0.0.1:11434' -UseBasicParsing -TimeoutSec 2 | Out-Null } catch { Start-Process $ollama -ArgumentList 'serve' -WindowStyle Hidden; for ($i = 0; $i -lt 30; $i++) { Start-Sleep -Milliseconds 500; try { Invoke-WebRequest 'http://127.0.0.1:11434' -UseBasicParsing -TimeoutSec 2 | Out-Null; break } catch { } } }
         foreach ($t in $tags) { Say "Downloading $t (this can take a while)..." Yellow; & $ollama pull $t; if ($LASTEXITCODE -ne 0) { $problems += "The model $t did not download. Run:  ollama pull $t  later." } }

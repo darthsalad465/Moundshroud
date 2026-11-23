@@ -1,5 +1,5 @@
 /* Terminal Playground manual dialog and its responsive page browser. */
-.tpg-manual{width:min(960px,calc(100vw - 24px));max-width:none;max-height:92vh;padding:0;overflow:hidden;border:1px solid #355165;border-radius:14px;background:#0a121a;color:#e2edf1;box-shadow:0 24px 90px #000b;font:15px/1.5 system-ui,sans-serif}
+.tpg-manual{width:min(960px,calc(100vw - 24px));max-width:none;max-height:92vh;padding:0;border:1px solid #355165;border-radius:14px;background:#0a121a;color:#e2edf1;box-shadow:0 24px 90px #000b;font:15px/1.6 system-ui,sans-serif;overflow-x:hidden;overflow-y:auto}
 .tpg-manual code,.tpg-manual pre,.tpg-manual form input,.tpg-manual form span{font-family:Consolas,"Cascadia Mono",monospace}
 .tpg-manual[open]{display:flex;flex-direction:column}
 .tpg-manual::backdrop{background:#03080ebd}
@@ -14,10 +14,14 @@
 .tpg-manual button{padding:6px 11px;min-height:38px;border:1px solid #476575;border-radius:7px;background:#142735;color:#e5f1f4;font:inherit;cursor:pointer;text-align:left}
 .tpg-manual button:hover,.tpg-manual button[aria-current="page"]{border-color:#71bca6;background:#1b3b3d}
 .tpg-manual button:focus-visible,.tpg-manual summary:focus-visible,.tpg-manual input:focus-visible,.tpg-manual article:focus-visible{outline:2px solid #86e0bf;outline-offset:2px}
-.tpg-manual kbd,.tpg-manual small,.tpg-manual-count,.tpg-manual-note{color:#adc2ca}
+.tpg-manual kbd,.tpg-manual small,.tpg-manual-count,.tpg-manual-note{color:#c3d5dd}
+.tpg-manual .mute{color:#b6c9d2}
+.tpg-manual small{font-size:13px}
 .tpg-manual-search{display:flex;align-items:center;gap:7px;flex:1 1 265px;min-width:0;white-space:nowrap}
 .tpg-manual-search input{flex:1}
-.tpg-manual-columns{display:grid;grid-template-columns:minmax(0,1fr);height:min(58vh,530px);min-height:0;flex:1 1 auto}
+.tpg-manual-anyshell{display:flex;align-items:center;gap:6px;color:#c3d5dd;font-size:13px;white-space:nowrap;cursor:pointer;user-select:none}
+.tpg-manual-anyshell input[type="checkbox"]{width:auto;min-width:0;flex:0 0 auto;margin:0;accent-color:#71bca6;cursor:pointer}
+.tpg-manual-columns{display:grid;grid-template-columns:minmax(0,1fr);height:min(46vh,430px);min-height:0;flex:1 1 auto}
 .tpg-manual-columns[data-show-index="true"]{grid-template-columns:minmax(190px,29%) minmax(0,1fr)}
 .tpg-manual aside{min-height:0;display:flex;flex-direction:column;padding:10px;border-right:1px solid #2c424f;background:#0d1922;overflow:hidden}
 .tpg-manual aside[hidden]{display:none}
@@ -30,6 +34,12 @@
 .tpg-manual article p{margin:5px 0 9px}
 .tpg-manual article h4{margin:16px 0 6px;font-size:15px}
 .tpg-manual-meaning{max-width:65ch}
+.tpg-manual-levels{border:1px solid #2e4b59;border-radius:8px;background:#0d1a23;padding:9px 12px;margin:12px 0;max-width:78ch}
+.tpg-manual-levels h4{margin:2px 0 8px}
+.tpg-manual-levels dl{margin:0}
+.tpg-manual-levels dt{color:#9ee9cc;font-size:12.5px;letter-spacing:.02em;margin-top:8px}
+.tpg-manual-levels dd{margin:2px 0 0;line-height:1.6}
+.tpg-manual-levels dt:first-child{margin-top:0}
 .tpg-manual-starters{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,175px),1fr));gap:8px;margin:14px 0}
 .tpg-manual-starters button{display:grid;gap:3px;padding:10px 12px;align-content:start;overflow-wrap:anywhere}
 .tpg-manual-starters code{color:#9ee9cc;font-size:13px}
@@ -69,3 +79,170 @@
 .tpg-manual-mission h3 { margin: 0 0 6px; }
 .tpg-manual-mission > p { margin: 2px 0; }
 .tpg-manual-mission .tpg-manual-example { margin-top: 8px; }
+
+/* Every command, always listed, grouped by chapter */
+.tpg-manual-group h4{margin:12px 0 3px;font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:#8fb4be}
+.tpg-manual-group:first-of-type h4{margin-top:4px}
+.tpg-manual-list button span{overflow-wrap:anywhere}
+.tpg-manual-cat{margin:18px 0 0;font-size:14px;letter-spacing:.02em;text-transform:none;border-bottom:1px solid #2c424f;padding-bottom:4px}
+.tpg-manual-cat .small{font-weight:400}
+.tpg-manual-all{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0 10px}
+.tpg-manual-all button{padding:4px 9px;min-height:30px;font-family:Consolas,"Cascadia Mono",monospace;font-size:13px}
+.tpg-manual-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.tpg-manual-why{margin:4px 0 0;color:#cfe3e8;max-width:70ch}
+.tpg-manual-simple{max-width:70ch;background:#0f1c26;border:1px solid #2c424f;border-radius:8px;padding:8px 10px}
+.tpg-manual-tip{border-left:3px solid #71bca6;background:#0e1e20;padding:7px 10px;border-radius:0 8px 8px 0;max-width:70ch}
+.tpg-manual-eli5{border-left:3px solid #ffd166;background:#221c0c;padding:7px 10px;border-radius:0 8px 8px 0;max-width:70ch;color:#f6e8c4}
+/* quick try on every command page */
+.tpg-manual-quick{border:1px solid #23405c;background:#0a1420;border-radius:10px;padding:10px 12px;margin:10px 0 14px;max-width:74ch}
+.tpg-manual-quick h4{margin:0 0 4px}
+.tpg-manual-quick-form{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.tpg-manual-quick-form input{flex:1;min-width:220px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;padding:7px 9px;border-radius:7px;border:1px solid #24374d;background:#050b12;color:#e8f6ff}
+/* the output coach: its own panel under the playground, never inside it */
+.tpg-manual-coach{flex:0 0 auto;border-top:1px solid #1e2c3c;margin-top:10px;padding:11px 14px 8px;min-height:120px;max-height:min(40vh,380px);overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;background:#0b1720;font-size:14.5px;line-height:1.6;color:#e4eff3}
+.tpg-manual-coach-head{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:8px}
+.tpg-manual-coach-head b{font-size:15.5px;color:#f2f8fa}
+.tpg-coach-item{border-left:3px solid #4f8fc4;background:#101d28;padding:8px 12px;border-radius:0 8px 8px 0;margin:8px 0;max-width:80ch;color:#e4eff3}
+.tpg-coach-item b{display:block;margin-bottom:2px;color:#f2f8fa}
+.tpg-coach-item p{margin:3px 0 0;line-height:1.6;color:#dae8ee}
+/* the switch guide */
+.tpg-switch-examples{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:9px;margin:8px 0 14px}
+.tpg-switch-examples>div{border:1px solid #1e2e40;background:#0a121b;border-radius:9px;padding:8px 10px}
+.tpg-switch-examples pre{margin:0 0 5px;white-space:pre-wrap;word-break:break-word;color:#cfe9ff}
+.tpg-switch-examples p{margin:0;font-size:12.5px;line-height:1.5;color:#c7d6e2}
+.tpg-switch-rules li{margin:5px 0;line-height:1.5}
+.tpg-switch-table{border-collapse:collapse;margin:8px 0 14px;font-size:12.5px;max-width:82ch}
+.tpg-switch-table th,.tpg-switch-table td{border-bottom:1px solid #1c2836;text-align:left;padding:5px 10px 5px 0;vertical-align:top}
+.tpg-switch-table button{background:none;border:0;color:inherit;cursor:pointer;padding:0;font:inherit}
+.tpg-switch-table button:hover{color:var(--acc,#7fd1ff);text-decoration:underline}
+.tpg-manual-combine{border-left:3px solid #71bca6;background:#0d1a1a;padding:7px 10px;border-radius:0 8px 8px 0;max-width:74ch;margin:8px 0}
+.tpg-manual-combine button{background:none;border:0;color:var(--acc,#7fd1ff);cursor:pointer;padding:0;font:inherit;text-decoration:underline}
+/* walkthrough and missions */
+.tpg-manual-tour{max-width:78ch}
+.tpg-manual-tour-head{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:6px}
+.tpg-manual-dots{display:inline-flex;gap:5px}
+.tpg-manual-dots i{width:8px;height:8px;border-radius:50%;background:#2a3442;display:inline-block}
+.tpg-manual-dots i.on{background:var(--acc,#7fd1ff)}
+.tpg-mission-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;margin-top:12px}
+.tpg-mission-card{display:flex;flex-direction:column;gap:5px;text-align:left;padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:#0b1118;cursor:pointer}
+.tpg-mission-card:hover{border-color:var(--acc,#7fd1ff)}
+.tpg-mission-card.done{border-color:#2f6b45;background:#0d1a13}
+.tpg-mission-card strong{font-size:13px}
+.tpg-mission-steps{list-style:none;padding:0;margin:12px 0 0;display:flex;flex-direction:column;gap:10px;counter-reset:mission}
+.tpg-mission-steps li{counter-increment:mission;border-left:3px solid #2a3442;padding:8px 12px;background:#0a1118;border-radius:0 8px 8px 0;max-width:74ch}
+.tpg-mission-steps li::before{content:counter(mission);display:inline-block;font-weight:700;color:var(--mute);margin-right:6px}
+.tpg-mission-steps li.now{border-left-color:var(--acc,#7fd1ff);background:#0c1722}
+.tpg-mission-steps li.done{border-left-color:#3f9d63;opacity:.85}
+.tpg-mission-say{display:inline}
+.tpg-mission-steps pre{white-space:pre-wrap;word-break:break-word;margin:6px 0 0;background:#05090e;border:1px solid #1c2836;border-radius:7px;padding:7px 9px;font-size:12.5px}
+button.tpg-manual-flag{font:inherit;font-size:12px;padding:1px 6px;border:1px solid #2a3a4c;border-radius:6px;background:#0d1622;color:#cfe9ff;cursor:pointer}
+button.tpg-manual-flag:hover{border-color:var(--acc,#7fd1ff)}
+.tpg-manual-parent{max-width:70ch;color:#cfe0f0}
+/* a command the sandbox does not have: this says so before anything else on the page */
+.tpg-manual-unreal{border-left:3px solid #ff8a80;background:#2a1414;padding:8px 10px;border-radius:0 8px 8px 0;max-width:70ch;color:#ffd9d4}
+
+/* Playground at the bottom of the manual: the same shell, right here */
+.tpg-manual-play{flex:0 0 auto;border-top:1px solid #2c424f;background:#08131b;padding:8px 12px 10px;display:grid;gap:6px;max-height:38vh}
+.tpg-manual-play-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tpg-manual-play-shell{color:#86e0bf;font-size:12px}
+.tpg-manual-play-note{color:#c3d5dd;font-size:12.5px;flex:1 1 240px;min-width:0;line-height:1.45}
+.tpg-manual-play-out{margin:0;min-height:86px;max-height:22vh;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:#060c12;border:1px solid #284352;border-radius:6px;padding:8px 10px;font-size:13px;color:#bfe9d4}
+.tpg-manual-play-form{display:flex;align-items:center;gap:7px;padding:0;background:none;border:0}
+.tpg-manual-play-form span{color:#86e0bf;font-family:Consolas,"Cascadia Mono",monospace}
+
+/* Fullscreen help: the manual and the playground inside it take the whole window */
+.tpg-manual.tpg-manual-full{width:100vw;height:100vh;max-height:100vh;border-radius:0;border:0;margin:0;position:fixed;inset:0;z-index:13000}
+.tpg-manual.tpg-manual-full .tpg-manual-columns{height:auto;flex:1 1 auto;min-height:0}
+.tpg-manual.tpg-manual-full .tpg-manual-play{max-height:46vh;flex:0 0 auto}
+/* the playground on its own, full window, while the help window stays open underneath */
+.tpg-manual-play.tpg-play-full{position:fixed;inset:14px;z-index:80;max-height:none;display:flex;flex-direction:column;gap:8px;
+  border:1px solid #2c424f;border-radius:12px;background:#08131b;padding:12px 14px;box-shadow:0 18px 70px rgba(0,0,0,.75)}
+.tpg-manual-play.tpg-play-full .tpg-manual-play-out{flex:1;min-height:0;max-height:none;height:auto}
+.tpg-manual-play.tpg-play-full .tpg-manual-play-note{display:none}
+.tpg-manual.tpg-manual-full .tpg-manual-play-out{max-height:28vh}
+.tpg-manual.tpg-manual-full .tpg-manual-notice,.tpg-manual.tpg-manual-full .tpg-manual-typed{flex:0 0 auto}
+@media(max-width:640px){.tpg-manual.tpg-manual-full .tpg-manual-columns{height:auto}}
+
+/* ---- Rewards: points, Elo and badges in every scored terminal exercise ---- */
+.tpg-rwd-chip{display:inline-flex;gap:7px;align-items:center;padding:3px 9px;border:1px solid #36506b;border-radius:999px;background:#0b1622;color:#dcecff;font-size:11.5px;white-space:nowrap}
+.tpg-rwd-chip b{font-weight:700}
+.tpg-rwd-pill{display:inline-block;padding:2px 8px;border-radius:999px;background:#0e1a26;border:1px solid #2b4157;font-size:11px;white-space:nowrap}
+.tpg-rwd-next{display:block;margin:3px 0 0;color:var(--mute)}
+.tpg-rwd-badges{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.tpg-rwd-badge{display:inline-block;padding:3px 7px;border-radius:7px;background:#10251a;border:1px solid #2f6b45;font-size:11px}
+
+/* ---- Learn More: its own workshop environment, deliberately not the hint ladder ---- */
+.tpg-learnmore{position:fixed;inset:0;z-index:9700;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(2,6,11,.84);backdrop-filter:blur(4px)}
+.tpg-lm-card{width:min(780px,100%);max-height:92vh;overflow:auto;padding:20px 22px;border:1px solid #2a4058;border-radius:16px;background:linear-gradient(160deg,#0c1824,#0a1119);box-shadow:0 24px 70px rgba(0,0,0,.55);color:var(--text)}
+.tpg-lm-head{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;margin-bottom:12px}
+.tpg-lm-head b{font-size:15px}
+.tpg-lm-progress{height:7px;border-radius:999px;background:#101c28;border:1px solid #223447;overflow:hidden}
+.tpg-lm-progress span{display:block;height:100%;background:linear-gradient(90deg,#4fb7ff,#7ee0a8);border-radius:999px;transition:width .25s ease}
+.tpg-lm-ask{line-height:1.6;font-size:14px;margin:0}
+.tpg-lm-choices{display:flex;flex-direction:column;gap:7px;margin-top:8px}
+.tpg-lm-choice{text-align:left;padding:9px 11px;border:1px solid #2a4058;border-radius:9px;background:#0b1520;color:#dcecff;cursor:pointer;line-height:1.4}
+.tpg-lm-choice:hover:not(:disabled){border-color:#4fb7ff}
+.tpg-lm-choice:disabled{cursor:default;opacity:.85}
+.tpg-lm-choice code{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12.5px}
+.tpg-lm-choice.ok{border-color:#3f9d63;background:#0d2015;box-shadow:0 0 0 1px #3f9d6355 inset}
+.tpg-lm-choice.bad{border-color:#b4544a;background:#22100e}
+.tpg-lm-feedback{margin-top:10px;padding:10px 12px;border-radius:9px;border:1px solid #2a4058;background:#0b1520;line-height:1.5}
+.tpg-lm-feedback.ok{border-color:#3f9d63;background:#0d2015}
+.tpg-lm-feedback.bad{border-color:#b4544a;background:#22100e}
+.tpg-lm-done{text-align:center;padding:14px 4px}
+.tpg-lm-done h3{margin:6px 0}
+@media(max-width:640px){.tpg-lm-card{padding:15px}.tpg-lm-head{flex-direction:column}.tpg-lm-ask{font-size:13px}}
+
+/* ---------- the AI box: explains the shell and walks the manual ---------- */
+.tpg-manual-ai{display:flex;flex-direction:column;min-height:0;max-height:32vh;border-top:1px solid #2c424f;background:#0b1620}
+.tpg-manual-ai-head{display:flex;align-items:center;gap:8px;padding:7px 14px;flex-wrap:wrap;background:#101e29;border-bottom:1px solid #2c424f;flex:0 0 auto}
+.tpg-manual-ai-head b{color:#d8f3ea;font-size:14px}
+.tpg-manual-ai-head select{max-width:270px;min-width:120px;padding:5px 7px;border-radius:6px;border:1px solid #3a596b;background:#07121c;color:#eaf4f7;font:12.5px/1.3 system-ui,sans-serif;cursor:pointer}
+.tpg-manual-ai-head button{min-height:30px;padding:3px 9px;font-size:12px}
+.tpg-manual-ai-note{color:#b7c9d3;font-size:12.5px;flex:1;min-width:140px;line-height:1.45}
+.tpg-manual-ai-log{overflow:auto;padding:8px 14px;min-height:48px;flex:1 1 auto;overscroll-behavior:contain}
+.tpg-manual-ai-turn{border-left:2px solid #2f5a5a;padding:1px 0 1px 9px;margin:0 0 9px;font-size:13.5px;line-height:1.5}
+.tpg-manual-ai-turn.me{border-left-color:#568e80}
+.tpg-manual-ai-turn>b{display:block;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:#9fb6c0;margin-bottom:2px}
+.tpg-manual-ai-text p{margin:0 0 6px}
+.tpg-manual-ai-text code{color:#9ee9cc}
+.tpg-manual-ai-links{display:flex;gap:6px;flex-wrap:wrap;margin-top:5px}
+.tpg-manual-ai-links button{min-height:30px;padding:3px 9px;font-size:12px;border-color:#71bca6;background:#153733}
+.tpg-manual-ai-form{display:flex;align-items:center;gap:8px;padding:7px 14px;background:#101e29;border-top:1px solid #2c424f;flex:0 0 auto}
+.tpg-manual-ai-form span{color:#86e0bf}
+.tpg-manual-ai-form input{flex:1}
+/* with the AI box in the window the page area gives up some height, so nothing is pushed off the bottom */
+.tpg-manual:has(.tpg-manual-ai) .tpg-manual-columns{height:min(30vh,318px)}
+@media(max-height:780px){.tpg-manual-ai-log{min-height:34px}.tpg-manual-ai{max-height:26vh}}
+@media(max-width:640px){.tpg-manual-ai-head select{max-width:100%}.tpg-manual-ai-note{display:none}}
+/* nothing in the AI box is ever cut off: if the window is short the dialog itself scrolls */
+.tpg-manual:has(.tpg-manual-ai){overflow-y:auto}
+.tpg-manual:has(.tpg-manual-ai) .tpg-manual-ai-log{min-height:40px}
+.tpg-manual:has(.tpg-manual-ai) .tpg-manual-coach{max-height:min(30vh,280px);min-height:120px;overflow:auto}
+.tpg-manual:has(.tpg-manual-ai) .tpg-manual-ai-log{min-height:34px}
+.tpg-manual:has(.tpg-manual-ai) .tpg-manual-ai-form{padding-top:5px;padding-bottom:5px}
+
+/* ---------- folding any part of the help window away ---------- */
+.tpg-manual-fold{flex:0 0 auto;min-height:26px;min-width:28px;padding:0 7px;border-radius:6px;border:1px solid #3a596b;
+  background:#0b1620;color:#cfe7ef;font:12px/1 system-ui,sans-serif;cursor:pointer}
+.tpg-manual-fold:hover{border-color:#71bca6;color:#9ee9cc}
+.tpg-manual-fold:focus-visible{outline:2px solid #71bca6;outline-offset:1px}
+.tpg-manual-play.folded .tpg-manual-play-out,
+.tpg-manual-play.folded .tpg-manual-play-form,
+.tpg-manual-coach.folded [data-manual="coach"],
+.tpg-manual-ai.folded .tpg-manual-ai-log,
+.tpg-manual-ai.folded .tpg-manual-ai-form,
+.tpg-manual-ai.folded .tpg-manual-ai-note{display:none}
+.tpg-manual-play.folded,
+.tpg-manual-coach.folded,
+.tpg-manual-ai.folded{max-height:none;min-height:0;flex:0 0 auto;padding-bottom:8px}
+.tpg-manual-ai.folded{background:#0d1a24}
+/* with the AI folded away the manual gets the room it was using */
+.tpg-manual:has(.tpg-manual-ai.folded) .tpg-manual-columns{height:min(52vh,560px)}
+/* the shell dropdown in the top-left corner: read another shell's help without leaving this window */
+.tpg-manual-ident{display:flex;align-items:center;gap:12px;min-width:0;flex-wrap:wrap}
+.tpg-manual-pick{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#adc2ca;white-space:nowrap}
+.tpg-manual-pick select{max-width:200px;padding:5px 7px;border:1px solid #476575;border-radius:7px;background:#07131c;color:#e5f1f4;font:inherit;font-size:13px;cursor:pointer}
+.tpg-manual-pick select:hover{border-color:#71bca6}
+.tpg-manual-pick select:focus-visible{outline:2px solid #86e0bf;outline-offset:2px}
+@media (max-width:640px){.tpg-manual-pick select{max-width:140px}}

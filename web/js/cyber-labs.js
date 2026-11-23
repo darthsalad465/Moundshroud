@@ -58,6 +58,10 @@
       if (!SQL) return; const q = w.querySelector('#sqlq').value;
       try {
         const r = db.exec(q);
+        /* running the injection demo and getting every row back is the lab's lesson: it pays once */
+        if (r.reduce((n, t) => n + t.values.length, 0) > 3 && /('\s*or\s+'1'\s*=\s*'1|or\s+1\s*=\s*1|admin'--)/i.test(q)) {
+          try { A.cyberBank?.once('labs:sql-injection', 20, 'SQL injection demo: every row came back', 'puzzle', 'puzzles'); } catch (e) { }
+        }
         if (!r.length) { out.innerHTML = '<div class="ok">Done. No rows returned.</div>'; return; }
         out.innerHTML = r.map(t => '<table><tr>' + t.columns.map(c => '<th>' + esc(c) + '</th>').join('') + '</tr>' + t.values.map(row => '<tr>' + row.map(v => '<td>' + esc(v) + '</td>').join('') + '</tr>').join('') + '</table>').join('');
       } catch (e) { out.innerHTML = '<div class="bad">' + esc(e.message) + '</div>'; }

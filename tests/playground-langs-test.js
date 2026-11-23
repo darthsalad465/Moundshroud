@@ -11,7 +11,7 @@ module.exports = async ok => {
   const ids = P.LANGS.map(l => l.id);
   ok('playground: at least 80 languages with unique ids', ids.length >= 80 && new Set(ids).size === ids.length, ids.length + ' languages');
   ok('playground: every language has a name, an icon, a run type and an example',
-    P.LANGS.every(l => l.n && l.ic && ['py', 'js', 'html', 'sql', 'binary', 'eso', 'local', 'docker', 'none'].includes(l.run) && typeof l.ex === 'string' && l.ex.trim()),
+    P.LANGS.every(l => l.n && l.ic && ['py', 'js', 'html', 'sql', 'scratch', 'binary', 'eso', 'local', 'docker', 'none'].includes(l.run) && typeof l.ex === 'string' && l.ex.trim()),
     P.LANGS.filter(l => !(l.ex && l.ex.trim())).map(l => l.id).join(', '));
   const asked = ['bf', 'malbolge', 'befunge93', 'piet', 'chicken', 'intercal', 'spl', 'chef', 'whitespace', 'haskell', 'rust', 'masm', 'c',
     'ook', 'unlambda', 'lolcode', 'arnoldc', 'rockstar', 'emojicode', 'false', 'thue', 'underload', 'deadfish', 'slashes', 'fish', 'funge98', 'hexagony', 'velato', 'whenever', 'brainflak',

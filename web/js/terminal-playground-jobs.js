@@ -144,10 +144,10 @@
       const state = JSON.parse(localStorage.getItem('tpg_jobs_' + id));
       if (state && Number.isSafeInteger(state.number) && state.number > 0 && Number.isInteger(state.seed) &&
           Number.isSafeInteger(state.completed) && state.completed >= 0) {
-        return { number: state.number, seed: state.seed >>> 0, completed: state.completed, active: !!state.active, solved: !!state.solved };
+        return { number: state.number, seed: state.seed >>> 0, completed: state.completed, active: !!state.active, solved: !!state.solved, hintStage: Number.isSafeInteger(state.hintStage) && state.hintStage >= 0 ? state.hintStage : 0 };
       }
     } catch (e) { /* Start a new job series if local progress is unavailable. */ }
-    return { seed: Math.floor(Math.random() * 0x100000000), number: 1, completed: 0, active: false, solved: false };
+    return { seed: Math.floor(Math.random() * 0x100000000), number: 1, completed: 0, active: false, solved: false, hintStage: 0 };
   }
 
   function attach(shell) {
@@ -204,14 +204,28 @@
       if (action === 'next' && state.active) {
         state.number++;
         state.solved = false;
+        state.hintStage = 0;
         prepare(true);
         save();
         return brief();
       }
       if (!state.active) return 'Type job start to open a practice assignment.';
       prepare();
-      if (action === 'hint') return 'Try: ' + current.hint;
-      if (action === 'reset') { prepare(true); saveWorkspace(); return 'Practice workspace restored.\n' + brief(); }
+      if (action === 'hint') {
+        /* staged like every other hint: a riddle, then where to look, then the exact line */
+        const stages = [
+          { title: 'A riddle to start', text: 'The workspace already knows the answer. You are not meant to work it out in your head — you are meant to find where it was written down.' },
+          { title: 'Where to look', text: 'Read the file or table the assignment names. The record you need is one line among several; ignore the rest and keep only the one the task describes.' },
+          { title: 'The exact move', text: 'When the reading stops helping, this is the line that produces the answer:', command: current.hint }
+        ];
+        const at = Math.min(state.hintStage || 0, stages.length - 1);
+        state.hintStage = Math.min(stages.length, at + 1);
+        save();
+        const stage = stages[at];
+        return '💡 job hint ' + (at + 1) + '/' + stages.length + ' · ' + stage.title + '\n  ' + stage.text + (stage.command ? '\n  try: ' + stage.command : '') +
+          (at + 1 < stages.length ? '\n  (' + (stages.length - at - 1) + ' more stage' + (stages.length - at - 1 === 1 ? '' : 's') + ' — the exact line comes last)' : '\n  (that is every nudge.)');
+      }
+      if (action === 'reset') { state.hintStage = 0; prepare(true); saveWorkspace(); return 'Practice workspace restored.\n' + brief(); }
       if (action === 'submit') {
         if (state.solved) return 'This job is already complete. Use job next for a fresh assignment.';
         if (!answer) return 'Usage: job submit <answer>';
@@ -219,7 +233,10 @@
         state.solved = true;
         state.completed++;
         save();
-        return '✓ Job complete. Use job next for another assignment or job leave to go back to free play.';
+        let reward = null;
+        try { reward = window.TerminalRewards && window.TerminalRewards.award('job', { completed: state.completed }); } catch (e) { }
+        return '✓ Job complete. Use job next for another assignment or job leave to go back to free play.' +
+          (reward ? '\n  ⭐ +' + reward.points + ' points · 🏅 +' + reward.elo + ' Elo' + (reward.badges.length ? ' · ' + reward.badges.map(b => b.icon + ' ' + b.name).join(', ') : '') : '');
       }
       return 'Unknown job command. Type job help for the list.';
     }

@@ -27,7 +27,8 @@
       ['count', '📊 Log Frequency Count'],
       ['sep', '📐 Field Separators (awk -F, cut -d)'],
       ['flags', '🚩 Grep Flags (-i -w -n -v -l)'],
-      ['recon', '🧭 Whole-Disk Recon (grep -r)']
+      ['recon', '🧭 Whole-Disk Recon (grep -r)'],
+      ['intrusion', '🕵️ Break-In: person → company → government']
     ],
     powershell: [
       ['auto', '🎲 Random (Tier-Scaled)'],
@@ -41,7 +42,8 @@
       ['nested', '🌳 Recursive Search'],
       ['sep', '📐 Delimited Fields (Import-Csv)'],
       ['flags', '🚩 Pattern Flags'],
-      ['recon', '🧭 Whole-Disk Recon']
+      ['recon', '🧭 Whole-Disk Recon'],
+      ['intrusion', '🕵️ Break-In: person → company → government']
     ],
     cmd: [
       ['auto', '🎲 Random (Tier-Scaled)'],
@@ -55,7 +57,8 @@
       ['nested', '🌳 Deep dir /s /b'],
       ['sep', '📐 Delimited Fields (for /f delims)'],
       ['flags', '🚩 findstr Flags'],
-      ['recon', '🧭 Whole-Disk Recon']
+      ['recon', '🧭 Whole-Disk Recon'],
+      ['intrusion', '🕵️ Break-In: person → company → government']
     ],
     python: [
       ['auto', '🎲 Random (Tier-Scaled)'],
@@ -299,26 +302,135 @@
     return out;
   }
 
+  /* ================================================================ CLUTTER, DECOYS AND SHORT BRIEFS
+     A deep room should not hand over its answer in the task text. The first paragraph stays as the objective; the rest
+     of the explanation becomes a file inside the room, and every generated file room is padded with believable clutter:
+     logs, configs, cache files, old backups and fake keys. Padding is seeded, so a room always replays the same way. */
+  const CLUTTER_NAMES = ['abara', 'calder', 'ferro', 'hollis', 'kwan', 'moreau', 'nakamura', 'oyelaran', 'petrov', 'quincy', 'reyes', 'sokolov'];
+  const CLUTTER_SERVICES = ['nginx', 'postgres', 'redis', 'cron', 'sshd', 'docker', 'worker', 'gateway'];
+  const CLUTTER_KEYNAMES = ['api_key', 'deploy_token', 'service_key', 'backup_pass', 'session_secret', 'signing_key', 'webhook_secret'];
+  const CLUTTER_PROJECTS = ['atlas', 'beacon', 'cinder', 'delta-sync', 'ember', 'harbor-api', 'ledger', 'mosaic', 'orchard', 'quarry-cli'];
+  const CLUTTER_HOUSES = ['House of the Quiet Light', 'The Alder Circle', 'Northgate Press', 'Sable & Finch', 'Vantage Labs', 'The Long Room'];
+  function splitBriefText(text) {
+    const parts = String(text || '').trim().split(/\n\s*\n/);
+    return { head: parts.shift() || '', rest: parts.join('\n\n').trim() };
+  }
+  function clutterFiles(seed, difficulty, target, ctx) {
+    const r = L.rnd((seed ^ 0x2545f491) >>> 0);
+    const pick = list => list[r(list.length)];
+    const rndHex = n => { let s = ''; for (let i = 0; i < n; i++) s += '0123456789abcdef'[r(16)]; return s; };
+    const word = () => pick(CLUTTER_NAMES) + '-' + pick(CLUTTER_PROJECTS).split('-')[0];
+    const fakeSecret = () => 'SECRET{fake_' + pick(CLUTTER_NAMES) + '_' + rndHex(4) + '}';
+    const out = {};
+    const home = ctx && ctx.home ? ctx.home : 'home/' + pick(CLUTTER_NAMES);
+    const stamp = () => '2026-' + String(1 + r(12)).padStart(2, '0') + '-' + String(1 + r(28)).padStart(2, '0');
+    const add = (path, text) => { if (!(path in out) && !(ctx && ctx.keep && ctx.keep[path])) out[path] = text; };
+    let guard = 0;
+    while (Object.keys(out).length < target && guard++ < target * 6) {
+      switch (r(11)) {
+        case 0:
+          add(home + '/Documents/receipts-' + (2023 + r(4)) + '.csv', 'item,cost,date\n' + Array.from({ length: 4 + r(6) }, () => pick(['coffee', 'paper', 'printer ink', 'cable', 'lunch', 'stamps']) + ',' + (2 + r(80)) + '.00,' + stamp()).join('\n'));
+          break;
+        case 1:
+          add(home + '/Documents/meeting-' + stamp() + '.md', '# ' + pick(CLUTTER_HOUSES) + '\n\n- reviewed the ' + pick(CLUTTER_PROJECTS) + ' rollout\n- nobody saved the ' + pick(CLUTTER_KEYNAMES) + ' anywhere sensible\n- action: rotate keys before Friday');
+          break;
+        case 2:
+          add('logs/' + pick(CLUTTER_SERVICES) + '/' + stamp() + '.log', Array.from({ length: 6 + r(10) }, (_, i) => stamp() + 'T0' + (i % 10) + ':12:' + String(10 + r(49)) + ' INFO session=' + rndHex(8) + ' user=' + pick(CLUTTER_NAMES) + ' status=' + pick(['ok', 'retry', 'denied', 'timeout'])).join('\n'));
+          break;
+        case 3:
+          add('etc/' + pick(CLUTTER_SERVICES) + '/' + pick(['app', 'service', 'worker', 'cache']) + '.conf', '[' + pick(['main', 'server', 'cache', 'auth']) + ']\n' + pick(CLUTTER_KEYNAMES) + ' = ' + rndHex(24) + '\n' + pick(CLUTTER_KEYNAMES) + ' = ' + rndHex(16) + '\nenabled = true');
+          break;
+        case 4:
+          add('backups/' + (1000 + r(9000)) + '-' + word() + '.bak', L.encoders.b64(CLUTTER_KEYNAMES[0] + '=' + fakeSecret() + '\nnote=old dump, safe to delete'));
+          break;
+        case 5:
+          add('vault/' + word() + '.old', fakeSecret());
+          break;
+        case 6:
+          add(home + '/.cache/' + rndHex(8) + '/manifest.json', '{"cached":' + (r(500)) + ',"key":"' + rndHex(12) + '","state":"' + pick(['warm', 'cold', 'stale']) + '"}');
+          break;
+        case 7:
+          add('projects/' + pick(CLUTTER_PROJECTS) + '/README.md', '#' + pick(CLUTTER_PROJECTS) + '\n\nInternal tool. Deploy notes live in the ' + pick(['runbook', 'handover', 'onboarding']) + ' folder.');
+          break;
+        case 8:
+          add('tmp/' + rndHex(10) + '.tmp', 'partial upload\n' + pick(CLUTTER_KEYNAMES) + '=' + rndHex(18) + '\n');
+          break;
+        case 9:
+          add('notes/' + pick(['handover', 'onboarding', 'runbook']) + '-' + (1 + r(6)) + '.txt', Array.from({ length: 3 + r(4) }, () => pick(['use the shared account', 'do not store keys in chat', 'ask ' + pick(CLUTTER_NAMES) + ' for the old password', 'rotate the ' + pick(CLUTTER_KEYNAMES) + ' after testing'])).join('\n'));
+          break;
+        default:
+          add('archive/' + (2018 + r(6)) + '/' + word() + '.txt', 'archived export\nreference ' + rndHex(6) + '\n' + fakeSecret() + '\n(this key was retired)');
+      }
+    }
+    return out;
+  }
+
   /* ================================================================ FULL FILE-SHELL ROOM BUILDER */
   function buildCustomFileRoom(spec) {
+    spec = Object.assign({}, spec);
     const shell = spec.shell || 'bash';
-    const filesMap = spec.files && typeof spec.files === 'object' ? spec.files : { 'README.txt': spec.brief || '' };
+    const diff = spec.difficulty;
+    /* Windows rooms are a real workstation: the files live in the user's profile (C:\Users\<user>), and the rest of
+       the machine (Desktop, Documents, Downloads, AppData, Program Files, Windows) is there as it would be on a PC. */
+    const isWin = shell === 'powershell' || shell === 'cmd';
+    const pcUser = String(spec.user || 'solver').replace(/[\\/:*?"<>|]/g, '') || 'solver';
+    let filesMap = spec.files && typeof spec.files === 'object' ? spec.files : { 'README.txt': spec.brief || '' };
+    /* the task text keeps only its objective; the explanation becomes a file you have to find */
+    if (diff && spec.trimBrief !== false) {
+      const split = splitBriefText(spec.brief);
+      if (split.rest) {
+        spec.brief = split.head;
+        filesMap = Object.assign({ 'notes/briefing.txt': split.rest }, filesMap);
+      }
+    }
+    /* more floors down means more to search: clutter scales with the difficulty and never overwrites a real file */
+    if (diff && spec.pad !== false) {
+      const target = Number(spec.pad) || ({ easy: 10, medium: 26, hard: 50, insane: 85 }[diff] || 26);
+      const existing = Object.keys(filesMap);
+      if (existing.length < target) {
+        const keep = {};
+        for (const key of existing) keep[String(key).replace(/^\/+/, '')] = true;
+        filesMap = Object.assign(filesMap, clutterFiles(spec.seed || 1, diff, target - existing.length, { keep, home: spec.home || (isWin ? 'Users/' + pcUser : undefined) }));
+      }
+    }
+    /* Two notes left inside the machine: where the trail starts and the first move. They never carry the answer. */
+    if (diff && window.TerminalHints) {
+      /* copy before adding, so the caller's spec.files never changes */
+      filesMap = Object.assign({}, filesMap);
+      const notes = TerminalHints.noteTexts({ hint: spec.hint, hints: spec.hints, walkthrough: spec.walkthrough, answer: spec.answer, files: filesMap });
+      const base = spec.home ? String(spec.home).replace(/\/+$/, '') + '/' : '';
+      const startKey = base + 'Desktop/start-here.txt';
+      const trailKey = base + 'Documents/trail.txt';
+      if (!filesMap[startKey] && !filesMap['Desktop/start-here.txt']) filesMap[startKey] = notes.start;
+      if (!filesMap[trailKey] && !filesMap['Documents/trail.txt']) filesMap[trailKey] = notes.trail;
+    }
     const tree = {};
     const cwd = [];
     const { put, isDir, textOf, walk, listTree } = L.fs;
     const entries = Object.entries(filesMap);
-    if (!entries.length) put(tree, 'README.txt', spec.brief || 'Custom puzzle room');
+    /* the machine comes first; the room's own files are written on top, so a task file never disappears */
+    if (isWin && window.TerminalPC) {
+      TerminalPC.merge(tree, TerminalPC.windows({ user: pcUser, host: 'PUZZLE-LAB', seed: spec.seed || 1, leaf: t => ({ text: t }) }));
+      cwd.push('Users', pcUser);
+    } else if (window.TerminalPC && !spec.machine) {
+      /* a Linux box has the same idea: a home folder with Desktop, Documents, Downloads and the usual system paths.
+         The Moundshroud app shell (spec.machine) is a real file view, so it never gets a fake PC mixed into it. */
+      TerminalPC.merge(tree, TerminalPC.linux({ user: 'solver', host: 'puzzle-lab', seed: spec.seed || 1, leaf: t => ({ text: t }) }));
+    }
+    const pcPrefix = isWin ? 'Users/' + pcUser + '/' : '';
+    if (!entries.length) put(tree, pcPrefix + 'README.txt', spec.brief || 'Custom puzzle room');
     for (const [k, v] of entries) {
       const clean = String(k || '').trim().replace(/^\/+/, '').replace(/\\/g, '/');
+      /* a task that names its own drive-root path (Users/mirror, …) keeps it */
+      const at = pcPrefix && !/^users\//i.test(clean) ? pcPrefix + clean : clean;
       if (clean && clean.split('/').every(part => !Object.hasOwn(Object.prototype, part))) {
-        put(tree, clean, String(v == null ? '' : v));
+        put(tree, at, String(v == null ? '' : v));
       }
     }
 
     const G = window.TerminalPlayground || {};
     const splitTop = G.splitTop || ((s, seps) => s.split(seps[0]).map(x => x.trim()).filter(Boolean));
     const Unix = TerminalUnix;
-    const isWin = shell === 'powershell' || shell === 'cmd';
     let prevCwd = null;
 
     const resolve = p => {
@@ -355,13 +467,19 @@
         mode: old && !isDir(old) ? Unix.octal(Unix.mode(old)) : '644' };
     };
     const srcOf = (files, stdin) => files.length ? (() => { const rs = files.map(read); const err = rs.find(x => x.err); return err ? { err: err.err } : { text: rs.map(x => x.text).join('\n') }; })() : (stdin != null ? { text: stdin } : { err: 'missing input' });
+    /* the final newline of a file ends its last line; it does not start a blank one */
+    const linesOf = text => {
+      const rows = String(text == null ? '' : text).split('\n');
+      if (rows.length && rows[rows.length - 1] === '') rows.pop();
+      return rows;
+    };
 
     const C = {};
     if (shell === 'bash' && typeof TerminalOpsTraining !== 'undefined') {
       Object.assign(C, TerminalOpsTraining.asCommands(result => result.out));
     }
     if (!isWin) C.chmod = a => Unix.chmod(a, resolve, walkN, isDir).out;
-    C.pwd = () => isWin ? 'C:\\puzzle' + (cwd.length ? '\\' + cwd.join('\\') : '') : '/' + cwd.join('/');
+    C.pwd = () => isWin ? 'C:' + (cwd.length ? '\\' + cwd.join('\\') : '\\') : '/' + cwd.join('/');
     C.cd = a => {
       const t = a.filter(x => !/^\/d$/i.test(x))[0];
       if (!t && shell === 'cmd') return C.pwd();
@@ -400,9 +518,13 @@
     };
     C.ll = a => C.ls(['-la'].concat(a));
     C.la = a => C.ls(['-a'].concat(a));
-    C.dir = C.ls;
-    C['get-childitem'] = C.ls;
-    C.gci = C.ls;
+    /* Windows hosts get their dir / Get-ChildItem tables from the shared Windows kit, so these aliases are only
+       wired for bash (where dir does not exist and ls lists names, as it does on a real Linux box) */
+    if (!isWin) {
+      C.dir = C.ls;
+      C['get-childitem'] = C.ls;
+      C.gci = C.ls;
+    }
     C['get-location'] = C.pwd;
     C.gl = C.pwd;
     C['set-location'] = C.cd;
@@ -436,24 +558,44 @@
       else if (flags.includes('n')) lines = lines.map((l, i) => String(i + 1).padStart(6) + '\t' + l);
       return lines.join('\n');
     };
-    C.type = C.cat; C['get-content'] = C.cat; C.gc = C.cat; C.more = C.cat; C.less = C.cat;
-    C.head = (a, s) => {
-      let n = 10, files = [];
+    C['get-content'] = C.cat; C.gc = C.cat; C.more = C.cat; C.less = C.cat;
+    /* type used to be a copy of cat, so `type ls` tried to read a file named ls */
+    C.type = (a, s) => {
+      if (isWin) return C.cat(a, s);
+      const builtin = /^(cd|echo|printf|pwd|export|unset|alias|unalias|history|type|read|exit|true|false|test|set|shift|jobs|kill|umask|help)$/;
+      return a.map(name => {
+        if (!C[name.toLowerCase()]) return 'bash: type: ' + name + ': not found';
+        return builtin.test(name) ? name + ' is a shell builtin' : name + ' is /usr/bin/' + name;
+      }).join('\n');
+    };
+    const extentOf = a => {
+      let lines = 10, bytes = null, from = null; const files = [];
       for (let i = 0; i < a.length; i++) {
-        if (a[i] === '-n') n = parseInt(a[++i], 10) || 10;
-        else if (/^-\d+$/.test(a[i])) n = parseInt(a[i].slice(1), 10) || 10;
-        else if (!a[i].startsWith('-')) files.push(a[i]);
+        const t = a[i];
+        if (t === '-n') { const v = a[++i] || ''; if (/^\+\d+$/.test(v)) from = parseInt(v.slice(1), 10) || 1; else lines = parseInt(v, 10) || 10; }
+        else if (t === '-c') bytes = parseInt(a[++i], 10) || 0;
+        else if (/^-n\+\d+$/.test(t)) from = parseInt(t.slice(2), 10) || 1;
+        else if (/^-n-?\d+$/.test(t)) lines = Math.abs(parseInt(t.slice(2), 10)) || 10;
+        else if (/^-c\d+$/.test(t)) bytes = parseInt(t.slice(2), 10) || 0;
+        else if (/^-\d+$/.test(t)) lines = parseInt(t.slice(1), 10) || 10;
+        else if (!t.startsWith('-')) files.push(t);
       }
-      const r = srcOf(files, s); return r.err ? 'head: ' + r.err : r.text.split('\n').slice(0, n).join('\n');
+      return { n: lines, bytes, from, files };
+    };
+    C.head = (a, s) => {
+      const { n, bytes, files } = extentOf(a);
+      const r = srcOf(files, s);
+      if (r.err) return 'head: ' + r.err;
+      if (bytes != null) return [...String(r.text)].slice(0, bytes).join('');
+      return linesOf(r.text).slice(0, n).join('\n');
     };
     C.tail = (a, s) => {
-      let n = 10, files = [];
-      for (let i = 0; i < a.length; i++) {
-        if (a[i] === '-n') n = parseInt(a[++i], 10) || 10;
-        else if (/^-\d+$/.test(a[i])) n = parseInt(a[i].slice(1), 10) || 10;
-        else if (!a[i].startsWith('-')) files.push(a[i]);
-      }
-      const r = srcOf(files, s); return r.err ? 'tail: ' + r.err : r.text.split('\n').slice(-n).join('\n');
+      const { n, bytes, from, files } = extentOf(a);
+      const r = srcOf(files, s);
+      if (r.err) return 'tail: ' + r.err;
+      if (bytes != null) return [...String(r.text)].slice(-bytes).join('');
+      if (from != null) return linesOf(r.text).slice(from - 1).join('\n');
+      return linesOf(r.text).slice(-n).join('\n');
     };
     C.grep = (a, s) => {
       let flags = '', rest = [];
@@ -512,17 +654,21 @@
       return lines.join('\n');
     };
     C.find = a => {
-      const ni = a.findIndex(x => x === '-name' || x === '-iname');
-      const pat = ni >= 0 ? a[ni + 1] : '*';
-      const ti = a.findIndex(x => x === '-type');
-      const wantType = ti >= 0 ? a[ti + 1] : null;
-      const start = a.find((x, i) => !x.startsWith('-') && (ni < 0 || i !== ni + 1) && (ti < 0 || i !== ti + 1)) || '.';
-      const n = walkN(resolve(start));
-      if (!isDir(n)) return "find: '" + start + "': No such file or directory";
-      const re = new RegExp('^' + pat.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$', ni >= 0 && a[ni] === '-iname' ? 'i' : '');
-      return listTree(n, start === '.' ? '.' : start, [])
-        .filter(([p, node]) => (!wantType || (wantType === 'f' ? !isDir(node) : isDir(node))) && re.test(p.split('/').pop()))
-        .map(([p]) => p).join('\n');
+      const SH = window.TerminalSharedCommands;
+      if (!SH || typeof SH.find !== 'function') return '';
+      return SH.find(a, {
+        walk: p => walkN(resolve(p)),
+        isDir,
+        size: n => (isDir(n) ? 4096 : textOf(n).length + 1),
+        mode: n => Unix.mode(n, isDir(n)),
+        remove: p => { const parts = resolve(p); const parent = walkN(parts.slice(0, -1)); if (isDir(parent)) delete parent[parts[parts.length - 1]]; },
+        exec: (words, stdin) => {
+          const fn = C[words[0]];
+          if (typeof fn !== 'function') return 'find: ' + words[0] + ': command not found';
+          return String(fn(words.slice(1), stdin) ?? '');
+        },
+        user: isWin ? pcUser : 'solver'
+      });
     };
     C.tree = a => {
       if (isWin && window.TerminalPlayground?.winTreeListing) {
@@ -576,7 +722,7 @@
       if (r.err) return 'cut: ' + r.err;
       const rangeM = fSpec.match(/^(\d+)-(\d*)$/);
       const idx = parseInt(fSpec, 10) || 1;
-      return r.text.split('\n').map(l => {
+      return linesOf(r.text).map(l => {
         const parts = l.split(d);
         if (rangeM) return parts.slice((+rangeM[1] || 1) - 1, rangeM[2] ? +rangeM[2] : undefined).join(d);
         return parts[idx - 1] || '';
@@ -629,7 +775,7 @@
     C.uniq = (a, s) => {
       const r = srcOf(a.filter(x => !x.startsWith('-')), s);
       if (r.err) return 'uniq: ' + r.err;
-      const ls2 = r.text.split('\n');
+      const ls2 = linesOf(r.text);
       if (a.includes('-c')) {
         const out = [];
         for (let i = 0; i < ls2.length;) { let j = i + 1; while (j < ls2.length && ls2[j] === ls2[i]) j++; out.push(String(j - i).padStart(6) + ' ' + ls2[i]); i = j; }
@@ -640,13 +786,18 @@
     C.wc = (a, s) => {
       const r = srcOf(a.filter(x => !x.startsWith('-')), s);
       if (r.err) return 'wc: ' + r.err;
-      const lines = r.text ? r.text.split('\n').length : 0;
-      if (a.includes('-w')) return String(r.text.trim() ? r.text.trim().split(/\s+/).length : 0);
-      if (a.includes('-c')) return String(r.text.length);
-      return String(lines);
+      const text = String(r.text || '');
+      const lines = (text.match(/\n/g) || []).length;
+      if (a.includes('-w')) return String(text.trim() ? text.trim().split(/\s+/).length : 0);
+      if (a.includes('-c') || a.includes('-m')) return String(text.length);
+      const columns = [];
+      if (a.some(x => /^-\w*l/.test(x)) || !a.some(x => /^-[lwc]/.test(x))) columns.push(String(lines));
+      if (a.some(x => /^-[lw]*w/.test(x))) columns.push(String(text.trim() ? text.trim().split(/\s+/).length : 0));
+      if (a.some(x => /^-[lw]*c/.test(x))) columns.push(String(text.length));
+      return columns.join(' ');
     };
-    C.nl = (a, s) => { const r = srcOf(a.filter(x => !x.startsWith('-')), s); return r.err ? 'nl: ' + r.err : r.text.split('\n').map((l, i) => String(i + 1).padStart(6) + '\t' + l).join('\n'); };
-    C.tac = (a, s) => { const r = srcOf(a.filter(x => !x.startsWith('-')), s); return r.err ? 'tac: ' + r.err : r.text.split('\n').reverse().join('\n'); };
+    C.nl = (a, s) => { const r = srcOf(a.filter(x => !x.startsWith('-')), s); return r.err ? 'nl: ' + r.err : linesOf(r.text).map((l, i) => String(i + 1).padStart(6) + '\t' + l).join('\n'); };
+    C.tac = (a, s) => { const r = srcOf(a.filter(x => !x.startsWith('-')), s); return r.err ? 'tac: ' + r.err : linesOf(r.text).reverse().join('\n'); };
     C.paste = a => {
       const dIdx = a.indexOf('-d'), sep = dIdx >= 0 ? (a[dIdx + 1] || '\t') : '\t';
       const files = a.filter((x, i) => !x.startsWith('-') && (dIdx < 0 || i !== dIdx + 1));
@@ -656,7 +807,21 @@
       return Array.from({ length: len }, (_, i) => lists.map(l => l[i] || '').join(sep)).join('\n');
     };
     C.base64 = (a, s) => { const dec = a.some(x => /^-d|--decode$/.test(x)); const pos = a.filter(x => !x.startsWith('-')); const r = pos.length && walkN(resolve(pos[0])) !== undefined ? srcOf(pos, s) : { err: true }; const txt = r.err ? (pos.join(' ') || (s == null ? '' : s)) : r.text; try { return dec ? b64d(txt) : b64e(txt); } catch (e) { return 'base64: invalid input'; } };
-    C.xxd = (a, s) => { const dec = a.includes('-r') || a.includes('-d'); const pos = a.filter(x => !x.startsWith('-')); const r = pos.length && walkN(resolve(pos[0])) !== undefined ? srcOf(pos, s) : { err: true }; const txt = r.err ? (pos.join(' ') || (s == null ? '' : s)) : r.text; return dec ? unhex(txt) : hexOf(txt); };
+    C.xxd = (a, s) => {
+      const dec = a.includes('-r') || a.includes('-d'), plain = a.includes('-p');
+      const pos = a.filter(x => !x.startsWith('-'));
+      const r = pos.length && walkN(resolve(pos[0])) !== undefined ? srcOf(pos, s) : { err: true };
+      const txt = r.err ? (pos.join(' ') || (s == null ? '' : s)) : r.text;
+      if (dec) return unhex(txt);
+      const bytes = [...String(txt)].map(c => c.charCodeAt(0));
+      if (plain) return bytes.map(b => b.toString(16).padStart(2, '0')).join('');
+      const rows = [];
+      for (let i = 0; i < bytes.length; i += 8) {
+        const chunk = bytes.slice(i, i + 8);
+        rows.push(i.toString(16).padStart(8, '0') + ': ' + chunk.map(b => b.toString(16).padStart(2, '0')).join(' ').padEnd(23) + '  ' + chunk.map(b => b >= 32 && b < 127 ? String.fromCharCode(b) : '.').join(''));
+      }
+      return rows.join('\n');
+    };
     C.hex = C.xxd;
     C.hexdump = (a, s) => C.xxd(a.filter(x => x !== '-C'), s);
     C.rot13 = (a, s) => { const pos = a.filter(x => !x.startsWith('-')); const r = pos.length && walkN(resolve(pos[0])) !== undefined ? srcOf(pos, s) : { err: true }; return rot(r.err ? (pos.join(' ') || (s == null ? '' : s)) : r.text, 13); };
@@ -670,7 +835,30 @@
     C.sha256sum = (a, stdin) => Unix.checksum('sha256', read)(a, stdin).out;
     C.echo = a => (a[0] === '-n' ? a.slice(1) : a).join(' ');
     C['write-output'] = C.echo; C['write-host'] = C.echo;
-    C.printf = a => { let fmt = String(a[0] || '').replace(/\\n/g, '\n').replace(/\\t/g, '\t'), idx = 1; return fmt.replace(/%[sdif]/g, () => String(a[idx++] ?? '')); };
+    /* printf repeats its format while arguments remain, so `printf '%s\n' a b` prints two lines */
+    C.printf = a => {
+      const args = a.slice();
+      if (args[0] === '--') args.shift();
+      if (!args.length) return 'printf: usage: printf FORMAT [ARGUMENT]...';
+      const unescape = s => String(s).replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\r/g, '\r').replace(/\\a/g, '\u0007').replace(/\\b/g, '\b').replace(/\\f/g, '\f').replace(/\\v/g, '\v').replace(/\\\\/g, '\\');
+      const format = unescape(args.shift());
+      let at = 0;
+      const once = () => format.replace(/%(?:%|([sbcdufixXo]))/g, (whole, spec) => {
+        if (!spec) return '%';
+        const value = at < args.length ? args[at++] : '';
+        if (spec === 's') return String(value);
+        if (spec === 'b') return unescape(value);
+        if (spec === 'c') return String(value).charAt(0);
+        if (spec === 'd' || spec === 'i' || spec === 'u') return String(parseInt(value, 10) || 0);
+        if (spec === 'f') return (parseFloat(value) || 0).toFixed(6);
+        if (spec === 'x' || spec === 'X') { const hex = (parseInt(value, 10) || 0).toString(16); return spec === 'X' ? hex.toUpperCase() : hex; }
+        if (spec === 'o') return (parseInt(value, 10) || 0).toString(8);
+        return String(value);
+      });
+      let out = once(), guard = 0;
+      while (at < args.length && /%[sbcdufixXo]/.test(format) && guard++ < 500) out += once();
+      return out;
+    };
     C.strings = (a, s) => { const r = srcOf(a.filter(x => !x.startsWith('-')), s); return r.err ? 'strings: ' + r.err : (r.text.match(/[\x20-\x7e]{4,}/g) || []).join('\n'); };
     C.sed = (a, s) => {
       const sc = a.find(x => !x.startsWith('-')) || '', m = sc.match(/^s(.)(.*?)\1(.*?)\1([gi]*)$/);
@@ -683,7 +871,7 @@
       if (inPlace && files.length) { for (const f of files) writeF(f, out, false); return ''; }
       return out;
     };
-    C.awk = (a, s) => { let sep = ' ', prog = '', files = []; for (let i = 0; i < a.length; i++) { if (a[i] === '-F') sep = a[++i] || ' '; else if (/^-F./.test(a[i])) sep = a[i].slice(2); else if (!prog && a[i].includes('{')) prog = a[i]; else if (!a[i].startsWith('-')) files.push(a[i]); } const m = prog.match(/\{[\s]*print\s+([^}]+)\}/); if (!m) return 'awk: try {print $1}'; const flds = m[1].split(',').map(x => x.trim()), r = srcOf(files, s); return r.err ? 'awk: ' + r.err : r.text.split('\n').map(l => { const p = sep === ' ' ? l.trim().split(/\s+/) : l.split(sep); return flds.map(f => f === '$0' ? l : /^\$\d+$/.test(f) ? (p[+f.slice(1) - 1] || '') : f.replace(/^"|"$/g, '')).join(' '); }).join('\n'); };
+    C.awk = (a, s) => { let sep = ' ', prog = '', files = []; for (let i = 0; i < a.length; i++) { if (a[i] === '-F') sep = a[++i] || ' '; else if (/^-F./.test(a[i])) sep = a[i].slice(2); else if (!prog && a[i].includes('{')) prog = a[i]; else if (!a[i].startsWith('-')) files.push(a[i]); } const m = prog.match(/\{[\s]*print\s+([^}]+)\}/); if (!m) return 'awk: try {print $1}'; const flds = m[1].split(',').map(x => x.trim()), r = srcOf(files, s);       return r.err ? 'awk: ' + r.err : linesOf(r.text).map(l => { const p = sep === ' ' ? l.trim().split(/\s+/) : l.split(sep); return flds.map(f => f === '$0' ? l : /^\$\d+$/.test(f) ? (p[+f.slice(1) - 1] || '') : f.replace(/^"|"$/g, '')).join(' '); }).join('\n'); };
     C.tee = (a, s) => { const f = a.find(x => !x.startsWith('-')); if (f && s != null) writeF(f, s, a.includes('-a')); return s == null ? '' : s; };
     C.touch = a => { for (const f of a.filter(x => !x.startsWith('-'))) if (walkN(resolve(f)) === undefined) writeF(f, '', false); return ''; };
     C.mkdir = a => { for (const f of a.filter(x => !x.startsWith('-'))) { const parts = resolve(f); let n = tree; for (const p of parts) { if (!isDir(n[p])) n[p] = {}; n = n[p]; } } return ''; };
@@ -722,25 +910,74 @@
       C.rm([f[0]]); return '';
     };
     C.diff = a => { const f = a.filter(x => !x.startsWith('-')); const r1 = read(f[0] || ''), r2 = read(f[1] || ''); if (r1.err || r2.err) return 'diff: ' + (r1.err || r2.err); return r1.text === r2.text ? '' : '--- ' + f[0] + '\n+++ ' + f[1] + '\n-' + r1.text + '\n+' + r2.text; };
-    C.whoami = () => isWin ? 'PUZZLE\\solver' : 'solver';
+    C.whoami = () => isWin ? 'PUZZLE-LAB\\' + pcUser : 'solver';
     C.hostname = () => 'puzzle-lab';
     C.ver = () => 'Microsoft Windows [Version 10.0.22631]';
     C.uname = () => 'Linux puzzle-lab 6.6.0 x86_64 GNU/Linux';
     C.id = () => 'uid=1000(solver) gid=1000(solver)';
     C.env = () => 'USER=solver\nHOME=/\nPWD=' + C.pwd();
     C.clear = () => ''; C.cls = () => '';
+    /* an absolute path, whether the argument is a file or a directory */
+    C.realpath = a => {
+      const p = a.find(x => !x.startsWith('-')) || '.';
+      if (walkN(resolve(p)) === undefined) return 'realpath: ' + p + ': No such file or directory';
+      const base = isWin ? C.pwd().replace(/\\/g, '/') : '/';
+      const rel = resolve(p).join('/');
+      if (!rel) return base;
+      return base.endsWith('/') ? base + rel : base + '/' + rel;
+    };
+    C.readlink = a => C.realpath(a);
     C.help = a => TP.formatHelp ? TP.formatHelp(shell, a) : 'Puzzle shell: ls, cd, pwd, cat, grep, find, tree, cut, tr, sort, uniq, wc, sed, awk, base64, xxd, rot13, rev, caesar';
     C.man = C.help;
 
     const listDir = dir => { const n = walkN(resolve(dir)); return isDir(n) ? Object.keys(n) : []; };
+    /* the variables a real bash always sets. Without them `find "$PWD"` searched for a folder literally named $PWD. */
+    const roomEnv = () => ({
+      PWD: C.pwd(), OLDPWD: prevCwd ? (isWin ? 'C:' + (prevCwd.length ? '\\' + prevCwd.join('\\') : '\\') : '/' + prevCwd.join('/')) : '',
+      HOME: isWin ? 'C:\\Users\\' + pcUser : '/', USER: isWin ? pcUser : 'solver', LOGNAME: isWin ? pcUser : 'solver', SHELL: isWin ? '' : '/bin/bash',
+      HOSTNAME: 'puzzle-lab', TERM: 'xterm-256color'
+    });
+    const expandVars = text => {
+      const src = String(text);
+      let out = '', quote = null;
+      for (let i = 0; i < src.length; i++) {
+        const ch = src[i];
+        if (ch === "'" && quote !== '"') { quote = quote === "'" ? null : "'"; out += ch; continue; }
+        if (ch === '"' && quote !== "'") { quote = quote === '"' ? null : '"'; out += ch; continue; }
+        if (ch === '\\' && quote !== "'" && i + 1 < src.length) { out += ch + src[i + 1]; i++; continue; }
+        if (ch === '$' && quote !== "'") {
+          const sum = /^\$\(\(([^()]*)\)\)/.exec(src.slice(i));
+          if (sum) {
+            let value = '';
+            try { value = String(new Function('return (' + sum[1].replace(/[^0-9+\-*/%().\s]/g, '') + ')')()); } catch (e) { value = ''; }
+            out += value;
+            i += sum[0].length - 1;
+            continue;
+          }
+          const m = /^\$\{([A-Za-z_][A-Za-z0-9_]*)\}|^\$([A-Za-z_][A-Za-z0-9_]*)/.exec(src.slice(i));
+          if (m) {
+            const name = m[1] || m[2];
+            const env = roomEnv();
+            out += Object.hasOwn(env, name) ? env[name] : '';   /* an unset variable is empty, as in bash */
+            i += m[0].length - 1;
+            continue;
+          }
+        }
+        out += ch;
+      }
+      return out;
+    };
     const run = (raw, subDepth) => {
       const line = String(raw == null ? '' : raw).trim();
       if (!line) return '';
       const outs = [];
       for (let chain of splitTop(line, isWin ? ['&&', '&'] : [';', '&&', '||'])) {
+        chain = expandVars(chain);
         if (G.expandSub) chain = G.expandSub(chain, (inner, d2) => run(inner, d2), subDepth || 0);
+        /* `2>/dev/null` is a stderr redirect: it must not swallow the command's stdout */
+        chain = chain.replace(/\s*(?:2|1)?>\s*\/dev\/null/g, ' ').replace(/\s*2>&1/g, ' ').trim();
         let redirect = null;
-        const rm = chain.match(/(>>?)\s*(\S+)\s*$/);
+        const rm = chain.match(/(?:^|\s)(>>?)\s*(\S+)\s*$/);
         if (rm) { redirect = { append: rm[1] === '>>', file: rm[2] }; chain = chain.slice(0, rm.index).trim(); }
         let stdin = null, out = '', diag = '';
         for (let seg of splitTop(chain, ['|'])) {
@@ -792,6 +1029,40 @@
       });
     }
 
+    /* the same Windows command set every other simulated Windows box has: dir/type/copy/del, ipconfig, tasklist,
+       systeminfo, net, sc, reg, and the PowerShell cmdlets (Get-Process, Get-Volume, Test-NetConnection, …) */
+    if (isWin && window.TerminalWindowsCommands) {
+      window.TerminalWindowsCommands.install(C, {
+        shell,
+        host: 'PUZZLE-LAB',
+        user: pcUser,
+        pwd: () => C.pwd(),
+        read,
+        write: writeF,
+        remove: p => {
+          const parts = resolve(p);
+          const parent = parts.length ? walkN(parts.slice(0, -1)) : undefined;
+          if (isDir(parent)) delete parent[parts[parts.length - 1]];
+        },
+        list: p => {
+          const n = walkN(resolve(p));
+          if (n === undefined || !isDir(n)) return { err: true };
+          return { names: Object.keys(n), dirs: Object.keys(n).filter(k => isDir(n[k])) };
+        },
+        history: () => [],
+        mkdir: p => {
+          const parts = resolve(p);
+          let n = tree;
+          for (const part of parts) { if (!isDir(n[part])) n[part] = {}; n = n[part]; }
+          return '';
+        }
+      });
+      /* in both Windows shells, ls and dir mean Get-ChildItem: a table with Mode, LastWriteTime, Length, Name */
+      C.ls = a => C['get-childitem'](a);
+      C.ll = a => C['get-childitem'](a);
+      C.la = a => C['get-childitem'](a.concat(['-Force']));
+    }
+
     return {
       id: spec.id || ('puz-' + Date.now()),
       shell,
@@ -809,7 +1080,7 @@
       answer: String(spec.answer || '').trim(),
       prompt: () => isWin ? (shell === 'powershell' ? 'PS ' + C.pwd() + '> ' : C.pwd() + '>') : 'solver@puzzle:' + C.pwd() + '$ ',
       cwdPath: C.pwd,
-      rootPath: isWin ? 'C:/puzzle' : '/',
+      rootPath: isWin ? 'C:/Users/' + pcUser : '/',
       run,
       createRuntime: () => buildCustomFileRoom(spec),
       /* merge files that appeared or changed on the real disk into this room (the app shell uses this so a file
@@ -946,9 +1217,7 @@
       category: 'breadcrumb',
       stages: isInsane ? 5 : isHard ? 4 : 3,
       title: DIFFS[diff].label + ' · Vault Breadcrumb Chain (' + (isInsane ? '5 Stages' : isHard ? '4 Stages' : '3 Stages') + ')',
-      brief: 'Start at README.txt and var/log/ops.log. Trace the verified prod pointer (' + (isInsane ? 'hex' : 'Base64') + ') to the true hidden vault among ' + decoyCount + ' decoy vault(s), ' +
-        (isInsane ? 'ROT13-decode its hidden .clearance.rot policy, ' : 'check etc/policy.conf, ') +
-        'filter that vault’s manifest.csv for the exact ACTIVE row (comma-separated: filter tier and region separately), and peel ' + layerCount + ' stacked layer(s) to recover the key.',
+      brief: 'This is a walk down a trail, not a lookup. A log remembers hundreds of production pointers and blesses only one; that one leads to a vault hidden among ' + decoyCount + ' impostors. A policy kept inside decides which manifest row is alive, and that row keeps the key under ' + layerCount + ' layer(s) of wrapping. README.txt remembers where the walk starts.',
       hint: 'Step 1: ' + walkthrough[0] + '  →  Step 2: ' + walkthrough[1] + '  →  Step 3: filter manifest.csv & decode (' + chain.decodePipe + ')',
       walkthrough,
       answer: ans,
@@ -1041,8 +1310,7 @@
       category: 'corrupt_shards',
       stages: isInsane ? 5 : isHard ? 3 : 2,
       title: DIFFS[diff].label + ' · Corrupted ' + shardCount + '-Shard Assembly (' + (isInsane ? '5 Stages' : isHard ? '3 Stages' : '2 Stages') + ')',
-      brief: 'The key was encoded through ' + layerCount + ' layer(s), split into ' + shardCount + ' noisy shards, and hidden among ' + decoys + ' decoys. ' +
-        (isInsane ? 'Decode etc/locator.hex → hidden manifest (.b64) → filter REAL_CHUNK lines → strip # prefixes → join → decode!' : 'Decode etc/index.b64 to get the shard order, strip prefixes, join, and decode!'),
+      brief: 'The key was wrapped ' + layerCount + ' time(s) over, then broken into ' + shardCount + ' pieces and scattered among ' + decoys + ' pieces that are not it. Nothing says which order they go in except a manifest, ' + (isInsane ? 'and even the manifest is not where its own locator says at first glance.' : 'which was itself sealed before it was left here.') + ' Find the order, mend the pieces, and the key comes out of the wrappers.',
       hint: walkthrough[0] + '  →  then ' + (isInsane ? walkthrough[1] : finalCmd),
       walkthrough,
       answer: ans,
@@ -1135,7 +1403,7 @@
         category: 'forensic_corr',
         stages: 5,
         title: 'Insane · Dual-Log Exfil Forensics (5 Stages)',
-        brief: 'Correlate 3 logs: find the elevated MFA_BYPASS IP in var/log/auth.log → map it to a txid in var/log/dns.log → filter & sort the 4 shuffled 200 chunks in var/log/proxy.csv → join and peel 3 layers (' + chain.decodePipe + ').',
+        brief: 'Three logs remember one break-in and none of them tells the whole story. The first saw an address let past two checks at once; the second ties that address to an exfiltration id; the third holds the pieces of what left, cut apart and shuffled out of order. Put them back in sequence and the key appears under its wrappers.',
         hint: 'Stage 1: ' + walkthrough[0] + '  →  Stage 2: ' + walkthrough[1] + '  →  Stage 3: filter proxy.csv for ,200, then sort -t, -k3 | cut -d, -f5 | tr -d "\\n" | ' + chain.decodePipe,
         walkthrough,
         answer: ans,
@@ -1167,7 +1435,7 @@
       category: 'forensic_corr',
       stages: 3,
       title: DIFFS[diff].label + ' · Auth-to-Proxy Correlation (3 Stages)',
-      brief: 'Find the attacker IP with MFA_BYPASS + SESSION_ELEVATED in var/log/auth.log, match its HTTP 200 row in var/log/proxy.csv, extract column 4, and peel ' + layerCount + ' layer(s) (' + chain.decodePipe + ').',
+      brief: 'Two logs remember one break-in. The first names the address that was let past two checks at once; the second holds what that address took away, and the copy that left cleanly is the one you want. Its payload is wrapped ' + layerCount + ' time(s) over.',
       hint: 'grep SESSION_ELEVATED var/log/auth.log  →  ' + finalCmd,
       walkthrough: ['grep MFA_BYPASS var/log/auth.log | grep SESSION_ELEVATED', finalCmd],
       answer: ans,
@@ -1274,7 +1542,7 @@
       category: 'pipeline',
       stages: tierNum >= 4 ? 4 : tierNum >= 3 ? 3 : 2,
       title: dObj.label + ' · Telemetry Pipeline (' + layerCount + ' Layer' + (layerCount > 1 ? 's' : '') + ')',
-      brief: 'logs/stream.csv (' + totalRows + ' rows of ' + sepName + '-separated fields, with traps) hides one row where ' + filterList + ' all match. Extract ' + spec + ' from that row and peel ' + layerCount + ' layer(s) (' + chain.decodePipe + ').' + (tierNum >= 4 ? ' The filter spec and the column number are Base64 in etc/.' : ''),
+      brief: 'One export of ' + totalRows + ' rows hides a single survivor: the only row where ' + filterList + ' all hold true at once. ' + spec + ' in that row is the key, wrapped ' + layerCount + ' layer(s) over, and the traps around it are rows that match only some of the conditions.' + (tierNum >= 4 ? ' Even the conditions and the column number had to be hidden before this room was left.' : ''),
       hint: scouting.concat([finalCmd]).join('  →  '),
       walkthrough,
       answer: ans,
@@ -1302,7 +1570,7 @@
       return buildCustomFileRoom({
         id: 'gen-med-hid-' + seed, shell, difficulty: 'medium', category: 'hidden', stages: 2,
         title: 'Medium · Hidden Encoded Vault (2 Stages)',
-        brief: 'A hidden directory holds 3 .enc files plus a hidden .note telling you which file is active and how to decode it (' + chain.labels[0] + ').',
+        brief: 'A hidden folder holds several sealed files, and more than one of them wants to look like the key. Among them is a note that only shows itself when you ask for hidden things; it knows which file is alive and how it was sealed.',
         hint: 'ls -la  →  cat ' + dir + '/.note  →  ' + cmd,
         walkthrough: ['ls -la', 'cat ' + dir + '/.note', cmd],
         answer: ans, files: treeToFlat(tree)
@@ -1318,7 +1586,7 @@
       return buildCustomFileRoom({
         id: 'gen-med-nest-' + seed, shell, difficulty: 'medium', category: 'nested', stages: 2,
         title: 'Medium · Nested Encoded Vault (2 Stages)',
-        brief: 'Read manifest.txt to find the active nested directory among 4 decoy .enc files, then decode the payload (' + chain.labels[0] + ').',
+        brief: 'One vault is live and four are only pretending. A manifest left at the surface knows which nested directory is the real one, and the payload inside it is still sealed when you get there.',
         hint: 'cat manifest.txt  →  ' + cmd,
         walkthrough: ['cat manifest.txt', 'find . -name "*.enc"', cmd],
         answer: ans, files: treeToFlat(tree)
@@ -1332,7 +1600,7 @@
       return buildCustomFileRoom({
         id: 'gen-med-enc-' + seed, shell, difficulty: 'medium', category: 'encoded', stages: 2,
         title: 'Medium · Double-Layered Secret (2 Layers)',
-        brief: 'vault/sealed.dat is wrapped in 2 stacked encoding layers (' + chain2.labels.join(' → ') + '). Decode both layers in a pipeline.',
+        brief: 'One file in the vault will not read as words. It wears two wrappers, one inside the other, and the way each one looks tells you how to open it. Take them off in the reverse order they went on.',
         hint: cmd,
         walkthrough: ['cat README.txt', cmd],
         answer: ans, files: treeToFlat(tree)
@@ -1978,7 +2246,7 @@
     if (diff === 'easy') {
       files[S.file] = tableOf();
       files['README.txt'] = 'Rota export. Fields are separated by a ' + S.word + '.\nThe access code is in the last column.\n';
-      extra.brief = 'A staff rota exported as ' + S.word + '-separated fields. Find the access code in the row for ' + target[0] + ' (ls, then read the file).';
+      extra.brief = 'A staff rota was exported with its fields separated by a ' + S.word + '. One row belongs to ' + target[0] + ', and the access code travels in that row. Read the export and pick the right person out of it.';
       extra.hint = 'ls · cat ' + S.file + ' · grep -i "' + target[0] + '" ' + S.file;
       extra.walk = ['ls', 'cat ' + S.file, 'grep -i "' + target[0] + '" ' + S.file];
       extra.stages = 1;
@@ -1988,7 +2256,7 @@
       rows.push([twin[0] + ' Ashworth', target[1] === DEPTS[0] ? DEPTS[1] : DEPTS[0], 'site-' + (10 + r(80)), '55', L.newToken(r)]);
       files[S.file] = tableOf();
       files['notes/leaver.txt'] = 'Please remove ' + rows.at(-1)[0] + ' at the end of the month, before the audit.\n';
-      extra.brief = 'The rota was exported with ' + S.word + '-separated fields. Two people share the first name "' + twin[0] + '". Find the access code for ' + target[0] + ' in ' + target[1] + ' — the full name and the department both matter.';
+      extra.brief = 'The rota is ' + S.word + '-separated and two people answer to the first name "' + twin[0] + '", so the first name alone will lead you to a false code. The one you want belongs to ' + target[0] + ' in ' + target[1] + ': the whole name and the department together decide the row.';
       extra.hint = 'ls -R · cat ' + S.file + ' · grep -iw "' + target[1] + '" ' + S.file + ' · column ' + codeCol;
       extra.walk = ['ls -R', 'cat ' + S.file, 'grep -iw "' + target[1] + '" ' + S.file].concat(solvers(shell, sep, codeCol, target[0]));
       extra.stages = 2;
@@ -1999,7 +2267,7 @@
       files['staff.csv'] = 'id,name,dept\n' + rows.map((row, i) => [ids[i], row[0], row[1]].map(cell).join(',')).join('\n') + '\n';
       files['badges.csv'] = 'id,issued,code\n' + rows.map((row, i) => [ids[i], '2026-0' + (1 + r(9)) + '-1' + r(9), row[4]].join(',')).join('\n') + '\n';
       files['README.txt'] = 'The two exports share the id column. Join them by hand: grep the id in one file, then grep it in the other.\n';
-      extra.brief = 'Two comma-separated exports share an id column. Find ' + target[0] + '\'s id in staff.csv, then use that id in badges.csv to get the access code. Nothing links them but the number.';
+      extra.brief = 'Two exports were kept apart in different files, and nothing ties them together except an id number. One file knows which id belongs to ' + target[0] + '; the other knows which access code was issued under that id. Carry the number across by hand.';
       extra.hint = 'grep -iw "' + target[0] + '" staff.csv  →  take the id (' + id + ')  →  grep -w "' + id + '" badges.csv  →  cut -d\',\' -f3';
       extra.walk = ['ls', 'cat staff.csv', 'grep -iw "' + target[0] + '" staff.csv', 'grep -w "' + target[0] + '" staff.csv | cut -d\',\' -f1', 'grep -w "' + id + '" badges.csv'];
       extra.stages = 3;
@@ -2010,7 +2278,7 @@
       files['manifest/meta.ini'] = 'export=rota\nseparator=' + S.word + '\ncolumns=name:' + nameCol + ';dept:' + deptCol + ';code:' + codeCol + '\nnote=the access code is Base64, decode it last\n';
       files[S.file] = tableOf();
       files['decoy/' + S.file] = 'name' + sep + 'code\nGhost' + sep + b64e(L.newToken(r)) + '\n';
-      extra.brief = 'No documentation on the export. Work it out: find the manifest that names the separator and columns, find the rota file (not the decoy with the same name), pull ' + target[0] + '\'s code, then Base64-decode it.';
+      extra.brief = 'Nobody documented this export. Somewhere in the files a manifest admits how the fields are separated and which column matters, and one of the two rotas on the disk is a decoy wearing the same name as the real one. ' + target[0] + '\'s code is in the real one, and it is still sealed in Base64.';
       extra.hint = 'find . -name "*.ini" · cat manifest/meta.ini · cat ' + S.file + ' · grep -i "' + target[0] + '" ' + S.file + ' · base64 -d';
       extra.walk = ['find . -name "*.ini"', 'cat manifest/meta.ini', 'cat ' + S.file, 'grep -i "' + target[0] + '" ' + S.file, 'grep -i "' + target[0] + '" ' + S.file + ' | ' + cutFor(codeCol) + ' | base64 -d'];
       extra.stages = 4;
@@ -2051,7 +2319,7 @@
       files['README.txt'] = 'The flag is on the line mentioning ' + word.toUpperCase() + '. Flag values look like FLAG-AB12CD.\n';
       return buildCustomFileRoom({
         id: 'gen-flag-easy-' + seed, shell, difficulty: diff, category: 'flags', stages: 1,
-        title: 'Easy · Log Hunt', brief: 'One log, many lines, one flag. Search for the word ' + word + ' (any case) and read the flag= value.',
+        title: 'Easy · Log Hunt', brief: 'One log, many lines, and one of them is worth reading. A single line mentions ' + word + '; its flag= value is the key.',
         hint: 'grep -i ' + word + ' audit.log', walkthrough: ['ls', 'grep -i ' + word + ' audit.log'], answer: ans, files
       });
     }
@@ -2062,7 +2330,7 @@
       return buildCustomFileRoom({
         id: 'gen-flag-med-' + seed, shell, difficulty: diff, category: 'flags', stages: 2,
         title: 'Medium · Whole-Word Hunt (-w)',
-        brief: 'The word ' + word + ' also hides inside longer tokens. Use whole-word matching (grep -w) to find the real line, then read its flag.',
+        brief: 'The word ' + word + ' is not as alone as it looks: it also hides inside longer words, and the lines that swallow it carry flags that lead nowhere. The line where it stands on its own is the one that holds the key.',
         hint: cmd + ' · then cut -d= -f2', walkthrough: ['cat README.txt', 'grep -i ' + word + ' audit.log', cmd], answer: ans, files
       });
     }
@@ -2074,7 +2342,7 @@
       return buildCustomFileRoom({
         id: 'gen-flag-hard-' + seed, shell, difficulty: diff, category: 'flags', stages: 3,
         title: 'Hard · -w then -v',
-        brief: 'Find the whole-word, case-insensitive match for ' + word + ', then throw away the line that mentions ' + blocker + '. The flag value is after flag=.',
+        brief: 'Two lines will claim to be the one, and both mention ' + word + ' as a whole word. One of them is only a ' + blocker + ' notice with a fake flag beside it. The other one carries the real flag= value.',
         hint: excl + '  →  cut -d= -f2', walkthrough: ['cat README.txt', cmd, excl, excl + ' | cut -d= -f2'], answer: ans, files
       });
     }
@@ -2094,7 +2362,7 @@
     return buildCustomFileRoom({
       id: 'gen-flag-insane-' + seed, shell, difficulty: diff, category: 'flags', stages: 4,
       title: 'Insane · -r -l then decode',
-      brief: 'Nine logs, one secret. Find which file mentions ' + word + ' (grep -rl), find the whole-word line (grep -inw), and both the flag and a sealed Base64 value are there. The answer is the decoded sealed value.',
+      brief: 'Many logs, one secret. Only a single file mentions ' + word + ' at all; inside it, the line where the word stands alone holds both a flag and a sealed= value. The key is what that sealed value becomes once it is opened.',
       hint: rl + '  →  grep -inw "' + word + '" <file>  →  grep sealed= <file> | cut -d= -f2 | base64 -d',
       walkthrough: [rl, 'grep -inw "' + word + '" ' + chosen + '/audit-99.log', 'grep sealed= ' + chosen + '/audit-99.log | cut -d= -f2 | base64 -d'],
       answer: ans, files
@@ -2123,12 +2391,12 @@
     const grepFor = shell === 'cmd' ? 'findstr /s /i "key=" *.txt' : 'grep -rl "key=" .';
     const reveal = ['ls -la', 'find . -type f', 'grep -rn "key=" .'];
     const brief = diff === 'easy'
-      ? 'Three files. One of them holds key=. Find it and read the value.'
+      ? 'Three files rest on this disk and one of them holds a key= line. Find it and read the value.'
       : diff === 'medium'
-        ? count + ' files across several folders and only one holds key=. Search the whole disk with grep -r instead of reading them one by one.'
+        ? count + ' files are scattered across several folders and only one holds key=. Reading them one at a time will wear you out; searching the whole disk will not.'
         : diff === 'hard'
-          ? count + ' files, and the one you want is a hidden file in a hidden folder (its name starts with a dot). grep -rl finds the file; ls -la proves you looked properly.'
-          : count + ' files, two of them claim to hold key=, and the values are Base64. One is an old decoy in archive/2019. Find the live one, decode it.';
+          ? count + ' files, and the one you want is hidden twice over: the file and the folder that holds it both begin with a dot, so an ordinary listing never shows it.'
+          : count + ' files, two of them claim a key= line, and both values are sealed in Base64. One is an old decoy from 2019 that was never cleaned up. Take the live one and open it.';
     const hint = diff === 'easy' ? 'ls · cat <file>' : diff === 'insane' ? grepFor + '  →  base64 -d  (ignore archive/2019)' : grepFor + '  →  cat <file>';
     return buildCustomFileRoom({
       id: 'gen-recon-' + seed, shell, difficulty: diff, category: 'recon', stages: diff === 'easy' ? 1 : diff === 'insane' ? 4 : 2,
@@ -2138,8 +2406,126 @@
     });
   }
 
+  /* ================================================================ BREAK-IN MISSIONS (deep Labyrinth floors)
+     A different kind of room: instead of searching your own files, you are breaking into a fake machine that belongs
+     to a person, a company or a government office, to recover a secret. Nothing here is real: every name, document and
+     secret is invented inside this page, no connection is made, and the mission ends with the defensive lesson. */
+  const INTRUDERS = {
+    person: { label: 'a person’s laptop', places: ['home', 'Users'], owners: ['dana.whitfield', 'mira.okafor', 'j.achebe', 'sam.iribarne'], note: 'personal notes', secretClass: 'private secret' },
+    company: { label: 'a company workstation', places: ['home', 'Users'], owners: ['build-07', 'finance-pc', 'support-12', 'ops-03'], note: 'a work record', secretClass: 'company secret' },
+    government: { label: 'a government laptop', places: ['home', 'Users'], owners: ['clerk-204', 'records-11', 'field-07'], note: 'an office record', secretClass: 'government secret' }
+  };
+  function makeIntrusionPuzzle(shell, diff, seed) {
+    const r = L.rnd((seed ^ 0x5bf03635) >>> 0);
+    const pickOne = list => list[r(list.length)];
+    /* The kind of machine follows the difficulty, so a seed always replays the same mission: easy floors are a
+       person’s laptop, medium mixes people and companies, hard mixes companies and government, insane is government. */
+    const grade = diff === 'insane' ? pickOne(['company', 'government', 'government', 'person'])
+      : diff === 'hard' ? pickOne(['person', 'company', 'government'])
+        : diff === 'medium' ? pickOne(['person', 'company']) : 'person';
+    const kind = INTRUDERS[grade];
+    const owner = pickOne(kind.owners);
+    const user = owner.split(/[.-]/)[0] || 'user';
+    const win = shell === 'powershell' || shell === 'cmd';
+    /* the fake disk lives under home/<user> (Users/mirror on Windows); `disk` is the path you type in a command */
+    const base = win ? 'Users/mirror' : 'home/' + user;
+    const disk = win ? 'C:/' + base : base;
+    const token = L.newToken(r);
+    const secret = 'SECRET{' + grade + '_' + token.replace(/-/g, '_') + '}';
+    const decode = s => L.encoders.b64(s);
+    const vaultName = pickOne(['session-store', 'mail-archive', 'budget-2026', 'casefile', 'payroll-export']);
+    const resetName = pickOne(['helpdesk-reset', 'it-ticket', 'vendor-note', 'front-desk-note']);
+    const resetKey = base + '/Desktop/' + resetName + '.txt';
+    const vaultKey = base + '/AppData/Local/' + vaultName + '.bin';
+    const resetPath = disk + '/Desktop/' + resetName + '.txt';
+    const vaultPath = disk + '/AppData/Local/' + vaultName + '.bin';
+    const decoyName = pickOne(['old-backup', 'holiday-photos', 'invoice-draft']);
+    const decoyKey = base + '/Downloads/' + decoyName + '.bin';
+    const decoy = disk + '/Downloads/' + decoyName + '.bin';
+    const chatName = pickOne(['messages', 'notes', 'memo']);
+    const chatKey = base + '/Documents/' + chatName + '.txt';
+    const chatPath = disk + '/Documents/' + chatName + '.txt';
+    const read = win ? (shell === 'cmd' ? 'type' : 'Get-Content') : 'cat';
+    const listAll = win ? (shell === 'cmd' ? 'dir /s /b' : 'Get-ChildItem -Recurse') : 'ls -laR';
+    const search = win ? (shell === 'cmd' ? 'findstr /s /i' : 'Select-String -Path * -Pattern') : 'grep -rni';
+    /* the step count grows with difficulty and matches the walkthrough exactly */
+    const stages = diff === 'easy' ? 1 : diff === 'medium' ? 3 : diff === 'hard' ? 4 : 5;
+    const encoded = !win;
+    const answer = encoded ? secret : 'SECRET{' + grade + '_' + token.replace(/-/g, '_') + '}';
+    /* more layers the deeper you are, but always decodable with the same command repeated */
+    const wraps = diff === 'insane' ? 2 : 1;
+    let vaultBody = encoded ? 'vault=' + secret + '\nsession=' + token : 'vault=' + secret + '\nuser=' + owner + '\nreference=' + token;
+    if (encoded) for (let i = 0; i < wraps; i++) vaultBody = decode(vaultBody);
+    const files = {};
+    files['README.txt'] = [
+      'SIMULATED BREAK-IN — ' + kind.label + ' (practice use only)',
+      '',
+      'Every name, document, password and secret below is invented for this room. It exists only inside this',
+      'page: no real person, company or government system is here, nothing is contacted, and no real secret is',
+      'ever exposed.',
+      '',
+      'The owner of ' + kind.label + ' hired you to test it. Their own notes, chat exports, support tickets and',
+      'logs are copied onto this mirrored disk — those are where the way in is written down.',
+      '',
+      'Defense to remember: a reset note must never name the vault, secrets belong in a real secret store rather',
+      'than in documents or chat logs, and the vault path should not be readable by the account that is tested.'
+    ].join('\n');
+    files[base + '/notes/security-review.txt'] = [
+      'security review — ' + owner,
+      '',
+      'finding: shared vault path written into a support ticket',
+      'finding: vault file stored next to the documents it protects',
+      'action: move secrets into a managed store and rotate every key that was shared in chat'
+    ].join('\n');
+    files[chatKey] = [
+      'conversation export (fake)',
+      '',
+      owner + ': the login page keeps locking me out',
+      'support: use the reset note on your Desktop, ticket reference ' + token,
+      owner + ': thanks, moving ' + kind.note + ' into ' + vaultName + ' now',
+      'support: anything sensitive belongs in the vault, not in Documents'
+    ].join('\n');
+    files[resetKey] = [
+      'it support — reset note',
+      '',
+      'machine: ' + owner,
+      'one-time password: ' + token.slice(0, 8),
+      'vault path: ' + vaultPath,
+      'note: the vault file is base64 inside' + (wraps > 1 ? ' — wrapped ' + wraps + ' times, decode it that many times' : '') + ', and the ' + kind.secretClass + ' is the vault= line'
+    ].join('\n');
+    files[vaultKey] = vaultBody;
+    files[decoyKey] = decode('vault=SECRET{' + grade + '_decoy_do_not_submit}');
+    files[base + '/Documents/inventory.csv'] = 'asset,owner,zone\nlaptop,you,lab\nprinter,guest,lab';
+    files[base + '/.ssh/known_hosts'] = 'lab-mirror.internal ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFAKEFAKE';
+    if (stages >= 2) files[base + '/logs/auth.log'] = 'session opened for ' + user + '\nsession closed for ' + user + '\n';
+    if (stages >= 3) files[base + '/Desktop/scratch.txt'] = 'TODO: stop writing vault paths in chat logs';
+    if (stages >= 4) files[base + '/admin/console-dump.txt'] = 'GET /api/session -> 200\ntoken=' + token + '\nrole=helpdesk\n';
+    const steps = [];
+    if (stages >= 3) steps.push(listAll);
+    if (stages >= 4) steps.push(read + ' ' + chatPath);
+    steps.push(read + ' ' + resetPath);
+    steps.push(read + ' ' + vaultPath);
+    if (encoded) steps.push(read + ' ' + vaultPath + Array(wraps).fill(' | base64 -d').join(''));
+    else if (stages >= 5) steps.push(read + ' ' + chatPath);
+    const hint = stages === 1 ? 'Read the reset note: ' + read + ' ' + resetPath
+      : encoded ? 'Start with ' + listAll + ', follow the chat log and the reset note, then ' + Array(wraps).fill('base64 -d').join(' | ') + ' the vault body. Ignore ' + decoy.split('/').pop() + '.'
+        : 'Start with ' + listAll + ', follow the chat log and the reset note, then find the vault= line in the vault file.';
+    const where = win ? disk.replace(/\//g, '\\') : '~/' + base;
+    const whereCmd = disk;
+    return buildCustomFileRoom({
+      id: 'gen-break-' + seed, shell, difficulty: diff, category: 'intrusion', stages,
+      title: DIFFS[diff].label + ' · Break-in: ' + grade,
+      brief: '🎯 BREAK-IN MISSION · ' + kind.label + '\n' +
+        'A mirror of ' + owner + '’s machine is mounted at ' + where + '. Recover the ' + kind.secretClass +
+        ' from the vault and submit it. Clues are already on the disk.',
+      home: base,
+      hint, walkthrough: steps.filter(Boolean),
+      answer: answer, files
+    });
+  }
+
   /* ================================================================ MASTER GENERATOR */
-  function generate(opts) {
+  function generateRoom(opts) {
     const o = opts || {};
     EXTRA = Math.max(0, Math.min(5, o.extraLayers | 0));
     const shell = CATEGORIES[o.shell] ? o.shell : 'bash';
@@ -2161,6 +2547,7 @@
       if (cat === 'sep') return tagSeed(makeFieldPuzzle(shell, diff, seed), 'sep');
       if (cat === 'flags') return tagSeed(makeFlagPuzzle(shell, diff, seed), 'flags');
       if (cat === 'recon') return tagSeed(makeReconPuzzle(shell, diff, seed), 'recon');
+      if (cat === 'intrusion') return tagSeed(makeIntrusionPuzzle(shell, diff, seed), 'intrusion');
       if (cat === 'breadcrumb') return tagSeed(makeBreadcrumbPuzzle(shell, diff === 'easy' ? 'medium' : diff, seed), 'breadcrumb');
       if (cat === 'corrupt_shards') return tagSeed(makeCorruptShardsPuzzle(shell, diff === 'easy' ? 'medium' : diff, seed), 'corrupt_shards');
       if (cat === 'forensic_corr') return tagSeed(makeForensicCorrPuzzle(shell, diff === 'easy' || diff === 'medium' ? 'hard' : diff, seed), 'forensic_corr');
@@ -2266,6 +2653,17 @@
     return tagSeed(Object.assign({}, room, { stages: 1 }), cat === 'auto' ? (room.kind || 'auto') : cat);
   }
 
+  /* every generated room states the objective only: the rest of the explanation is either inside the room (file rooms
+     move it to notes/briefing.txt) or available through hint/walkthrough on request, never in the opening text. */
+  function generate(opts) {
+    const room = generateRoom(opts);
+    if (room && room.brief) {
+            const paras = String(room.brief).split(/\n\s*\n/);
+      if (paras.length > 1) room.brief = paras[0];
+    }
+    return room;
+  }
+
   function parseSeedCode(code) {
     const parts = String(code || '').trim().split(':');
     if (parts.length !== 4 && !(parts.length === 5 && /^x[1-5]$/.test(parts[4]))) return null;
@@ -2322,6 +2720,7 @@
       if (matchesAnswer(clean)) {
         const firstWin = !solved;
         solved = true;
+        let reward = null;
         if (firstWin) {
           const st = loadStats();
           st.solved++;
@@ -2329,10 +2728,16 @@
           st.bestStreak = Math.max(st.bestStreak, st.streak);
           st.byDiff[puzzle.difficulty] = (st.byDiff[puzzle.difficulty] || 0) + 1;
           saveStats(st);
+          try {
+            reward = window.TerminalRewards && window.TerminalRewards.award('puzzle', {
+              difficulty: puzzle.difficulty, hints, tries, streak: st.streak
+            });
+          } catch (e) { }
         }
         return {
           solved: true,
-          out: '✓ SOLVED! Key `' + puzzle.answer + '` verified! (' + dObj.icon + ' ' + dObj.label + (hints ? ', ' + hints + ' hint(s)' : ', clean solve!') + ')\n  Click "🎲 New" or switch difficulty/category on the right to generate another.'
+          out: '✓ SOLVED! Key `' + puzzle.answer + '` verified! (' + dObj.icon + ' ' + dObj.label + (hints ? ', ' + hints + ' hint(s)' : ', clean solve!') + ')\n  Click "🎲 New" or switch difficulty/category on the right to generate another.' +
+            (reward ? '\n  ⭐ +' + reward.points + ' points · 🏅 +' + reward.elo + ' Elo' + (reward.badges.length ? ' · ' + reward.badges.map(b => b.icon + ' ' + b.name).join(', ') : '') : '')
         };
       }
       tries++;
@@ -2355,10 +2760,18 @@
         return checkAnswer(sp < 0 ? '' : raw.slice(sp + 1));
       }
       if (name === 'hint') {
-        const clues = puzzle.hints?.length ? puzzle.hints : [puzzle.hint || 'Explore every file and decode what you find.'];
-        const clue = clues[Math.min(hints, clues.length - 1)];
+        /* custom puzzles keep their own ordered hints; generated rooms get the staged trail (never the answer) */
+        const staged = puzzle.hints?.length
+          ? puzzle.hints.map((text, i) => ({ title: 'Hint ' + (i + 1), text, command: '' }))
+          : window.TerminalHints?.stages ? window.TerminalHints.stages(puzzle) : [];
+        if (!staged.length) staged.push({ title: 'Read the room', text: puzzle.hint || 'Explore every file and decode what you find.', command: '' });
+        const at = Math.min(hints, staged.length - 1);
+        const stage = staged[at];
         hints++;
-        return { out: '💡 hint · ' + clue };
+        const more = hints < staged.length
+          ? '\n  (' + (staged.length - hints) + ' more stage' + (staged.length - hints === 1 ? '' : 's') + ' — type hint again; the answer is never given)'
+          : '\n  (that is every nudge. `walkthrough` is the deliberate full reveal.)';
+        return { out: '💡 hint ' + (at + 1) + '/' + staged.length + ' · ' + stage.title + '\n  ' + stage.text + (stage.command ? '\n  try: ' + stage.command : '') + more };
       }
       if (name === 'walkthrough' || name === 'solution') {
         return { out: '📖 walkthrough:\n  ' + (puzzle.walkthrough || []).join('\n  ') + '\n  solve ' + puzzle.answer };
@@ -2421,7 +2834,8 @@
     const room = generate(opts);
     try {
       const L = window.TerminalLore;
-      if (!room || !L || !L.briefing) return room;
+      /* a break-in mission tells its own story, so it is not wrapped in a case-file line about some other organisation */
+      if (!room || !L || !L.briefing || room.category === 'intrusion') return room;
       const b = L.briefing((room.seed >>> 0) || (opts && opts.seed) || 1, room.category);
       return Object.assign({}, room, { lore: b, brief: b.icon + ' Case ' + b.caseId + ' · ' + b.org + ' — ' + b.line + '\n\n' + (room.brief || '') });
     } catch (e) { return room; }

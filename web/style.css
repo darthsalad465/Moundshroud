@@ -637,6 +637,11 @@ html.tv-filled body>*:not(main){visibility:hidden!important}
 pre.cv-n{white-space:pre!important;overflow-x:auto;word-break:normal!important;overflow-wrap:normal!important}
 pre.cv-n>code{white-space:pre!important}
 .cv-g{float:left;position:sticky;left:0;z-index:1;white-space:pre;text-align:right;min-width:3ch;padding-right:.7em;margin-right:.7em;border-right:1px solid var(--line);color:var(--mute);opacity:.8;user-select:none;-webkit-user-select:none;background:inherit;font:inherit;line-height:inherit;pointer-events:none}
+/* Code blocks with a <code> child (Chat, Browser answers) use two real columns instead of a float, so number 1 sits on
+   the same baseline as the first code line and the two can never drift apart, however the code is highlighted. */
+pre.cv-n:has(> code){display:flex;align-items:flex-start;gap:0;overflow:hidden;line-height:1.55}
+pre.cv-n:has(> code)>.cv-g{float:none;position:static;flex:0 0 auto;margin-right:.7em;align-self:stretch;line-height:1.55}
+pre.cv-n:has(> code)>code{flex:1 1 auto;min-width:0;overflow-x:auto;line-height:1.55}
 .cv-ed{display:flex;align-items:stretch;width:100%;min-width:0}
 .cv-ed>textarea{flex:1 1 auto;width:auto!important;min-width:0;border-top-left-radius:0!important;border-bottom-left-radius:0!important}
 .cv-eg{flex:none;overflow:hidden;white-space:pre;text-align:right;padding-left:8px;padding-right:8px;min-width:2.2em;box-sizing:border-box;color:var(--mute);background:var(--panel2);border:1px solid var(--line);border-right:1px solid var(--line);border-radius:8px 0 0 8px;user-select:none;-webkit-user-select:none;opacity:.85}
@@ -898,6 +903,21 @@ html.term-fs-on .panel.on{contain:none!important}
 html.term-fs-on #plstage>*{zoom:1!important}
 .term-fs-box.term-fs{position:fixed!important;inset:0!important;z-index:9600!important;width:auto!important;height:auto!important;max-width:none!important;max-height:none!important;margin:0!important;border-radius:0!important;border:0!important;padding:14px 18px!important;box-sizing:border-box!important;display:flex!important;flex-direction:column!important;background:#05070b!important;zoom:1!important}
 .term-fs-box.term-fs .term-fs-out{flex:1 1 0!important;height:auto!important;min-height:0!important;max-height:none!important;font-size:14px!important;line-height:1.6!important}
+/* moundshell is a window like any other: dragged by its title bar, resized from the corner, minimized, maximized and
+   closed by the three buttons on the right of that bar. Its wrapper is only the coordinate space, so the app behind
+   it stays clickable and nothing is dimmed. */
+#aeshellwrap{pointer-events:none}
+#aeshellpanel{position:absolute;pointer-events:auto;display:flex;flex-direction:column;box-sizing:border-box;background:#05070b;border:1px solid var(--line);border-radius:10px;overflow:hidden;box-shadow:0 26px 70px -28px rgba(0,0,0,.85)}
+#aeshellbar{display:flex;align-items:center;gap:6px;flex:none;padding:7px 8px 7px 12px;background:linear-gradient(180deg,#101823,#0a0f16);border-bottom:1px solid var(--line);cursor:grab;user-select:none;touch-action:none}
+#aeshellbar.aeshell-grabbing{cursor:grabbing}
+.aeshell-winbtn{width:26px;height:22px;padding:0!important;display:grid;place-items:center;border-radius:5px;font-size:13px;line-height:1}
+.aeshell-tools{padding:8px 12px 0;flex:none}
+#aeshellpanel.aeshell-max{left:0!important;top:0!important;width:100vw!important;height:100vh!important;border:0!important;border-radius:0!important}
+#aeshellpanel.aeshell-max #aeshellbar{cursor:default}
+#aeshellpanel.aeshell-max #aeshellresize{display:none}
+.aeshell-resize{position:absolute;right:0;bottom:0;width:20px;height:20px;padding:0;border:0;background:transparent;cursor:nwse-resize;touch-action:none}
+.aeshell-resize::after{content:'';position:absolute;right:4px;bottom:4px;width:8px;height:8px;border-right:2px solid var(--mute);border-bottom:2px solid var(--mute);opacity:.75}
+#aeshellwrap dialog{pointer-events:auto}
 .term-fs-box.term-fs .term-fs-prompt-row{flex:none!important;padding-top:10px!important}
 .term-fs-box.term-fs input{font-size:14px!important}
 /* Full screen for the Browser (core.js A.pageFS): the page fills the window, and the monitor when the window allows it */
@@ -905,6 +925,10 @@ html.term-fs-on #plstage>*{zoom:1!important}
 .panel.page-fs-box{display:flex!important}
 .page-fs-box #lframes,.page-fs-box .wh{flex:1;min-height:0}
 .page-fs-box:fullscreen{background:#0b0d13!important}
-/* main's isolation and its tab-change transition name each give it its own layer, which kept the full screen page under the
-   app's top bar; both let go while full screen is on */
-html.page-fs-on main{isolation:auto!important;view-transition-name:none!important}
+/* main's isolation and its tab-change transition name each give it its own layer, which trapped fullscreen surfaces
+   (Browser, Terminal, Cyber Desktop, Code Stage) behind the app header / OS title bar and overlapped their controls;
+   release those stacking contexts whenever any inner fullscreen surface is active */
+:is(html.page-fs-on,html.term-fs-on,html.cd-fs-on) main,
+main:has(.cd-expanded),main:has(.cs-wrap.cs-max){isolation:auto!important;view-transition-name:none!important;overflow:visible!important}
+:is(html.page-fs-on,html.term-fs-on,html.cd-fs-on) .panel.on,
+.panel:has(.cd-expanded),.panel:has(.cs-wrap.cs-max){contain:none!important}

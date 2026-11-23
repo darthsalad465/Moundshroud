@@ -1,0 +1,70 @@
+/* Fit pass — loaded last, so it has the final say on these few things.
+   The point is long labels and narrow windows: nothing is cut in half, and every control stays reachable. On a wide
+   window, nothing here changes how the app looks. */
+
+/* A button keeps its label. It stays on one line while it fits and wraps onto a second line when the space is too
+   narrow, instead of the label being clipped by the button's own box. */
+.ib,
+.pri,
+.chip,
+.chk {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: break-word;
+  text-align: center;
+}
+.ib {
+  line-height: 1.25;
+  min-height: 30px;
+}
+.ib .ic,
+.pri .ic {
+  flex: none;
+}
+
+/* A select shows its chosen value whole where it can, and an ellipsis where it cannot, rather than half a word. */
+select {
+  min-width: 0;
+  max-width: 100%;
+  text-overflow: ellipsis;
+}
+
+/* The window can be narrower than the screen (it is dragged by its edge), so the window's own width decides this, not
+   the viewport: web/js/os-shell.js puts `nw` on #oswin under 760px and `nw-xs` under 480px. */
+
+/* A narrow window keeps its toolbar to two rows instead of seven: the search becomes its icon, the model picker and the
+   two chat buttons drop their words, and the smallest windows also drop the app name and the online pill. Anything still
+   too wide wraps onto a second row rather than being pushed off the right-hand edge where it cannot be clicked. */
+#oswin.nw > header {
+  flex-wrap: wrap;
+  height: auto !important;
+  min-height: 48px;
+  padding: 6px 8px 6px 12px !important;
+  row-gap: 6px;
+}
+#oswin.nw > header .ib {
+  height: auto;
+  min-height: 36px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+#oswin.nw > header #gs {
+  flex: none;
+  width: 36px;
+  padding: 0 !important;
+  justify-content: center;
+}
+#oswin.nw > header #gs .hl,
+#oswin.nw > header #gs kbd,
+#oswin.nw > header #talk .hl,
+#oswin.nw > header #newc .hl {
+  display: none;
+}
+#oswin.nw > header select {
+  flex: 0 1 130px;
+  max-width: 130px;
+}
+#oswin.nw-xs > header > b,
+#oswin.nw-xs > header #net {
+  display: none;
+}

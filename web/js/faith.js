@@ -7,7 +7,9 @@
   const SUBS = [['today', '🕊️ Today'], ['bible', '📖 Bible'], ['expert', '✝️ Bible Expert'], ['learn', '🎓 Learn'], ['prayers', '🙏 Prayers'], ['rosary', '📿 Rosary'], ['library', '📚 Library'], ['cal', '🗓️ Calendar'], ['mine', '⭐ My notes']];
   /* the devotional pages (Adoration, Stations, Chaplet, Office, Saints) live in faith-extra.js and join this row when it loads */
   const subs = () => SUBS.concat(window.FAITHX && window.FAITHX.tabs ? window.FAITHX.tabs : []);
-  let bible = null, drB = null, webB = null, kjvB = null, kjvP = null, tr = (() => { const t = ls.get('faith_tr', 'web'); return t === 'dr' || t === 'kjv' ? t : 'web'; })(), bibleP = null, flat = null, sub = ls.get('faithsub', 'today'), host = null, my = 0;
+  /* the Bible always opens on the King James Version, in every tab that reads it, whatever version was picked last
+     time; switching still works for the rest of the session */
+  let bible = null, drB = null, webB = null, kjvB = null, kjvP = null, tr = 'kjv', bibleP = null, flat = null, sub = ls.get('faithsub', 'today'), host = null, my = 0;
   /* the King James text (with the Apocrypha) is 4.6 MB: it is fetched only when that version is chosen */
   const loadKjv = () => kjvB ? Promise.resolve(kjvB) : (kjvP || (kjvP = fetch('/web/data/bible-kjv.json').then(r => r.json()).then(d => { kjvB = d; return d; }).catch(e => { kjvP = null; throw e; })));
   const verText = () => tr === 'dr' ? drB : tr === 'kjv' ? kjvB : webB;

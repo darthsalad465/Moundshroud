@@ -21,7 +21,7 @@ async function run(ok) {
   };
   ctx.self = ctx.window = ctx.globalThis = ctx;
   vm.createContext(ctx);
-  const playgroundFiles = ['cyber-crack', 'terminal-unix', 'terminal-ops-training', 'terminal-playground-data', 'terminal-playground-data2',
+  const playgroundFiles = ['cyber-crack', 'terminal-unix', 'terminal-commands-shared', 'terminal-windows-commands', 'terminal-pc-profile', 'terminal-ops-training', 'terminal-playground-data', 'terminal-playground-data2',
     'terminal-playground-data3', 'terminal-playground-curios', 'terminal-playground-jobs', 'terminal-scenarios',
     'terminal-pentest', 'terminal-remote'];
   for (const script of playgroundFiles) {
@@ -464,7 +464,7 @@ async function run(ok) {
     JSON.stringify(TP.expandBraces('{a,b}_{1,2}')) === JSON.stringify(['a_1', 'a_2', 'b_1', 'b_2']));
 
   // Load Labyrinth engines into the same VM context
-  for (const f of ['web/js/terminal-labyrinth-data.js', 'web/js/terminal-labyrinth-data2.js', 'web/js/terminal-labyrinth.js']) {
+  for (const f of ['web/js/terminal-hints.js', 'web/js/terminal-labyrinth-data.js', 'web/js/terminal-labyrinth-data2.js', 'web/js/terminal-labyrinth.js']) {
     vm.runInContext(fs.readFileSync(path.join(root, f), 'utf8'), ctx, { filename: f });
   }
   const TL = ctx.TerminalLabyrinth;
@@ -519,13 +519,13 @@ async function run(ok) {
 
   const psLab = TL.makeRoom('powershell', 1, 7);
   const cmdLab = TL.makeRoom('cmd', 1, 7);
-  ok('labyrinth cd edge cases: Bash/PS/CMD Labyrinth handle files-not-dir, ~, -, C:\\labyrinth\\ prefix, and case-insensitivity',
+  ok('labyrinth cd edge cases: Bash/PS/CMD Labyrinth handle files-not-dir, ~, -, a Windows profile path, and case-insensitivity',
     /Not a directory/i.test(asmRoom.run('cd /README.txt')) &&
     asmRoom.run('cd ~') === '' && asmRoom.run('pwd') === '/' &&
     /is a file, not a directory/i.test(psLab.run('cd README.txt')) &&
-    psLab.run('cd C:\\labyrinth\\var\\log') === '' && psLab.run('Get-Location').includes('var\\log') &&
+    psLab.run('cd C:\\Users\\explorer\\var\\log') === '' && psLab.run('Get-Location').includes('var\\log') &&
     /directory name is invalid/i.test(cmdLab.run('cd README.txt')) &&
-    cmdLab.run('cd C:\\LABYRINTH\\VAR\\LOG\\') === '' && cmdLab.run('cd').includes('var\\log'));
+    cmdLab.run('cd C:\\USERS\\EXPLORER\\VAR\\LOG\\') === '' && cmdLab.run('cd').includes('var\\log'));
 
   /* ---- 5. Terminal Puzzle Studio (4 difficulties × 10 shells + pipeline + seeds + custom puzzle creator) ---- */
   vm.runInContext(fs.readFileSync(path.join(root, 'web/js/terminal-puzzles.js'), 'utf8'), ctx, { filename: 'web/js/terminal-puzzles.js' });
@@ -870,12 +870,12 @@ async function run(ok) {
     nodes.clear();
     manualHost = null;
     manualDialog = null;
-    for (const match of html.matchAll(/id="([^"]+)"/g)) nodes.set(match[1], { value: '', innerHTML: '', textContent: '', focus() {} });
+    for (const match of html.matchAll(/id="([^"]+)"/g)) nodes.set(match[1], { value: '', innerHTML: '', textContent: '', focus() {}, dataset: {}, style: {}, classList: { contains: () => false, add() {}, remove() {}, toggle() {} }, append() {}, querySelector: () => null, addEventListener() {} });
   } });
   const playgroundUI = 'web/js/terminal-playground.js';
   const harnessUI = 'web/js/terminal-playground-mcode.js';
   const customUI = 'web/js/mcode-custom.js';
-  for (const file of ['web/js/terminal-manual-content.js', 'web/js/terminal-manual-beginner.js', 'web/js/terminal-manual.js', 'web/js/terminal-command-coach.js']) {
+  for (const file of ['web/js/terminal-manual-content.js', 'web/js/terminal-manual-beginner.js', 'web/js/terminal-learn.js', 'web/js/terminal-manual.js', 'web/js/terminal-command-coach.js']) {
     vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), ctx, { filename: file });
   }
   vm.runInContext(fs.readFileSync(path.join(root, customUI), 'utf8'), ctx, { filename: customUI });

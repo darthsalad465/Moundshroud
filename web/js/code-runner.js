@@ -66,15 +66,7 @@
       else if (l.run === 'sql') r = await runWorker('/web/js/code-playground-sql.js', code, signal, 10000, 'SQL stopped after 10 seconds.');
       else if (l.run === 'eso') r = await runWorker('/web/js/esolang-worker.js', { lang: l.id, code, input, ms: 10000 }, signal, 15000, 'Stopped after 15 seconds.');
       else if (l.run === 'binary') r = { ok: false, error: 'Binary & Hex is an exercise in the Playground, not a language that runs a file.' };
-      else {
-        const res = await fetch('/api/code-playground/run', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lang: l.id, code, input: input || '' }), signal,
-        });
-        let data;
-        try { data = await res.json(); } catch (e) { data = { ok: false, error: 'The Playground server answered ' + res.status + ' instead of a result.' }; }
-        r = data;
-      }
+      else r = { ok: false, error: 'Native code is disabled: this build runs code only inside the browser sandbox, so nothing here reaches your PC. Python, JavaScript, HTML, SQL and the classic interpreters still run.' };
     } catch (error) {
       r = { ok: false, error: signal && signal.aborted ? 'Run stopped.' : (error.message || String(error)) };
     }
@@ -265,6 +257,17 @@
         }
         line('c', 'Shown in an isolated screen: scripts run in an opaque origin with no network, so the page cannot see Moundshroud or your files. Use ⛶ Full screen to play.');
       } else {
+        /* a program that drew something shows it here too, and it can be zoomed, panned and played */
+        if (r.figures && r.figures.length && window.CodeStage) {
+          const holder = document.createElement('div');
+          holder.style.margin = '8px 0';
+          out.appendChild(holder);
+          const stage = window.CodeStage.mount(holder, {
+            title: '🖼 What ' + (last.name || 'the program') + ' drew', height: 300,
+            hint: 'Drag to move · wheel to zoom · ▶ to play the frames', empty: 'Nothing to show.'
+          });
+          stage.showDoc(window.CodeStage.pictures(r.figures));
+        }
         const text = [r.stdout, r.stderr, r.value !== undefined && r.value !== '' ? '→ ' + r.value : ''].filter(x => x !== undefined && x !== '').map(x => String(x).replace(/\r?\n$/, '')).join('\n');
         if (text) { const pre = document.createElement('pre'); pre.className = 'trm-src'; pre.textContent = text; out.appendChild(pre); }
         const e = String(r.error || 'The program did not finish.').split('\n').filter(x => !/^\s+at\s/.test(x)).join('\n').trim() || 'The program did not finish.';

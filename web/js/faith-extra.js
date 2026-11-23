@@ -24,7 +24,7 @@
   async function psalmText(n) {
     try {
       await A.faith.getBible(); const b = A.faith.bible(); if (!b || !b.books[20]) return null;
-      const tr = (A.faith.tr && A.faith.tr()) || 'web';
+      const tr = (A.faith.tr && A.faith.tr()) || 'kjv';
       const num = A.faith.psConv ? A.faith.psConv(n, 'web', tr === 'dr' ? 'dr' : 'web') : n;   /* the King James numbers the Psalms the Hebrew way */
       const ch = b.books[20].ch[num - 1]; if (!ch || !ch.v) return null;
       return { num, label: 'Psalm ' + num, v: ch.v };

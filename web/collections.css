@@ -1,3 +1,4 @@
+/* The Collections section: the bar above a shelf of items, the marquee and select controls, and the album and agent grids that sit in it. */
 .collection-bar {
   display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:8px 10px;
   min-width:0; border:1px solid var(--line); border-radius:12px;

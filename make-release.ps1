@@ -3,7 +3,7 @@
 #   Moundshroud-<ver>-part2-data.zip      the Bibles, recipes, star data and other reference files
 #   SHA256.txt                      checksums, and MESSAGE-FOR-DISCORD.txt  a ready-to-paste note for the person you send it to
 # Each zip is kept under 10 MB so both fit Discord's free upload limit. Both unzip into the same "Moundshroud" folder.
-# NOT included: anything personal (notes, chats, flashcards, reminders, settings, snapshots, the Moundshroud window profile), the offline libraries, the music, AI models,
+# NOT included: anything personal (notes, chats, flashcards, reminders, settings, snapshots, the Moundshroud window profile), the offline libraries, the music, AI models (setup downloads the app's own Ollama and the small Qwen family),
 # voice models, Python, the chess engine, and the built tray program (the friend's setup builds it from Listener.cs, so no unsigned .exe is sent).
 #   .\make-release.ps1            build
 #   .\make-release.ps1 -Verify    build, then act as the friend: unpack both parts elsewhere, run the setup there (no installs, no downloads) and start it
@@ -36,6 +36,10 @@ try {
   New-Item -ItemType Directory -Force (Join-Path $pkg 'data') | Out-Null
   $dict = Join-Path $root 'data\cmudict.dict'; if (Test-Path $dict) { Copy-Item $dict (Join-Path $pkg 'data\cmudict.dict') }
   $dictLic = Join-Path $root 'data\cmudict-LICENSE.txt'; if (Test-Path $dictLic) { Copy-Item $dictLic (Join-Path $pkg 'data\cmudict-LICENSE.txt') }     # its licence travels with it
+  # the app's own AI engine goes in runtime\ollama (setup downloads it there); the Qwen models are fetched by setup too,
+  # so they are not in the zip
+  New-Item -ItemType Directory -Force (Join-Path $pkg 'runtime\ollama') | Out-Null
+  Set-Content (Join-Path $pkg 'runtime\ollama\README.txt') "The app's own copy of Ollama lives in this folder once setup downloads it (ollama.exe and its lib folder). The small Qwen 3.5 models are downloaded by setup into Ollama's normal model folder, not into this zip." -Encoding UTF8
   New-Item -ItemType Directory -Force (Join-Path $pkg 'nomad\library') | Out-Null
   Set-Content (Join-Path $pkg 'nomad\library\PUT-ZIM-FILES-HERE.txt') "Offline libraries (Kiwix .zim files) go in this folder. Use Prepare > Stock up inside Moundshroud to download them." -Encoding UTF8
   # privacy scan: nothing personal may be in the package

@@ -248,9 +248,15 @@
      shows them under the text. Click one to see it full size. */
   function showFigures(host, figs) {
     if (!host) return;
-    const list = (figs || []).filter(Boolean);
-    host.innerHTML = list.length ? list.map((b64, i) => '<figure class="cl-fig"><img src="data:image/png;base64,' + b64 + '" alt="Picture ' + (i + 1) + ' drawn by the program" loading="lazy"><figcaption class="small mute">Picture ' + (i + 1) + (list.length > 1 ? ' of ' + list.length : '') + ' · click to enlarge</figcaption></figure>').join('') : '';
-    host.querySelectorAll('img').forEach(img => { img.onclick = () => enlargFigure(img.src); });
+    const list = (figs || []).filter(b64 => typeof b64 === 'string' && /^[A-Za-z0-9+/]+={0,2}$/.test(b64));
+    host.innerHTML = list.length ? list.map((b64, i) => '<figure class="cl-fig"><img src="data:image/png;base64,' + b64 + '" alt="Picture ' + (i + 1) + ' drawn by the program" loading="lazy"><figcaption class="small mute">Picture ' + (i + 1) + (list.length > 1 ? ' of ' + list.length : '') + ' · click to zoom, pan and play' + (list.length > 1 ? ' the frames' : ' it') + '</figcaption></figure>').join('') : '';
+    /* a picture is something to use: zoom, pan, and step through the frames of an animation */
+    host.querySelectorAll('img').forEach((img, i) => {
+      img.onclick = () => {
+        if (window.CodeStage && window.CodeStage.viewer) window.CodeStage.viewer(list, i);
+        else enlargFigure(img.src);
+      };
+    });
   }
   function enlargFigure(src) {
     const old = document.getElementById('clbig'); if (old) old.remove();
@@ -328,7 +334,8 @@
      Sandbox or Docker, and that backend is not ready right now (or PowerShell is running in Docker and the
      learner might want Windows PowerShell instead). */
   function setupHTML(x, w) {
-    if (w.checking) return '';
+    /* no host execution exists to set up: the browser sandbox needs no install */
+    if (PL.BROWSER_ONLY || w.checking) return '';
     const sb = PL.SANDBOX.includes(x.id), dkLang = PL.DOCKER.includes(x.id);
     const dk = (pstat && pstat.docker) || {};
     const parts = [];
@@ -459,7 +466,7 @@
       '</div>';
     return back('home', '', 'All languages') +
       '<div class="cl-card"><b style="font-size:19px">🧪 Code playground</b><div class="small mute" style="margin-top:4px">' + PL.LANGS.length + ' languages, ' + runnable + ' of them can run safely here, offline.</div>' +
-      '<div class="small mute" style="margin-top:6px">🛡️ Safe mode: Python and JavaScript run in a sealed browser worker; native code runs only inside Windows Sandbox or Docker. Nothing is run as your Windows user.</div>' + modeTabs() + '</div>' +
+      '<div class="small mute" style="margin-top:6px">🛡️ Safe mode: every Playground program runs inside the browser — Python, JavaScript and the classic interpreters in sealed workers with no network, no page and no host files; SQL in a fresh in-memory database; HTML and page mode in an opaque frame with every request blocked. Native host execution is disabled, so nothing you type here can run on your PC.</div>' + modeTabs() + '</div>' +
       '<div class="cl-card"><div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><label class="small">Language <select id="plang" aria-label="Language"' + (ch && ch.lang ? ' disabled' : '') + '>' + opts + '</select></label></div>' +
       chalCard(ch) + playNote(x, w) +
       (scratch
@@ -523,6 +530,92 @@
     }
     return { ok: true, stdout: ['Decimal\tBinary\tHex', ...rows].join('\n') };
   }
+  /* Output as it is produced. Plain text is written straight into the pane; output containing terminal control codes
+     (a matrix rain, a spinner, a progress bar, a clear-screen frame) is drawn through AnsiScreen, so the cursor moves,
+     colours and cleared screens are applied instead of being shown as escape junk. Every chunk re-draws the frame. */
+  function makeLiveOut(target) {
+    let shown = 0, screen = null, control = false, plain = '', raf = 0;
+    /* the output pane can be replaced while a program runs (changing language or mode redraws the page), so it is
+       looked up each time instead of holding on to a detached <pre> */
+    const el = () => (typeof target === 'function' ? target() : target);
+    const draw = () => {
+      raf = 0;
+      const node = el();
+      if (!node) return;
+      if (control && screen) node.innerHTML = screen.html();
+      else node.textContent = plain;
+    };
+    const schedule = () => { if (!raf) raf = (window.requestAnimationFrame || (f => setTimeout(f, 16)))(draw); };
+    return {
+      update(cumulative) {
+        const text = String(cumulative == null ? '' : cumulative);
+        plain = text;
+        if (window.AnsiScreen && window.AnsiScreen.hasControl(text)) {
+          control = true;
+          if (!screen) screen = new window.AnsiScreen.Screen(100, 32);
+          screen.feed(text.slice(shown));
+        }
+        shown = text.length;
+        schedule();
+      },
+      text() { return plain; },
+      done(finalText) {
+        plain = String(finalText == null ? '' : finalText);
+        if (window.AnsiScreen && window.AnsiScreen.hasControl(plain)) {
+          control = true;
+          screen = new window.AnsiScreen.Screen(100, 32);
+          screen.feed(plain);
+        }
+        const node = el();
+        if (control && screen && node) node.innerHTML = screen.html();
+        else if (node) node.textContent = plain;
+      }
+    };
+  }
+
+  /* languages that run on the server: ask for a stream, draw each chunk, and keep the final result for the answer */
+  async function runServerStream(lg, code, input, signal, live) {
+    let res;
+    try {
+      res = await fetch('/api/code-playground/run', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lang: lg, code, input, stream: true }), signal,
+      });
+    } catch (e) {
+      return { ok: false, error: ctrlAborted(signal) ? 'Run stopped.' : String(e && e.message || e) };
+    }
+    const type = String(res.headers.get('content-type') || '');
+    if (!type.includes('x-ndjson') || !res.body || !res.body.getReader) {
+      /* an older server answers with one JSON object */
+      try { return await res.json(); } catch (e) { return { ok: false, error: 'The Playground server answered ' + res.status + ' instead of a result.' }; }
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '', printed = '', result = null;
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let cut;
+      while ((cut = buffer.indexOf('\n')) >= 0) {
+        const line = buffer.slice(0, cut).trim();
+        buffer = buffer.slice(cut + 1);
+        if (!line) continue;
+        let msg = null;
+        try { msg = JSON.parse(line); } catch (e) { continue; }
+        if (msg && typeof msg.text === 'string') { printed += msg.text; live.update(printed); }
+        else if (msg && msg.done && msg.result) result = msg.result;
+      }
+    }
+    if (!result) {
+      const tail = buffer.trim();
+      if (tail) { try { const msg = JSON.parse(tail); if (msg && msg.done && msg.result) result = msg.result; } catch (e) { } }
+    }
+    if (!result) return { ok: false, error: 'The sandbox stopped without returning a result.' };
+    return result;
+  }
+  const ctrlAborted = signal => !!(signal && signal.aborted);
+
   async function playRun() {
     const ed = H.querySelector('#clcode'), out = H.querySelector('#clout'), btn = H.querySelector('[data-cl="prun"]'), kill = H.querySelector('[data-cl="pkill"]');
     if (!ed || !btn || prun) return;
@@ -551,6 +644,7 @@
     if (w.g === 'none') { out.textContent = '⛔ ' + x.n + ' cannot run safely here. ' + (w.why || PL.NOTOOL) + ' Nothing was run.'; return; }
     if (!code.trim()) { out.textContent = 'Enter some code first.'; return; }
     const ctl = prun = new AbortController();
+    const live = makeLiveOut(() => (H && H.querySelector('#clout')) || out);
     btn.disabled = true; if (kill) kill.hidden = false;
     const compiled = /^(c|cpp|holyc|java|csharp|go|rust|typescript|kotlin|swift|asm)$/.test(lg);
     out.textContent = w.g === 'pc' ? 'Starting Windows Sandbox — the first run can take a minute…'
@@ -560,19 +654,11 @@
     /* a native run waits for a whole VM or container to start, but never forever: after two minutes there is still an answer */
     const guard = setTimeout(() => { timedOut = true; ctl.abort(); }, 150000);
     try {
-      if (RUNS[lg]) r = await A.interp.run(RUNS[lg], code, { signal: ctl.signal, isolated: true });
+      if (RUNS[lg]) r = await A.interp.run(RUNS[lg], code, { signal: ctl.signal, isolated: true, onOutput: text => live.update(text) });
       else if (x.run === 'sql') r = await runSql(code, ctl.signal);
       else if (x.run === 'binary') r = runBinary(code);
       else if (x.run === 'eso') r = await runEso(lg, code, input, ctl.signal);
-      else {
-        const res = await fetch('/api/code-playground/run', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lang: lg, code, input }), signal: ctl.signal,
-        });
-        let data;
-        try { data = await res.json(); } catch (e) { data = { ok: false, error: 'The Playground server answered ' + res.status + ' instead of a result.' }; }
-        r = data;
-      }
+      else r = await runServerStream(lg, code, input, ctl.signal, live);
     } catch (error) {
       r = {
         ok: false,
@@ -583,7 +669,7 @@
     if (prun !== ctl) return;
     prun = null;
     btn.disabled = false; if (kill) kill.hidden = true;
-    if (view !== 'play' || H.querySelector('#clout') !== out) return;
+    if (view !== 'play') return;
     const error = String(r.error || 'The program did not run.').split('\n').filter(line => !/^\s+at\s/.test(line)).join('\n').trim();
     if (r.unavailable) {
       out.textContent = '⛔ ' + error + '\n\nNothing was run. Open “Safe runtime setup” below for the one-time setup.';
@@ -594,10 +680,10 @@
     const text = [r.stdout, r.stderr, r.value !== undefined && r.value !== '' ? '→ ' + r.value : '', r.ok ? '' : failure]
       .filter(Boolean).map(part => String(part).replace(/\r?\n$/, '')).join('\n');
     /* whatever happened, something is always printed: output, an error, a drawing note, or an explicit "no output" */
-    out.textContent = text || (r.figures && r.figures.length ? 'The program drew ' + r.figures.length + ' picture' + (r.figures.length > 1 ? 's' : '') + ' — shown below.' : 'Finished with no output.');
+    live.done(text || (r.figures && r.figures.length ? 'The program drew ' + r.figures.length + ' picture' + (r.figures.length > 1 ? 's' : '') + ' — shown below.' : 'Finished with no output.'));
     showFigures(H.querySelector('#clfig'), r.figures);
     if (r.figures && r.figures.length && pstage && window.CodeStage) pstage.showDoc(window.CodeStage.pictures(r.figures));
-    plast = { lang: lg, code, text: out.textContent };
+    plast = { lang: lg, code, text: (typeof live.text === 'function' ? live.text() : out.textContent) || out.textContent };
     if (pmode !== 'sandbox') judge(r, lg);
     if (r.ok) markPlayed();
   }
@@ -764,7 +850,9 @@
             hint: shell.run === 'html' || shell.run === 'scratch' || (shell.run === 'js' && asPage) ? 'Click the screen, then use its keys' : 'Pictures and pages appear here',
             empty: shell.run === 'scratch' ? 'Build a script from the blocks, then press ▶ Run on the screen.'
               : shell.run === 'html' ? 'Your page appears here. Press ▶ Run on the screen, or type above.'
-                : 'Run a program that draws a picture, or tick “Show it as a web page” for canvas, DOM and games.',
+                /* only JavaScript has the “Show it as a web page” tick: never point other languages at a box that is not on their page */
+                : shell.run === 'js' ? 'Run a program that draws a picture, or tick “Show it as a web page” for canvas, DOM and games.'
+                  : 'Run a program that draws a picture, and anything it draws appears here.',
             onLog: (text, kind) => {
               const o = H && H.querySelector('#clout'); if (!o) return;
               o.textContent = (o.textContent ? o.textContent + '\n' : '') + (kind === 'error' ? '⛔ ' : '') + text;

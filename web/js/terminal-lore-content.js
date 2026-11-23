@@ -389,7 +389,7 @@
     'If the terminal ever looks empty, type a command that asks for hidden entries. Half of what people call missing is a dot at the start of a folder name.',
     'The sandbox disks are fiction on purpose. Every name, company and agency in here was invented for practice. If a file claims to be from a real organisation, it is a bug and should be fixed.',
     'Do not add a level just because somebody wants more files. Add another shape to the generator and let the seed choose. Two machines of the same size should never look the same.',
-    'The app shell saves through the same endpoints as the editor, so a stray bracket in JavaScript is refused before it lands on disk. This has saved me more than once.',
+    'The moundshell saves through the same endpoints as the editor, so a stray bracket in JavaScript is refused before it lands on disk. This has saved me more than once.',
     'Somebody asked for a feature that says whether a file changed while the shell was open. The shell now polls the file list and pulls in anything new. If it is ever slow, the poll is the first thing to look at.',
     'The essays are meant to be found, not listed. If they start appearing in menus, the spell is broken.',
     'The difficulty labels are honest: a small laptop really is a small laptop, and a seized machine really is a whole life. Do not call something insane because the number is bigger.',

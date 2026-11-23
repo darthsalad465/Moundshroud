@@ -31,7 +31,7 @@
   function bar() {
     $('nbar').innerHTML = '<button type="button" id="ntitle" data-a="rename" class="collection-title" title="Rename note" style="flex:1;min-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></button>' +
       (runnable() ? '<button class="pri" data-a="run" title="Run this file in the safe terminal sandbox (no network, nothing on this PC is touched)">▶ Run</button>' : '') +
-      '<button class="ib" data-a="pv">' + (preview ? 'Edit' : 'Preview') + '</button><button class="ib" data-a="ai">Ask AI</button><button class="ib" data-a="listen">Listen</button><button class="ib" data-a="cards">Flashcards</button><button class="ib" data-a="runfile" title="Run any script or page from this PC in the safe terminal">🖥️ Run a file…</button><button class="ib" data-a="open">Open folder</button><button class="ib dang" data-a="del">Delete</button>';
+      '<button class="ib" data-a="pv">' + (preview ? 'Edit' : 'Preview') + '</button><button class="ib" data-a="copy" title="Copy everything in this note to the clipboard">📋 Copy</button><button class="ib" data-a="ai">Ask AI</button><button class="ib" data-a="listen">Listen</button><button class="ib" data-a="cards">Flashcards</button><button class="ib" data-a="runfile" title="Run any script or page from this PC in the safe terminal">🖥️ Run a file…</button><button class="ib" data-a="open">Open folder</button><button class="ib dang" data-a="del">Delete</button>';
     $('ntitle').textContent = cur?.title || 'New note'; pathLine();
   }
   /* the exact file this note lives in, shown at the top of the note */
@@ -81,6 +81,11 @@
       if (dirty) flush().catch(() => A.toast('The run was fine, but the note could not be saved.'));
     }
     else if (a === 'runfile') { if (A.codeRunner) A.codeRunner.openFile(); }
+    else if (a === 'copy') {
+      const text = ne.value;
+      if (!text.trim()) return A.toast('This note is empty — nothing to copy.');
+      A.copy(text);
+    }
     else if (a === 'listen') A.speech.speak(ne.value, b);
     else if (a === 'cards') A.study.fromText(ne.value, cur ? cur.title : 'Note');
     else if (a === 'open') A.api('/api/docs/open', { path: folder });

@@ -58,6 +58,7 @@
       if (c('#wshist')) { if ((await A.confirm('Clear your recent searches and the list of pages you opened? Your favorites are kept.'))) { A.fav.clearHistory('all'); A.toast('History cleared'); } return; }
       if (c('#wsgo')) { run($('wsq').value); return; } if (c('#wslogo')) { query = ''; res = null; $('wsq').value = ''; home(); return; }
       if (c('#wsask')) { const v = $('wsq').value.trim(); A.showTab('chat'); if (v) A.chat.ask(v); return; }
+      if (c('#wshub')) { A.lib.hub(); return; }
       if ((el = c('[data-sg]'))) { $('wsq').value = el.dataset.sg; hideSug(); run(el.dataset.sg); return; }
       if ((el = c('[data-q]'))) { $('wsq').value = el.dataset.q; run(el.dataset.q); return; }
       if ((el = c('[data-scope]'))) { scope = el.dataset.scope; if (query) run(query, true); return; }
@@ -94,6 +95,7 @@
   async function home() {
     const b = $('wsbody'); if (!b) return; hideSug(); toTop();
     let h = '<div class="ws-hero"><h1>Search <b>Moundshroud’s</b> offline archived internet</h1><div class="mute" style="max-width:640px;margin:0 auto;line-height:1.5">Ask anything. Pages open in tabs right here, like a normal browser. Moundshroud searches every offline library on this PC (encyclopedia, Q&amp;A sites, guides, medical, survival, dictionary, books) plus your documents and notes, and writes a short answer with sources. Nothing leaves your computer.</div><div id="wsslot"></div><div id="wsntpbtns" style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:10px 0 0"></div></div>';
+    h += '<div style="max-width:820px;margin:2px auto 18px"><div class="ws-card" style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;border-color:rgba(139,124,255,.34);background:linear-gradient(115deg,rgba(139,124,255,.16),rgba(70,211,255,.05))"><div style="width:44px;height:44px;flex:none;border-radius:13px;display:grid;place-items:center;font-size:20px;color:#080a12;background:linear-gradient(140deg,#a99bff,#7fe4ff)">🔖</div><div style="flex:1;min-width:220px"><b style="font-size:15px">MoundHub</b><div class="small mute" style="margin-top:2px;line-height:1.6">Your repositories, at <b>moundhub.com</b>. Type that address above, or open the site here.</div></div><button class="ib" id="wshub">Open MoundHub</button></div></div>';
     h += '<div id="wstiles"></div><div style="max-width:820px;margin:14px auto"><div class="small mute" style="margin-bottom:6px">Try</div>' + EXAMPLES.slice().sort(() => Math.random() - .5).slice(0, 6).map(x => '<span class="ws-chip" data-q="' + esc2(x) + '">' + esc2(x) + '</span>').join('') + '</div>';
     if (hist.length) h += '<div style="max-width:820px;margin:14px auto"><div class="row" style="margin-bottom:6px"><span class="small mute">Recent searches</span><span class="sp"></span><a id="wsclearh" class="small mute" style="cursor:pointer">Clear</a></div>' + hist.slice(0, 8).map((x, i) => '<div class="ws-res" data-q="' + esc2(x) + '" style="padding:7px 4px;display:flex;gap:10px;align-items:center" onclick="this.dispatchEvent(new Event(\'x\'))"><span class="mute">🕒</span><span style="flex:1">' + esc2(x) + '</span><span class="mute" data-rmh="' + i + '" title="Remove">×</span></div>').join('') + '</div>';
     b.innerHTML = h + '<div id="wsbm" style="max-width:820px;margin:14px auto"></div><div id="wslibs" style="max-width:820px;margin:18px auto"></div>'; try { A.bm.render($('wsbm'), 'web', bm => A.lib.openUrl(bm.u, bm.t, { bm })); } catch (e) { } toSlot(); tiles();
@@ -115,7 +117,7 @@
       '<pre id="wsrsource" style="display:none;flex:1;overflow:auto;margin:0;padding:14px 18px;background:#0b0f17;color:#d7e0f5;font-size:12.5px;line-height:1.55;white-space:pre-wrap"></pre>';
     w.appendChild(rdr);
     const frame = $('wsrframe'), src = $('wsrsource'); src.textContent = String(f.text || '');
-    const inject = '<scr' + 'ipt>document.addEventListener("contextmenu",function(e){try{parent.postMessage({moundshroudSource:1},"*")}catch(x){}return false},true);</scr' + 'ipt>';
+    const inject = '<scr' + 'ipt>document.addEventListener("contextmenu",function(e){e.preventDefault();try{parent.postMessage({moundshroudSource:1},"*")}catch(x){}return false},true);</scr' + 'ipt>';
     const html = String(f.text || '');
     frame.srcdoc = /<\/body>/i.test(html) ? html.replace(/<\/body>/i, inject + '</body>') : html + inject;
     $('wsrsrc').onclick = () => { const on = src.style.display === 'none'; src.style.display = on ? 'block' : 'none'; frame.style.display = on ? 'none' : 'block'; $('wsrsrc').textContent = on ? '🌐 Preview' : '📄 View source'; };
@@ -143,6 +145,7 @@
   let srcs = [], lastFiles = { notes: [], docs: [] };
   async function run(v, keepScope) {
     v = String(v || '').trim(); if (!v) return home(); if (!built) return; toTop();
+    if (/^(?:https?:\/\/)?(?:www\.)?moundhub\.com\/?$/i.test(v)) { hideSug(); A.lib.hub(); return; }
     if (htmlName(v)) { openLocal(v); return; }
     if (dictOn && v.split(/\s+/).length <= 3 && /^[\p{L}'\u2019 -]{1,40}$/u.test(v)) { addHist(v); hideSug(); A.lib.define(v); return; } if (!keepScope && v !== query) scope = 'all'; query = v; $('wsq').value = v; hideSug(); addHist(v);
     const b = $('wsbody'), my = ++seq; if (ctl) { try { ctl.abort(); } catch (e) { } } ctl = null; const rdr = $('wsreader'); if (rdr) rdr.remove();
