@@ -50,6 +50,7 @@
     P.onclick = async e => {
       const T = e.target, c = s => T.closest(s); let el;
       if ((el = c('[data-fav]'))) { const u = el.dataset.fav, on = A.fav.toggle({ u, t: el.dataset.t, k: 'page' }); el.textContent = on ? '⭐' : '☆'; e.stopPropagation(); return; }
+      if (c('#wshell')) { if (A.moundshell && A.moundshell.open) A.moundshell.open(); else A.toast('Press Ctrl + T to open moundshell.'); return; }
       if (c('#wsfavs')) { A.fav.open('all'); return; }
       if (c('#wsopenfile')) { pickHtml(); return; }
       if (c('#wsdict')) { setDict(!dictOn); $('wsq').focus(); return; }
@@ -95,6 +96,17 @@
   async function home() {
     const b = $('wsbody'); if (!b) return; hideSug(); toTop();
     let h = '<div class="ws-hero"><h1>Search <b>Moundshroud’s</b> offline archived internet</h1><div class="mute" style="max-width:640px;margin:0 auto;line-height:1.5">Ask anything. Pages open in tabs right here, like a normal browser. Moundshroud searches every offline library on this PC (encyclopedia, Q&amp;A sites, guides, medical, survival, dictionary, books) plus your documents and notes, and writes a short answer with sources. Nothing leaves your computer.</div><div id="wsslot"></div><div id="wsntpbtns" style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:10px 0 0"></div></div>';
+    /* the browser's own front door says the loudest thing about this internet: it is all in scope, and moundshell is how */
+    h += '<div style="max-width:820px;margin:0 auto 18px"><div class="ws-card" style="border-color:rgba(255,176,84,.42);background:linear-gradient(115deg,rgba(255,150,60,.16),rgba(255,70,70,.05))">' +
+      '<div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">' +
+      '<div style="width:44px;height:44px;flex:none;border-radius:13px;display:grid;place-items:center;font-size:21px;color:#1a1207;background:linear-gradient(140deg,#ffcf8b,#ff9d6b)">🐚</div>' +
+      '<div style="flex:1;min-width:230px">' +
+      '<b style="font-size:15px">Every site here can be breached from moundshell</b>' +
+      '<div class="small mute" style="margin-top:3px;line-height:1.65">The fake internet and the fake dark web are both in scope. Every site keeps its accounts at <code>/dump/users.csv</code> — names, e-mails, the IP each one signed in from and the password it stored — and every site prints files you can download and read. Some crack easily, some barely at all: what a site is decides how hard it is.</div>' +
+      '<div class="small" style="margin-top:9px;line-height:1.95"><b>Open moundshell</b> — press <b>Ctrl + T</b> (⌘T on a Mac) anywhere, even with a page open; it closes the shell again · click the <b>🐚</b> button in the top bar · or <b>Settings → “Open the moundshell” → Open the shell</b>.</div>' +
+      '<div class="small mute" style="margin-top:7px;line-height:1.95">Then: <code>paths &lt;host&gt;</code> what a tester tries · <code>leaked &lt;host&gt;</code> the user table · <code>breach &lt;host&gt;</code> the simulated break-in · <code>nmap &lt;ip&gt;</code> then <code>ssh user@ip</code> · <code>guide</code> walks the whole thing start to finish.</div>' +
+      '<div style="margin-top:11px;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><button class="ib" id="wshell">Open moundshell</button><span class="small mute">Ctrl + T toggles it shut</span></div>' +
+      '</div></div></div></div>';
     h += '<div style="max-width:820px;margin:2px auto 18px"><div class="ws-card" style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;border-color:rgba(139,124,255,.34);background:linear-gradient(115deg,rgba(139,124,255,.16),rgba(70,211,255,.05))"><div style="width:44px;height:44px;flex:none;border-radius:13px;display:grid;place-items:center;font-size:20px;color:#080a12;background:linear-gradient(140deg,#a99bff,#7fe4ff)">🔖</div><div style="flex:1;min-width:220px"><b style="font-size:15px">MoundHub</b><div class="small mute" style="margin-top:2px;line-height:1.6">Your repositories, at <b>moundhub.com</b>. Type that address above, or open the site here.</div></div><button class="ib" id="wshub">Open MoundHub</button></div></div>';
     h += '<div id="wstiles"></div><div style="max-width:820px;margin:14px auto"><div class="small mute" style="margin-bottom:6px">Try</div>' + EXAMPLES.slice().sort(() => Math.random() - .5).slice(0, 6).map(x => '<span class="ws-chip" data-q="' + esc2(x) + '">' + esc2(x) + '</span>').join('') + '</div>';
     if (hist.length) h += '<div style="max-width:820px;margin:14px auto"><div class="row" style="margin-bottom:6px"><span class="small mute">Recent searches</span><span class="sp"></span><a id="wsclearh" class="small mute" style="cursor:pointer">Clear</a></div>' + hist.slice(0, 8).map((x, i) => '<div class="ws-res" data-q="' + esc2(x) + '" style="padding:7px 4px;display:flex;gap:10px;align-items:center" onclick="this.dispatchEvent(new Event(\'x\'))"><span class="mute">🕒</span><span style="flex:1">' + esc2(x) + '</span><span class="mute" data-rmh="' + i + '" title="Remove">×</span></div>').join('') + '</div>';
