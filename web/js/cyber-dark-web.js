@@ -69,9 +69,21 @@
       '.on{color:#45ff96;}.dead{color:#ff6b6b;}.host{color:#4d7a5f;font-size:11px;}.fp{color:#3a6b50;font-size:10.5px;letter-spacing:.04em;}' +
       '.search{display:flex;gap:8px;margin:16px 0 6px;}.search input{flex:1;}.search button{padding:8px 16px;}' +
       '.nav{color:#3f6b52;font-size:12px;margin:6px 0 0;}.nav a{color:#6fbf8e;}' +
+      '.hint{color:#3f6b52;font-size:11.5px;margin:0 0 4px;}' +
+      '.count{color:#3f6b52;font-size:11px;letter-spacing:0;text-transform:none;font-weight:400;margin-left:6px;}' +
+      '.tagline{color:#3a6b50;font-size:11px;margin-top:2px;}' +
+      '.badge{display:inline-block;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;padding:1px 5px;border:1px solid #1d5238;color:#6fbf8e;border-radius:3px;vertical-align:1px;}' +
+      '.badge.gov{border-color:#4b6ea8;color:#8fb6ff;}' +
+      '.empty{border:1px dashed #24402f;padding:14px 16px;margin:14px 0;color:#8fb9a1;font-size:12.5px;}' +
+      '.more{display:inline-block;border:1px solid #1d5238;background:#08120c;padding:8px 14px;margin:10px 0 4px;color:#8dffbb;}' +
+      '.more:hover{border-color:#45ff96;}' +
+      'tbody tr:hover{background:#07110b;}' +
       'footer{margin-top:34px;border-top:1px solid #123b26;padding-top:12px;color:#3f6b52;font-size:11px;}';
+    const MORE_BUTTON = '<a class="more" href="/more">Find more services →</a>';
     const rowsFor = list => '<table><tr><th></th><th>Service</th><th>Type</th><th>Sales</th><th>Signed key</th><th>Uptime</th></tr>' +
-      list.map(s => '<tr><td class="on">●</td><td><a href="https://' + esc(s.host) + '/">' + esc(s.brand) + '</a><div class="host">' + esc(s.host) + '</div></td>' +
+      list.map(s => '<tr><td class="on">●</td><td><a href="https://' + esc(s.host) + '/">' + esc(s.brand) + '</a>' +
+        (s.gov ? ' <span class="badge gov">government</span>' : s.generated ? ' <span class="badge">new</span>' : '') +
+        '<div class="host">' + esc(s.host) + '</div>' + (s.tagline ? '<div class="tagline">' + esc(String(s.tagline).slice(0, 110)) + '</div>' : '') + '</td>' +
         '<td>' + esc(s.kind) + '</td><td>' + (s.market ? 'market' : 'no sales') + '</td>' +
         '<td class="fp">' + esc(fingerprint(s.host).slice(0, 26)) + '…</td><td class="on">' + (86 + (hashOf(s.host) % 14)) + '%</td></tr>').join('') + '</table>';
     const shell = inner => page(site, 'Index', css, '<div class="top"><b>THE ONION INDEX</b><span>' + esc(site.host) + ' · mirror 3 of 4 · signed ' + day(Date.now()) + '</span></div>' +
@@ -87,17 +99,30 @@
       if (path === '/seized') return { status: 200, type: 'text/html', body: shell('<h1>Seized and offline</h1><p>Addresses that stopped answering stay here for a month so nobody mistakes a clone for the original.</p>' +
         '<table><tr><th>Service</th><th>Status</th><th>Notice</th></tr><tr><td>silkmirror.onion</td><td class="dead">seized</td><td>banner replaced by a law-enforcement notice</td></tr>' +
         '<tr><td>oldbazaar.onion</td><td class="dead">offline</td><td>no answer for 31 days — removed</td></tr><tr><td>clone-of-nightfall.onion</td><td class="dead">phantom</td><td>signature does not match the operator key</td></tr></table>') };
+      /* /more mints a fresh page of services: the index never runs out, and every address it prints is a page that
+         already exists the moment you open it */
+      if (path === '/more') {
+        const added = more(12);
+        return { status: 200, type: 'text/html', body: shell(note + '<h1>Another page of services</h1><p class="nav">' + added.length + ' more hidden services were listed just now. The index does not keep a full list — it finds what answers today.</p>' +
+          rowsFor(added) + '<p class="nav">' + MORE_BUTTON + '</p>') };
+      }
       const q = String(query.get('q') || '').trim();
-      const list = sites().filter(s => s !== site && (!q || (s.brand + ' ' + s.host + ' ' + s.kind + ' ' + (s.topic || '') + ' ' + s.tagline).toLowerCase().includes(q.toLowerCase())));
+      const all = sites().filter(s => s !== site);
+      const list = rank(all, q);
       const groups = {};
       for (const s of list) (groups[s.kind] = groups[s.kind] || []).push(s);
+      const kinds = Object.keys(groups).sort();
+      const catBar = kinds.length > 1 ? '<p class="nav">' + kinds.map(k => '<a href="/?q=' + encodeURIComponent(k) + '">' + esc(k) + '</a>').join(' · ') + '</p>' : '';
       return {
         status: 200, type: 'text/html',
         body: shell(note + '<p>The hidden-service index. Plain HTML, no scripts, no accounts. An uptime figure only means an address answered.</p>' +
-          '<form class="search" action="/" method="get"><input name="q" value="' + esc(q) + '" placeholder="search brands, hosts, categories"><button>Search</button></form>' +
-          '<p class="nav"><a href="/">all services</a> · <a href="/about">about</a> · <a href="/mirrors">mirrors</a> · <a href="/pgp.txt">pgp key</a> · <a href="/seized">seized</a></p>' +
-          (q ? '<h2>Results for “' + esc(q) + '” (' + list.length + ')</h2>' : '') +
-          Object.keys(groups).sort().map(k => '<h2>' + esc(k) + '</h2>' + rowsFor(groups[k])).join('') +
+          '<form class="search" action="/" method="get"><input name="q" value="' + esc(q) + '" placeholder="search brands, hosts, categories, government and police portals"><button>Search</button></form>' +
+          '<p class="hint">' + (q ? 'Ranked by name match, then category, then how recently the operator signed the mirror list.' : 'Type a word, or browse by category. Nothing here is sorted by what anyone paid us.') + '</p>' +
+          '<p class="nav"><a href="/">all services</a> · <a href="/about">about</a> · <a href="/mirrors">mirrors</a> · <a href="/pgp.txt">pgp key</a> · <a href="/seized">seized</a> · <a href="/more">another page</a></p>' +
+          (q ? '<h2>Results for “' + esc(q) + '” <span class="count">' + list.length + ' of ' + all.length + '</span></h2>' : '<h2>Everything that answered today <span class="count">' + all.length + ' services</span></h2>') +
+          (list.length ? catBar + kinds.map(k => '<h2>' + esc(k) + '</h2>' + rowsFor(groups[k])).join('')
+            : '<div class="empty">Nothing matched “' + esc(q) + '”. The index only lists services that answered in the last thirty days: try a category, a shorter word, or <a href="/more">the next page</a>.</div>') +
+          '<p class="nav">' + MORE_BUTTON + '</p>' +
           '<h2>Recently seized</h2><table><tr><th>Service</th><th>Status</th><th>Notice</th></tr>' +
           '<tr><td>silkmirror.onion</td><td class="dead">seized</td><td>banner replaced by a law-enforcement notice</td></tr>' +
           '<tr><td>oldbazaar.onion</td><td class="dead">offline</td><td>no answer for 31 days — removed</td></tr></table>')
@@ -842,43 +867,106 @@
   const CATALOGUE = [directory, market, leaks, crew, carding, whistle, negotiate, news, forum, broker, pharmacy, mirrors];
   let booted = false;
 
-  /* fill the standard fields the fake internet relies on, without letting the generated design system touch these pages */
+  /* the standard fields the fake internet relies on, without letting the generated design system touch these pages */
+  function standardise(site, i) {
+    if (!site || site._std) return site;
+    const idx = typeof i === 'number' ? i : CATALOGUE.indexOf(site);
+    site._std = true;
+    site.dark = true;
+    site.icon = site.icon || '🧅';
+    site.id = 0;
+    site.ip = '10.66.0.' + ((idx < 0 ? 0 : idx) + 2);
+    site.cat = Object.assign({ id: 'dark-' + Math.max(0, idx), icon: site.icon, label: site.kind, route: '/', routeLabel: site.kind }, site.cat || {});
+    site.users = site.users || [];
+    site.items = site.items || [];
+    site.posts = site.posts || [];
+    site.orders = site.orders || [];
+    site.session = site.session || { admin: false };
+    site.trapped = false;
+    site.virus = null;
+    site.adminPath = site.adminPath || '/admin';
+    site.apiKey = '';
+    site.flag = 'FLAG{' + String(site.host).replace(/[^a-z]/gi, '_') + '}';
+    site.createdAt = site.createdAt || Date.now() - int(200, 1400) * 86400000;
+    site.accent = site.link || '#7fd1ff';
+    return site;
+  }
+
+  /* one address enters the catalogue once: the hand-written services, the government portals and every generated
+     page the index has minted so far */
+  function register(site) {
+    if (!site || CATALOGUE.includes(site)) return site;
+    standardise(site, CATALOGUE.length);
+    CATALOGUE.push(site);
+    return site;
+  }
+
+  /* fill the catalogue on first use. The government portals and a first page of generated services come after the
+     hand-written ones, so no service number ever shifts. */
   function sites() {
     if (!booted) {
       booted = true;
-      CATALOGUE.forEach((site, i) => {
-        if (site.dark) return;
-        site.dark = true;
-        site.icon = site.icon || '🧅';
-        site.id = 0;
-        site.ip = '10.66.0.' + (i + 2);
-        site.cat = Object.assign({ id: 'dark-' + i, icon: site.icon, label: site.kind, route: '/', routeLabel: site.kind }, site.cat || {});
-        site.users = site.users || [];
-        site.items = site.items || [];
-        site.posts = site.posts || [];
-        site.orders = site.orders || [];
-        site.session = site.session || { admin: false };
-        site.trapped = false;
-        site.virus = null;
-        site.adminPath = site.adminPath || '/admin';
-        site.apiKey = '';
-        site.flag = 'FLAG{' + String(site.host).replace(/[^a-z]/gi, '_') + '}';
-        site.createdAt = site.createdAt || Date.now() - int(200, 1400) * 86400000;
-        site.accent = site.link || '#7fd1ff';
-      });
+      CATALOGUE.forEach((site, i) => standardise(site, i));
+      try {
+        if (A.darkGen) {
+          A.darkGen.agencies().forEach(register);
+          A.darkGen.more(36, 90210).forEach(register);
+        }
+      } catch (e) { }
     }
     return CATALOGUE;
+  }
+
+  /* mint a page of brand-new services: the section never runs out, and every address the index prints is a page that
+     already answers when you open it */
+  function more(n) {
+    try {
+      const made = A.darkGen ? A.darkGen.more(n || 12) : [];
+      made.forEach(s => { s.generated = true; register(s); });
+      return made;
+    } catch (e) { return []; }
   }
 
   function find(key) {
     const s = String(key == null ? '' : key).trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/^www\./, '');
     if (!s) return null;
-    return sites().find(x => x.host === s) || null;
+    const hit = sites().find(x => x.host === s);
+    if (hit) return hit;
+    /* any .onion address is a real page here: typing one the index has never listed generates it on the spot */
+    if (/\.onion$/.test(s) && A.darkGen) return register(A.darkGen.site(s));
+    return null;
+  }
+
+  /* the search behind the Onion Index and `tor sites`: exact and prefix name matches first, then host, category and
+     topic matches, then everything else that mentions the words. Deterministic, so the same query always ranks the
+     same way. */
+  function score(s, q, words) {
+    const brand = String(s.brand || '').toLowerCase(), host = String(s.host || '').toLowerCase();
+    const kind = String(s.kind || '').toLowerCase(), hay = (brand + ' ' + host + ' ' + kind + ' ' + (s.topic || '') + ' ' + (s.tagline || '')).toLowerCase();
+    if (!q) return 1 + (s.gov ? 3 : 0) + (s.generated ? 0 : 2);
+    let n = 0;
+    if (brand === q || host === q || host === q + '.onion') n += 100;
+    if (brand.startsWith(q) || host.startsWith(q)) n += 50;
+    if (brand.includes(q)) n += 30;
+    if (host.includes(q)) n += 20;
+    if (kind.includes(q)) n += 14;
+    if ((s.topic || '').toLowerCase().includes(q)) n += 8;
+    for (const w of words) if (w.length > 2 && hay.includes(w)) n += 3;
+    if (!n) return 0;
+    if (s.gov) n += 2;
+    return n;
+  }
+  function rank(list, q) {
+    const query = String(q || '').trim().toLowerCase();
+    const words = query.split(/\s+/).filter(Boolean);
+    return list.map((s, i) => ({ s, i, n: score(s, query, words) }))
+      .filter(x => x.n > 0)
+      .sort((a, b) => b.n - a.n || String(a.s.brand).localeCompare(String(b.s.brand)) || a.i - b.i)
+      .map(x => x.s);
   }
   function search(q) {
-    const t = String(q || '').trim().toLowerCase();
-    if (!t) return sites().slice();
-    return sites().filter(s => (s.brand + ' ' + s.host + ' ' + s.kind + ' ' + (s.topic || '') + ' ' + s.tagline).toLowerCase().includes(t));
+    const list = sites().slice();
+    return rank(list, q);
   }
   const darkHost = raw => /\.onion(?:$|\/|\?|:)/i.test(String(raw || ''));
 
@@ -908,9 +996,12 @@
   }
 
   A.cyberDark = {
-    sites, find, search, serve, scan, darkHost,
+    sites, find, search, serve, scan, darkHost, rank, register, more,
     all: () => sites(),
     count: () => sites().length,
+    /* the government and police portals, listed separately for `tor gov` and the Browser */
+    agencies: () => sites().filter(s => s.gov),
+    generated: () => sites().filter(s => s.generated),
     /* the directory is the section's front door, and the one address the Browser's chip opens */
     portalHost: directory.host,
     portalUrl: q => 'https://' + directory.host + '/?q=' + encodeURIComponent(String(q == null ? '' : q)),

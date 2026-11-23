@@ -1763,7 +1763,11 @@
       return byAddr ? { site: byAddr, path: path || '/' } : null;
     }
     ensure(BASE);
-    const hit = catalog.find(s => s.host === host);
+    /* an .onion address the index has never listed is still a page: the Fake Dark Web mints it from its own address,
+       so onion space never runs out and every link the Onion Index prints really opens */
+    const hit = catalog.find(s => s.host === host) ||
+      ((/\.onion$/i.test(host) && A.cyberDark && A.cyberDark.find) ? A.cyberDark.find(host) : null);
+    if (hit && catalog.indexOf(hit) < 0) catalog.push(hit);
     return hit ? { site: hit, path: path || '/' } : null;
   }
 

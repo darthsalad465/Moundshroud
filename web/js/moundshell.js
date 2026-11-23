@@ -99,7 +99,14 @@
     const inApp = (() => { try { return Array.isArray(room.cwdPath()) ? room.cwdPath()[0] === 'app' : String(room.cwdPath()).startsWith('/app'); } catch (e) { return true; } })();
     const shown = inApp ? '~/app' + (parts.length ? '/' + parts.join('/') : '')
       : parts.length ? '/' + parts.join('/') : '~';
-    return shellIdentity() + ':' + shown + '$ ';
+    /* the prompt carries the network mode, so `ip a` is never the only way to see where traffic is pretending to go */
+    const net = (() => {
+      try {
+        if (!A.tor) return '';
+        return (A.tor.on ? ' [tor]' : '') + (A.tor.vpn.on ? ' [vpn:' + A.tor.vpn.cc + ']' : '');
+      } catch (e) { return ''; }
+    })();
+    return shellIdentity() + ':' + shown + net + '$ ';
   };
 
   /* the whole in-memory tree as flat paths, so a command can be diffed against what was there before it */
@@ -3158,6 +3165,17 @@ DONE      When the range shows every objective ticked: type next to take the nex
       if (promptEl) promptEl.textContent = promptText();
       return text;
     }
+    /* Tor and the fake VPN: the two commands that change what every other command means in this shell */
+    const netCall = /^(tor|vpn)(?:\s+([\s\S]*))?$/i.exec(line.trim());
+    if (netCall) {
+      hist.push(line); hi = hist.length;
+      let text = '';
+      try { text = netCommand(netCall[0]); } catch (e) { text = netCall[1].toLowerCase() + ': ' + String(e && e.message || e); }
+      if (text) say(String(text).replace(/\n$/, ''));
+      paint();
+      if (promptEl) promptEl.textContent = promptText();
+      return text;
+    }
     /* the app itself, Juice Shop, anti-malware and the Toolkit's tools are answered here, so they never fall through to bash */
     const extCall = /^(app|moundshroud|shroud|targets|juice|juiceshop|tool|tools|toolkit|secrets|strings|hashdir|checksums|rg|fd|jq|sd|virus|antivirus|av|malware)(?:\s+([\s\S]*))?$/i.exec(line.trim());
     if (extCall) {
@@ -3206,7 +3224,8 @@ DONE      When the range shows every objective ticked: type next to take the nex
         /* a git command changes the Repositories store, never the files: there is nothing to diff or save back */
         output = git;
       } else {
-        try { output = room.run(line); } catch (e) { output = 'bash: ' + String(e && e.message || e); }
+        const net = netOverride(line);
+        try { output = net != null ? net : room.run(line); } catch (e) { output = 'bash: ' + String(e && e.message || e); }
         const before = snapshot;
         snapshot = flat(room.snapshot().tree);
         await persist(before, snapshot);
@@ -3605,13 +3624,135 @@ DONE      When the range shows every objective ticked: type next to take the nex
      drift from what actually works here — mcode never has to guess at a command, or invent one that does not exist. */
   const PC_COMMANDS = 'ls · cd · pwd · cat · head · tail · grep · find · wc · whoami · id · ps · env · ip a · ss · sudo -l · help · exit';
   let commandCache = { room: null, text: '' };
+
+  /* ---- Tor and the fake VPN, from the shell ---------------------------------------------------------------------------------------------- */
+  /* The Browser and this shell share one piece of state (A.tor), so whatever mode the page is in, the shell answers for it:
+     `ip a` shows the tunnel, a public-IP lookup returns the exit address, and an .onion only resolves inside a circuit. */
+  const netOnionOf = raw => { const m = /\.onion\b/i.test(String(raw || '')); return m; };
+  function netCommand(line) {
+    const t = A.tor;
+    const words = String(line || '').trim().split(/\s+/);
+    const cmd = String(words.shift() || '').toLowerCase();
+    const arg = (words[0] || '').toLowerCase();
+    if (!t) return 'tor: the network simulation is not loaded in this page.';
+    if (cmd === 'tor') {
+      if (arg === 'on' || arg === 'start' || arg === 'connect') { t.setOn(true); return 'tor: circuit up.\n' + t.line(); }
+      if (arg === 'off' || arg === 'stop' || arg === 'disconnect') { t.off(); return 'tor: circuit closed. Traffic leaves this PC directly from ' + t.homeIp() + '.'; }
+      if (arg === 'newid' || arg === 'identity' || arg === 'newidentity') { t.newIdentity(); return 'tor: new identity. Three new relays, and any site that knew you does not.\n' + t.line(); }
+      if (arg === 'circuit' || arg === 'newcircuit' || arg === 'new' || arg === 'rotate') { t.newCircuit(); return 'tor: new circuit (same identity, new relays).\n' + t.line(); }
+      if (arg === 'gov' || arg === 'agencies' || arg === 'police') {
+        const list = A.cyberDark ? A.cyberDark.agencies() : [];
+        return ['GOVERNMENT & POLICE HIDDEN SERVICES · ' + list.length + ' portals', ''].concat(
+          list.map(s => '  ' + (s.host + '                          ').slice(0, 26) + s.brand)).join('\n') +
+          '\n\nOpen one with: tor open cai-intel.onion   ·   these are invented agencies in the Cyber Desktop; no portal exists.';
+      }
+      if (arg === 'sites' || arg === 'list' || arg === 'search') {
+        const q = words.slice(1).join(' ').trim();
+        const list = A.cyberDark ? A.cyberDark.search(q) : [];
+        const show = list.slice(0, 24);
+        return ['ONION SERVICES' + (q ? ' matching "' + q + '"' : '') + ' · ' + list.length + ' known, ' + (A.cyberDark ? A.cyberDark.count() : 0) + ' in the index', ''].concat(
+          show.map(s => '  ' + (s.host + '                                 ').slice(0, 34) + (s.gov ? '[gov] ' : '') + s.brand + ' · ' + s.kind)).join('\n') +
+          (list.length > show.length ? '\n  … and ' + (list.length - show.length) + ' more (tor sites <word>)' : '') +
+          '\n\n  tor open <host> opens one in the Browser · tor more mints a fresh page of services';
+      }
+      if (arg === 'more') { const made = A.cyberDark ? A.cyberDark.more(12) : []; return 'tor: ' + made.length + ' more services listed (the index never runs out).\n' + made.map(s => '  ' + s.host + ' · ' + s.brand + ' · ' + s.tier).join('\n'); }
+      if (arg === 'open' || arg === 'visit') {
+        const host = (words[1] || '').trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+        if (!host) return 'usage: tor open <onion host|name>';
+        const url = 'https://' + (/\.[a-z]{2,}$/i.test(host) ? host : host + '.onion') + '/';
+        try {
+          if (A.lib && A.lib.openUrl) { A.lib.openUrl(url, ''); return 'tor: opening ' + url + ' in the Browser — its toolbar turns into Tor on the way in.'; }
+        } catch (e) { }
+        return 'tor: the Browser is not available in this page; the address is ' + url;
+      }
+      if (arg === 'check') {
+        const host = (words[1] || '').trim();
+        if (!host) return 'usage: tor check <onion host|url>';
+        const site = A.cyberDark ? A.cyberDark.find(host.replace(/^https?:\/\//, '').split('/')[0]) : null;
+        if (!site) return 'tor: ' + host + ': not an onion address this index knows';
+        return 'tor: ' + site.host + ' answered' + (t.on ? '' : ' only because the simulation answered for it — there is no circuit') + '\n' +
+          '  ' + site.brand + ' · ' + site.kind + ' · ' + (site.tier || 'hand-written') + ' page' +
+          (site.gov ? ' · government portal' : '') + '\n  served by: ' + (t.on ? 'exit relay ' + t.exitIp() : 'this page (no Tor circuit)');
+      }
+      const v = t.vpn;
+      return [
+        'TOR · ' + (t.on ? 'circuit up' : 'not connected'),
+        '',
+        t.on ? '  guard   ' + t.hops()[0].flag + ' ' + t.hops()[0].ip + '  ' + t.hops()[0].city + '   ' + t.hops()[0].nick + '   ' + t.hops()[0].ms + ' ms'
+          : '  no circuit: traffic leaves this PC from ' + t.homeIp(),
+        t.on ? '  middle  ' + t.hops()[1].flag + ' ' + t.hops()[1].ip + '  ' + t.hops()[1].city + '   ' + t.hops()[1].nick + '   ' + t.hops()[1].ms + ' ms' : '',
+        t.on ? '  exit    ' + t.hops()[2].flag + ' ' + t.hops()[2].ip + '  ' + t.hops()[2].city + '   ' + t.hops()[2].nick + '   ' + t.hops()[2].ms + ' ms' : '',
+        '',
+        '  public address: ' + t.publicIp() + (v.on ? '  (the VPN\u2019s exit, not a Tor relay)' : t.on ? '  (the exit relay)' : ''),
+        '  onion services known: ' + (A.cyberDark ? A.cyberDark.count() : 0) + '  ·  government portals: ' + (A.cyberDark ? A.cyberDark.agencies().length : 0),
+        '',
+        '  tor on | off | circuit | newid | sites [q] | gov | more | check <host> | open <host>'
+      ].filter(x => x !== '').join('\n');
+    }
+    /* vpn */
+    if (arg === 'on' || arg === 'up' || arg === 'connect') {
+      const target = (words[1] || '').trim();
+      if (target && /^[A-Za-z]{2}$/.test(target)) { const v = t.setCountry(target); return v ? 'vpn: on · ' + v.provider.name + ' · ' + v.city + ' (' + v.cc + ') · public address ' + v.ip : 'vpn: no exit in ' + target; }
+      if (target) { const v = t.setProvider(target); return v ? 'vpn: on through ' + v.provider.name + ' · ' + v.city + ' (' + v.cc + ') · public address ' + v.ip : 'vpn: no provider called ' + target; }
+      const v = t.vpnOn(); return 'vpn: on · ' + v.provider.name + ' · ' + v.city + ' (' + v.cc + ') · public address ' + v.ip;
+    }
+    if (arg === 'off' || arg === 'down' || arg === 'disconnect') { t.vpnOff(); return 'vpn: off · this PC answers as ' + t.homeIp() + ' again.'; }
+    if (arg === 'list' || arg === 'providers' || arg === 'ls') {
+      const cur = t.vpn.provider.id;
+      return ['FAKE VPN PROVIDERS · none of them exist', ''].concat(t.providers().map(p =>
+        '  ' + (p.id === cur ? '*' : ' ') + ' ' + (p.name + '               ').slice(0, 16) + p.cc + '   ' + p.tag)).join('\n') +
+        '\n\n  vpn connect <provider|country code>   ·   vpn off';
+    }
+    const v = t.vpn;
+    return [
+      'VPN · ' + (v.on ? 'on' : 'off'),
+      '',
+      v.on ? '  provider: ' + v.provider.name + ' (' + v.provider.tag + ')' : '  no tunnel: the moundshell, the Browser and every simulated site see ' + t.homeIp(),
+      v.on ? '  exit: ' + v.city + ' (' + v.cc + ') · ' + v.ip : '',
+      '  what the PC sees: ' + t.publicIp() + (t.on ? '  ·  Tor is also on, so the VPN only wraps the circuit' : ''),
+      '',
+      '  countries: ' + t.countries().join(' '),
+      '  vpn on [cc] | off | list | connect <provider|cc>'
+    ].filter(x => x !== '').join('\n');
+  }
+
+  /* Lines the shell answers differently depending on the network mode: the same commands the player already types. */
+  function netOverride(line) {
+    const bare = String(line || '').trim();
+    if (!bare || !A.tor) return null;
+    const t = A.tor;
+    if (/^(?:ip\s+(?:a|addr|address|route)|ifconfig|iwconfig)\s*$/.test(bare)) {
+      const v = t.vpn;
+      const out = ['1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536', '    inet 127.0.0.1/8 scope host lo',
+        '2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500', '    inet ' + t.homeIp() + '/24 brd ' + t.homeIp().replace(/\.\d+$/, '.255') + ' scope global eth0'];
+      if (v.on) out.push('3: tun0: <POINTOPOINT,MULTICAST,NOARP,UP,LOWER_UP> mtu 1420', '    inet 10.8.0.6/24 scope global tun0', '    vpn exit ' + v.ip + ' (' + v.city + ', ' + v.cc + ') via ' + v.provider.name);
+      if (t.on) out.push('4: socks5 127.0.0.1:9050 (tor) · circuit ' + t.hops().map(h => h.ip).join(' → '));
+      return out.join('\n');
+    }
+    if (/^(?:curl|wget)\s+(?:-\w+\s+)*(?:https?:\/\/)?(?:ifconfig\.me|ipinfo\.io|ip\.me|icanhazip\.com|myip\.online)(?:\/\S*)?\s*$/i.test(bare)) return t.publicIp();
+    /* an onion only resolves inside a circuit, exactly as on a real machine */
+    if (netOnionOf(bare)) {
+      if (!t.on && /^(?:tor|vpn)\b/i.test(bare) === false) return 'resolve: .onion: no route to host (no Tor circuit — run `tor on` first)';
+      const m = /\b([a-z2-7]{16,56}\.onion)\b/i.exec(bare);
+      if (m && A.cyberWeb && A.cyberWeb.serve) {
+        const hit = A.cyberWeb.locate ? A.cyberWeb.locate('https://' + m[1] + '/') : null;
+        if (hit && hit.site) {
+          const res = A.cyberWeb.serve(hit.site, '/', 'GET');
+          if (/^(?:curl)\b/i.test(bare) && !/\s-(?:o|O)\s/.test(bare)) return String(res.body || '').slice(0, 20000);
+          if (/^(?:wget)\b/i.test(bare)) return 'Saving to: \u2018index.html\u2019\n\u2018index.html\u2019 saved [' + String(res.body || '').length + '] · through ' + t.exitIp() + ' (' + t.exitCc() + ')';
+        }
+      }
+    }
+    return null;
+  }
+
   function commandBrief() {
     if (room && commandCache.room === room) return commandCache.text;
     const names = new Set();
     const add = name => { if (typeof name === 'string' && /^[a-z][a-z0-9_.+-]{0,23}$/i.test(name)) names.add(name); };
     try { Object.keys((room && room.cmds) || {}).forEach(add); } catch (e) { }
     try { moundshellCommands().forEach(entry => add(String(entry.name || '').trim().split(/\s+/)[0])); } catch (e) { }
-    ['targets', 'leaked', 'ssh', 'paths', 'breach', 'browser', 'virus', 'solve', 'range', 'guide', 'pentest', 'current', 'help']
+    ['targets', 'leaked', 'ssh', 'paths', 'breach', 'browser', 'virus', 'solve', 'range', 'guide', 'pentest', 'current', 'tor', 'vpn', 'help']
       .forEach(add);
     const text = [...names].sort().join(' · ');
     if (room) commandCache = { room, text };
@@ -3713,7 +3854,9 @@ DONE      When the range shows every objective ticked: type next to take the nex
     if (git !== null) {
       output = git;
     } else {
-      try { output = room.run(line); } catch (e) { output = 'bash: ' + String(e && e.message || e); }
+      /* the same commands, answered for the network mode the Browser is in: `ip a`, a public-IP lookup and an .onion */
+      const net = netOverride(line);
+      try { output = net != null ? net : room.run(line); } catch (e) { output = 'bash: ' + String(e && e.message || e); }
       const before = snapshot;
       snapshot = flat(room.snapshot().tree);
       try { persist(before, snapshot); } catch (e) { }
@@ -3759,6 +3902,10 @@ DONE      When the range shows every objective ticked: type next to take the nex
         pcAuth = null;
         return finish(check.ok ? pcOpen(pc, check.user) : check.why);
       }
+      /* guide is the shell's own walkthrough, not a range command, so it is answered before the range: with a target
+         open, `guide` used to fall through to the range's bash and answer "command not found" although the breach
+         banner told the player to type it. The interactive shell already checks it in this order. */
+      if (['guide', 'walkthrough', 'walk', 'tutorial'].includes(first)) return finish(await guideCommand(rest));
       /* inside the range every line is a range command, exactly as when the user types it. `exit` really leaves:
          the webshell first, then the range, so a task can move on to the next target instead of being trapped here. */
       if (breach) {
@@ -3776,8 +3923,8 @@ DONE      When the range shows every objective ticked: type next to take the nex
       }
       if (first === 'breach') return finish(await breachCommand(rest));
       if (first === 'browser') return finish(await browserCommand(rest));
+      if (['tor', 'vpn'].includes(first)) return finish(netCommand(line));
       if (['paths', 'wordlist', 'try'].includes(first)) return finish(pathsCommand(rest));
-      if (['guide', 'walkthrough', 'walk', 'tutorial'].includes(first)) return finish(await guideCommand(rest));
       if (first === 'targets') return finish(await targetsCommand(rest));
       if (['virus', 'antivirus', 'av', 'malware'].includes(first)) return finish(virusCommand(rest));
       if (['app', 'moundshroud', 'shroud'].includes(first)) return finish(await appCommand(rest));
@@ -3981,6 +4128,10 @@ DONE      When the range shows every objective ticked: type next to take the nex
         [['browser source 1', 'the HTML as stored'], ['browser source virus 1', 'inspect a random site’s HTML source']], ['browser src']),
       own('browser open', 'browser open <n|slug|host|url|current>', 'Opens any library or Cyber Desktop website in the Browser (creating any new domain on demand, just like the address bar).',
         [['browser open 1', 'show it in the Browser'], ['browser open moundhub.com', 'open MoundHub'], ['browser open virus 1', 'open a random site']], ['browser go']),
+      own('tor', 'tor [on|off|circuit|newid|status|sites [q]|gov|more|check <host>|open <host>]', 'Tor from the moundshell. `tor` on its own prints the circuit: the guard, the middle relay and the exit, each with its own country and address, plus the public address this PC appears to have. `tor on` builds a circuit, `tor circuit` keeps your identity and swaps the three relays, `tor newid` swaps the circuit and drops everything the pages were holding about you. With Tor on, `.onion` addresses resolve: `curl <host>.onion` returns the page, `ip a` shows the socks proxy, and a public-IP lookup answers with the exit relay. With Tor off, an .onion has no route, exactly as on a real machine. `tor sites` searches every hidden service, `tor gov` lists the government and police portals, `tor more` mints a fresh page of services.',
+        [['tor', 'the three relays and the exit address'], ['tor on', 'build a circuit'], ['tor newid', 'a new circuit with no shared history'], ['tor gov', 'the government and police onion portals'], ['tor sites bank', 'search the hidden services'], ['tor open cai-intel.onion', 'open a portal in the Browser'], ['tor check nightfall-market.onion', 'does an address answer, and through which exit'], ['tor more', 'another page of services']], ['onion', 'circuit']),
+      own('vpn', 'vpn [on [cc]|off|list|connect <provider|cc>|status]', 'A fake VPN for the Browser and this shell. `vpn` prints the state; `vpn on` routes this PC through a provider’s exit, `vpn on SE` picks a country, `vpn list` shows the invented providers, `vpn connect gullvad` chooses one. With the VPN on, `ip a` grows a tun0 interface, a public-IP lookup answers with the VPN exit, and the Browser shows the provider and country in its toolbar. It composes with Tor: the VPN wraps the circuit, so the exit relay sees the VPN address rather than your own. Nothing is tunnelled — it is one object in this page.',
+        [['vpn', 'is the tunnel up, and where does it come out'], ['vpn on', 'connect through the default provider'], ['vpn on CH', 'connect through a Swiss exit'], ['vpn list', 'every invented provider'], ['vpn off', 'back to this PC\u2019s own address']], ['tunnel']),
       own('virus', 'virus [status|list|scan <site|current>|clean]', 'Cyber Desktop anti-malware from moundshell: check if fake pop-ups are active, explain why no site is pre-labelled, inspect any website for a simulated trap payload, or clean active fake pop-ups off the desktop. Finding a trap is the user’s job: `virus scan`, nikto, whatweb and gobuster are the detector.',
         [['virus status', 'desktop infection status'], ['virus list', 'why there is no list of infected sites'], ['virus scan current', 'scan the open browser website'], ['virus clean', 'remove active fake pop-ups']], ['antivirus', 'av', 'malware']),
       own('pentest', 'pentest [on|off]', 'Switches the moundshell user between kali@pentest and moundshroud@moundshroud. The Pentest user only exists while the Cyber Desktop\u2019s VM is running: with the VM off the shell stays moundshroud@moundshroud, and turning the VM on does not change an open shell — restart it (\u27f2 Restart) and the new session signs in as kali@pentest. Plain `pentest` toggles.',

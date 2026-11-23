@@ -86,8 +86,8 @@
     '<select id="lbook" style="display:none" title="Which library"></select>' +
     '<button class="ib" id="llib" type="button" style="display:none;min-width:0;max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;padding:0 10px" title=""></button>' +
     '<div id="lbox"><span id="lico">🔎</span><input id="wq" type="text" placeholder="Search Moundshroud, or type a page address" title="The page’s name. Click it to see and copy the page’s address" autocomplete="off" spellcheck="false"><button class="ib" id="lstar" title="Favorite this page (the star)">☆</button><div id="wsug"></div></div>' +
-    '<button class="pri" id="wgo" style="display:none">Search</button><button class="ib" id="ltor" title="Tor Browser: browse the whole web privately through the Tor network (opens in its own window)">🧅 Tor</button><button class="ib" id="lbm" title="Bookmarks: save your place on this page and jump back to it (Ctrl+D)">🔖</button><button class="ib page-fs-btn" id="lfs" title="Full screen this page (Esc to exit)">⛶<span class="fsw">Full screen</span></button><button class="ib" id="lmore" title="Customize and control the Browser">⋮</button>' +
-    '<div id="lmenu"></div><div id="lhist"></div></div><div id="lprog"></div><div id="lbmbar"></div>' +
+    '<button class="ib" id="lvpn" title="Fake VPN: pretend this PC is somewhere else. Click for the providers, the countries and the exit address.">🛡</button><button class="pri" id="wgo" style="display:none">Search</button><button class="ib" id="ltor" title="Tor Browser: browse the whole web privately through the Tor network (opens in its own window)">🧅 Tor</button><button class="ib" id="lbm" title="Bookmarks: save your place on this page and jump back to it (Ctrl+D)">🔖</button><button class="ib page-fs-btn" id="lfs" title="Full screen this page (Esc to exit)">⛶<span class="fsw">Full screen</span></button><button class="ib" id="lmore" title="Customize and control the Browser">⋮</button>' +
+    '<div id="lmenu"></div><div id="lhist"></div><div id="ltorpanel"></div><div id="lvpnpanel"></div></div><div id="lprog"></div><div id="lbmbar"></div>' +
     '<div class="chips" id="wbar" style="padding:3px 12px 7px"></div><div id="lfind"><input id="lfq" type="text" placeholder="Find in page"><span class="small mute" id="lfn"></span><button class="ib" id="lfp">▲</button><button class="ib" id="lfnx">▼</button><button class="ib" id="lfx">✕</button></div></div>' +
     '<div id="lframes"><div id="lstat"></div></div><div class="wh" id="wh"></div>';
   const q = $('wq'), sug = $('wsug'), frames = $('lframes'), head = $('lhead');
@@ -109,6 +109,124 @@
     };
     poll();
   };
+  /* ---------- Tor and the fake VPN: the chrome changes when the page you are on lives on .onion ---------- */
+  (() => {
+    const cssNet =
+      '#lnav{position:relative}' +
+      /* the whole toolbar turns into a Tor Browser toolbar, dark violet, with the onion where the page icon was */
+      '#lhead.tor{background:linear-gradient(180deg,#3a1f4f,#2a1440);color:#f4e9ff}' +
+      '#lhead.tor #ltabs .ltab{background:color-mix(in srgb,#3a1f4f 70%,#1c0f2b);color:#e7d6f7;border-color:#4a2a63}' +
+      '#lhead.tor #ltabs .ltab.on{background:#4a2a63;color:#fff}' +
+      '#lhead.tor #lnav{background:#2a1440}' +
+      '#lhead.tor #lbox{border-color:#6b3f90;background:#331a48;box-shadow:none}' +
+      '#lhead.tor #lbox:focus-within{border-color:#c78bff;background:#3d2055;box-shadow:0 0 0 3px rgba(199,139,255,.16)}' +
+      '#lhead.tor #lbox input{color:#f4e9ff}#lhead.tor #lbox input::placeholder{color:#b9a3d0}' +
+      '#lhead.tor #lico{opacity:1;cursor:pointer;filter:drop-shadow(0 0 4px rgba(199,139,255,.7))}' +
+      '#lhead.tor #lico:hover{transform:scale(1.12)}' +
+      '#lhead.tor .ib,#lhead.tor #lhome,#lhead.tor #ltor{color:#e7d6f7;background:#3d2055;border-color:#4a2a63}' +
+      '#lhead.tor .ib:hover{background:#4a2a63}' +
+      '#lhead.tor #lvpn{background:#5b2b7a;border-color:#8a5fb0;color:#fff}' +
+      '#lframes.tor{box-shadow:inset 0 0 0 2px #6b3f90, inset 0 0 26px rgba(107,63,144,.35)}' +
+      '#lhead.tor #lprog.on:after{background:linear-gradient(90deg,transparent,#c78bff,#7fd1ff,transparent)}' +
+      '#lvpn.on{color:#fff;background:color-mix(in srgb,var(--acc) 26%,var(--panel2));border-color:var(--acc)}' +
+      /* the circuit panel: three relays, their addresses, and what changed them */
+      '#ltorpanel,#lvpnpanel{display:none;position:absolute;top:calc(100% - 2px);left:16px;z-index:40;width:min(430px,92vw);padding:14px 16px;border:1px solid #6b3f90;border-radius:14px;background:#241034;color:#efe2ff;box-shadow:0 24px 60px rgba(0,0,0,.55);font-size:12.5px}' +
+      '#lvpnpanel{left:auto;right:16px;width:min(400px,92vw);border-color:color-mix(in srgb,var(--acc) 60%,var(--line));background:color-mix(in srgb,var(--panel) 97%,transparent);color:var(--text)}' +
+      '#ltorpanel.on,#lvpnpanel.on{display:block}' +
+      '#ltorpanel h4,#lvpnpanel h4{margin:0 0 8px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#c9a8e8;font-weight:600}' +
+      '#lvpnpanel h4{color:var(--mute)}' +
+      '#ltorpanel .hop{display:grid;grid-template-columns:58px 1fr auto;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid #3a1f4f}' +
+      '#ltorpanel .hop:last-of-type{border-bottom:0}' +
+      '#ltorpanel .hop b{font-weight:600;color:#e7d6f7;font-size:11px;letter-spacing:.08em;text-transform:uppercase}' +
+      '#ltorpanel .hop .ip{font-family:ui-monospace,Consolas,monospace;color:#fff}' +
+      '#ltorpanel .hop .ms{color:#b9a3d0;font-size:11px}' +
+      '#ltorpanel .sub{color:#b9a3d0;font-size:11.5px;margin:2px 0 10px}' +
+      '#ltorpanel .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}' +
+      '#ltorpanel button{flex:1;min-width:110px;padding:8px 10px;border-radius:9px;border:1px solid #6b3f90;background:#3d2055;color:#f4e9ff;font:inherit;font-size:12px;cursor:pointer}' +
+      '#ltorpanel button:hover{background:#4a2a63}' +
+      '#ltorpanel button.pri{background:#c78bff;border-color:#c78bff;color:#241034;font-weight:650}' +
+      '#ltorpanel .off{color:#ffb0b0}' +
+      '#lvpnpanel .vrow{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:9px;cursor:pointer}' +
+      '#lvpnpanel .vrow:hover{background:color-mix(in srgb,var(--acc) 12%,transparent)}' +
+      '#lvpnpanel .vrow .dot{width:8px;height:8px;border-radius:50%;background:var(--line);flex:none}' +
+      '#lvpnpanel .vrow.on .dot{background:#49e08c;box-shadow:0 0 8px #49e08c}' +
+      '#lvpnpanel .vrow .nm{font-weight:600;font-size:12.5px}#lvpnpanel .vrow .tg{color:var(--mute);font-size:11px}' +
+      '#lvpnpanel .ccs{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}' +
+      '#lvpnpanel .cc{padding:4px 8px;border-radius:8px;border:1px solid var(--line);font-size:11px;cursor:pointer}' +
+      '#lvpnpanel .cc.on{border-color:var(--acc);color:var(--text);background:color-mix(in srgb,var(--acc) 18%,transparent)}' +
+      '#lvpnpanel .foot{margin-top:10px;display:flex;gap:8px}#lvpnpanel .foot button{flex:1;padding:7px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font:inherit;font-size:12px;cursor:pointer}' +
+      '#lvpnpanel .note{color:var(--mute);font-size:11px;margin:8px 0 0}';
+    if (!document.getElementById('libnetcss')) { const s = document.createElement('style'); s.id = 'libnetcss'; s.textContent = cssNet; document.head.appendChild(s); }
+
+    const panel = $('ltorpanel'), vpanel = $('lvpnpanel'), lico = $('lico'), vbtn = $('lvpn');
+    const onionOf = u => /\.onion(?:$|[\/:?])/i.test(String(u || ''));
+    const open = el => { const on = el.classList.contains('on'); closeAll(); if (!on) el.classList.add('on'); };
+    function closeAll() { panel.classList.remove('on'); vpanel.classList.remove('on'); }
+
+    function circuitHtml() {
+      const t = A.tor, hops = t.hops();
+      const rows = hops.map((h, i) => '<div class="hop"><b>' + i + ' · ' + esc(h.role) + '</b><div><span class="ip">' + h.flag + ' ' + esc(h.ip) + '</span><div class="sub" style="margin:0">' + esc(h.city) + ' · ' + esc(h.nick) + '</div></div><span class="ms">' + h.ms + ' ms</span></div>').join('');
+      const where = (E(T()) && E(T()).u) || '';
+      return '<h4>Tor circuit · three relays, none of them yours</h4>' +
+        (t.on ? rows : '<p class="sub off">No circuit. You are on the clearnet — this PC connects directly.</p>') +
+        '<p class="sub" style="margin-top:10px">' + (t.on
+          ? 'This page: <b>' + esc(hostOf(where) || 'onion space') + '</b> · the exit relay sees the request, the guard knows who you are, neither knows both.'
+          : 'The guards, the middle relay and the exit are drawn per circuit; a new circuit draws three new ones.') + '</p>' +
+        (t.vpn.on ? '<p class="sub">VPN underneath: ' + esc(t.vpn.provider.name) + ' · ' + esc(t.vpn.cc) + ' · ' + esc(t.vpn.ip) + ' — your ISP sees that address, not this page.</p>' : '') +
+        '<div class="row"><button class="pri" data-net="circuit">New circuit</button><button data-net="identity">New identity</button>' +
+        '<button data-net="' + (t.on ? 'off' : 'on') + '">' + (t.on ? 'Leave Tor' : 'Use Tor') + '</button></div>';
+    }
+    function vpnHtml() {
+      const t = A.tor, v = t.vpn;
+      return '<h4>Fake VPN · one address in front of this one</h4>' +
+        t.providers().map(p => '<div class="vrow' + (v.on && v.provider.id === p.id ? ' on' : '') + '" data-vpn="' + p.id + '"><span class="dot"></span><div><div class="nm">' + esc(p.name) + ' <span class="tg">' + esc(p.cc) + '</span></div><div class="tg">' + esc(p.tag) + '</div></div></div>').join('') +
+        '<div class="ccs">' + t.countries().map(cc => '<span class="cc' + (v.on && v.cc === cc ? ' on' : '') + '" data-cc="' + cc + '">' + cc + '</span>').join('') + '</div>' +
+        '<div class="foot"><button data-vpn="off">' + (v.on ? 'Turn the VPN off' : 'VPN is off') + '</button></div>' +
+        '<p class="note">' + (v.on ? 'Connected: ' + esc(v.provider.name) + ' · ' + esc(v.city) + ' (' + esc(v.cc) + ') · your public address is <b>' + esc(v.ip) + '</b>.' : 'Off: the app and the moundshell see your own address. This is fiction — nothing is tunnelled.') + '</p>';
+    }
+
+    panel.onclick = e => {
+      const b = e.target.closest('[data-net]'); if (!b) return;
+      const what = b.dataset.net;
+      if (what === 'circuit') { A.tor.newCircuit(); A.toast('New circuit: three new relays'); }
+      else if (what === 'identity') { A.tor.newIdentity(); A.toast('New identity: circuit replaced' + (A.tor.vpn.on ? ' and VPN rotated' : '')); }
+      else if (what === 'off') { A.tor.off(); A.toast('Tor off: back on the clearnet'); }
+      else if (what === 'on') { A.tor.setOn(true); A.toast('Tor on: three relays drawn'); }
+      panel.innerHTML = circuitHtml(); netPaint((E(T()) || {}).u);
+    };
+    vpanel.onclick = e => {
+      const p = e.target.closest('[data-vpn]'), c = e.target.closest('[data-cc]');
+      if (p) { if (p.dataset.vpn === 'off') { A.tor.vpnOff(); A.toast('VPN off'); } else { A.tor.setProvider(p.dataset.vpn); A.toast('VPN on through ' + A.tor.vpn.provider.name); } }
+      else if (c) { A.tor.setCountry(c.dataset.cc); A.toast('VPN exit: ' + A.tor.vpn.city + ' (' + c.dataset.cc + ')'); }
+      else return;
+      vpanel.innerHTML = vpnHtml(); netPaint((E(T()) || {}).u);
+    };
+    lico.onclick = () => { panel.innerHTML = circuitHtml(); open(panel); };
+    vbtn.onclick = () => { vpanel.innerHTML = vpnHtml(); open(vpanel); };
+    document.addEventListener('click', e => { if (!panel.contains(e.target) && !vpanel.contains(e.target) && e.target !== lico && e.target !== vbtn) closeAll(); }, true);
+    /* every navigation passes through here: an onion address turns the toolbar into Tor, anything else turns it back.
+       A state change made elsewhere (the moundshell's `tor on|off`, the VPN panel) only repaints, so turning Tor off on
+       an onion page is not undone by the next repaint. */
+    let lastUrl = null, subscribed = false;
+    function netPaint(url, syncState) {
+      if (!A.tor) return;
+      const u = url === undefined || url === null ? ((E(T()) || {}).u || '') : String(url);
+      if (!subscribed) { subscribed = true; try { A.tor.subscribe(() => netPaint()); } catch (e) { } }
+      if (syncState && u !== lastUrl) { lastUrl = u; A.tor.setOn(onionOf(u)); }
+      const onion = A.tor.on && onionOf(u);
+      const head = $('lhead'), fr = $('lframes');
+      head.classList.toggle('tor', onion); if (fr) fr.classList.toggle('tor', onion);
+      lico.textContent = onion ? '🧅' : favOf(url);
+      lico.title = onion ? 'Tor circuit: click to see the three relays you are going through' : (url ? 'This page’s address' : 'Search');
+      vbtn.classList.toggle('on', !!A.tor.vpn.on);
+      vbtn.textContent = A.tor.vpn.on ? '🛡 ' + A.tor.vpn.cc : '🛡';
+      vbtn.title = A.tor.vpn.on ? 'VPN on: ' + A.tor.vpn.provider.name + ' · ' + A.tor.vpn.city + ' · ' + A.tor.vpn.ip + ' (click to change)' : 'VPN off — click for the fake VPN providers';
+      if (panel.classList.contains('on')) panel.innerHTML = circuitHtml();
+      if (vpanel.classList.contains('on')) vpanel.innerHTML = vpnHtml();
+    }
+    A.libNet = { paint: netPaint, circuitHtml, vpnHtml, close: closeAll };
+  })();
+
   const enc = encodeURIComponent, cats = () => A.az([...new Set(books.map(b => b.category))]);
   const setHead = () => { root.style.setProperty('--lhh', head.offsetHeight + 'px'); };
   try { new ResizeObserver(setHead).observe(head); } catch (e) { } setHead();
@@ -152,6 +270,7 @@
     tabs.forEach((x, i) => { if (x.fr) x.fr.style.display = (i === active && isPage) ? '' : 'none'; });
     $('lico').textContent = favOf(e.u); if (document.activeElement !== q) q.value = isPage ? (e.t || '') : '';
     bmBar(); favState(); renderLib(); setHead();
+    try { if (A.libNet) A.libNet.paint(e.u, true); } catch (err) { }
   }
   function switchTab(i) { if (i < 0 || i >= tabs.length) return; active = i; const t = T(); f = t.fr || null; closeMenus(); const e = E(t); if (e.u && !t.fr) navigateFrame(t, e.u, true); if (!e.u) { curTitle = ''; home(); } else curTitle = e.t || ''; render(); saveTabs(); }
   function newTab(url, title, bg) { if (tabs.length >= 20) { A.toast('Close a tab first (20 tabs is the limit)'); return; } const t = mkTab(url, title); tabs.push(t); if (!bg) switchTab(tabs.length - 1); else { if (url) navigateFrame(t, url, true); render(); saveTabs(); } return t; }
@@ -465,7 +584,10 @@
       case 'dark': init().then(() => {
         if (A.cyberWeb && A.cyberWeb.ensure) A.cyberWeb.ensure();
         const portal = A.cyberWeb && A.cyberWeb.darkPortal ? A.cyberWeb.darkPortal : 'https://darknet-index.onion/';
+        /* the chip is the front door of the onion section, so it enters Tor on the way in */
+        try { if (A.tor) A.tor.setOn(true); } catch (e) { }
         show(portal, 'Fake dark web');
+        A.toast('🧅 Tor circuit up: three relays. Click the onion in the address bar to see them.');
       }); break;
       case 'dict': { const w = (lastSel || '').trim(); if (w && w.split(/\s+/).length <= 3 && /^[\p{L}'\u2019 -]+$/u.test(w)) define(w); else { navigate(''); A.websearch.mount($('wh')); A.websearch.dict(true); A.websearch.focus(); A.toast('Dictionary mode: type a word and press Enter'); } break; }
       case 'thes': A.thes.open(q.value.trim().split(/\s+/)[0] || ''); break;
