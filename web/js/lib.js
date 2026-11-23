@@ -275,9 +275,34 @@
   function switchTab(i) { if (i < 0 || i >= tabs.length) return; active = i; const t = T(); f = t.fr || null; closeMenus(); const e = E(t); if (e.u && !t.fr) navigateFrame(t, e.u, true); if (!e.u) { curTitle = ''; home(); } else curTitle = e.t || ''; render(); saveTabs(); }
   function newTab(url, title, bg) { if (tabs.length >= 20) { A.toast('Close a tab first (20 tabs is the limit)'); return; } const t = mkTab(url, title); tabs.push(t); if (!bg) switchTab(tabs.length - 1); else { if (url) navigateFrame(t, url, true); render(); saveTabs(); } return t; }
   function closeTab(i) { const t = tabs[i]; if (!t) return; { const e0 = E(t); if (e0 && e0.u) closed.push(e0); if (closed.length > 20) closed.shift(); } if (t.fr) t.fr.remove(); tabs.splice(i, 1); if (!tabs.length) tabs.push(mkTab()); if (active >= tabs.length) active = tabs.length - 1; else if (i < active) active--; switchTab(active); }
+  /* a downloaded file opens as a page: what it is, what it claims to be, and its contents — read-only, nothing runs */
+  function downloadDoc(site, path, answer, dl) {
+    const bridge = (A.cyberWeb && A.cyberWeb.bridgeScript) || '';
+    const warn = dl.trojan
+      ? '<div style="border:1px solid #7c2d2d;background:#2a1010;color:#ffb4b4;padding:10px 12px;border-radius:9px;margin:12px 0">' +
+        '<b>Unsigned · reported by 3 scanners.</b> This file is booby-trapped inside the simulation: it has already asked for permission.' +
+        (A.cyberRewards && A.cyberRewards.blocks && A.cyberRewards.blocks() ? ' Shield Pro blocked it.' : '') + '</div>'
+      : dl.disturbing
+        ? '<div style="border:1px solid #7c5a2d;background:#241a0e;color:#f0cfa0;padding:10px 12px;border-radius:9px;margin:12px 0">' +
+          '<b>This file is disturbing.</b> It is a document about a death, invented for this simulation. Nothing in it is real.</div>'
+        : '<div style="border:1px solid #24303d;background:#101820;color:#9fb4c8;padding:10px 12px;border-radius:9px;margin:12px 0">' +
+          'Saved to <b>~/Downloads/' + esc(dl.name) + '</b> — read it in moundshell with <code>cat Downloads/' + esc(dl.name) + '</code>.</div>';
+    return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + esc(dl.name) + '</title><style>' +
+      'body{margin:0;background:#0d1117;color:#dbe4f3;font:14px/1.65 ui-sans-serif,system-ui,"Segoe UI",Roboto,sans-serif;padding:20px 22px 40px}' +
+      'a{color:#7dd3fc;text-decoration:none}a:hover{text-decoration:underline}' +
+      'h1{font-size:19px;margin:6px 0 2px;font-family:ui-monospace,Consolas,monospace;letter-spacing:-.01em}' +
+      '.meta{font:12px ui-monospace,Consolas,monospace;color:#8b98a9;word-break:break-all}' +
+      'pre{white-space:pre-wrap;word-break:break-word;background:#141a23;border:1px solid #232c3a;border-radius:10px;padding:14px;margin:14px 0 0;font:12.5px/1.55 Consolas,"Cascadia Mono",monospace}' +
+      '</style></head><body><div><a href="/">← Back to ' + esc(site.brand || site.host) + '</a> · ' + esc('https://' + site.host + path) + '</div>' +
+      '<h1>⬇ ' + esc(dl.name) + '</h1>' +
+      '<div class="meta">' + esc(dl.kind || 'application/octet-stream') + ' · ' + esc(dl.size || '') + ' · sha256 ' + esc(dl.sha || '') + '</div>' +
+      '<p style="margin:10px 0 0;color:#b6c2d2">' + esc(dl.summary || '') + '</p>' + warn +
+      '<pre>' + esc(String(answer.body == null ? '' : answer.body)) + '</pre>' + bridge + '</body></html>';
+  }
   function fakeDocFor(site, path, answer) {
     const body = String(answer && answer.body != null ? answer.body : '');
     if (/html/i.test(String(answer && answer.type || ''))) return body;
+    if (answer && answer.download) return downloadDoc(site, path, answer, answer.download);
     const bridge = (A.cyberWeb && A.cyberWeb.bridgeScript) || '';
     return '<!doctype html><html lang="en"><head><meta charset="utf-8"><style>' +
       'body{margin:0;background:#0d1117;color:#dbe4f3;font:14px/1.6 Consolas,"Cascadia Mono",monospace;padding:18px 22px}' +
@@ -316,6 +341,8 @@
       fr.setAttribute('referrerpolicy', 'no-referrer');
       const answer = A.cyberWeb.serve(fake.site, fake.path, method || 'GET');
       fr._cdweb = { site: fake.site, path: fake.path, answer };
+      /* opening a file saves it in the shell, and a booby-trapped one hands the desktop to the fake virus */
+      if (answer && answer.download && A.cyberDownloads && A.cyberDownloads.install) A.cyberDownloads.install(fake.site, answer.download);
       fr.onload = () => onFakeLoad(t, fr);
       fr.srcdoc = fakeDocFor(fake.site, fake.path, answer);
     } else {

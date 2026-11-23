@@ -4571,6 +4571,15 @@ DONE      When the range shows every objective ticked: type next to take the nex
       close,
       restart: restartShell,
       isOpen: () => !!wrap,
+      /* the Browser hands a downloaded fake file to the shell: it lands in ~/Downloads and `cat` reads it */
+      saveDownload(name, text) {
+        try {
+          if (!room || !room.applyFiles || !name) return false;
+          const safe = String(name).replace(/[^\w.\-]+/g, '_').slice(0, 120) || 'download.bin';
+          room.applyFiles({ [PREFIX + 'Downloads/' + safe]: String(text == null ? '' : text) }, []);
+          return true;
+        } catch (e) { return false; }
+      },
       reset() { resetSession(); close(); }
     };
   } catch (e) { /* no app object: the shell still works on its own */ }

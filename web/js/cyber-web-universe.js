@@ -3411,7 +3411,13 @@
       return A.cyberDark.serve(site, path, query, method);
     }
     const res = (status, type, body) => ({ status, type, body });
-    const page = (title, body, status) => res(status || 200, 'text/html', shell(site, title, body));
+    const page = (title, body, status) => res(status || 200, 'text/html',
+      A.cyberDownloads && A.cyberDownloads.withFiles ? A.cyberDownloads.withFiles(shell(site, title, body), site, 'web') : shell(site, title, body));
+    /* every clear-web site publishes a couple of files: the catalogue answers for /files before the site does */
+    if (/^\/files(?:\/|$)/.test(path) && A.cyberDownloads && A.cyberDownloads.serve) {
+      const file = A.cyberDownloads.serve(site, path, 'web');
+      if (file) return file;
+    }
     const pay = (id, amount, label, kind, stat) => paySite(site, id, amount, label, kind, stat);
 
     if (path === '/' || path === '/index.html') return page(site.brand, (site.range ? rangeBanner(site) : '') + homeBody(site));

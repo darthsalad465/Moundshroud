@@ -14,7 +14,7 @@ module.exports = async function (ok) {
     A: {}
   });
   ctx.window = ctx;
-  for (const name of ['cyber-tor.js', 'cyber-dark-gen.js', 'cyber-hidden-wiki.js', 'cyber-dark-web.js']) {
+  for (const name of ['cyber-tor.js', 'cyber-dark-gen.js', 'cyber-hidden-wiki.js', 'cyber-dark-social.js', 'cyber-downloads.js', 'cyber-dark-web.js']) {
     const file = path.join(__dirname, '..', 'web', 'js', name);
     vm.runInContext(fs.readFileSync(file, 'utf8'), ctx, { filename: file });
   }
@@ -134,7 +134,99 @@ module.exports = async function (ok) {
   }
   ok('dark web: every service named in the Hidden Wiki opens and links correctly', brokenNamed.length === 0, brokenNamed.slice(0, 6).join(', '));
 
-  /* 6 — the index links that lead in and out */
+  /* 6 — Introspace: the front page, every subspace, a thread in each, search and the account pages */
+  const ispace = A.hiddenWiki.named(A.hiddenWiki.hostFor('Introspace'));
+  ok('dark web: Introspace is in the directory and opens', ispace && serve(ispace, '/').status === 200, 'no introspace');
+  if (ispace) {
+    const starts = [{ path: '/' }, { path: '/new' }, { path: '/about' }, { path: '/rules' }, { path: '/login' }, { path: '/register' }, { path: '/submit' }, { path: '/search', query: 'q=escrow' }, { path: '/search', query: 'q=opsec' }];
+    for (const s of A.darkSocial.subspaces()) {
+      starts.push({ path: '/' + s.id });
+      starts.push({ path: '/' + s.id + '/thread/1' });
+      starts.push({ path: '/' + s.id + '/thread/' + s.threads });
+    }
+    for (const u of ['mod', 'bannerwatch', 'nobodyatall']) starts.push({ path: '/u/' + u });
+    crawl(ispace, starts, 'introspace');
+  }
+
+  /* 7 — every blog: front page, archive, a post, the feed */
+  const blogEntries = A.hiddenWiki.entries().filter(e => e.kind === 'blog');
+  ok('dark web: the directory carries a spread of blogs', blogEntries.length >= 10, 'blogs=' + blogEntries.length);
+  const brokenBlogs = [];
+  for (const e of blogEntries) {
+    const site = A.hiddenWiki.named(e.host);
+    if (!site) { brokenBlogs.push(e.name + ' (no site)'); continue; }
+    const bad = crawl(site, [{ path: '/' }, { path: '/archive' }, { path: '/post/1' }, { path: '/post/6' }, { path: '/about' }, { path: '/contact' }, { path: '/feed.xml' }], e.name);
+    if (bad.length) brokenBlogs.push(e.name + ': ' + bad.slice(0, 3).join(', '));
+    const xml = serve(site, '/feed.xml');
+    if (!xml || !/<rss/.test(String(xml.body))) brokenBlogs.push(e.name + ' (feed)');
+  }
+  ok('dark web: every blog answers on every page it links', brokenBlogs.length === 0, brokenBlogs.slice(0, 5).join(' | '));
+
+  /* 8 — the leak catalogue: real government releases, and the fabricated shelf that is labelled */
+  const leaks = A.hiddenWiki.leaks();
+  const gov = leaks.filter(l => /government|intelligence|declassified|war/.test(l.cats.join(' ')));
+  ok('leaks: the catalogue carries real government releases with documents', gov.length >= 15 && /mkultra/.test(leaks.map(l => l.id).join(' ')), 'gov=' + gov.length);
+  ok('leaks: the fabricated absurd archives exist and are marked', leaks.filter(l => /fabricated/.test(l.cats.join(' '))).length >= 10, 'fabricated=' + leaks.filter(l => /fabricated/.test(l.cats.join(' '))).length);
+  for (const id of ['mkultra', 'vault7', 'second-sun', 'moonbase-delta-3', 'bigfoot-census']) {
+    const page = serve(wiki, '/leaks/' + id);
+    ok('leaks: /leaks/' + id + ' renders', page.status === 200 && /Documents/.test(page.body), String(page.status));
+  }
+  const fab = serve(wiki, '/leaks/second-sun');
+  ok('leaks: a fabricated archive says so on its own page', /fabricated/i.test(fab.body) && /Selected excerpts/.test(fab.body));
+
+  /* 9 — every directory entry opens the kind of page its description promises */
+  const MARKERS = {
+    market: /Featured listings|Browse \d+ listings/, forum: /Boards|Recent threads/, zine: /This week/, news: /This week/,
+    search: /addresses indexed/, mail: /Inbox/, hosting: /Plans/, vpn: /Exit nodes/, library: /Recently added/,
+    tools: /Mirrored builds/, mirror: /Mirrored builds/, service: /Featured listings|Browse \d+ listings|Service/, archive: /Collections/,
+    leaks: /archives|Newest archives/, blog: /LATEST|Latest/, social: /subspaces/, wiki: /Main Page/
+  };
+  const wrongKind = [];
+  for (const entry of A.hiddenWiki.entries()) {
+    const site = A.hiddenWiki.named(entry.host);
+    if (!site) { wrongKind.push(entry.name + ' (no site)'); continue; }
+    const home = serve(site, '/');
+    const want = MARKERS[entry.kind];
+    if (!want) continue;
+    if (!want.test(String(home.body))) wrongKind.push(entry.name + ' (' + entry.kind + ')');
+    /* the page escapes its own text, so compare against the unescaped body */
+    const text = String(home.body).replace(/&amp;/g, '&').replace(/&#39;|&apos;/g, "'");
+    if (!new RegExp(entry.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(text)) wrongKind.push(entry.name + ' (name not on its page)');
+  }
+  ok('directory: every entry opens a page that matches its description', wrongKind.length === 0, wrongKind.slice(0, 8).join(' | '));
+
+  /* 10 — the downloads: every hidden service offers files, each one opens, and the dark shelf is dark */
+  ok('downloads: the catalogue has both worlds', A.cyberDownloads.all().length >= 10 && A.cyberDownloads.dark().length >= 5 && A.cyberDownloads.web().length >= 3,
+    'all=' + A.cyberDownloads.all().length);
+  ok('downloads: at least two files are booby-trapped', A.cyberDownloads.all().filter(f => f.trojan).length >= 2);
+  ok('downloads: the dark-web shelf carries disturbing documents', A.cyberDownloads.all().filter(f => f.disturbing).length >= 4);
+  const noFiles = [];
+  for (const entry of A.hiddenWiki.entries().slice(0, 40)) {
+    if (entry.kind === 'wiki') continue; /* the wiki hosts a catalogue of leak files, not a shelf of downloads */
+    const site = A.hiddenWiki.named(entry.host);
+    if (!site) continue;
+    const home = serve(site, '/');
+    if (!/data-cdfiles/.test(String(home.body))) noFiles.push(entry.name);
+  }
+  ok('downloads: every hidden service prints its files', noFiles.length === 0, noFiles.slice(0, 6).join(', '));
+  const brokenFiles = [];
+  for (const name of A.cyberDownloads.dark().concat(A.cyberDownloads.web())) {
+    const res = serve(wiki, '/files/' + encodeURIComponent(name));
+    if (!res || res.status !== 200 || !res.download || res.download.name !== name) brokenFiles.push(name);
+    if (!String(res && res.body || '').trim()) brokenFiles.push(name + ' (empty)');
+  }
+  ok('downloads: every file in the catalogue answers with content', brokenFiles.length === 0, brokenFiles.join(', '));
+  ok('downloads: a trojan file is marked as one', serve(wiki, '/files/tor-speed-boost.exe').download.trojan === true);
+
+  /* 11 — difficulty is a thing moundshell knows about, never a thing the sites print */
+  const showsDifficulty = [];
+  for (const site of [A.hiddenWiki.site].concat(A.hiddenWiki.entries().slice(0, 30).map(e => A.hiddenWiki.named(e.host))).filter(Boolean)) {
+    const body = String(serve(site, '/').body);
+    if (/difficulty/i.test(body) || /★☆☆☆☆|vulnerability score|crackability/i.test(body)) showsDifficulty.push(site.host);
+  }
+  ok('sites never show a difficulty rating to the visitor', showsDifficulty.length === 0, showsDifficulty.slice(0, 5).join(', '));
+
+  /* 12 — the index links that lead in and out */
   const index = A.cyberDark.find('darknet-index.onion');
   const indexHome = A.cyberDark.serve(index, '/', new URLSearchParams(''), 'GET');
   ok('dark web: the index links to the Hidden Wiki', /The Hidden Wiki/.test(indexHome.body) && indexHome.body.includes(wiki.host), wiki.host);

@@ -61,10 +61,15 @@
     { id: 'radio', label: 'Stream', icon: '📻', market: false, tagline: 'Audio at 64 kbps, chat at whatever patience you have.' },
     { id: 'tools', label: 'Software mirror', icon: '🧰', market: false, tagline: 'Mirrors of tools that keep getting taken down elsewhere.' },
     { id: 'service', label: 'Service desk', icon: '🗂', market: true, tagline: 'Fixed-scope work, quoted per job, paid into escrow.' },
-    { id: 'archive', label: 'Archive', icon: '🗄', market: false, tagline: 'An index of things someone thought should not be indexed.' }
+    { id: 'archive', label: 'Archive', icon: '🗄', market: false, tagline: 'An index of things someone thought should not be indexed.' },
+    { id: 'search', label: 'Search engine', icon: '🔎', market: false, tagline: 'An index of the network, kept by somebody with a crawler and no legal advice.' },
+    { id: 'mail', label: 'Mail', icon: '✉️', market: false, tagline: 'An account without a phone number, and a recovery process that is a sentence.' },
+    { id: 'hosting', label: 'Hosting', icon: '🗄', market: true, tagline: 'Space that does not answer to a registrar, paid by the megabyte.' },
+    { id: 'vpn', label: 'VPN', icon: '🛡', market: false, tagline: 'A tunnel out of the network, run by people who publish an audit once.' },
+    { id: 'library', label: 'Library', icon: '📚', market: false, tagline: 'Books and papers, scanned badly, stored twice, complete anyway.' }
   ];
 
-  function design(host) {
+  function design(host, kindId) {
     const h = hash(host);
     const b = rnd(h, 48);
     /* palette, quality and type each come from their own hash of the address: drawing them from one LCG stream made
@@ -73,7 +78,7 @@
       b, h,
       pal: PALETTES[hash('pal:' + host) % PALETTES.length],
       tier: TIERS[hash('tier:' + host) % TIERS.length],
-      kind: KINDS[hash('kind:' + host) % KINDS.length],
+      kind: (kindId && KINDS.find(x => x.id === kindId)) || KINDS[hash('kind:' + host) % KINDS.length],
       brand: at(A_WORDS, b[3]) + ' ' + at(B_WORDS, b[4]),
       handle: at(HANDLES, b[5]),
       tint: (b[6] % 360)
@@ -90,7 +95,9 @@
     'input,textarea,select{background:' + p.panel + ';border:1px solid ' + p.line + ';color:inherit;padding:8px 10px;font:inherit;border-radius:6px;width:100%;box-sizing:border-box}' +
     'button{background:' + p.acc + ';border:0;color:' + p.bg + ';padding:9px 15px;font:inherit;font-weight:600;border-radius:6px;cursor:pointer}' +
     'code,pre,kbd{font-family:"JetBrains Mono",Consolas,monospace}' +
-    '.muted{color:' + p.mute + '}.small{font-size:12px}.tag{display:inline-block;padding:2px 7px;border:1px solid ' + p.line + ';border-radius:999px;font-size:11px;color:' + p.mute + '}';
+    '.muted{color:' + p.mute + '}.small{font-size:12px}.tag{display:inline-block;padding:2px 7px;border:1px solid ' + p.line + ';border-radius:999px;font-size:11px;color:' + p.mute + '}' +
+    /* the shoddy and broken tiers never styled these, so a hero's links ran together as one word */ +
+    '.btnrow a{display:inline-block;margin:4px 10px 4px 0}.card{margin:6px 0}.card h3{margin:0 0 2px}';
 
   const tierCss = (tier, p) => {
     if (tier === 'premium') return baseCss(p) +
@@ -189,16 +196,16 @@
     const d = site.design, b = d.b, k = d.kind.id, t = d.tier;
     if (k === 'market' || k === 'service') {
       const items = site.items;
-      return '<div class="hero"><h1>' + esc(d.brand) + '</h1><p>' + esc(d.kind.tagline) + ' ' + (t === 'shoddy' ? 'Best prices on the whole network!! No FE ever!!' : 'Every vendor posts a bond before a single listing goes live, and escrow releases only when the buyer finalises.') + '</p>' +
+      return '<div class="hero"><h1>' + esc(site.brand) + '</h1><p>' + esc(site.tagline || d.kind.tagline) + ' ' + (t === 'shoddy' ? 'Best prices on the whole network!! No FE ever!!' : 'Every vendor posts a bond before a single listing goes live, and escrow releases only when the buyer finalises.') + '</p>' +
         '<div class="btnrow"><a class="pri" href="/catalog">Browse ' + items.length + ' listings</a><a href="/rules">Rules</a><a href="/pgp.txt">Operator key</a></div>' +
         (t === 'premium' ? '<div class="stat"><div><b>' + (site.h % 900 + 120) + '</b>vendors</div><div><b>' + (site.h % 40 + 6) + 'k</b>orders</div><div><b>' + (3 + site.h % 8) + ' min</b>median payout</div><div><b>0.4%</b>dispute rate</div></div>' : '') +
         '</div>' +
         '<h2>Featured listings</h2>' + listingCards(site, items.slice(0, 6)) +
         (t === 'shoddy' ? '<marquee behavior="alternate" scrollamount="6">★ ★ ★ 100% LEGIT ★ ★ ★ TELL YOUR FRIENDS ★ ★ ★</marquee>' : '') +
         '<h2>Recent feedback</h2><table><tr><th>Buyer</th><th>Vendor</th><th>Rating</th><th>Comment</th></tr>' +
-        ['arrived in four days, decoy invoice was a nice touch', 'escrow held until I confirmed, no complaints', 'stealth was fine, weight was short by a gram', 'vendor answered in twenty minutes at 3am', 'second order, same packaging, still fine'][0, 0] === undefined ? '' :
-          ['arrived in four days, decoy invoice was a nice touch', 'escrow held until I confirmed, no complaints', 'stealth was fine, weight was short by a gram', 'vendor answered in twenty minutes at 3am', 'second order, same packaging, still fine'].map((c, i) =>
-            '<tr><td>' + esc(at(HANDLES, b[i + 2])) + '</td><td>' + esc(at(HANDLES, b[i + 5])) + '</td><td>★ ' + (4 + (b[i] % 10) / 10).toFixed(1) + '</td><td class="small">' + esc(c) + '</td></tr>').join('') + '</table>';
+        /* this used to read `a + [..][0,0] === undefined ? '' : b`, and the ternary swallowed the whole page above it */
+        ['arrived in four days, decoy invoice was a nice touch', 'escrow held until I confirmed, no complaints', 'stealth was fine, weight was short by a gram', 'vendor answered in twenty minutes at 3am', 'second order, same packaging, still fine'].map((c, i) =>
+          '<tr><td>' + esc(at(HANDLES, b[i + 2])) + '</td><td>' + esc(at(HANDLES, b[i + 5])) + '</td><td>★ ' + (4 + (b[i] % 10) / 10).toFixed(1) + '</td><td class="small">' + esc(c) + '</td></tr>').join('') + '</table>';
     }
     if (k === 'forum') {
       return '<div class="hero"><h1>' + esc(d.brand) + '</h1><p>' + esc(d.kind.tagline) + '</p></div>' +
@@ -214,25 +221,74 @@
           '<tr><td><a href="/paste/' + (i + 1) + '">' + esc(name) + '</a></td><td class="muted">' + at(['text', 'sql', 'csv', 'json', 'pgp'], b[i]) + '</td><td class="muted">' + (1 + b[i] % 900) + ' KB</td><td class="muted">' + at(['1 day', '3 days', 'never', '12 hours'], b[i + 2]) + '</td><td class="muted">' + ago(b, i) + '</td></tr>').join('') + '</table>';
     }
     if (k === 'news') {
-      return '<div class="hero"><h1>' + esc(at(ZINES, b[7])) + '</h1><p>' + esc(d.kind.tagline) + '</p></div>' +
+      return '<div class="hero"><h1>' + esc(site.brand) + '</h1><p>' + esc(d.kind.tagline) + '</p></div>' +
         '<h2>This week</h2>' + HEADLINES.map((h, i) => '<div class="card"><h3><a href="/article/' + (i + 1) + '">' + esc(h) + '</a></h3><div class="small muted">' + esc(at(HANDLES, b[i + 8])) + ' · ' + ago(b, i + 2) + '</div></div>').join('') +
         '<h2>From the wire</h2><p class="small muted">Mirrors change weekly. Anything that asks for a fee to keep an index alive is either desperate or a clone — sometimes both.</p>';
     }
     if (k === 'radio') {
-      return '<div class="hero"><h1>' + esc(at(RADIO, b[9])) + '</h1><p>' + esc(d.kind.tagline) + ' Currently playing: <b>' + esc(at(['a set recorded in a basement', 'AM-quality dub', 'an hour of static and piano', 'someone reading a manual', 'field recordings from a ferry'], b[10])) + '</b></p>' +
+      return '<div class="hero"><h1>' + esc(site.brand) + '</h1><p>' + esc(d.kind.tagline) + ' Currently playing: <b>' + esc(at(['a set recorded in a basement', 'AM-quality dub', 'an hour of static and piano', 'someone reading a manual', 'field recordings from a ferry'], b[10])) + '</b></p>' +
         '<div class="btnrow"><a class="pri" href="/listen">▶ Play stream</a><a href="/chat">Open chat</a></div></div>' +
         '<h2>Schedule</h2><table><tr><th>Time</th><th>Show</th><th>Host</th></tr>' +
         ['00:00', '03:00', '09:00', '14:00', '20:00'].map((time, i) => '<tr><td class="muted">' + time + ' UTC</td><td>' + esc(at(['Night Shift', 'Dead Air', 'The Quiet Hour', 'Swap Shop', 'No Signal'], b[i])) + '</td><td class="muted">' + esc(at(HANDLES, b[i + 3])) + '</td></tr>').join('') + '</table>';
     }
     if (k === 'tools') {
-      return '<div class="hero"><h1>' + esc(at(TOOLS, b[11])) + '</h1><p>' + esc(d.kind.tagline) + '</p></div>' +
+      return '<div class="hero"><h1>' + esc(site.brand) + '</h1><p>' + esc(d.kind.tagline) + '</p></div>' +
         '<h2>Mirrored builds</h2><table><tr><th>Tool</th><th>Version</th><th>Size</th><th>SHA-256</th></tr>' +
         ['onion-router', 'keyring', 'disk-crypt', 'session-wipe', 'mail-relay', 'hash-check'].map((name, i) =>
           '<tr><td><a href="/download/' + name + '">' + esc(name) + '</a></td><td class="muted">' + (1 + b[i] % 9) + '.' + (b[i] % 20) + '.' + (b[i] % 7) + '</td><td class="muted">' + (1 + b[i] % 60) + ' MB</td><td class="small muted">' + esc(hex(b, 8)) + '…</td></tr>').join('') + '</table>' +
         '<p class="small muted">Verify the signature before running anything you downloaded through a mirror. A mirror is a courier, not an author.</p>';
     }
+    if (k === 'search') {
+      const term = String(query.get('q') || '').trim();
+      const hits = [
+        ['Nightfall Market', '/result/1', 'escrow, vendor bonds, signed mirrors'],
+        ['The Hidden Wiki', '/result/2', 'the directory of directories'],
+        ['WikiLeaks mirror', '/result/3', 'cablegate and the war logs'],
+        ['Torch archive', '/result/4', 'an index of an index, 2019 edition'],
+        ['Onion Forum', '/result/5', 'a board that has outlived three mirrors'],
+        ['Deep Leaks', '/result/6', 'documents with the names left in']
+      ];
+      return '<div class="hero"><h1>' + esc(d.brand) + '</h1><p>' + esc(d.kind.tagline) + '</p>' +
+        '<form action="/" method="get" style="display:flex;gap:8px;margin-top:14px"><input name="q" value="' + esc(term) + '" placeholder="search the network"><button>Search</button></form>' +
+        '<div class="stat"><div><b>' + (12000 + b[1] % 90000) + '</b>addresses indexed</div><div><b>' + (2 + b[2] % 9) + ' days</b>since last crawl</div><div><b>' + (60 + b[3] % 39) + '%</b>answered</div></div></div>' +
+        (term ? '<h2>Results for “' + esc(term) + '”</h2><table><tr><th>Result</th><th>Address</th><th>Snippet</th></tr>' +
+          hits.map((x, i) => '<tr><td><a href="' + x[1] + '">' + esc(x[0]) + '</a></td><td class="small muted">' + esc(onionName(hash(x[0] + term)) + '.onion') + '</td><td class="small muted">' + esc(x[2]) + '</td></tr>').join('') + '</table>'
+          : '<h2>How this index works</h2><p class="small muted">A crawler walks addresses it is given, keeps the ones that answer, and drops the rest after a month. It does not verify what a page claims to be; it only records that it answered.</p><p class="small muted"><a href="/sources">Sources</a> · <a href="/add">Submit an address</a></p>');
+    }
+    if (k === 'mail') {
+      return '<div class="hero"><h1>' + esc(d.brand) + '</h1><p>' + esc(d.kind.tagline) + '</p>' +
+        '<div class="btnrow"><a class="pri" href="/login">Sign in</a><a href="/compose">Compose</a><a href="/pgp.txt">Service key</a></div></div>' +
+        '<h2>Inbox — ' + esc(at(HANDLES, b[2])) + '</h2><table><tr><th>From</th><th>Subject</th><th>Received</th></tr>' +
+        ['mirror list, unsigned — do not use', 'your account will be removed in 14 days', 're: the file you asked about', 'invoice, and a change of address', 'someone is asking about you on the board', 'welcome: read this once'].map((s, i) =>
+            '<tr><td class="small">' + esc(at(HANDLES, b[i + 4])) + '</td><td><a href="/mail/' + (i + 1) + '">' + esc(s) + '</a></td><td class="small muted">' + ago(b, i) + '</td></tr>').join('') + '</table>' +
+        '<p class="small muted">Mail is stored encrypted with a key we hold. That sentence is the whole privacy policy.</p>';
+    }
+    if (k === 'hosting') {
+      return '<div class="hero"><h1>' + esc(d.brand) + '</h1><p>' + esc(d.kind.tagline) + '</p>' +
+        '<div class="btnrow"><a class="pri" href="/plans">See plans</a><a href="/create">Create a service</a><a href="/rules">Acceptable use</a></div></div>' +
+        '<h2>Plans</h2><table><tr><th>Plan</th><th>Disk</th><th>Bandwidth</th><th>Price</th></tr>' +
+        [['small', '512 MB', '20 GB', '0.004 XMR'], ['medium', '4 GB', '200 GB', '0.021 XMR'], ['large', '40 GB', '2 TB', '0.140 XMR']].map((x, i) =>
+          '<tr><td><a href="/plans">' + x[0] + '</a></td><td class="muted">' + x[1] + '</td><td class="muted">' + x[2] + '</td><td>' + x[3] + '</td></tr>').join('') + '</table>' +
+        '<p class="small muted">Uptime counter: ' + (90 + b[4] % 10) + '.2% over ' + (2 + b[5] % 7) + ' years. One outage, ' + (2019 + b[6] % 6) + ', four hours, unexplained.</p>';
+    }
+    if (k === 'vpn') {
+      return '<div class="hero"><h1>' + esc(d.brand) + '</h1><p>' + esc(d.kind.tagline) + '</p>' +
+        '<div class="btnrow"><a class="pri" href="/servers">Servers</a><a href="/account">Account number</a><a href="/audit">Audit</a></div></div>' +
+        '<h2>Exit nodes</h2><table><tr><th>Country</th><th>City</th><th>Load</th><th>Ping</th></tr>' +
+        [['SE', 'Malmö', 41, 38], ['CH', 'Zürich', 55, 44], ['IS', 'Reykjavík', 22, 61], ['NL', 'Amsterdam', 78, 29], ['RO', 'Cluj', 33, 52]].map((x, i) =>
+          '<tr><td>' + x[0] + '</td><td class="muted">' + x[1] + '</td><td class="muted">' + x[2] + '%</td><td class="muted">' + x[3] + ' ms</td></tr>').join('') + '</table>' +
+        '<p class="small muted">No account e-mail, no logs for longer than the session, and a warrant canary signed every Monday. The canary was last signed ' + (1 + b[7] % 5) + ' days ago.</p>';
+    }
+    if (k === 'library') {
+      return '<div class="hero"><h1>' + esc(d.brand) + '</h1><p>' + esc(d.kind.tagline) + '</p>' +
+        '<form action="/" method="get" style="display:flex;gap:8px;margin-top:12px"><input name="q" value="' + esc(String(query.get('q') || '')) + '" placeholder="title, author or DOI"><button>Search</button></form></div>' +
+        '<h2>Recently added</h2><table><tr><th>Title</th><th>Format</th><th>Size</th><th>Added</th></tr>' +
+        [['A Manual for the Care of Small Machines', 'epub', '1.4 MB'], ['The Index of Everything We Lost', 'pdf', '8.1 MB'], ['Reports from a Working Group', 'pdf', '0.9 MB'], ['On the Keeping of Records', 'epub', '0.6 MB'], ['Field Notes, 1974-1981', 'djvu', '12 MB']].map((x, i) =>
+          '<tr><td><a href="/book/' + (i + 1) + '">' + esc(x[0]) + '</a></td><td class="muted">' + x[1] + '</td><td class="muted">' + x[2] + '</td><td class="small muted">' + ago(b, i) + '</td></tr>').join('') + '</table>' +
+        '<p class="small muted">Scanned by volunteers. If a page is missing, the request queue is on /about, and the queue is long.</p>';
+    }
     /* archive */
-    return '<div class="hero"><h1>' + esc(d.brand) + '</h1><p>' + esc(d.kind.tagline) + '</p>' +
+    return '<div class="hero"><h1>' + esc(site.brand) + '</h1><p>' + esc(site.tagline || d.kind.tagline) + '</p>' +
       '<form action="/" method="get" style="display:flex;gap:8px;margin-top:12px"><input name="q" value="' + esc(String(query.get('q') || '')) + '" placeholder="search the archive"><button>Search</button></form></div>' +
       '<h2>Collections</h2><table><tr><th>Collection</th><th>Records</th><th>Updated</th></tr>' +
       ['corporate filings', 'leaked mailboxes', 'camera indexes', 'registries', 'forum backups', 'invoices'].map((name, i) =>
@@ -291,7 +347,7 @@
     const article = /^\/article\/(\d+)$/.exec(path);
     if (article) {
       const h = HEADLINES[(Number(article[1]) - 1 + b[2]) % HEADLINES.length];
-      return frame(site, '<h1>' + esc(h) + '</h1><p class="small muted">' + esc(at(ZINES, b[7])) + ' · ' + ago(b, 2) + '</p>' +
+      return frame(site, '<h1>' + esc(h) + '</h1><p class="small muted">' + esc(site.brand) + ' · ' + ago(b, 2) + '</p>' +
         '<p>Three mirrors stopped answering on Tuesday and came back by Thursday with the same signing key. Nobody has explained the gap, and the operators say there is nothing to explain.</p>' +
         '<p>What matters for readers is smaller than it sounds: an index that keeps listing a dead address is worse than a short index, because a dead address is where a clone sits waiting.</p>' +
         '<p class="small muted">Signed with the zine key. Verify it against a copy you already have.</p>', { title: h });
@@ -301,14 +357,69 @@
     if (path === '/download/' + path.split('/').pop()) {
       return 'binary (simulated) — ' + path.split('/').pop() + '\nsha256 ' + hex(b, 32) + '\n';
     }
+    /* ---- the pages the search, mail, hosting, VPN and library templates link to ---- */
+    const result = /^\/result\/(\d+)$/.exec(path);
+    if (result) {
+      const names = ['Nightfall Market', 'The Hidden Wiki', 'WikiLeaks mirror', 'Torch archive', 'Onion Forum', 'Deep Leaks'];
+      const n = Math.min(names.length - 1, Math.max(0, Number(result[1]) - 1));
+      return frame(site, '<h1>' + esc(names[n]) + '</h1><p class="small muted">' + esc(onionName(hash(names[n])) + '.onion') + ' · indexed ' + ago(b, n) + ' · answers</p>' +
+        '<p>' + esc('A result is a record that an address answered a crawler on a date. It is not a recommendation, a verification or an introduction. The page may have changed hands since.') + '</p>' +
+        '<p class="small muted">Crawled ' + (2 + b[n] % 60) + ' times. Last three responses: 200, 200, 502.</p>' +
+        '<h2>Mirrors the crawler saw</h2><table><tr><th>Address</th><th>First seen</th><th>Last seen</th></tr>' +
+        [0, 1, 2].map(i => '<tr><td class="small">' + esc(onionName(hash(names[n] + i)) + '.onion') + '</td><td class="small muted">' + (2019 + i) + '</td><td class="small muted">' + ago(b, i + n) + '</td></tr>').join('') + '</table>', { title: names[n] });
+    }
+    if (path === '/sources') {
+      return frame(site, '<h1>Sources</h1><p class="muted">The index is built from four things: addresses submitted by visitors, addresses copied from other indexes, addresses found in pastes, and the crawl itself.</p>' +
+        '<table><tr><th>Source</th><th>Addresses</th><th>Kept</th></tr>' +
+        [['visitor submissions', '2,104', '31%'], ['other indexes', '9,880', '12%'], ['pastes and dumps', '1,442', '44%'], ['the crawler', '88,112', '6%']].map(x => '<tr><td>' + x[0] + '</td><td class="muted">' + x[1] + '</td><td class="muted">' + x[2] + '</td></tr>').join('') + '</table>', { title: 'Sources' });
+    }
+    if (path === '/add') return frame(site, '<h1>Submit an address</h1><p class="muted">A crawler will try it once. If it answers, it is listed with the date and nothing else.</p><form action="/add" method="post"><label>Address</label><input name="addr" placeholder="xxxxxxxxxxxxxxxx.onion"><label>What it is, in one sentence</label><input name="what"><p><button>Submit</button></p></form>', { title: 'Submit' });
+    const mail = /^\/mail\/(\d+)$/.exec(path);
+    if (mail) {
+      const subjects = ['mirror list, unsigned — do not use', 'your account will be removed in 14 days', 're: the file you asked about', 'invoice, and a change of address', 'someone is asking about you on the board', 'welcome: read this once'];
+      const n = Math.min(subjects.length - 1, Math.max(0, Number(mail[1]) - 1));
+      return frame(site, '<h1>' + esc(subjects[n]) + '</h1><p class="small muted">from ' + esc(at(HANDLES, b[n])) + ' · ' + ago(b, n) + ' · no signature</p>' +
+        '<p>' + esc([
+          'Three new mirrors, none of them signed. I am sending them because two of the old ones stopped answering, not because I know who runs these.',
+          'Accounts that have not signed in for ninety days are being removed. There is no export. If you want the mail, take it now.',
+          'The file is 400 MB and it is not on this server. Ask on the board and somebody will paste a link that works for a day.',
+          'The price changed because the host changed. New address below. Old invoices are void, and the old key is not ours any more.',
+          'I am not going to repeat what the thread says. Read it yourself and decide whether you want to be the fourth name in it.',
+          'Read this once: no recovery questions, no password reset, no support. The account is the passphrase and nothing else.'
+        ][n]) + '</p><p class="small muted"><a href="/">← inbox</a></p>', { title: subjects[n] });
+    }
+    if (path === '/login') return frame(site, '<h1>Sign in</h1><form action="/login" method="post"><label>Address</label><input name="user" placeholder="name@' + esc(site.host) + '"><label>Passphrase</label><input name="pass" type="password"><p><button>Sign in</button></p></form><p class="small muted">No recovery. A lost passphrase is a lost mailbox, on purpose.</p>', { title: 'Sign in' });
+    if (path === '/compose') return frame(site, '<h1>Compose</h1><form action="/compose" method="post"><label>To</label><input name="to"><label>Subject</label><input name="subject"><label>Message</label><textarea name="body" rows="8"></textarea><p><button>Send</button></p></form><p class="small muted">Attachments over 10 MB are refused. Nothing is scanned, which is the point and the problem.</p>', { title: 'Compose' });
+    if (path === '/plans') return frame(site, '<h1>Plans</h1><table><tr><th>Plan</th><th>Disk</th><th>Bandwidth</th><th>Price</th><th>Notes</th></tr>' +
+      [['small', '512 MB', '20 GB', '0.004 XMR', 'static pages only'], ['medium', '4 GB', '200 GB', '0.021 XMR', 'one domain, one cron job'], ['large', '40 GB', '2 TB', '0.140 XMR', 'we will ask what it is for']].map(x => '<tr><td>' + x[0] + '</td><td class="muted">' + x[1] + '</td><td class="muted">' + x[2] + '</td><td>' + x[3] + '</td><td class="small muted">' + x[4] + '</td></tr>').join('') + '</table><p class="small muted"><a href="/create">Create a service</a></p>', { title: 'Plans' });
+    if (path === '/create') return frame(site, '<h1>Create a service</h1><form action="/create" method="post"><label>Desired name</label><input name="name" placeholder="ten characters, no meaning"><label>Plan</label><input name="plan" value="medium"><label>What will it host</label><textarea name="what" rows="4"></textarea><p><button>Create</button></p></form><p class="small muted">We read the last box. That is not a formality.</p>', { title: 'Create' });
+    if (path === '/servers') return frame(site, '<h1>Servers</h1><table><tr><th>Country</th><th>City</th><th>Load</th><th>Ping</th><th>Owned by</th></tr>' +
+      [['SE', 'Malmö', 41, 38, 'us'], ['CH', 'Zürich', 55, 44, 'a cooperative'], ['IS', 'Reykjavík', 22, 61, 'us'], ['NL', 'Amsterdam', 78, 29, 'a reseller'], ['RO', 'Cluj', 33, 52, 'a reseller']].map(x => '<tr><td>' + x[0] + '</td><td class="muted">' + x[1] + '</td><td class="muted">' + x[2] + '%</td><td class="muted">' + x[3] + ' ms</td><td class="small muted">' + x[4] + '</td></tr>').join('') + '</table><p class="small muted"><a href="/audit">Audit</a></p>', { title: 'Servers' });
+    if (path === '/account') return frame(site, '<h1>Account number</h1><p class="muted">Your account is a twelve-digit number and nothing else. There is no name, no e-mail and no payment history you can read.</p><pre style="border:1px solid ' + site.pal.line + ';padding:12px">account: ' + (100000 + b[8] % 899999) + '\nplan:    ' + at(['small', 'medium', 'large'], b[9]) + '\nexpires: ' + (2026 + b[10] % 3) + '-' + String(1 + b[11] % 12).padStart(2, '0') + '-01</pre><p class="small muted"><a href="/">← back</a></p>', { title: 'Account' });
+    if (path === '/audit') return frame(site, '<h1>Audit</h1><p class="muted">Published once, in 2023, by a firm that has not audited anything since. The report is eleven pages and the first nine are methodology.</p><p class="small muted">Finding: no traffic logs are kept beyond the session. Finding: the two reseller-operated nodes were not audited. Recommendation: do not use the reseller nodes.</p>', { title: 'Audit' });
+    const book = /^\/book\/(\d+)$/.exec(path);
+    if (book) {
+      const titles = ['A Manual for the Care of Small Machines', 'The Index of Everything We Lost', 'Reports from a Working Group', 'On the Keeping of Records', 'Field Notes, 1974-1981'];
+      const n = Math.min(titles.length - 1, Math.max(0, Number(book[1]) - 1));
+      const para = [
+        'Chapter one is about bearings. Chapter two is about the noise a bearing makes before it fails, which the author insists is a language and not a symptom.',
+        'The index lists ten thousand things that no longer exist, in alphabetical order, with the date each was last seen and the name of the person who noticed.',
+        'A working group was asked whether the archive should keep the names. It reported that the names were already in four other archives and recommended doing nothing.',
+        'The argument is simple: a record kept badly is still a record, and a record destroyed carefully is still a destruction. Everything after page forty is a defence of that sentence.',
+        'Forty-two pages of weather, three pages of birds, one page that is only a telephone number, crossed out twice.'
+      ][n];
+      return frame(site, '<h1>' + esc(titles[n]) + '</h1><p class="small muted">scanned copy · ' + (1968 + b[n] % 50) + ' · ' + (120 + b[n + 1] % 400) + ' pages · OCR corrected by hand</p>' +
+        '<p>' + esc(para) + '</p><p class="small muted">Excerpt, page ' + (7 + b[n] % 60) + '. The scan is 300 dpi and the right margin is cut off on every even page.</p>' +
+        '<p><a href="/">← back to the shelf</a></p>', { title: titles[n] });
+    }
     if (/^\/collection\//.test(path)) return frame(site, '<h1>' + esc(cap(path.split('/').pop()) + ' collection') + '</h1><p class="muted">' + (1000 * (1 + b[1] % 90)) + ' records, updated ' + ago(b, 1) + '.</p><table><tr><th>Record</th><th>Fields</th><th>Covers</th></tr>' +
       ['batch 1', 'batch 2', 'batch 3'].map((x, i) => '<tr><td>' + x + '</td><td class="muted">' + (4 + b[i] % 20) + '</td><td class="muted">' + (1000 + b[i] % 9000) + '</td></tr>').join('') + '</table>', { title: 'Collection' });
     return null;
   }
 
   /* ---------------------------------------------------------------- one site --------------------------------------------------------------- */
-  function makeSite(host) {
-    const d = design(host);
+  function makeSite(host, kindId) {
+    const d = design(host, kindId);
     const site = {
       dark: true, host: String(host).toLowerCase(), brand: d.brand, icon: d.kind.icon,
       kind: d.kind.label, topic: d.kind.id + ' hidden service', region: 'Onion space',

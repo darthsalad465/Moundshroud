@@ -1011,10 +1011,16 @@
   function serve(site, path, query, method) {
     if (!site || !site.render) return { status: 404, type: 'text/plain', body: '404 Not Found\n' };
     const clean = path || '/';
+    /* every hidden service hosts files, and the catalogue answers for /files before the site does */
+    const file = A.cyberDownloads && A.cyberDownloads.serve ? A.cyberDownloads.serve(site, clean, 'dark') : null;
+    if (file) return file;
     try {
       const out = site.render(clean, query, method);
       if (out && out.body != null && out.status) {
-        if (/html/i.test(String(out.type || 'text/html'))) out.body = withBridge(out.body);
+        if (/html/i.test(String(out.type || 'text/html'))) {
+          out.body = withBridge(out.body);
+          if (!site.wiki && A.cyberDownloads && A.cyberDownloads.withFiles) out.body = A.cyberDownloads.withFiles(out.body, site, 'dark');
+        }
         return out;
       }
       return { status: 200, type: 'text/html', body: withBridge(String(out)) };
@@ -1032,7 +1038,7 @@
     Government: 92, Marketplace: 84, 'Leak archive': 78, Archive: 74, Hosting: 70, 'Service desk': 66,
     Forum: 61, 'Paste & leaks': 57, Zine: 53, News: 53, Mail: 49, 'Search engine': 45, Stream: 45,
     'Software mirror': 45, VPN: 39, Mirror: 37, Directory: 33, Library: 29, Seized: 12, wiki: 41,
-    Pharmacy: 70, Carding: 72, 'Whistleblowing drop': 66
+    Pharmacy: 70, Carding: 72, 'Whistleblowing drop': 66, Blog: 36, 'Social board': 62
   };
   const SURFACE_RULES = [
     [/gov|ministr|council|police|tax|embassy|parliament/i, 88, 'a government site: authenticated staff area, no uploads and a filter in front'],
