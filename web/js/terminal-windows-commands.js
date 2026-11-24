@@ -247,8 +247,14 @@
         }
         return title + '\n' + rows.join('\n');
       }
-      if (['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'ico'].includes(ext))
-        return title + '\n[ ' + ext.toUpperCase() + ' image — 1920x1080, 8-bit sRGB ]\nThe console shows the description; the Photos app draws it.';
+      if (['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'ico'].includes(ext)) {
+        const hostName = typeof host !== 'undefined' && host ? host : 'DEV-BOX';
+        const shown = typeof A !== 'undefined' && A.imageView
+          ? A.imageView({ path: clean(path), host: hostName, user: '', text: placeholder ? placeholder[1] : '', ext, os: 'windows' })
+          : null;
+        return title + '\n[ ' + ext.toUpperCase() + ' image — 1920x1080, 8-bit sRGB ]\n' +
+          (shown ? 'The picture is open in the viewer — click it, or press Esc, to close.' : 'The console shows the description; the viewer draws the picture.');
+      }
       if (['zip', 'docx', 'xlsx', 'pptx', '7z', 'rar', 'gz', 'tar'].includes(ext))
         return title + '\n[ ' + ext.toUpperCase() + ' archive ]\nExpand with: Expand-Archive (PowerShell) or tar -xf (Linux).';
       return title + '\n' + text;

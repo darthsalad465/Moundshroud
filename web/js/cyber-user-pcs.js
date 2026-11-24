@@ -571,7 +571,13 @@ const CyberPcs = (function () {
             if (text == null) return cmd + ': ' + name + ': No such file or directory';
             const ext = (name.match(/\.([A-Za-z0-9]+)$/) || [, ''])[1].toLowerCase();
             if (/^\s*\(([^()]{2,90})\)\s*$/.test(text)) return '── ' + name + ' ──\n[ ' + RegExp.$1 + ' ]';
-            if (/^(png|jpe?g|gif|bmp|webp)$/.test(ext)) return '── ' + name + ' ──\n[ ' + ext.toUpperCase() + ' image ]';
+            if (/^(png|jpe?g|gif|bmp|webp)$/.test(ext)) {
+              const hint = (text.match(/\(([^()]{2,90})\)/) || [, ''])[1];
+              if (typeof A !== 'undefined' && A.imageView)
+                A.imageView({ path: name, host: pc.ip, user: who, text: hint, ext, os: /windows/i.test(pc.os) ? 'windows' : 'linux' });
+              return '── ' + name + ' ──' + String.fromCharCode(10) + '[ ' + ext.toUpperCase() + ' image — 1920x1080 ]' + String.fromCharCode(10) + (hint || '') +
+                String.fromCharCode(10) + 'The picture is open in the viewer — click it, or press Esc, to close.';
+            }
             if (/^(zip|docx|xlsx|pptx|7z|rar|gz|tar)$/.test(ext)) return '── ' + name + ' ──\n[ ' + ext.toUpperCase() + ' archive — unzip -p ' + name + ' <member> ]';
             return '── ' + name + ' ──\n' + text;
           }

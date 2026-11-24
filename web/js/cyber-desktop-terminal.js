@@ -1,7 +1,7 @@
 // The opaque iframe gets only guest terminal saves over a private message port.
 (() => {
   const scripts = [
-    'cyber-crack', 'interp', 'terminal-unix', 'terminal-commands-shared', 'terminal-windows-commands', 'terminal-pc-profile', 'terminal-playground-data', 'terminal-playground-data2',
+    'cyber-crack', 'interp', 'terminal-unix', 'terminal-images', 'terminal-commands-shared', 'terminal-windows-commands', 'terminal-pc-profile', 'terminal-playground-data', 'terminal-playground-data2',
     'terminal-playground-data3', 'terminal-playground-curios', 'terminal-playground-jobs',
     'terminal-scenarios', 'terminal-sandbox-python', 'terminal-manual-content', 'terminal-manual-beginner',
     'terminal-hints', 'terminal-learn', 'terminal-manual-explain', 'terminal-manual', 'terminal-command-coach', 'terminal-labyrinth-data',

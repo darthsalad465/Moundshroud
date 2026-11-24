@@ -753,10 +753,15 @@
       }
       if (IMAGE_EXT.includes(ext)) {
         const box = /(\d{2,5})\s*[x×]\s*(\d{2,5})/.exec(text);
+        const hint = placeholderOf(text) || '';
+        const shown = A && A.imageView
+          ? A.imageView({ path: clean(path), host, user, text: hint, ext, os: isWin ? 'windows' : 'linux' })
+          : null;
         return [title + ' · ' + ext.toUpperCase() + ' image ──',
-          '[ ' + (placeholderOf(text) || 'image data') + ' ]',
+          '[ ' + (hint || 'image data') + ' ]',
           box ? '[ drawn at ' + box[1] + 'x' + box[2] + ' ]' : '[ 1920x1080 ]',
-          'The console cannot draw pixels; the desktop viewer shows the picture and this is its description.',
+          shown ? 'The picture itself is open in the viewer — click it, or press Esc, to close.'
+            : 'This shell prints the description; the picture is drawn by the viewer.',
           '  Format: ' + ext.toUpperCase() + '   Size: ' + size + ' bytes   Depth: 8-bit sRGB'].join('\n');
       }
       if (MEDIA_EXT.includes(ext)) {
