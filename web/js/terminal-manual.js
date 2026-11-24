@@ -700,6 +700,12 @@
   let serial = 0;
   function create(root, options = {}) {
     const { focusTerminal, useExample } = options;
+    /* An optional page about the exercise the shell is in the middle of (the moundshell's breach target). The host
+       supplies the whole body, because only it knows the target and the objectives; this window gives it a nav button,
+       a place among its own pages, and the same fold-away sections every other part of help uses. It is built when
+       the page is painted, not when the window opens: the engagement moves while the help stays up. */
+    const targetGuide = typeof options.targetGuide === 'function' ? options.targetGuide : null;
+    const targetGuideNow = () => { try { return targetGuide ? targetGuide() : null; } catch (e) { return null; } };
     const heading = 'tpg-manual-heading-' + ++serial;
     let dialog, index, chapter = '', page = null, filter = '', flags = [], message = '', lastCommand = '', browsing = false, mission = null;
     let playLog = [];
@@ -1308,10 +1314,18 @@
     function paintPage() {
       const view = get('page');
       if (!view) return;
-      view.innerHTML = special === 'tutorial' ? paintTutorial() : special === 'missions' ? paintMissions() :
+      /* the target of the engagement is a live thing: the host builds this page afresh on every paint, and the nav
+         button exists only while there really is an engagement to explain */
+      const target = targetGuideNow();
+      const targetButton = dialog && dialog.querySelector ? dialog.querySelector('[data-manual-target]') : null;
+      if (targetButton) { targetButton.hidden = !target; targetButton.style.display = target ? '' : 'none'; }
+      if (special === 'target' && !target) special = '';
+      view.innerHTML = special === 'target' ? '<div class="tpg-manual-tour">' + target.body + '</div>' :
+        special === 'tutorial' ? paintTutorial() : special === 'missions' ? paintMissions() :
         special === 'mission' ? paintMission() : page ? paintCommand() : paintStart();
       view.scrollTop = 0;
-      get('path').textContent = index.shell.name + ' · ' + (special === 'tutorial' ? 'Walkthrough' : special ? 'Missions' :
+      get('path').textContent = index.shell.name + ' · ' + (special === 'target' ? 'Target help' :
+        special === 'tutorial' ? 'Walkthrough' : special ? 'Missions' :
         (index.shell.modeName || { sandbox: 'Sandbox', puzzle: 'Puzzle Studio', lab: 'Labyrinth' }[index.mode] || index.mode));
       get('status').textContent = (lastCommand ? '$ ' + lastCommand + '\n' : '') + message;
       get('notice').textContent = message && (!lastCommand || page) ? message : '';
@@ -1371,6 +1385,8 @@
           saveView(); special = 'missions'; page = null; flags = []; filter = ''; message = ''; browsing = false; paintPage(); return;
         case 'switches': case 'flags': case 'options':
           openPage('combining switches', true); return;
+        case 'target': case 'this target': case 'engagement':
+          openTarget(); return;
         case 'ls':
           if (arg && !/^\/(?:manual\/?)?$/.test(arg)) { go(arg); return; }
           if (arg) { saveView(); chapter = ''; page = null; flags = []; filter = ''; browsing = true; }
@@ -1527,6 +1543,19 @@
       }
     }
 
+    /* the page about the engagement the host shell is in; it exists only while that engagement does */
+    function openTarget() {
+      if (!targetGuideNow()) {
+        message = 'No engagement is open, so there is no target to explain. Start one with breach <target> in the moundshell.';
+        paintPage();
+        return;
+      }
+      saveView();
+      special = 'target'; page = null; flags = []; filter = ''; message = ''; browsing = false;
+      paintPage();
+      const view = get('page'); if (view) view.focus({ preventScroll: true });
+    }
+
     function open(shell, mode, scenarioExamples, query, missionCtx) {
       const host = root.querySelector('[data-terminal-manual]');
       if (!host) return false;
@@ -1539,6 +1568,7 @@
           '<button type="button" data-manual-full title="Fill the window with the manual and the playground inside it">⛶ Fullscreen</button>' +
           '<button type="button" data-manual-close>Back to terminal</button></div></header>' +
           '<nav aria-label="Manual navigation">' + nav.map(([cmd, label]) => '<button type="button" data-manual-nav="' + esc(cmd) + '">' + esc(label) + '</button>').join('') +
+          (targetGuide ? '<button type="button" data-manual-nav="target" data-manual-target hidden style="display:none" title="Every command you can use on the target of the engagement you are in: what it does there, why you would use it, and its switches — without printing the answer">🎯 This target</button>' : '') +
           '<label class="tpg-manual-search">Find help<input type="search" data-manual="search" placeholder="Try “find a word” or “grep -n”" autocomplete="off"></label>' +
           '<label class="tpg-manual-anyshell" title="Search the commands of every shell this window can read, not only the one on screen"><input type="checkbox" data-manual="every"> every shell</label></nav>' +
           '<div class="tpg-manual-notice" data-manual="notice" role="status"></div>' +
@@ -1768,7 +1798,7 @@
       return true;
     }
 
-    return { open, close };
+    return { open, close, target: openTarget };
   }
 
   TP.manual = { create, buildIndex, search, pageFor, guideRequest };
