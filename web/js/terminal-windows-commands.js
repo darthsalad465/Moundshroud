@@ -223,6 +223,55 @@
       const f = words(a); if (!f.length) return 'The syntax of the command is incorrect.';
       return f.map(p => { const t = textOf(p); return t == null ? 'The system cannot find the file specified.' : t; }).join('\n');
     });
+
+    /* ------------------------------------------------------------ viewing any file
+       Windows has its own viewers: type, more, Get-Content, notepad, Invoke-Item and start all show a
+       file's content here, including files the sandbox only describes (images, archives, binaries). */
+    const viewFile = path => {
+      const t = textOf(path);
+      if (t == null) return null;
+      const text = String(t);
+      const ext = (String(path).match(/\.([A-Za-z0-9]+)$/) || [, ''])[1].toLowerCase();
+      const size = text.length;
+      const title = '--- ' + clean(path) + ' (' + (size < 1024 ? size + ' bytes' : Math.round(size / 1024) + ' KB') + ') ---';
+      const placeholder = /^\s*\(([^()]{2,90})\)\s*$/.exec(text);
+      if (placeholder) return title + '\n[ ' + placeholder[1] + ' ]\nThe file opens; this sandbox stores a description rather than the original bytes.';
+      if (/^\s*%PDF-/.test(text)) return title + '\n(PDF document, ' + size + ' bytes — its text layer is read with pdftotext on a Linux host)';
+      if (/[\u0000-\u0008\u000e-\u001f]/.test(text)) {
+        const rows = [];
+        for (let i = 0; i < Math.min(text.length, 256); i += 16) {
+          const chunk = text.slice(i, i + 16);
+          const hex = [...chunk].map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join(' ').padEnd(47);
+          const ascii = [...chunk].map(c => (/[\x20-\x7e]/.test(c) ? c : '.')).join('');
+          rows.push(i.toString(16).padStart(8, '0') + '  ' + hex + '  |' + ascii + '|');
+        }
+        return title + '\n' + rows.join('\n');
+      }
+      if (['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'ico'].includes(ext))
+        return title + '\n[ ' + ext.toUpperCase() + ' image — 1920x1080, 8-bit sRGB ]\nThe console shows the description; the Photos app draws it.';
+      if (['zip', 'docx', 'xlsx', 'pptx', '7z', 'rar', 'gz', 'tar'].includes(ext))
+        return title + '\n[ ' + ext.toUpperCase() + ' archive ]\nExpand with: Expand-Archive (PowerShell) or tar -xf (Linux).';
+      return title + '\n' + text;
+    };
+    const winOpener = name => a => {
+      const f = pick(a, '');
+      if (!f) return name + ': no file given';
+      const shown = viewFile(f);
+      return shown == null ? name + ' : Cannot find path \'' + clean(f) + '\' because it does not exist.' : shown;
+    };
+    for (const name of ['invoke-item', 'ii', 'open', 'notepad', 'notepad.exe', 'write', 'wordpad']) addWin(name, winOpener(name));
+    addWin('start', a => {
+      const f = pick(a, '');
+      if (!f || !/\.|\\|\//.test(f)) return '(started ' + (f || 'cmd.exe') + ' in the sandbox)';
+      return winOpener('start')([f]);
+    });
+    addWin('start-process', a => {
+      const f = pick(a, '');
+      if (!f) return '(started notepad)';
+      const shown = viewFile(f);
+      return shown == null ? '(started ' + f + ')' : shown;
+    });
+    add('out-string', (a, v) => (v == null ? '' : Array.isArray(v) ? table(v) : String(v)));
     add('more', (a, stdin) => {
       const t = a.length ? words(a).map(p => textOf(p) ?? 'The system cannot find the file specified.').join('\n') : (stdin == null ? '' : stdin);
       return t;
@@ -902,6 +951,22 @@
     add('shift', () => '');
     add('if', () => 'The syntax of the command is incorrect.');
     add('for', () => 'The syntax of the command is incorrect.');
+
+    /* certutil -dump prints a file as hex and text, the way the real tool does for certificates */
+    {
+      const plainCertutil = C.certutil;
+      if (typeof plainCertutil === 'function') {
+        C.certutil = (a, v) => {
+          const raw = a || [];
+          if (!raw.some(x => /^-dump/i.test(x))) return plainCertutil(a, v);
+          const f = raw.find(x => !String(x).startsWith('-')) || '';
+          const shown = f ? viewFile(f) : null;
+          if (shown == null) return 'CertUtil: -dump command FAILED: 0x80070002 (WIN32: 2 ERROR_FILE_NOT_FOUND)';
+          const NL = String.fromCharCode(10);
+          return '================ Certificate 0 ================' + NL + shown + NL + 'CertUtil: -dump command completed successfully.';
+        };
+      }
+    }
 
     return C;
   }

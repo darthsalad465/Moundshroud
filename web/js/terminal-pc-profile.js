@@ -56,6 +56,27 @@
     return base;
   }
 
+  /* a small but real PDF: one page, one content stream, and the (…) strings pdftotext reads as text */
+  function pdfDoc(title, lines) {
+    const esc = s => String(s).replace(/[\\()]/g, c => '\\' + c);
+    const content = 'BT /F1 12 Tf 16 TL 72 720 Td ' +
+      [title].concat(lines || []).map(line => (line ? '(' + esc(line) + ') Tj' : '() Tj') + ' T*').join(' ') + ' ET';
+    return [
+      '%PDF-1.4',
+      '1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj',
+      '2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj',
+      '3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >> endobj',
+      '4 0 obj << /Length ' + content.length + ' >>',
+      'stream',
+      content,
+      'endstream endobj',
+      '5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj',
+      'trailer << /Size 6 /Root 1 0 R >>',
+      '%%EOF',
+      ''
+    ].join('\n');
+  }
+
   const COMPANIES = ['Northgate Systems', 'Alder & Finch', 'Vantage Labs', 'Cobalt Works', 'Harbor Freight Co'];
   const PEOPLE = ['Dana Whitfield', 'Mira Okafor', 'Sam Iribarne', 'Jonah Achebe', 'Priya Raman', 'Elias Moreau'];
   const ROLES = ['finance', 'operations', 'support', 'engineering', 'sales'];
@@ -272,7 +293,19 @@
     file(H('Documents/CV-2026.txt'), person + '\n' + role + ' — ' + company + '\n\nExperience: ' + (4 + r(12)) + ' years\n');
     file(H('Downloads/invoice-' + (2000 + r(800)) + '.txt'), 'INVOICE\n' + company + '\nDate: ' + date(r) + '\nAmount: ' + (400 + r(4000)) + '.00\nPaid: ' + pick(r, ['yes', 'no', 'disputed']) + '\n');
     file(H('Downloads/setup.sh'), '#!/bin/sh\n# vendor installer (simulated)\necho installing\n');
-    file(H('Downloads/report.pdf'), '(PDF document, 96 KB)');
+    file(H('Downloads/report.pdf'), pdfDoc('Quarterly report — ' + company, [
+      'Prepared by ' + person + ', ' + role,
+      'Date: ' + date(r),
+      '',
+      'Revenue: $' + (120 + r(400)) + ',000',
+      'Costs: $' + (80 + r(200)) + ',000',
+      'Open tickets: ' + (3 + r(20)),
+      'Staff on leave this month: ' + (1 + r(4)),
+      '',
+      'Notes',
+      '- ' + pick(r, ['the vendor renewal is overdue', 'the migration slipped a week', 'budget is roughly on plan']),
+      '- ' + pick(r, ['rotate the service account', 'renew the certificate', 'move the backups'])
+    ]));
     file(H('Pictures/Screenshots/Screenshot from 2026-02-11 16-42-33.png'), '(PNG image, 1920x1080)');
     file(H('bin/backup.sh'), '#!/bin/sh\ntar czf /backup/home.tgz /home/' + user + '\n');
     file(H('.ssh/known_hosts'), 'fileserver01 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI' + hex(r, 20) + '\n');

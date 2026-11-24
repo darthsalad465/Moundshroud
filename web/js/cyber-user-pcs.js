@@ -526,6 +526,8 @@ const CyberPcs = (function () {
             'difficulty: ' + tier + ' · the flag is at /root/flag.txt' +
               (tier === 'extremely-easy' ? ' (and in your own home folder)' : ''), '',
             'ls [-la] [dir]   cd <dir>   pwd   cat <file>   head|tail [-n] <file>   grep <text> <file>',
+            'open <file>      xdg-open <file>   bat <file>   view <file>   less <file>   (any file opens)',
+            'strings <file>   xxd <file>   od <file>   stat <file>   file <file>',
             'find [dir]       wc -l <file>   file <file>   tree   du -sh',
             'whoami   id   hostname   uname -a   ps aux   env   ip a   ss -lntp   sudo -l',
             'exit             drop the session and go back to the mound shell', '',
@@ -561,6 +563,39 @@ const CyberPcs = (function () {
             const text = pc.files[target];
             if (target === 'root/flag.txt' && !rooted) return 'cat: /root/flag.txt: Permission denied';
             return text == null ? 'cat: ' + name + ': No such file or directory' : text;
+          }
+          case 'open': case 'xdg-open': case 'bat': case 'view': case 'less': {
+            if (!name) return 'usage: ' + cmd + ' <file>';
+            if (target === 'root/flag.txt' && !rooted) return cmd + ': /root/flag.txt: Permission denied';
+            const text = pc.files[target];
+            if (text == null) return cmd + ': ' + name + ': No such file or directory';
+            const ext = (name.match(/\.([A-Za-z0-9]+)$/) || [, ''])[1].toLowerCase();
+            if (/^\s*\(([^()]{2,90})\)\s*$/.test(text)) return '── ' + name + ' ──\n[ ' + RegExp.$1 + ' ]';
+            if (/^(png|jpe?g|gif|bmp|webp)$/.test(ext)) return '── ' + name + ' ──\n[ ' + ext.toUpperCase() + ' image ]';
+            if (/^(zip|docx|xlsx|pptx|7z|rar|gz|tar)$/.test(ext)) return '── ' + name + ' ──\n[ ' + ext.toUpperCase() + ' archive — unzip -p ' + name + ' <member> ]';
+            return '── ' + name + ' ──\n' + text;
+          }
+          case 'strings': {
+            const text = pc.files[target];
+            if (text == null) return 'strings: ' + name + ': No such file or directory';
+            return (text.match(/[\x20-\x7e]{4,}/g) || []).join('\n');
+          }
+          case 'xxd': case 'od': case 'hexdump': {
+            const text = pc.files[target];
+            if (text == null) return cmd + ': ' + name + ': No such file or directory';
+            const rows = [];
+            for (let i = 0; i < Math.min(text.length, 256); i += 16) {
+              const chunk = text.slice(i, i + 16);
+              const hex = [...chunk].map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join(' ').padEnd(47);
+              const ascii = [...chunk].map(c => (/[\x20-\x7e]/.test(c) ? c : '.')).join('');
+              rows.push(i.toString(16).padStart(8, '0') + '  ' + hex + '  |' + ascii + '|');
+            }
+            return rows.join('\n');
+          }
+          case 'stat': {
+            const text = pc.files[target];
+            if (text == null) return 'stat: cannot statx \'' + name + '\': No such file or directory';
+            return '  File: ' + name + '\n  Size: ' + text.length + '\tBlocks: ' + Math.ceil(text.length / 512) + '\tIO Block: 4096 regular file\nAccess: (0600/-rw-------)  Uid: (1000/' + who + ')   Gid: (1000/' + who + ')';
           }
           case 'head': case 'tail': {
             const text = pc.files[target];

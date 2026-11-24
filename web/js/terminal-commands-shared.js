@@ -441,6 +441,389 @@
     add('less', (a, stdin) => { const t = one(a) ? text(one(a)) : String(stdin || ''); return t == null ? 'less: ' + one(a) + ': No such file or directory' : t; });
     add('more', (a, stdin) => C.less(a, stdin));
 
+    /* ------------------------------------------------------------ documents, media & the last-mile tools
+       A Downloads folder invites the console document tools, and the shell used to answer 127 for all of them.
+       Everything here reads the room's own files: report.pdf really is a PDF in this sandbox (TerminalPC builds
+       one), so pdftotext walks its content streams and prints the lines the file actually holds. */
+    const pdfLiteral = raw => String(raw).replace(/\\([nrtbf()\\]|[0-7]{1,3})/g, (whole, c) => {
+      if (/^[0-7]+$/.test(c)) return String.fromCharCode(parseInt(c, 8));
+      const named = { n: '\n', r: '\r', t: '\t', b: '\b', f: '\f', '(': '(', ')': ')', '\\': '\\' };
+      return Object.hasOwn(named, c) ? named[c] : c;
+    });
+    /* one entry per page: the (…) strings inside that page's content stream, broken into lines by the text operators */
+    const pdfPagesOf = source => {
+      const streams = String(source == null ? '' : source).match(/stream\r?\n[\s\S]*?endstream/g) || [];
+      const pages = [];
+      for (const chunk of streams) {
+        const body = chunk.replace(/^stream\r?\n/, '').replace(/endstream$/, '');
+        if (!/(?:Tj|TJ|T\*|Td|TD)/.test(body)) continue;
+        const lines = [];
+        let line = '', started = false;
+        const token = /\((?:\\[\s\S]|[^()\\])*\)|T\*|TD?|'|"|Tj|TJ/g;
+        let m;
+        while ((m = token.exec(body))) {
+          const t = m[0];
+          if (t.charAt(0) === '(') { line += pdfLiteral(t.slice(1, -1)); started = true; }
+          else if (t === 'T*' || t === 'Td' || t === 'TD' || t === "'" || t === '"') {
+            if (started) lines.push(line);
+            line = ''; started = false;
+          }
+        }
+        if (started) lines.push(line);
+        pages.push(lines.join('\n'));
+      }
+      return pages;
+    };
+    const isPdf = src => /^\s*%PDF-\d\.\d/.test(String(src == null ? '' : src));
+    const pdfVersionOf = src => (String(src).match(/^%PDF-(\d\.\d)/) || [])[1] || '1.4';
+    const pdfError = 'Syntax Error: Couldn\'t find trailer dictionary\nSyntax Error: Couldn\'t read xref table';
+    const pdfWroteOut = (target, text) => {
+      if (!target || target === '-') return text;
+      if (typeof api.write !== 'function') return text;
+      api.write(target, text.endsWith('\n') ? text : text + '\n');
+      return '';
+    };
+    add('pdftotext', (a, stdin) => {
+      const raw = a || [];
+      const words = raw.filter(x => !String(x).startsWith('-') || x === '-');
+      const file = words[0] && words[0] !== '-' ? words[0] : null;
+      const target = words[1] || null;
+      const src = file ? read(file) : (stdin != null ? { text: String(stdin) } : null);
+      if (!src) return 'pdftotext: missing input file';
+      if (src.err) return 'I/O Error: Couldn\'t open file \'' + (file || '-') + '\'.';
+      if (!isPdf(src.text)) return pdfError;
+      const pages = pdfPagesOf(src.text);
+      const flagValue = flag => { const i = raw.indexOf(flag); return i >= 0 ? raw[i + 1] : ''; };
+      const first = Math.max(1, parseInt(flagValue('-f'), 10) || 1);
+      const last = Math.min(pages.length || 1, parseInt(flagValue('-l'), 10) || pages.length || 1);
+      if (first > last) return 'pdftotext: first page is after the last page';
+      return pdfWroteOut(target, pages.slice(first - 1, last).join('\n\n'));
+    });
+    add('pdfinfo', a => {
+      const f = one(a);
+      if (!f) return 'pdfinfo: missing input file';
+      const r = read(f);
+      if (r.err) return 'I/O Error: Couldn\'t open file \'' + f + '\'.';
+      if (!isPdf(r.text)) return pdfError;
+      const meta = key => {
+        const m = new RegExp('/' + key + '\\s*\\(((?:\\\\.|[^()\\\\])*)\\)').exec(String(r.text));
+        return m ? pdfLiteral(m[1]) : null;
+      };
+      const pages = pdfPagesOf(r.text).length || 1;
+      return [
+        'Title:          ' + (meta('Title') || f.replace(/^.*\//, '').replace(/\.pdf$/i, '')),
+        'Creator:        ' + (meta('Creator') || 'Writer'),
+        'Producer:       ' + (meta('Producer') || 'GPL Ghostscript 10.02.1'),
+        'CreationDate:   ' + (meta('CreationDate') || 'Thu Feb 12 06:20:00 2026 UTC'),
+        'Tagged:         no',
+        'UserProperties: no',
+        'Suspects:       no',
+        'Form:           none',
+        'JavaScript:     no',
+        'Pages:          ' + pages,
+        'Encrypted:      no',
+        'Page size:      612 x 792 pts (letter)',
+        'Page rot:       0',
+        'File size:      ' + String(r.text).length + ' bytes',
+        'Optimized:      no',
+        'PDF version:    ' + pdfVersionOf(r.text)
+      ].join('\n');
+    });
+    add('pdfgrep', (a, stdin) => {
+      const raw = a || [];
+      const flagText = raw.filter(x => String(x).startsWith('-')).join(' ');
+      const names = raw.filter(x => !String(x).startsWith('-'));
+      const pattern = names.shift();
+      if (!pattern) return 'pdfgrep: no pattern specified';
+      let re;
+      try { re = new RegExp(pattern, flagText.includes('i') ? 'i' : ''); }
+      catch (e) { return 'pdfgrep: invalid pattern: ' + pattern; }
+      const files = names.length ? names : ['-'];
+      const hits = [];
+      for (const f of files) {
+        const r = f === '-' ? { text: String(stdin == null ? '' : stdin) } : read(f);
+        if (r.err) { hits.push('pdfgrep: ' + f + ': No such file or directory'); continue; }
+        if (!isPdf(r.text)) { hits.push('pdfgrep: ' + f + ': not a PDF document'); continue; }
+        const lines = pdfPagesOf(r.text).join('\n').split('\n');
+        lines.forEach((line, i) => {
+          if (!re.test(line)) return;
+          hits.push((files.length > 1 || flagText.includes('H') ? f + ':' : '') + (flagText.includes('n') ? (i + 1) + ':' : '') + line);
+        });
+      }
+      if (flagText.includes('c')) return String(hits.filter(h => !/^pdfgrep:/.test(h)).length);
+      if (flagText.includes('l')) return hits.filter(h => !/^pdfgrep:/.test(h)).map(() => files.join('\n')).filter((v, i, arr) => arr.indexOf(v) === i).join('\n');
+      return hits.join('\n');
+    });
+    add('pandoc', (a, stdin) => {
+      const raw = a || [];
+      const flagValue = flag => { const i = raw.indexOf(flag); return i >= 0 ? raw[i + 1] : null; };
+      const out = flagValue('-o') || flagValue('--output');
+      const to = (flagValue('-t') || flagValue('--to') || (out && out.includes('.') ? out.replace(/^.*\./, '') : '') || 'html').toLowerCase();
+      const named = new Set([out, flagValue('-t'), flagValue('--to'), flagValue('-f'), flagValue('--from')]);
+      const names = raw.filter(x => !String(x).startsWith('-') && !named.has(x));
+      const src = names.length ? read(names[0]) : { text: String(stdin == null ? '' : stdin) };
+      if (src.err) return 'pandoc: ' + names[0] + ': openBinaryFile: does not exist (No such file or directory)';
+      const md = String(src.text);
+      const esc = t => t.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+      const plain = t => t.replace(/^#{1,6}\s*/gm, '').replace(/\*\*(.*?)\*\*/g, '$1').replace(/`([^`]*)`/g, '$1').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1');
+      let text;
+      if (to === 'html' || to === 'html5') {
+        const blocks = md.split(/\n\s*\n/).map(block => {
+          const head = /^(#{1,6})\s+(.*)$/.exec(block.trim());
+          if (head) return '<h' + head[1].length + '>' + esc(head[2]) + '</h' + head[1].length + '>';
+          if (/^\s*[-*]\s+/m.test(block)) return '<ul>\n' + block.split('\n').filter(l => /^\s*[-*]\s+/.test(l)).map(l => '  <li>' + esc(l.replace(/^\s*[-*]\s+/, '')) + '</li>').join('\n') + '\n</ul>';
+          return '<p>' + esc(block.trim()) + '</p>';
+        });
+        text = '<!DOCTYPE html>\n<html>\n<head>\n<meta charset="utf-8" />\n<title>' + esc(names[0] || 'document') + '</title>\n</head>\n<body>\n' + blocks.join('\n') + '\n</body>\n</html>\n';
+      } else if (to === 'plain' || to === 'txt' || to === 'text') text = plain(md);
+      else if (to === 'markdown' || to === 'md' || to === 'gfm') text = md;
+      else return 'pandoc: Unknown output format ' + to;
+      return pdfWroteOut(out, text);
+    });
+    /* office documents: the words between the markup, which is all a text extractor can offer */
+    const officeText = (name, f) => {
+      const r = read(f);
+      if (r.err) return name + ': ' + f + ': No such file or directory';
+      const body = String(r.text);
+      if (/^\(.*(?:document|binary|image).*\)$/i.test(body.trim())) return name + ': ' + f + ': no readable text (the file is a placeholder in this sandbox)';
+      const text = body.replace(/<[^>]*>/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/[ \t]+/g, ' ').trim();
+      return text || name + ': ' + f + ': no readable text';
+    };
+    for (const name of ['antiword', 'catdoc', 'docx2txt', 'odt2txt']) {
+      add(name, a => { const f = one(a); return f ? officeText(name, f) : name + ': missing file argument'; });
+    }
+    add('7z', a => {
+      const raw = a || [];
+      const words = raw.filter(x => !String(x).startsWith('-'));
+      const sub = words.length > 1 && ['l', 'x', 'e', 't'].includes(words[0]) ? words.shift() : 'l';
+      const f = words[0];
+      if (!f) return '7z: no archive given';
+      const r = read(f);
+      if (r.err) return '7z: ' + f + ': No such file or directory';
+      const size = String(r.text).length;
+      if (sub === 'x' || sub === 'e') return 'Everything is Ok\n\nFiles: 1\nSize: ' + size + '\nCompressed: ' + Math.ceil(size / 3);
+      return ['7-Zip 23.01 (x64) : Copyright (c) 1999-2023 Igor Pavlov : 2023-06-20', '', 'Listing archive: ' + f, '', '--',
+        'Path = ' + f, 'Type = 7z', 'Physical Size = ' + size, '', 'Date      Time    Attr         Size   Compressed  Name',
+        '2026-02-12 06:20:00 ....A   ' + String(size).padStart(9) + '   ' + String(Math.ceil(size / 3)).padStart(9) + '  ' + f.replace(/^.*\//, '')].join('\n');
+    });
+    add('unrar', a => {
+      const words = (a || []).filter(x => !String(x).startsWith('-'));
+      const f = words[words.length - 1];
+      if (!f) return 'unrar: no archive given';
+      const r = read(f);
+      if (r.err) return 'unrar: ' + f + ': No such file or directory';
+      const size = String(r.text).length;
+      return ['UNRAR 6.11 freeware', '', 'Archive: ' + f, ' Details: RAR 5', '', ' Attributes      Size     Date    Time   Name',
+        ' ----------- ---------  ---------- -----  ----', ' -rw-r--r--    ' + String(size).padStart(9) + '  2026-02-12 06:20  ' + f.replace(/^.*\//, '').replace(/\.[^.]+$/, ''),
+        ' ----------- ---------  ---------- -----  ----', '              ' + String(size).padStart(9) + '                    1'].join('\n');
+    });
+    add('exiftool', a => {
+      const f = one(a);
+      if (!f) return 'exiftool: no file specified';
+      const r = read(f);
+      if (r.err) return 'Error: File not found - ' + f;
+      const text = String(r.text);
+      const kind = isPdf(text) ? 'PDF' : /png/i.test(f) ? 'PNG' : /jpe?g/i.test(f) ? 'JPEG' : /\.(mp4|mov|mkv|webm)$/i.test(f) ? 'MP4' : 'Unknown';
+      const size = text.length;
+      const rows = [
+        'ExifTool Version Number         : 12.76',
+        'File Name                       : ' + f.replace(/^.*\//, ''),
+        'Directory                       : ' + (f.includes('/') ? f.replace(/\/[^/]*$/, '') : '.'),
+        'File Size                       : ' + (size < 1024 ? size + ' bytes' : Math.round(size / 1024) + ' kB'),
+        'File Modification Date/Time     : 2026:02:12 06:20:00+00:00',
+        'File Access Date/Time           : 2026:02:12 06:20:00+00:00',
+        'File Type                       : ' + kind,
+        'File Type Extension             : ' + (f.split('.').pop() || '').toLowerCase(),
+        'MIME Type                       : ' + ({ PDF: 'application/pdf', PNG: 'image/png', JPEG: 'image/jpeg', MP4: 'video/mp4', Unknown: 'application/octet-stream' }[kind])
+      ];
+      if (!/\.(mp4|mov|mkv|webm)$/i.test(f)) rows.push('Image Width                     : 1920', 'Image Height                    : 1080', 'Bit Depth                       : 8', 'Color Type                      : RGB');
+      return rows.join('\n');
+    });
+    add('mediainfo', a => {
+      const f = one(a);
+      if (!f) return 'mediainfo: no file specified';
+      const r = read(f);
+      if (r.err) return 'mediainfo: ' + f + ': No such file or directory';
+      return ['General', 'Complete name                            : ' + f, 'Format                                   : MPEG-4',
+        'Format profile                           : Base Media', 'File size                                : ' + (1 + Math.round(String(r.text).length / 512)) + ' MiB',
+        'Duration                                 : 1 min 12 s', 'Overall bit rate                         : 2 048 kb/s', '', 'Video',
+        'Format                                   : AVC', 'Width                                    : 1 920 pixels', 'Height                                   : 1 080 pixels',
+        'Frame rate                               : 30.000 FPS', '', 'Audio', 'Format                                   : AAC', 'Channels                                 : 2 channels',
+        'Sampling rate                            : 48.0 kHz'].join('\n');
+    });
+    add('ffprobe', a => {
+      const f = one(a);
+      if (!f) return 'ffprobe: no input file given';
+      const r = read(f);
+      if (r.err) return 'ffprobe: ' + f + ': No such file or directory';
+      return ['ffprobe version 6.1.1 Copyright (c) 2007-2023 the FFmpeg developers', 'Input #0, mov,mp4,m4a,3gp,3g2,mj2, from \'' + f + '\':',
+        '  Duration: 00:01:12.00, start: 0.000000, bitrate: 2048 kb/s',
+        '  Stream #0:0(und): Video: h264 (High), yuv420p, 1920x1080, 30 fps, 30 tbr, 15360 tbn',
+        '  Stream #0:1(und): Audio: aac (LC), 48000 Hz, stereo, fltp, 128 kb/s'].join('\n');
+    });
+    add('ffmpeg', a => {
+      const raw = a || [];
+      if (raw.some(x => /^-version$|--version/.test(x))) return 'ffmpeg version 6.1.1 Copyright (c) 2000-2023 the FFmpeg developers';
+      const words = raw.filter(x => !String(x).startsWith('-'));
+      const src = words[0], out = words[1];
+      if (!src) return 'ffmpeg: no input file given';
+      if (read(src).err) return 'ffmpeg: ' + src + ': No such file or directory';
+      if (!out) return 'At least one output file must be specified';
+      if (typeof api.write === 'function') api.write(out, '(media written by the simulated ffmpeg: ' + out + ')');
+      return 'Stream mapping:\n  Stream #0:0 -> #0:0 (h264 (native) -> h264 (libx264))\nPress [q] to stop, [?] for help\n' +
+        'frame=  120 fps=0.0 q=-1.0 Lsize=     512kB time=00:00:04.00 bitrate=1048.6kbits/s speed=8.1x\n' +
+        'video:480kB audio:28kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: 0.78%';
+    });
+    add('identify', a => {
+      const names = pos(a);
+      if (!names.length) return 'identify: no image file specified';
+      return names.map(f => {
+        const r = read(f);
+        if (r.err) return 'identify: unable to open image \'' + f + '\': No such file or directory';
+        const box = /1920x1080/.test(r.text) ? '1920x1080' : '1024x768';
+        const kind = /png/i.test(f) ? 'PNG' : 'JPEG';
+        return f + ' ' + kind + ' ' + box + ' ' + box + '+0+0 8-bit sRGB ' + Math.max(1, Math.round(String(r.text).length / 1024)) + 'KB 0.000u 0:00.000';
+      }).join('\n');
+    });
+    add('convert', a => {
+      const names = pos(a);
+      if (names.length < 2) return 'convert: missing an image filename';
+      const src = names[0], out = names[names.length - 1];
+      if (read(src).err) return 'convert: unable to open image \'' + src + '\': No such file or directory';
+      if (typeof api.write === 'function') api.write(out, '(image written by the simulated ImageMagick: ' + out + ')');
+      return '';
+    });
+    add('tesseract', a => {
+      const names = pos(a);
+      const img = names[0], base = names[1] || 'output';
+      if (!img) return 'Usage: tesseract imagename outputbase';
+      const r = read(img);
+      if (r.err) return 'Error, cannot read input file ' + img + ': No such file or directory';
+      const text = String(r.text).split('\n').map(l => l.trim()).filter(Boolean).join('\n') || '(the simulated image holds no readable text)';
+      if (typeof api.write === 'function') api.write(base + '.txt', text + '\n');
+      return 'Estimating resolution as 300\nTesseract Open Source OCR Engine v5.3.0 with Leptonica';
+    });
+    add('gs', a => (a || []).some(x => /--version/.test(x)) ? '10.02.1'
+      : ['GPL Ghostscript 10.02.1 (2023-11-01)', 'Copyright (C) 2023 Artifex Software, Inc.  All rights reserved.',
+        'This software is supplied under the GNU AGPLv3 and came with NO WARRANTY.', 'Type `gs --help` for a list of options.'].join('\n'));
+    add('xdg-open', a => {
+      const f = one(a);
+      if (!f) return 'xdg-open: no file or URL given';
+      if (read(f).err && !/^[a-z]+:\/\//i.test(f)) return 'xdg-open: file \'' + f + '\' does not exist';
+      return 'xdg-open: opened ' + f + ' in the desktop viewer (simulated: no program is launched outside this page)';
+    });
+    add('open', a => C['xdg-open'](a));
+    add('sensible-browser', a => C['xdg-open'](a));
+
+    /* ------------------------------------------------------------ opening anything
+       Every file a fake machine holds has to open, whatever it is: text, a PDF, a picture, an archive,
+       a video or raw bytes. These are the viewers a real console offers, and each one prints what the
+       file is and then what is inside it. Nothing here launches a program outside the page. */
+    const extOf = path => (String(path).match(/\.([A-Za-z0-9]+)$/) || [, ''])[1].toLowerCase();
+    const IMAGE_EXT = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'tif', 'tiff', 'svg', 'ico', 'heic'];
+    const MEDIA_EXT = ['mp4', 'mov', 'mkv', 'webm', 'avi', 'mp3', 'wav', 'flac', 'ogg', 'm4a', 'aac'];
+    const ARCHIVE_EXT = ['zip', 'gz', 'tgz', 'bz2', 'xz', '7z', 'rar', 'tar', 'docx', 'xlsx', 'pptx', 'odt', 'ods', 'odp', 'jar', 'apk', 'deb'];
+    const asBytes = src => String(src == null ? '' : src);
+    const looksBinary = src => /[\u0000-\u0008\u000e-\u001f]/.test(asBytes(src));
+    const placeholderOf = src => {
+      const m = /^\s*\(([^()]{2,90})\)\s*$/.exec(asBytes(src));
+      return m ? m[1] : null;
+    };
+    const hexLines = (src, limit) => {
+      const text = asBytes(src), rows = [];
+      for (let i = 0; i < Math.min(text.length, limit || 512); i += 16) {
+        const chunk = text.slice(i, i + 16);
+        const hex = [...chunk].map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join(' ').padEnd(47);
+        const ascii = [...chunk].map(c => (/[\x20-\x7e]/.test(c) ? c : '.')).join('');
+        rows.push(i.toString(16).padStart(8, '0') + '  ' + hex + '  |' + ascii + '|');
+      }
+      return rows.join('\n');
+    };
+    const printableRuns = src => (asBytes(src).match(/[\x20-\x7e\t]{4,}/g) || []).join('\n');
+    const sizeLabel = n => (n < 1024 ? n + ' bytes' : Math.round(n / 1024) + ' KB');
+    /* the whole file, rendered for a terminal. It never answers "cannot open": if it is a file, it opens. */
+    const renderFile = path => {
+      const r = read(path);
+      if (r.err) return null;
+      const text = asBytes(r.text), ext = extOf(path), size = text.length;
+      const title = '── ' + path + ' · ' + sizeLabel(size);
+      if (isPdf(text)) {
+        return [title + ' · PDF ' + pdfVersionOf(text) + ' ──',
+          pdfPagesOf(text).join('\n\n') || '(this PDF carries no text layer — every page is a picture)'].join('\n');
+      }
+      if (IMAGE_EXT.includes(ext)) {
+        const box = /(\d{2,5})\s*[x×]\s*(\d{2,5})/.exec(text);
+        return [title + ' · ' + ext.toUpperCase() + ' image ──',
+          '[ ' + (placeholderOf(text) || 'image data') + ' ]',
+          box ? '[ drawn at ' + box[1] + 'x' + box[2] + ' ]' : '[ 1920x1080 ]',
+          'The console cannot draw pixels; the desktop viewer shows the picture and this is its description.',
+          '  Format: ' + ext.toUpperCase() + '   Size: ' + size + ' bytes   Depth: 8-bit sRGB'].join('\n');
+      }
+      if (MEDIA_EXT.includes(ext)) {
+        return [title + ' · ' + ext.toUpperCase() + ' media ──',
+          'General', '  Format   : ' + ext.toUpperCase(), '  File size: ' + sizeLabel(size),
+          '  Duration : 1 min 12 s', '', 'Video', '  Format   : AVC', '  Width    : 1 920 pixels', '  Height   : 1 080 pixels',
+          '  Frame    : 30.000 FPS', '', 'Audio', '  Format   : AAC', '  Channels : 2 channels', '  Rate     : 48.0 kHz'].join('\n');
+      }
+      if (ARCHIVE_EXT.includes(ext)) {
+        const names = (text.match(/[A-Za-z0-9_][A-Za-z0-9_.\/-]{1,60}\.(?:txt|md|csv|tsv|json|xml|html?|pdf|png|jpe?g|docx?|xlsx?|pptx?|py|js|ts|sh|key|pem|conf|ini|log|cs|java|sql)/gi) || [])
+          .filter((n, i, all) => all.indexOf(n) === i).slice(0, 40);
+        const runs = printableRuns(text).split('\n').filter(Boolean).slice(0, 12);
+        return [title + ' · ' + ext.toUpperCase() + ' archive ──',
+          names.length ? 'members:\n  ' + names.join('\n  ') : runs.length ? 'contents:\n  ' + runs.join('\n  ') : '(the member list is compressed)',
+          '', 'Extract with: unzip -p ' + path + ' <member>   ·   tar -xO -f ' + path].join('\n');
+      }
+      if (looksBinary(text)) {
+        const runs = printableRuns(text).split('\n').filter(Boolean).slice(0, 20);
+        return [title + ' · binary ──', hexLines(text, 256), runs.length ? '\nstrings:\n' + runs.join('\n') : ''].join('\n');
+      }
+      const placeholder = placeholderOf(text);
+      return [title + ' ──', placeholder ? '[ ' + placeholder + ' ]' : text].join('\n');
+    };
+    const opener = name => a => {
+      const f = one(a);
+      if (!f) return name + ': no file given';
+      if (/^[a-z][a-z0-9+.-]*:\/\//i.test(f)) return name + ': ' + f + ' is a URL — use curl, or the Browser for a page';
+      const shown = renderFile(f);
+      return shown == null ? name + ': ' + f + ': No such file or directory' : shown;
+    };
+    /* these override the shallow opener the document block installed above: now they really show the file */
+    for (const name of ['xdg-open', 'open', 'gnome-open', 'kde-open', 'sensible-browser', 'see', 'viewer', 'bat', 'batcat', 'most', 'w3m', 'lynx', 'links', 'elinks', 'zless']) {
+      C[name] = opener(name);
+    }
+    add('gio', a => {
+      const sub = pos(a)[0] || '';
+      if (sub === 'open' || sub === 'launch') return C['xdg-open'](pos(a).slice(1));
+      if (sub === 'list') return 'file:///\nfile:///home/' + user + '\nfile:///tmp';
+      return 'gio: use `gio open <file>` in this sandbox';
+    });
+    add('busybox', a => {
+      const sub = pos(a)[0];
+      const fn = sub ? C[sub] : null;
+      return fn ? asText(fn(pos(a).slice(1), null))
+        : 'BusyBox v1.36.1 multi-call binary.\n\nUsage: busybox [function [arguments]...]\n  cat, less, more, head, tail, od, hexdump, strings, unzip, tar, gunzip, bzcat, ...';
+    });
+    for (const name of ['bzcat', 'xzcat', 'zstdcat', 'lz4cat']) {
+      add(name, (a, stdin) => {
+        const f = one(a);
+        const r = f ? read(f) : { text: String(stdin == null ? '' : stdin) };
+        return r.err ? name + ': ' + f + ': No such file or directory' : asBytes(r.text);
+      });
+    }
+    /* unzip -p prints one member to the screen instead of writing it to disk */
+    if (typeof C.unzip === 'function') {
+      const plainUnzip = C.unzip;
+      C.unzip = (a, stdin) => {
+        const raw = a || [];
+        if (!raw.some(x => /^-p$/.test(x))) return plainUnzip(a, stdin);
+        const names = raw.filter(x => !String(x).startsWith('-'));
+        const file = names.shift();
+        const r = file ? read(file) : { text: String(stdin == null ? '' : stdin) };
+        if (r.err) return 'unzip: cannot find or open ' + (file || '') + ', ' + (file || '') + '.zip or ' + (file || '') + '.ZIP';
+        return printableRuns(r.text) || '(the archive holds no readable text)';
+      };
+    }
+
     /* ------------------------------------------------------------ crypto / hashing helpers */
     add('openssl', a => {
       const rest = (a || []).join(' ');
@@ -613,7 +996,21 @@
     add('man', a => {
       const n = one(a); if (!n) return 'What manual page do you want?';
       if (!C[n]) return 'No manual entry for ' + n;
-      return n.toUpperCase() + '(1)\n\nNAME\n    ' + n + ' - ' + (C[n] ? 'shell command available in this simulated host' : '') + '\n\nSYNOPSIS\n    ' + n + ' [OPTION]... [FILE]...\n\nDESCRIPTION\n    Runs ' + n + ' against this shell\'s own filesystem.', '', 'SEE ALSO\n    help, which, type';
+      return [
+        n.toUpperCase() + '(1)',
+        '',
+        'NAME',
+        '    ' + n + ' - a program this simulated host can run',
+        '',
+        'SYNOPSIS',
+        '    ' + n + ' [OPTION]... [FILE]...',
+        '',
+        'DESCRIPTION',
+        '    Runs ' + n + ' against this shell\'s own filesystem. Type `help ' + n + '` for the sandbox manual.',
+        '',
+        'SEE ALSO',
+        '    help, which, type'
+      ].join('\n');
     });
     add('apropos', a => { const w = one(a) || ''; return w ? w + ' (1)               - shell command\n' + w + ' (5)               - file formats' : 'apropos: what do you want to search for?'; });
     add('whatis', a => { const n = one(a); return n ? n + ' (1) - ' + (C[n] ? 'shell command' : 'nothing appropriate') : 'whatis: missing operand'; });
@@ -1199,6 +1596,10 @@
       const text = String(r.text);
       if (/^\s*[{[]/.test(text)) { try { JSON.parse(text); return f + ': JSON text data'; } catch (e) { /* not json */ } }
       if (/\u0000/.test(text)) return f + ': data';
+      if (isPdf(text)) {
+        const pages = pdfPagesOf(text).length || 1;
+        return f + ': PDF document, version ' + pdfVersionOf(text) + ', ' + pages + ' page' + (pages === 1 ? '' : 's');
+      }
       if (/^#!\/.*(bash|sh)/.test(text)) return f + ': Bourne-Again shell script, ASCII text executable';
       if (/^<(!doctype|html)/i.test(text)) return f + ': HTML document, ASCII text';
       return f + ': ASCII text';

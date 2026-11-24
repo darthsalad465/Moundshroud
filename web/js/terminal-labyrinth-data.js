@@ -380,6 +380,10 @@
       const r = read(f || '');
       if (r.err) return 'file: ' + r.err;
       const t = r.text;
+      if (/^\s*%PDF-\d\.\d/.test(t)) {
+        const pages = (t.match(/\/Type\s*\/Page[^s]/g) || []).length || 1;
+        return f + ': PDF document, version ' + (t.match(/^%PDF-(\d\.\d)/) || [])[1] + ', ' + pages + ' page' + (pages === 1 ? '' : 's');
+      }
       if (/^[0-9a-f]{16,}$/i.test(t.trim())) return f + ': ASCII text (hex data)';
       if (/^[.\-\s]+$/.test(t.trim()) && t.includes('.')) return f + ': ASCII text (morse code)';
       if (/^[A-Za-z0-9+/=\s]+$/.test(t.trim()) && t.trim().length % 4 === 0) return f + ': ASCII text (base64 data)';

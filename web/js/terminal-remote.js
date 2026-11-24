@@ -183,7 +183,7 @@
           }
           return 'smb: \\> (exit)';
         }
-        case 'cat': case 'type': {
+        case 'cat': case 'type': case 'less': case 'more': case 'open': {
           const file = w[0] || '';
           const found = Object.keys(loot).find(name => name.toLowerCase() === file.replace(/^\.?\/?loot\//, '').toLowerCase());
           if (!found) return 'cat: ' + file + ': No such file or directory' + (Object.keys(loot).length ? ' (try: ' + Object.keys(loot).map(n => 'loot/' + n).join(', ') + ')' : '');
