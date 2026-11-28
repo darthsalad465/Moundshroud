@@ -27,4 +27,4 @@ On Windows, install the desktop build dependencies with `npm ci --prefix desktop
 
 Pass edition IDs to build or test a subset. Use `--source=<commit>` to pin the shared application source. The builder copies the committed shared runtime so uncommitted source, models, libraries and personal files stay out of the artifacts. The builds are unsigned.
 
-Installers are written to `desktop/dist/editions/<edition>`. To test an installed executable in a hidden window, start it with `--edition-smoke` and a disposable `MOUNDSHROUD_EDITION_PROFILE` directory.
+Installers are written to `desktop/dist/editions/<edition>`. Run `desktop/editions/verify.ps1` to extract the actual installer payloads, launch each app in a hidden window and write a SHA-256 list. This requires 7-Zip.

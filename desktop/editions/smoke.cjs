@@ -43,8 +43,12 @@ module.exports = (win, edition) => {
           const selected = await evaluate(`(async () => {
             const target = ${JSON.stringify(tab)};
             await A.showTab(target);
-            const panel = document.getElementById('p-' + target);
-            return A.cur === target && !!panel?.classList.contains('on') && !!panel.children.length;
+            for (let i=0; i<35; i++) {
+              const panel = document.getElementById('p-' + target);
+              if (A.cur === target && panel?.classList.contains('on') && panel.children.length) return true;
+              await new Promise(r => setTimeout(r, 100));
+            }
+            return { current: A.cur, active: document.querySelector('main section.panel.on')?.id };
           })()`);
           assert.equal(selected, true, 'Secondary tab: ' + tab);
         }
