@@ -1,0 +1,10 @@
+.edition body > header > b { background: none; color: var(--text); font-size: 16px !important; }
+.edition body > header > :is(#act, #appsh, #afbtn, #hist, #newc, #gs, #cog, #talk, #net, #model, #shfold) { display: none !important; }
+.edition body > header { height: 50px; border-bottom: 1px solid var(--line); }
+.edition #nav .nink { display: none; }
+.edition #nav button[aria-current="page"] { background: color-mix(in srgb, var(--acc) 16%, transparent) !important; }
+.edition #nav { overflow-y: auto; }
+.edition[data-edition="studio"] #nav { display: flex; }
+@media (max-width: 700px) {
+  .edition.sh body { --rail: 64px; }
+}

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Moundshroud Cyber</title>
+<link rel="stylesheet" href="/web/cyber.css">
+<script defer src="/web/cyber.js"></script>
+</head>
+<body>
+<header><img src="/web/logo-64.png" width="28" height="28" alt=""><b>Moundshroud Cyber</b></header>
+<main>
+  <h1>Security report review</h1>
+  <p>Review Deep Eye JSON reports on this device. Open a baseline to compare findings.</p>
+  <div class="files">
+    <label>Current report<input id="current" type="file" accept=".json,application/json"><small id="current-status"></small></label>
+    <label>Baseline (optional)<input id="baseline" type="file" accept=".json,application/json"><small id="baseline-status"></small></label>
+  </div>
+  <label class="inline" for="severity">Severity
+    <select id="severity"><option value="">All severities</option><option>critical</option><option>high</option><option>medium</option><option>low</option><option>info</option><option>unknown</option></select>
+  </label>
+  <p id="summary" role="status"></p>
+  <div id="findings"></div>
+  <details class="tool">
+    <summary>Verify a file checksum</summary>
+    <p>Calculate a SHA-256 fingerprint for a file up to 64 MiB.</p>
+    <input id="hash" aria-label="File to hash" type="file">
+    <output id="checksum" for="hash" role="status"></output>
+  </details>
+</main>
+</body>
+</html>
